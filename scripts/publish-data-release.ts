@@ -173,12 +173,12 @@ export async function executeProductionDataReleasePublish(
   const packageDownloadUrl =
     options.packageDownloadUrl ||
     (options.cdnBaseUrl
-      ? `${options.cdnBaseUrl.replace(/\\/+$/, '')}/${defaultPackageFileName}`
+      ? `${options.cdnBaseUrl.replace(/\/+$/, '')}/${defaultPackageFileName}`
       : defaultGithubDownloadUrl);
   const manifestUrl =
     options.manifestUrl ||
     (options.cdnBaseUrl
-      ? `${options.cdnBaseUrl.replace(/\\/+$/, '')}/manifest.json`
+      ? `${options.cdnBaseUrl.replace(/\/+$/, '')}/manifest.json`
       : defaultGithubManifestUrl);
 
   const bundle = await buildAndSignReleaseBundle({
