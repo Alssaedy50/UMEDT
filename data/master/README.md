@@ -16,7 +16,7 @@ The release publisher validates record IDs and duplicate normalized terms before
 
 ## Bootstrap behavior
 
-Until `terms.json` and `sentences.json` are added, the publisher uses the application's existing bundled seed records. The other domains default to empty arrays. This keeps releases reproducible without pretending that an external database already exists.
+For each missing master file, the publisher falls back to the corresponding bundled application seed data (terms, sentences, topics, affixes, and abbreviations). Once a master JSON file exists, that file becomes authoritative for its domain; an explicit empty array therefore publishes an empty domain. This keeps initial releases reproducible while allowing each domain to migrate independently.
 
 Do not invent WHO/UMD identifiers or medical source citations. Include provenance in the record content when available, and review medical changes before publishing.
 
