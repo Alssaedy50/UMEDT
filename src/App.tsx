@@ -13,8 +13,6 @@ import {
   Globe,
   X,
   CheckCircle2,
-  Sun,
-  Moon,
   Activity,
   BookOpen,
   Menu,
@@ -107,12 +105,12 @@ const TAB_TO_HASH: Record<MainTab, string> = {
 };
 
 const PAGE_LABELS: Record<MainTab, string> = {
-  home: 'القاموس والبحث',
-  topics: 'المقالات المعرفية',
-  translator: 'المترجم السريري',
-  datacenter: 'محرك البيانات',
-  ingest: 'محرك البيانات',
-  library: 'مكتبتي والمراجعة',
+  home: 'القاموس',
+  topics: 'المواضيع',
+  translator: 'المترجم',
+  datacenter: 'البيانات',
+  ingest: 'البيانات',
+  library: 'مكتبتي',
   settings: 'الإعدادات'
 };
 
@@ -1400,7 +1398,7 @@ export default function App() {
   return (
     <div
       dir="rtl"
-      className="min-h-screen w-full max-w-full overflow-x-clip box-border bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col pb-10 transition-colors duration-150"
+      className="min-h-screen w-full max-w-full box-border bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col pb-10"
     >
       {/* Service Worker & Offline Mode Portal Notices */}
       <PWAInstallBanner
@@ -1429,80 +1427,31 @@ export default function App() {
       )}
 
       {/* ====================================================================
-          TOP HEADER BAR WITH POP-OUT SIDE MENU TRIGGER
+          TOP HEADER BAR (Clean: Side Menu Trigger + Current Page — Brand)
          ==================================================================== */}
-      <header className="sticky top-0 z-30 min-h-[4rem] py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-4 w-full max-w-full box-border">
-        <div className="flex items-center gap-3 min-w-0">
+      <header className="sticky top-0 z-30 h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-3 w-full box-border">
+        <div className="flex items-center gap-2.5 min-w-0">
           <button
             type="button"
             onClick={() => setIsSidebarOpen(true)}
-            aria-label="فتح القائمة الجانبية"
-            className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-extrabold flex items-center gap-2 transition-colors whitespace-nowrap shrink-0"
+            aria-label="القائمة"
+            className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-extrabold flex items-center gap-2 transition-colors shrink-0"
           >
             <Menu className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span>القائمة</span>
-          </button>
-
-          <a
-            href="#home"
-            onClick={(e) => {
-              e.preventDefault();
-              setActiveTab('home');
-            }}
-            className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0"
-          >
-            DictEngine UMD
-          </a>
-
-          <span
-            aria-hidden="true"
-            className="text-slate-300 dark:text-slate-700 hidden sm:inline"
-          >
-            /
-          </span>
-
-          <span className="text-xs sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 truncate hidden sm:inline">
-            {PAGE_LABELS[activeTab]}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsDark((d) => !d)}
-            className="min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
-            title={isDark ? 'الوضع النهاري' : 'الوضع الليلي'}
-          >
-            {isDark ? (
-              <>
-                <Sun className="w-4 h-4 text-amber-400 shrink-0" />
-                <span className="hidden sm:inline">الوضع النهاري</span>
-              </>
-            ) : (
-              <>
-                <Moon className="w-4 h-4 text-slate-700 shrink-0" />
-                <span className="hidden sm:inline">الوضع الليلي</span>
-              </>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setDetailTermId(null);
-              setActiveTab('settings');
-            }}
-            className={`min-h-[40px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
-              activeTab === 'settings'
-                ? 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950'
-                : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
-            }`}
-            title="الإعدادات"
-          >
-            <Settings className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">الإعدادات</span>
+            <span>{PAGE_LABELS[activeTab]}</span>
           </button>
         </div>
+
+        <a
+          href="#home"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab('home');
+          }}
+          className="text-sm sm:text-base font-extrabold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0"
+        >
+          DictEngine UMD
+        </a>
       </header>
 
       {/* ====================================================================
@@ -1511,148 +1460,66 @@ export default function App() {
       {isSidebarOpen && (
         <div
           onClick={() => setIsSidebarOpen(false)}
-          className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex justify-start"
+          className="fixed inset-0 z-50 bg-black/60 flex justify-start"
         >
           <aside
             onClick={(e) => e.stopPropagation()}
-            className="w-72 sm:w-80 max-w-[85vw] h-full bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col justify-between p-5 overflow-y-auto"
+            className="w-64 max-w-[80vw] h-full bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col p-4 overflow-y-auto"
           >
-            <div className="space-y-5">
-              {/* Drawer Header */}
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-                <div>
-                  <div className="text-base font-extrabold text-slate-900 dark:text-white">
-                    DictEngine UMD
-                  </div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">
-                    المعجم الطبي الموحد والمترجم السريري
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsSidebarOpen(false)}
-                  aria-label="إغلاق القائمة"
-                  className="min-h-[40px] min-w-[40px] rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Drawer Navigation Items */}
-              <nav className="space-y-1.5">
-                {[
-                  {
-                    id: 'home' as MainTab,
-                    label: 'القاموس والبحث',
-                    desc: `${terms.length.toLocaleString()} مصطلح طبي وعلمي`,
-                    icon: Search
-                  },
-                  {
-                    id: 'topics' as MainTab,
-                    label: 'المقالات المعرفية',
-                    desc: `${topics.length.toLocaleString()} موضوع ومقال مشروح`,
-                    icon: BookOpen
-                  },
-                  {
-                    id: 'translator' as MainTab,
-                    label: 'المترجم السريري',
-                    desc: 'تحليل النصوص وتلوين المصطلحات',
-                    icon: Activity
-                  },
-                  {
-                    id: 'datacenter' as MainTab,
-                    label: 'محرك البيانات',
-                    desc: 'رفع ملفات المصطلحات أو الإدخال اليدوي',
-                    icon: Upload
-                  },
-                  {
-                    id: 'library' as MainTab,
-                    label: 'مكتبتي والمراجعة',
-                    desc: `${favoriteTerms.length.toLocaleString()} مصطلح محفوظ وبطاقات SM-2`,
-                    icon: Star
-                  },
-                  {
-                    id: 'settings' as MainTab,
-                    label: 'الإعدادات',
-                    desc: 'المظهر، التحديث السحابي، والنسخ الاحتياطي',
-                    icon: Settings
-                  }
-                ].map((item) => {
-                  const IconComp = item.icon;
-                  const isActive =
-                    activeTab === item.id ||
-                    (item.id === 'datacenter' && activeTab === 'ingest');
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        setDetailTermId(null);
-                        setActiveTab(item.id);
-                        setIsSidebarOpen(false);
-                      }}
-                      className={`w-full min-h-[54px] px-3.5 py-2.5 rounded-2xl text-right flex items-center justify-between gap-3 transition-colors ${
-                        isActive
-                          ? 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-extrabold shadow-xs'
-                          : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-800 dark:text-slate-200 font-bold'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <IconComp
-                          className={`w-5 h-5 shrink-0 ${
-                            isActive
-                              ? 'text-white dark:text-slate-950'
-                              : 'text-emerald-600 dark:text-emerald-400'
-                          }`}
-                        />
-                        <div className="min-w-0">
-                          <div className="text-sm truncate">{item.label}</div>
-                          <div
-                            className={`text-[11px] truncate font-normal ${
-                              isActive
-                                ? 'text-emerald-50 dark:text-slate-900'
-                                : 'text-slate-500 dark:text-slate-400'
-                            }`}
-                          >
-                            {item.desc}
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </nav>
-            </div>
-
-            {/* Drawer Footer */}
-            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
-              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span>إصدار البيانات:</span>
-                <span dir="ltr" className="font-mono font-bold text-slate-700 dark:text-slate-300">
-                  {versionMetadata.dataVersion}
-                </span>
-              </div>
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 dark:border-slate-800">
+              <span className="text-sm font-extrabold text-slate-900 dark:text-white">
+                القائمة
+              </span>
               <button
                 type="button"
-                onClick={() => setIsDark((d) => !d)}
-                className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold flex items-center justify-between text-slate-700 dark:text-slate-200"
+                onClick={() => setIsSidebarOpen(false)}
+                aria-label="إغلاق"
+                className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300"
               >
-                <span>تبديل المظهر</span>
-                <span className="flex items-center gap-1.5">
-                  {isDark ? (
-                    <>
-                      <Sun className="w-4 h-4 text-amber-400" />
-                      <span>الوضع النهاري</span>
-                    </>
-                  ) : (
-                    <>
-                      <Moon className="w-4 h-4 text-slate-700" />
-                      <span>الوضع الليلي</span>
-                    </>
-                  )}
-                </span>
+                <X className="w-4 h-4" />
               </button>
             </div>
+
+            <nav className="space-y-1">
+              {[
+                { id: 'home' as MainTab, label: 'القاموس', icon: Search },
+                { id: 'topics' as MainTab, label: 'المواضيع', icon: BookOpen },
+                { id: 'translator' as MainTab, label: 'المترجم', icon: Activity },
+                { id: 'datacenter' as MainTab, label: 'البيانات', icon: Upload },
+                { id: 'library' as MainTab, label: 'مكتبتي', icon: Star },
+                { id: 'settings' as MainTab, label: 'الإعدادات', icon: Settings }
+              ].map((item) => {
+                const IconComp = item.icon;
+                const isActive =
+                  activeTab === item.id ||
+                  (item.id === 'datacenter' && activeTab === 'ingest');
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setDetailTermId(null);
+                      setActiveTab(item.id);
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`w-full min-h-[44px] px-3.5 py-2 rounded-xl text-right flex items-center gap-3 text-sm transition-colors ${
+                      isActive
+                        ? 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-extrabold'
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold'
+                    }`}
+                  >
+                    <IconComp
+                      className={`w-4 h-4 shrink-0 ${
+                        isActive
+                          ? 'text-white dark:text-slate-950'
+                          : 'text-emerald-600 dark:text-emerald-400'
+                      }`}
+                    />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
           </aside>
         </div>
       )}
@@ -1660,7 +1527,7 @@ export default function App() {
       {/* ====================================================================
           MAIN APPLICATION WORKSPACE
          ==================================================================== */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 pt-4 overflow-x-clip box-border">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 pt-4 box-border">
         {onlineUpdateStatus.phase === 'update-available' && (
           <div className="mb-4 p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 flex-wrap">
             <div className="text-xs font-bold text-emerald-800 dark:text-emerald-200">
