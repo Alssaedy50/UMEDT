@@ -73,11 +73,7 @@ export async function executeProductionDataReleasePublish(
   const channel: 'stable' | 'beta' =
     (options.channel || env.UMED_RELEASE_CHANNEL) === 'beta' ? 'beta' : 'stable';
 
-  const cdnBaseUrl = (
-    options.cdnBaseUrl ||
-    env.UMED_CDN_BASE_URL ||
-    DEFAULT_CDN_RELEASE_BASE_URL
-  ).trim();
+  const cdnBaseUrl = (options.cdnBaseUrl || DEFAULT_CDN_RELEASE_BASE_URL).trim();
 
   const summary =
     (options.summary || env.UMED_RELEASE_SUMMARY || '').trim() ||
@@ -176,17 +172,13 @@ export async function executeProductionDataReleasePublish(
 
   const packageDownloadUrl =
     options.packageDownloadUrl ||
-    (r2PublicBase
-      ? `${r2PublicBase}/${channelPrefix}/packages/${defaultPackageFileName}`
-      : options.cdnBaseUrl
-      ? `${options.cdnBaseUrl.replace(/\/+$/, '')}/${defaultPackageFileName}`
+    (options.cdnBaseUrl
+      ? `${options.cdnBaseUrl.replace(/\\/+$/, '')}/${defaultPackageFileName}`
       : defaultGithubDownloadUrl);
   const manifestUrl =
     options.manifestUrl ||
-    (r2PublicBase
-      ? `${r2PublicBase}/${channelPrefix}/manifest.json`
-      : options.cdnBaseUrl
-      ? `${options.cdnBaseUrl.replace(/\/+$/, '')}/manifest.json`
+    (options.cdnBaseUrl
+      ? `${options.cdnBaseUrl.replace(/\\/+$/, '')}/manifest.json`
       : defaultGithubManifestUrl);
 
   const bundle = await buildAndSignReleaseBundle({
