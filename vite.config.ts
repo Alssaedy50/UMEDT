@@ -22,10 +22,10 @@ export default defineConfig(() => {
         ],
         manifest: {
           id: '/',
-          name: 'UMED-2 — DictEngine Hybrid Medical Dictionary & Clinical Translator',
-          short_name: 'UMED-2',
+          name: 'UMEDT',
+          short_name: 'UMEDT',
           description:
-            'منظومة القاموس الطبي الهجين (WHO UMD) ومحرك الترجمة السريرية المقيدة بالمعجم (GC-NMT) وشبكة المعرفة المحلية (Offline-First).',
+            'تطبيق UMEDT: القاموس الطبي والمترجم السريري بدون إنترنت.',
           theme_color: '#059669',
           background_color: '#020617',
           display: 'standalone',

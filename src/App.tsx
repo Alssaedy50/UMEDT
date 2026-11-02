@@ -1369,7 +1369,7 @@ export default function App() {
         (!navigator.canShare || navigator.canShare({ files: [file] }))
       ) {
         await navigator.share({
-          title: 'بيانات المعجم الطبي الموحد DictEngine UMD',
+          title: 'بيانات المعجم الطبي UMEDT',
           text: `نسخة بيانات القاموس الطبي (${terms.length} مصطلح و ${sentences.length} جملة سياقية)`,
           files: [file]
         });
@@ -1378,7 +1378,7 @@ export default function App() {
       }
       if (typeof navigator !== 'undefined' && navigator.share) {
         await navigator.share({
-          title: 'بيانات المعجم الطبي الموحد DictEngine UMD',
+          title: 'بيانات المعجم الطبي UMEDT',
           text: buildAiLinguisticAuditPack(terms.slice(0, 15), sentences.slice(0, 15))
         });
         showToast('تمت مشاركة حزمة المراجعة بنجاح');
@@ -1450,7 +1450,7 @@ export default function App() {
           }}
           className="text-sm sm:text-base font-extrabold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0"
         >
-          DictEngine UMD
+          UMEDT
         </a>
       </header>
 

@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'org.umed2.dictengine',
-  appName: 'UMED-2 DictEngine',
+  appName: 'UMEDT',
   webDir: 'dist',
   android: {
     allowMixedContent: false,

@@ -94,7 +94,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({
                   <div className="flex items-center gap-2">
                     <RefreshCw className="w-4 h-4 text-emerald-400 shrink-0" />
                     <span className="text-xs font-extrabold">
-                      يتوفر تحديث جديد لواجهة التطبيق (UMED-2 PWA)
+                      يتوفر تحديث جديد لواجهة التطبيق (UMEDT PWA)
                     </span>
                   </div>
                   <button
@@ -135,7 +135,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({
               >
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 shrink-0" />
-                  <span>تم تخزين واجهة UMED-2 للعمل بدون إنترنت (Offline App-Shell Ready)</span>
+                  <span>تم تخزين واجهة UMEDT للعمل بدون إنترنت (Offline App-Shell Ready)</span>
                 </div>
                 <button
                   type="button"
@@ -192,7 +192,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({
                       </div>
                       <div>
                         <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                          تثبيت UMED-2 (PWA / Android APK) ونقل البيانات
+                          تثبيت UMEDT (PWA / Android APK) ونقل البيانات
                         </h3>
                         <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold block">
                           تطبيق ويب تقدمي مستقل (PWA) + حزمة Android APK
@@ -221,7 +221,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({
                         className="w-full min-h-[42px] py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center justify-center gap-2"
                       >
                         <Download className="w-4 h-4 shrink-0" />
-                        <span>تثبيت UMED-2 مباشرة على الشاشة الرئيسية</span>
+                        <span>تثبيت UMEDT مباشرة على الشاشة الرئيسية</span>
                       </button>
                     )}
 
