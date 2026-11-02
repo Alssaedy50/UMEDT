@@ -1,4 +1,4 @@
-name: UMED-2 Medical Data Release & Cloudflare R2 Publishing
+name: UMEDT Medical Data Release (GitHub Releases)
 
 on:
   workflow_dispatch:
@@ -137,7 +137,7 @@ jobs:
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add "data/releases/${CHANNEL}/manifest.json"
             git diff --staged --quiet || git commit -m "chore(release): update ${CHANNEL} medical manifest to v${DATA_VERSION} [skip ci]"
-            git push origin HEAD || echo "Warning: git push skipped or already up to date"
+            git push origin "HEAD:main"
 
             PACKAGE_FILE=$(find releases -name "*.zip" | head -n 1)
             TAG_NAME="data-v${DATA_VERSION}"
