@@ -50,13 +50,18 @@ function assertUniqueIds<T extends { id?: unknown }>(records: T[], label: string
     if (!record || typeof record !== 'object' || typeof record.id !== 'string' || !record.id.trim()) {
       throw new Error(`${label}: every record must have a non-empty string id.`);
     }
-    if (seen.has(record.id)) throw new Error(`${label}: duplicate id "${record.id}".`);
-    seen.add(record.id);
+    const id = record.id.trim();
+    if (seen.has(id)) throw new Error(`${label}: duplicate id "${id}".`);
+    seen.add(id);
   }
 }
 
 function normalizeTerm(value: string): string {
-  return value.normalize('NFKC').toLocaleLowerCase().replace(/[\\s\\p{P}\\p{S}]+/gu, ' ').trim();
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\\s\\p{P}\\p{S}]+/gu, ' ')
+    .trim();
 }
 
 export function loadMasterMedicalRepository(rootDir = process.cwd()): MasterMedicalRepository {
@@ -77,7 +82,7 @@ export function loadMasterMedicalRepository(rootDir = process.cwd()): MasterMedi
     if (!term || typeof term.term !== 'string' || !term.term.trim()) {
       throw new Error('terms: every record must have a non-empty term.');
     }
-    const key = normalizeTerm(term.termNormalized || term.term);
+    const key = normalizeTerm(term.term);
     if (!key) throw new Error(`terms: invalid normalized term for "${term.term}".`);
     if (termKeys.has(key)) throw new Error(`terms: duplicate normalized term "${term.term}".`);
     termKeys.add(key);
