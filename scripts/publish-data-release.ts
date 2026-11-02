@@ -30,8 +30,8 @@ import {
   INITIAL_TERMS,
   INITIAL_LINKED_SENTENCES
 } from '../src/data/medicalLexiconData';
-import { INITIAL_TOPICS } from '../src/data/topicsSeedData';
 import { autoEnrichAllTermsRelations } from '../src/engine/knowledgeLinker';
+import { loadMasterMedicalRepository } from './validate-master-data';
 import type { DataPackagePayload, PublishedReleaseBundle } from '../src/types/lexicon';
 import {
   uploadReleaseBundleToR2,
@@ -140,9 +140,12 @@ export async function executeProductionDataReleasePublish(
     );
   }
 
-  const enrichedTerms = autoEnrichAllTermsRelations([...INITIAL_TERMS]);
-  const syncedSentences = [...INITIAL_LINKED_SENTENCES];
-  const topics = [...INITIAL_TOPICS];
+  const masterRepo = loadMasterMedicalRepository(process.cwd());
+  const enrichedTerms = autoEnrichAllTermsRelations([...masterRepo.terms]);
+  const syncedSentences = [...masterRepo.sentences];
+  const topics = [...masterRepo.topics];
+  const customAffixes = [...masterRepo.customAffixes];
+  const customAbbreviations = [...masterRepo.customAbbreviations];
 
   const payload: DataPackagePayload = {
     manifest: {
@@ -156,15 +159,15 @@ export async function executeProductionDataReleasePublish(
         terms: enrichedTerms.length,
         sentences: syncedSentences.length,
         topics: topics.length,
-        affixes: 0,
-        abbreviations: 0
+        affixes: customAffixes.length,
+        abbreviations: customAbbreviations.length
       }
     },
     terms: enrichedTerms,
     sentences: syncedSentences,
     topics,
-    customAffixes: [],
-    customAbbreviations: []
+    customAffixes,
+    customAbbreviations
   };
 
   const rawR2PublicBase = (env.UMED_R2_PUBLIC_BASE_URL || '').trim();
@@ -172,12 +175,23 @@ export async function executeProductionDataReleasePublish(
   const channelPrefix = channel === 'beta' ? 'beta' : 'stable';
   const defaultPackageFileName = `umed2-data-${targetVersion}.zip`;
 
+  const defaultGithubDownloadUrl = `https://github.com/Alssaedy50/UMEDT/releases/download/data-v${targetVersion}/${defaultPackageFileName}`;
+  const defaultGithubManifestUrl = `https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/${channelPrefix}/manifest.json`;
+
   const packageDownloadUrl =
     options.packageDownloadUrl ||
-    (r2PublicBase ? `${r2PublicBase}/${channelPrefix}/packages/${defaultPackageFileName}` : undefined);
+    (r2PublicBase
+      ? `${r2PublicBase}/${channelPrefix}/packages/${defaultPackageFileName}`
+      : options.cdnBaseUrl
+      ? `${options.cdnBaseUrl.replace(/\/+$/, '')}/${defaultPackageFileName}`
+      : defaultGithubDownloadUrl);
   const manifestUrl =
     options.manifestUrl ||
-    (r2PublicBase ? `${r2PublicBase}/${channelPrefix}/manifest.json` : undefined);
+    (r2PublicBase
+      ? `${r2PublicBase}/${channelPrefix}/manifest.json`
+      : options.cdnBaseUrl
+      ? `${options.cdnBaseUrl.replace(/\/+$/, '')}/manifest.json`
+      : defaultGithubManifestUrl);
 
   const bundle = await buildAndSignReleaseBundle({
     payload,

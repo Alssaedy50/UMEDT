@@ -22,22 +22,22 @@ on:
         type: string
         default: ''
       dry_run:
-        description: 'Dry Run mode (simulates checks and package generation without mutating R2)'
+        description: 'Dry Run mode (simulates checks and package generation)'
         required: false
         type: boolean
         default: false
       skip_r2_upload:
-        description: 'Skip R2 upload (build, sign, and verify release artifacts only)'
+        description: 'Skip Cloudflare R2 upload (Default true: Use GitHub Releases)'
         required: false
         type: boolean
-        default: false
+        default: true
 
 concurrency:
   group: publish-data-${{ github.event.inputs.channel || 'stable' }}
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
   packages: read
 
 jobs:
@@ -120,6 +120,35 @@ jobs:
           path: releases/
           retention-days: 90
           if-no-files-found: error
+
+      - name: Publish to GitHub Releases & Update Manifest in Repo
+        if: ${{ github.event.inputs.dry_run != 'true' && !cancelled() }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANNEL: ${{ github.event.inputs.channel || 'stable' }}
+        run: |
+          MANIFEST_FILE="releases/manifest.json"
+          if [ -f "$MANIFEST_FILE" ]; then
+            DATA_VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$MANIFEST_FILE')).dataVersion)")
+            mkdir -p "data/releases/${CHANNEL}"
+            cp -f "releases/manifest.json" "data/releases/${CHANNEL}/manifest.json"
+            
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add "data/releases/${CHANNEL}/manifest.json"
+            git diff --staged --quiet || git commit -m "chore(release): update ${CHANNEL} medical manifest to v${DATA_VERSION} [skip ci]"
+            git push origin HEAD || echo "Warning: git push skipped or already up to date"
+
+            PACKAGE_FILE=$(find releases -name "*.zip" | head -n 1)
+            TAG_NAME="data-v${DATA_VERSION}"
+            if [ -n "$PACKAGE_FILE" ]; then
+              echo "Creating GitHub Release $TAG_NAME with $PACKAGE_FILE..."
+              gh release create "$TAG_NAME" "$PACKAGE_FILE" "releases/manifest.json" \
+                --title "UMEDT Medical Data v${DATA_VERSION}" \
+                --notes-file "releases/CHANGELOG.md" \
+                --target "$GITHUB_SHA" || gh release upload "$TAG_NAME" "$PACKAGE_FILE" "releases/manifest.json" --clobber || true
+            fi
+          fi
 
       - name: Generate Publishing Summary
         if: always()
