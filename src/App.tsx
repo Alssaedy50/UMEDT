@@ -16,7 +16,9 @@ import {
   Sun,
   Moon,
   Activity,
-  BookOpen
+  BookOpen,
+  Menu,
+  Settings
 } from 'lucide-react';
 import {
   EXTRA_LINKABLE_ALIASES,
@@ -75,10 +77,11 @@ import { TermDetailSheet } from './components/TermDetailSheet';
 import { ClinicalTranslatorView } from './components/ClinicalTranslatorView';
 import { IngestionPortal, StagedTermItem } from './components/IngestionPortal';
 import { LibraryView } from './components/LibraryView';
+import { SettingsView } from './components/SettingsView';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { prepareAndDownloadFile } from './utils/downloadHelper';
 
-type MainTab = 'home' | 'topics' | 'translator' | 'datacenter' | 'ingest' | 'library';
+type MainTab = 'home' | 'topics' | 'translator' | 'datacenter' | 'ingest' | 'library' | 'settings';
 
 const ROUTE_TO_TAB: Record<string, MainTab> = {
   '/': 'home',
@@ -89,7 +92,8 @@ const ROUTE_TO_TAB: Record<string, MainTab> = {
   '/datacenter': 'datacenter',
   '/medical-data-center': 'datacenter',
   '/ingest': 'ingest',
-  '/library': 'library'
+  '/library': 'library',
+  '/settings': 'settings'
 };
 
 const TAB_TO_HASH: Record<MainTab, string> = {
@@ -98,7 +102,18 @@ const TAB_TO_HASH: Record<MainTab, string> = {
   translator: '#translator',
   datacenter: '#datacenter',
   ingest: '#ingest',
-  library: '#library'
+  library: '#library',
+  settings: '#settings'
+};
+
+const PAGE_LABELS: Record<MainTab, string> = {
+  home: 'القاموس والبحث',
+  topics: 'المقالات المعرفية',
+  translator: 'المترجم السريري',
+  datacenter: 'محرك البيانات',
+  ingest: 'محرك البيانات',
+  library: 'مكتبتي والمراجعة',
+  settings: 'الإعدادات'
 };
 
 function resolveInitialTabFromLocation(): MainTab {
@@ -111,7 +126,8 @@ function resolveInitialTabFromLocation(): MainTab {
     hashClean === 'datacenter' ||
     hashClean === 'medical-data-center' ||
     hashClean === 'ingest' ||
-    hashClean === 'library'
+    hashClean === 'library' ||
+    hashClean === 'settings'
   ) {
     if (hashClean === 'medical-data-center') return 'datacenter';
     return hashClean as MainTab;
@@ -176,8 +192,9 @@ export default function App() {
 
   const [toast, setToast] = useState<{ message: string; type: string } | null>(null);
 
-  // Unified Popover Menu States
+  // Unified Popover & Side Menu States
   const [openMenu, setOpenMenu] = useState<null | 'searchFilters' | 'collections'>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -219,7 +236,7 @@ export default function App() {
   );
 
   // Screen 3: Smart Ingestion Portal State
-  const [conflictPolicy] = useState<'ignore' | 'overwrite' | 'merge'>(
+  const [conflictPolicy, setConflictPolicy] = useState<'ignore' | 'overwrite' | 'merge'>(
     initialPersisted.settings.conflictPolicy
   );
 
@@ -286,7 +303,22 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isSidebarOpen) {
+        setIsSidebarOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSidebarOpen]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
     const handlePopState = () => {
+      if (isSidebarOpen) {
+        setIsSidebarOpen(false);
+        return;
+      }
       if (openMenu) {
         setOpenMenu(null);
         return;
@@ -316,7 +348,7 @@ export default function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [openMenu, previewTerm, detailTermId, detailHistory, activeTab]);
+  }, [isSidebarOpen, openMenu, previewTerm, detailTermId, detailHistory, activeTab]);
 
   const showToast = (message: string, type = 'success') => {
     setToast({ message, type });
@@ -1368,11 +1400,17 @@ export default function App() {
   return (
     <div
       dir="rtl"
-      style={{
-        paddingBottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))'
-      }}
-      className="min-h-screen w-full max-w-full overflow-x-clip box-border bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col lg:pb-12 transition-colors duration-150"
+      className="min-h-screen w-full max-w-full overflow-x-clip box-border bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col pb-10 transition-colors duration-150"
     >
+      {/* Service Worker & Offline Mode Portal Notices */}
+      <PWAInstallBanner
+        hideHeaderButtons
+        simulatedOffline={simulatedOffline}
+        onToggleSimulatedOffline={handleToggleSimulatedOffline}
+        onExportZipPackage={handleExportZipPackage}
+        onExportJsonBackup={handleExportFullBackup}
+      />
+
       {/* Toast Notification */}
       {toast && (
         <div className="fixed top-16 inset-x-4 max-w-md mx-auto z-50 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-slate-900 dark:bg-slate-800 border border-emerald-500/40 text-white shadow-xl">
@@ -1391,59 +1429,49 @@ export default function App() {
       )}
 
       {/* ====================================================================
-          TOP NAVIGATION BAR (Strict 3-Zone Contract: Brand — 5 Main Tabs — Theme)
+          TOP HEADER BAR WITH POP-OUT SIDE MENU TRIGGER
          ==================================================================== */}
-      <header className="sticky top-0 z-30 min-h-[4rem] py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-3 sm:px-4 lg:px-8 flex items-center justify-between gap-2 flex-wrap w-full max-w-full box-border">
-        <a
-          href="#home"
-          onClick={(e) => {
-            e.preventDefault();
-            setActiveTab('home');
-          }}
-          className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0"
-        >
-          DictEngine UMD
-        </a>
+      <header className="sticky top-0 z-30 min-h-[4rem] py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-4 w-full max-w-full box-border">
+        <div className="flex items-center gap-3 min-w-0">
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            aria-label="فتح القائمة الجانبية"
+            className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-extrabold flex items-center gap-2 transition-colors whitespace-nowrap shrink-0"
+          >
+            <Menu className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>القائمة</span>
+          </button>
 
-        <nav className="hidden lg:flex items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300">
-          {[
-            { id: 'home', label: 'القاموس والبحث' },
-            { id: 'topics', label: 'مواضيع' },
-            { id: 'translator', label: 'المترجم السريري' },
-            { id: 'datacenter', label: 'محرك البيانات' },
-            { id: 'library', label: 'مكتبتي والإعدادات' }
-          ].map((item) => {
-            const isActive =
-              activeTab === item.id ||
-              (item.id === 'datacenter' && activeTab === 'ingest');
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setActiveTab(item.id as MainTab)}
-                className={`py-3 transition-colors whitespace-nowrap shrink-0 border-b-2 ${
-                  isActive
-                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 font-bold'
-                    : 'border-transparent hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
+          <a
+            href="#home"
+            onClick={(e) => {
+              e.preventDefault();
+              setActiveTab('home');
+            }}
+            className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0"
+          >
+            DictEngine UMD
+          </a>
 
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <PWAInstallBanner
-            simulatedOffline={simulatedOffline}
-            onToggleSimulatedOffline={handleToggleSimulatedOffline}
-            onExportZipPackage={handleExportZipPackage}
-            onExportJsonBackup={handleExportFullBackup}
-          />
+          <span
+            aria-hidden="true"
+            className="text-slate-300 dark:text-slate-700 hidden sm:inline"
+          >
+            /
+          </span>
+
+          <span className="text-xs sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 truncate hidden sm:inline">
+            {PAGE_LABELS[activeTab]}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => setIsDark((d) => !d)}
-            className="min-h-[38px] px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+            className="min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+            title={isDark ? 'الوضع النهاري' : 'الوضع الليلي'}
           >
             {isDark ? (
               <>
@@ -1457,8 +1485,177 @@ export default function App() {
               </>
             )}
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setDetailTermId(null);
+              setActiveTab('settings');
+            }}
+            className={`min-h-[40px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
+              activeTab === 'settings'
+                ? 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950'
+                : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
+            }`}
+            title="الإعدادات"
+          >
+            <Settings className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">الإعدادات</span>
+          </button>
         </div>
       </header>
+
+      {/* ====================================================================
+          POP-OUT SIDE NAVIGATION DRAWER (القائمة الجانبية المنبثقة)
+         ==================================================================== */}
+      {isSidebarOpen && (
+        <div
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex justify-start"
+        >
+          <aside
+            onClick={(e) => e.stopPropagation()}
+            className="w-72 sm:w-80 max-w-[85vw] h-full bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col justify-between p-5 overflow-y-auto"
+          >
+            <div className="space-y-5">
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+                <div>
+                  <div className="text-base font-extrabold text-slate-900 dark:text-white">
+                    DictEngine UMD
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    المعجم الطبي الموحد والمترجم السريري
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarOpen(false)}
+                  aria-label="إغلاق القائمة"
+                  className="min-h-[40px] min-w-[40px] rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Drawer Navigation Items */}
+              <nav className="space-y-1.5">
+                {[
+                  {
+                    id: 'home' as MainTab,
+                    label: 'القاموس والبحث',
+                    desc: `${terms.length.toLocaleString()} مصطلح طبي وعلمي`,
+                    icon: Search
+                  },
+                  {
+                    id: 'topics' as MainTab,
+                    label: 'المقالات المعرفية',
+                    desc: `${topics.length.toLocaleString()} موضوع ومقال مشروح`,
+                    icon: BookOpen
+                  },
+                  {
+                    id: 'translator' as MainTab,
+                    label: 'المترجم السريري',
+                    desc: 'تحليل النصوص وتلوين المصطلحات',
+                    icon: Activity
+                  },
+                  {
+                    id: 'datacenter' as MainTab,
+                    label: 'محرك البيانات',
+                    desc: 'رفع ملفات المصطلحات أو الإدخال اليدوي',
+                    icon: Upload
+                  },
+                  {
+                    id: 'library' as MainTab,
+                    label: 'مكتبتي والمراجعة',
+                    desc: `${favoriteTerms.length.toLocaleString()} مصطلح محفوظ وبطاقات SM-2`,
+                    icon: Star
+                  },
+                  {
+                    id: 'settings' as MainTab,
+                    label: 'الإعدادات',
+                    desc: 'المظهر، التحديث السحابي، والنسخ الاحتياطي',
+                    icon: Settings
+                  }
+                ].map((item) => {
+                  const IconComp = item.icon;
+                  const isActive =
+                    activeTab === item.id ||
+                    (item.id === 'datacenter' && activeTab === 'ingest');
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setDetailTermId(null);
+                        setActiveTab(item.id);
+                        setIsSidebarOpen(false);
+                      }}
+                      className={`w-full min-h-[54px] px-3.5 py-2.5 rounded-2xl text-right flex items-center justify-between gap-3 transition-colors ${
+                        isActive
+                          ? 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-extrabold shadow-xs'
+                          : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-800 dark:text-slate-200 font-bold'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <IconComp
+                          className={`w-5 h-5 shrink-0 ${
+                            isActive
+                              ? 'text-white dark:text-slate-950'
+                              : 'text-emerald-600 dark:text-emerald-400'
+                          }`}
+                        />
+                        <div className="min-w-0">
+                          <div className="text-sm truncate">{item.label}</div>
+                          <div
+                            className={`text-[11px] truncate font-normal ${
+                              isActive
+                                ? 'text-emerald-50 dark:text-slate-900'
+                                : 'text-slate-500 dark:text-slate-400'
+                            }`}
+                          >
+                            {item.desc}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+
+            {/* Drawer Footer */}
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span>إصدار البيانات:</span>
+                <span dir="ltr" className="font-mono font-bold text-slate-700 dark:text-slate-300">
+                  {versionMetadata.dataVersion}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDark((d) => !d)}
+                className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold flex items-center justify-between text-slate-700 dark:text-slate-200"
+              >
+                <span>تبديل المظهر</span>
+                <span className="flex items-center gap-1.5">
+                  {isDark ? (
+                    <>
+                      <Sun className="w-4 h-4 text-amber-400" />
+                      <span>الوضع النهاري</span>
+                    </>
+                  ) : (
+                    <>
+                      <Moon className="w-4 h-4 text-slate-700" />
+                      <span>الوضع الليلي</span>
+                    </>
+                  )}
+                </span>
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
 
       {/* ====================================================================
           MAIN APPLICATION WORKSPACE
@@ -1481,10 +1678,10 @@ export default function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab('library')}
+                onClick={() => setActiveTab('settings')}
                 className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white/80 dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-800"
               >
-                التفاصيل
+                الإعدادات
               </button>
             </div>
           </div>
@@ -1590,6 +1787,7 @@ export default function App() {
             terms={terms}
             sentences={sentences}
             topics={topics}
+            studyStats={studyStats}
             activeCollection={activeCollection}
             onOpenCollectionsMenu={() =>
               setOpenMenu(openMenu === 'collections' ? null : 'collections')
@@ -1599,6 +1797,22 @@ export default function App() {
             onToggleFavoriteTerm={toggleFavoriteTerm}
             onToggleFavoriteSentence={toggleFavoriteSentence}
             onTriggerTTS={triggerTTS}
+          />
+        )}
+
+        {activeTab === 'settings' && (
+          <SettingsView
+            isDark={isDark}
+            onToggleDark={setIsDark}
+            conflictPolicy={conflictPolicy}
+            onChangeConflictPolicy={(nextPolicy) => {
+              setConflictPolicy(nextPolicy);
+              showToast('تم تحديث سياسة معالجة المصطلحات المكررة');
+            }}
+            simulatedOffline={simulatedOffline}
+            onToggleSimulatedOffline={handleToggleSimulatedOffline}
+            recentTermsCount={recentTermIds.length}
+            onClearRecentTerms={handleClearRecentTerms}
             dbMetrics={dbMetrics}
             versionMetadata={versionMetadata}
             onlineUpdateConfig={onlineUpdateConfig}
@@ -1886,49 +2100,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      {/* ====================================================================
-          MOBILE 5-TAB BOTTOM NAVIGATION BAR (Safe-Area Aware for Android APK)
-         ==================================================================== */}
-      <nav
-        style={{
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)'
-        }}
-        className="lg:hidden fixed bottom-0 inset-x-0 z-40 min-h-[4rem] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 grid grid-cols-5 items-center px-2"
-      >
-        {[
-          { id: 'home', label: 'القاموس', icon: Search },
-          { id: 'topics', label: 'مواضيع', icon: BookOpen },
-          { id: 'translator', label: 'المترجم', icon: Activity },
-          { id: 'datacenter', label: 'محرك البيانات', icon: Upload },
-          { id: 'library', label: 'مكتبتي', icon: Star }
-        ].map((nav) => {
-          const IconComp = nav.icon;
-          const isActive =
-            activeTab === nav.id ||
-            (nav.id === 'datacenter' && activeTab === 'ingest');
-          return (
-            <button
-              key={nav.id}
-              type="button"
-              onClick={() => {
-                setDetailTermId(null);
-                setActiveTab(nav.id as MainTab);
-              }}
-              className={`min-h-[48px] flex flex-col items-center justify-center gap-1 rounded-xl transition-colors ${
-                isActive
-                  ? 'text-emerald-600 dark:text-emerald-400 font-bold'
-                  : 'text-slate-500 dark:text-slate-400'
-              }`}
-            >
-              <IconComp className="w-5 h-5" />
-              <span className="text-[11px] tracking-tight whitespace-nowrap">
-                {nav.label}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
     </div>
   );
 }

@@ -20,13 +20,15 @@ interface PWAInstallBannerProps {
   onToggleSimulatedOffline: () => void;
   onExportZipPackage?: () => void;
   onExportJsonBackup?: () => void;
+  hideHeaderButtons?: boolean;
 }
 
 export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({
   simulatedOffline,
   onToggleSimulatedOffline,
   onExportZipPackage,
-  onExportJsonBackup
+  onExportJsonBackup,
+  hideHeaderButtons = false
 }) => {
   const {
     isInstallable,
@@ -327,6 +329,10 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({
           document.body
         )
       : null;
+
+  if (hideHeaderButtons) {
+    return <>{portalOverlays}</>;
+  }
 
   return (
     <>

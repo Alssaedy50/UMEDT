@@ -4259,5 +4259,242 @@ export function createEmptyDomainMetrics(
   };
 }
 
+export function normalizeTermPunctuationSkeleton(text: string): string {
+  return (text || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[-_./\\()[\]{},:;'"`~!?@#$%^&*+=|<>]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function normalizeArabicMedicalText(text: string): string {
+  return (text || '')
+    .trim()
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function isFabricatedOrPlaceholderUmdCode(code?: string): boolean {
+  if (!code || !code.trim()) return false;
+  const clean = code.trim().toUpperCase();
+  if (
+    /^UMD[-_]?(?:X+|0+|1234|9999|TEST|FAKE|TEMP|NULL|NONE|N\/A)$/i.test(clean) ||
+    clean.includes('XXXX') ||
+    clean === 'UMD-'
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function validateMedicalTermCompletenessAndCodes(
+  candidate: Partial<DictionaryTerm>,
+  options?: { strict?: boolean }
+): {
+  valid: boolean;
+  errors: string[];
+  sanitizedUmdCode?: string;
+  fabricatedUmdCodeRejected?: boolean;
+} {
+  const errors: string[] = [];
+  const term = (candidate.term || '').trim();
+  const translation = (candidate.translation || '').trim();
+  const definitionAr = (candidate.definitionAr || '').trim();
+  const definitionEn = (candidate.definitionEn || '').trim();
+
+  if (!term) {
+    errors.push('حقل المصطلح الطبي الإنجليزي (term) فارغ.');
+  }
+  if (!translation) {
+    errors.push(`الترجمة العربية للمصطلح "${term || '?'}" فارغة.`);
+  }
+  if (options?.strict !== false) {
+    if (!definitionAr || definitionAr.length < 5) {
+      errors.push(`التعريف العربي للمصطلح "${term || '?'}" ناقص أو قصير جداً.`);
+    }
+    if (!definitionEn || definitionEn.length < 5) {
+      errors.push(`التعريف الإنجليزي للمصطلح "${term || '?'}" ناقص أو قصير جداً.`);
+    }
+  }
+
+  let sanitizedUmdCode: string | undefined = candidate.umdCode?.trim() || undefined;
+  let fabricatedUmdCodeRejected = false;
+  if (sanitizedUmdCode && isFabricatedOrPlaceholderUmdCode(sanitizedUmdCode)) {
+    fabricatedUmdCodeRejected = true;
+    sanitizedUmdCode = undefined;
+    if (options?.strict) {
+      errors.push(`رمز المعجم الطبي الموحد (${candidate.umdCode}) وهمي أو غير صالح.`);
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    sanitizedUmdCode,
+    fabricatedUmdCodeRejected
+  };
+}
+
+export function classifyMedicalTermCandidate(
+  candidate: Partial<DictionaryTerm>,
+  existingTerms: DictionaryTerm[],
+  existingAbbreviations: ClinicalAbbreviation[] = [],
+  options?: { includeBuiltInAbbreviations?: boolean }
+): {
+  status: 'New' | 'Possible Duplicate' | 'Duplicate';
+  classification: 'New' | 'Possible Duplicate' | 'Duplicate';
+  matchedTerm?: DictionaryTerm;
+  matchedTermName?: string;
+  matchedAbbreviation?: ClinicalAbbreviation;
+  similarityScore: number;
+  reasonAr: string;
+} {
+  const candNorm = normalizeTermNaturalKey({
+    term: candidate.term || '',
+    termNormalized: candidate.termNormalized || ''
+  });
+  const candSkeleton = normalizeTermPunctuationSkeleton(candidate.term || '');
+  const candNoSpace = candSkeleton.replace(/\s+/g, '');
+  const candAr = normalizeArabicMedicalText(candidate.translation || '');
+  const candUmd =
+    candidate.umdCode && !isFabricatedOrPlaceholderUmdCode(candidate.umdCode)
+      ? candidate.umdCode.trim().toUpperCase()
+      : '';
+
+  if (!candNorm) {
+    return {
+      status: 'Duplicate',
+      classification: 'Duplicate',
+      similarityScore: 1,
+      reasonAr: 'المصطلح فارغ أو غير صالح.'
+    };
+  }
+
+  for (const existing of existingTerms) {
+    const exNorm = normalizeTermNaturalKey(existing);
+    const exSkeleton = normalizeTermPunctuationSkeleton(existing.term);
+    const exNoSpace = exSkeleton.replace(/\s+/g, '');
+    const exAr = normalizeArabicMedicalText(existing.translation);
+    const exUmd =
+      existing.umdCode && !isFabricatedOrPlaceholderUmdCode(existing.umdCode)
+        ? existing.umdCode.trim().toUpperCase()
+        : '';
+
+    if (
+      candNorm === exNorm ||
+      (candSkeleton && candSkeleton === exSkeleton) ||
+      (candNoSpace.length >= 4 && candNoSpace === exNoSpace)
+    ) {
+      return {
+        status: 'Duplicate',
+        classification: 'Duplicate',
+        matchedTerm: existing,
+        matchedTermName: existing.term,
+        similarityScore: 1,
+        reasonAr: `تطابق مباشر في المصطلح الإنجليزي مع "${existing.term}".`
+      };
+    }
+
+    if (candUmd && exUmd && candUmd === exUmd) {
+      return {
+        status: 'Duplicate',
+        classification: 'Duplicate',
+        matchedTerm: existing,
+        matchedTermName: existing.term,
+        similarityScore: 1,
+        reasonAr: `تطابق في رمز المعجم الطبي الموحد (${candUmd}) مع "${existing.term}".`
+      };
+    }
+
+    const existingSynonyms = (existing.relations?.synonyms || []).map((s) =>
+      normalizeTermPunctuationSkeleton(s)
+    );
+    const candSynonyms = (candidate.relations?.synonyms || []).map((s) =>
+      normalizeTermPunctuationSkeleton(s)
+    );
+
+    if (
+      existingSynonyms.includes(candSkeleton) ||
+      candSynonyms.includes(exSkeleton)
+    ) {
+      return {
+        status: 'Possible Duplicate',
+        classification: 'Possible Duplicate',
+        matchedTerm: existing,
+        matchedTermName: existing.term,
+        similarityScore: 0.92,
+        reasonAr: `تطابق عبر المرادفات المسجلة مع المصطلح "${existing.term}".`
+      };
+    }
+
+    // Check initialism match (e.g. "MI" vs "Myocardial Infarction")
+    const exWords = exSkeleton.split(' ').filter(Boolean);
+    const exInitials = exWords.map((w) => w[0]).join('');
+    const candWords = candSkeleton.split(' ').filter(Boolean);
+    const candInitials = candWords.map((w) => w[0]).join('');
+    if (
+      (candNoSpace.length >= 2 &&
+        candNoSpace.length <= 6 &&
+        exWords.length >= 2 &&
+        candNoSpace === exInitials) ||
+      (exNoSpace.length >= 2 &&
+        exNoSpace.length <= 6 &&
+        candWords.length >= 2 &&
+        exNoSpace === candInitials)
+    ) {
+      return {
+        status: 'Possible Duplicate',
+        classification: 'Possible Duplicate',
+        matchedTerm: existing,
+        matchedTermName: existing.term,
+        similarityScore: 0.9,
+        reasonAr: `تطابق اختصار الحروف الأولى مع المصطلح "${existing.term}".`
+      };
+    }
+
+    if (candAr && exAr && candAr.length >= 4 && candAr === exAr) {
+      return {
+        status: 'Possible Duplicate',
+        classification: 'Possible Duplicate',
+        matchedTerm: existing,
+        matchedTermName: existing.term,
+        similarityScore: 0.88,
+        reasonAr: `نفس الترجمة العربية الدقيقة مسجلة للمصطلح "${existing.term}".`
+      };
+    }
+  }
+
+  if (options?.includeBuiltInAbbreviations !== false && existingAbbreviations.length > 0) {
+    for (const abbr of existingAbbreviations) {
+      const abbrKey = normalizeTermPunctuationSkeleton(abbr.abbr);
+      const expKey = normalizeTermPunctuationSkeleton(abbr.defaultExpansionEn);
+      if (candSkeleton === abbrKey || (expKey && candSkeleton === expKey)) {
+        return {
+          status: 'Possible Duplicate',
+          classification: 'Possible Duplicate',
+          matchedAbbreviation: abbr,
+          matchedTermName: abbr.abbr,
+          similarityScore: 0.9,
+          reasonAr: `يتطابق مع الاختصار السريري المسجل "${abbr.abbr}" (${abbr.defaultExpansionEn}).`
+        };
+      }
+    }
+  }
+
+  return {
+    status: 'New',
+    classification: 'New',
+    similarityScore: 0,
+    reasonAr: 'مصطلح طبي جديد غير مكرر.'
+  };
+}
+
 
 
