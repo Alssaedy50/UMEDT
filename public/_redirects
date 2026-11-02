@@ -1,0 +1,3 @@
+# Cloudflare Pages SPA routing fallback
+# Ensures direct navigation and page refreshes on any application route resolve to index.html
+/* /index.html 200

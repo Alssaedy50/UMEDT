@@ -1,0 +1,35 @@
+{
+  "id": "/",
+  "name": "UMED-2 — DictEngine Hybrid Medical Dictionary & Clinical Translator",
+  "short_name": "UMED-2",
+  "description": "منظومة القاموس الطبي الهجين (WHO UMD) ومحرك الترجمة السريرية المقيدة بالمعجم (GC-NMT) وشبكة المعرفة المحلية (Offline-First).",
+  "theme_color": "#059669",
+  "background_color": "#020617",
+  "display": "standalone",
+  "orientation": "portrait",
+  "dir": "rtl",
+  "lang": "ar",
+  "start_url": "/",
+  "scope": "/",
+  "categories": ["medical", "education", "reference", "productivity"],
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

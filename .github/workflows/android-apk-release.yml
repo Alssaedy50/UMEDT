@@ -1,0 +1,167 @@
+name: UMED-2 — Build Android APK (Debug & Release)
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-apk:
+    name: Build Capacitor Android Debug & Release APKs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Setup Java JDK 21 (Required by Capacitor 8 / Android Gradle Plugin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Verify Gradle SDK Versions & Setup Supported Android SDK Packages
+        run: |
+          COMPILE_SDK=$(grep -E "compileSdkVersion\s*=" android/variables.gradle | grep -oE "[0-9]+")
+          TARGET_SDK=$(grep -E "targetSdkVersion\s*=" android/variables.gradle | grep -oE "[0-9]+")
+          MIN_SDK=$(grep -E "minSdkVersion\s*=" android/variables.gradle | grep -oE "[0-9]+")
+          echo "Verified from android/variables.gradle: minSdkVersion=$MIN_SDK, compileSdkVersion=$COMPILE_SDK, targetSdkVersion=$TARGET_SDK"
+
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER=$(find "$ANDROID_HOME" -name sdkmanager -type f -executable | head -n 1)
+          fi
+          echo "Using sdkmanager at: $SDKMANAGER"
+
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" --install \
+            "platform-tools" \
+            "platforms;android-${COMPILE_SDK}" \
+            "build-tools;36.0.0" \
+            "build-tools;35.0.0"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+
+      - name: Install NPM Dependencies
+        run: npm ci
+
+      - name: Run TypeScript & Lint Checks
+        run: npm run lint
+
+      - name: Build Production Web & PWA Bundle (dist) with Cloud OTA Config
+        env:
+          VITE_UMED_MANIFEST_URL: ${{ vars.VITE_UMED_MANIFEST_URL }}
+          VITE_UMED_PUBLIC_KEY_PEM: ${{ vars.VITE_UMED_PUBLIC_KEY_PEM }}
+        run: npm run build
+
+      - name: Synchronize Bundled Assets with Native Capacitor Android Project
+        run: npx cap sync android
+
+      - name: Run Automated Release Readiness Test Suite
+        run: npm test
+
+      - name: Grant Execute Permission for Gradlew
+        working-directory: android
+        run: chmod +x gradlew
+
+      - name: Build Installable Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Prepare Release Keystore (When Signing Secrets Are Configured)
+        id: signing_check
+        working-directory: android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/umed2-release.keystore"
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/umed2-release.keystore" >> $GITHUB_ENV
+            echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
+            echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
+            echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
+            echo "signed=true" >> $GITHUB_OUTPUT
+            echo "Release signing secrets detected. Building signed release APK."
+          else
+            echo "signed=false" >> $GITHUB_OUTPUT
+            echo "Release signing secrets not set. Building unsigned release APK."
+          fi
+
+      - name: Build Release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Collect & Rename APK Outputs for Artifact Upload
+        run: |
+          mkdir -p artifacts/apk
+          DEBUG_APK=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          if [ -z "$DEBUG_APK" ]; then
+            echo "ERROR: Debug APK was not found in android/app/build/outputs/apk/debug"
+            exit 1
+          fi
+          cp "$DEBUG_APK" artifacts/apk/UMED-2-v2.2.0-debug.apk
+
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk artifacts/apk/UMED-2-v2.2.0-release-signed.apk
+          elif [ -f android/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release-unsigned.apk artifacts/apk/UMED-2-v2.2.0-release-unsigned.apk
+          else
+            RELEASE_APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+            if [ -n "$RELEASE_APK" ]; then
+              cp "$RELEASE_APK" artifacts/apk/UMED-2-v2.2.0-release-unsigned.apk
+            else
+              echo "ERROR: Release APK was not found in android/app/build/outputs/apk/release"
+              exit 1
+            fi
+          fi
+          ls -lh artifacts/apk/
+          echo "### UMED-2 Android APK Artifacts Built Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "- **Application ID:** \`org.umed2.dictengine\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** \`2.2.0 (versionCode 20200)\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Installable Debug APK:** \`UMED-2-v2.2.0-debug.apk\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release APK Signing Status:** \`signed=${{ steps.signing_check.outputs.signed }}\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Clean Up Temporary Keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/umed2-release.keystore"
+
+      - name: Upload Installable Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: UMED-2-v2.2.0-debug-apk
+          path: artifacts/apk/UMED-2-v2.2.0-debug.apk
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: UMED-2-v2.2.0-release-apk
+          path: artifacts/apk/UMED-2-v2.2.0-release-*.apk
+          if-no-files-found: error
+          retention-days: 90

@@ -1,0 +1,143 @@
+name: UMED-2 Medical Data Release & Cloudflare R2 Publishing
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Target Release Channel (stable or beta)'
+        required: true
+        default: 'stable'
+        type: choice
+        options:
+          - stable
+          - beta
+      target_version:
+        description: 'Optional target data version (leave empty for automatic patch CalVer/SemVer bump)'
+        required: false
+        type: string
+        default: ''
+      summary:
+        description: 'Release summary and clinical changelog description'
+        required: false
+        type: string
+        default: ''
+      dry_run:
+        description: 'Dry Run mode (simulates checks and package generation without mutating R2)'
+        required: false
+        type: boolean
+        default: false
+      skip_r2_upload:
+        description: 'Skip R2 upload (build, sign, and verify release artifacts only)'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: publish-data-${{ github.event.inputs.channel || 'stable' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  publish-data:
+    name: Build, Sign, and Publish Medical Data Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js v22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Pre-Publish Code Quality & Readiness Gates
+        run: |
+          echo "Running TypeScript lint check..."
+          npm run lint
+          echo "Running Full Verification & Cryptographic Readiness Suite..."
+          npm test
+
+      - name: Validate Permanent Signing Keys Presence
+        run: |
+          if [ -z "${{ secrets.UMED_PUBLISHER_PRIVATE_KEY_PEM }}" ]; then
+            echo "::error::Missing secret UMED_PUBLISHER_PRIVATE_KEY_PEM. Production releases require the permanent ECDSA-P256 private key stored in GitHub Secrets."
+            exit 1
+          fi
+          if [ -z "${{ vars.VITE_UMED_PUBLIC_KEY_PEM }}" ]; then
+            echo "::warning::Variable VITE_UMED_PUBLIC_KEY_PEM is empty. Ensure your trusted public key is configured in Repository Variables."
+          fi
+          echo "Permanent signing key secret verified."
+
+      - name: Build & Cryptographically Sign Data Release Bundle
+        id: build_bundle
+        env:
+          UMED_RELEASE_CHANNEL: ${{ github.event.inputs.channel || 'stable' }}
+          UMED_RELEASE_VERSION: ${{ github.event.inputs.target_version }}
+          UMED_RELEASE_SUMMARY: ${{ github.event.inputs.summary }}
+          UMED_PUBLISHER_PRIVATE_KEY_PEM: ${{ secrets.UMED_PUBLISHER_PRIVATE_KEY_PEM }}
+          VITE_UMED_PUBLIC_KEY_PEM: ${{ vars.VITE_UMED_PUBLIC_KEY_PEM }}
+          UMED_R2_PUBLIC_BASE_URL: ${{ vars.UMED_R2_PUBLIC_BASE_URL }}
+        run: |
+          echo "Building and signing release bundle (ECDSA-P256-SHA256)..."
+          npx tsx scripts/publish-data-release.ts \
+            --channel "${{ github.event.inputs.channel || 'stable' }}" \
+            ${{ github.event.inputs.target_version != '' && format('--version {0}', github.event.inputs.target_version) || '' }} \
+            ${{ github.event.inputs.summary != '' && format('--summary "{0}"', github.event.inputs.summary) || '' }}
+
+      - name: Upload Release to Cloudflare R2
+        if: ${{ github.event.inputs.skip_r2_upload != 'true' && !cancelled() }}
+        id: upload_r2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          UMED_R2_BUCKET: ${{ vars.UMED_R2_BUCKET || 'umed2-medical-data' }}
+          UMED_R2_PUBLIC_BASE_URL: ${{ vars.UMED_R2_PUBLIC_BASE_URL }}
+          UMED_RELEASE_CHANNEL: ${{ github.event.inputs.channel || 'stable' }}
+        run: |
+          echo "Uploading immutable release package, audit record, and manifest to Cloudflare R2..."
+          DRY_RUN_FLAG=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            DRY_RUN_FLAG="--dry-run"
+          fi
+          npx tsx scripts/upload-release-to-r2.ts \
+            --channel "${{ github.event.inputs.channel || 'stable' }}" \
+            --dir "releases" \
+            $DRY_RUN_FLAG
+
+      - name: Upload Signed Release Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: umed2-data-release-${{ github.event.inputs.channel || 'stable' }}-${{ github.run_id }}
+          path: releases/
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Generate Publishing Summary
+        if: always()
+        run: |
+          MANIFEST_FILE="releases/manifest.json"
+          if [ -f "$MANIFEST_FILE" ]; then
+            DATA_VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$MANIFEST_FILE')).dataVersion)")
+            SHA256=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$MANIFEST_FILE')).sha256)")
+            ALGO=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$MANIFEST_FILE')).signatureAlgorithm)")
+            TERMS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$MANIFEST_FILE')).counts.terms)")
+            SENTENCES=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$MANIFEST_FILE')).counts.sentences)")
+            echo "### 🚀 UMED-2 Medical Data Release Summary" >> $GITHUB_STEP_SUMMARY
+            echo "- **Channel:** \`${{ github.event.inputs.channel || 'stable' }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Data Version:** \`${DATA_VERSION}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Target App Version:** \`2.2.0\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Terms Count:** \`${TERMS}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Sentences Count:** \`${SENTENCES}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Signature Algorithm:** \`${ALGO}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **SHA-256 Digest:** \`${SHA256}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Cloudflare R2 Mode:** \`${{ github.event.inputs.dry_run == 'true' && 'Dry Run' || (github.event.inputs.skip_r2_upload == 'true' && 'Skipped' || 'Production Live') }}\`" >> $GITHUB_STEP_SUMMARY
+          fi

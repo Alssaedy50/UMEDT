@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">UMED-2 DictEngine</string>
+    <string name="title_activity_main">UMED-2 DictEngine</string>
+    <string name="package_name">org.umed2.dictengine</string>
+    <string name="custom_url_scheme">org.umed2.dictengine</string>
+</resources>

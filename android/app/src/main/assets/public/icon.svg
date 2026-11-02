@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#022c22" />
+      <stop offset="50%" stop-color="#064e3b" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="96" y1="96" x2="416" y2="416" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  <rect x="36" y="36" width="440" height="440" rx="88" stroke="#10b981" stroke-opacity="0.3" stroke-width="6" />
+  <!-- Medical Book & Knowledge Graph Nodes -->
+  <path d="M140 148C140 134.745 150.745 124 164 124H244V372H164C150.745 372 140 361.255 140 348V148Z" fill="#065f46" stroke="url(#accentGrad)" stroke-width="12" stroke-linejoin="round" />
+  <path d="M372 148C372 134.745 361.255 124 348 124H268V372H348C361.255 372 372 361.255 372 348V148Z" fill="#0f172a" stroke="url(#accentGrad)" stroke-width="12" stroke-linejoin="round" />
+  <!-- Medical Cross & Pulse Line -->
+  <path d="M256 176V264M212 220H300" stroke="#34d399" stroke-width="20" stroke-linecap="round" />
+  <path d="M168 316H212L232 284L258 344L282 300L300 316H344" stroke="#6ee7b7" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+  <!-- Graph Nodes -->
+  <circle cx="164" cy="124" r="14" fill="#34d399" />
+  <circle cx="348" cy="124" r="14" fill="#34d399" />
+  <circle cx="256" cy="396" r="16" fill="#10b981" />
+</svg>

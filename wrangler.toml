@@ -1,0 +1,6 @@
+name = "umed-2"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-10-01"
+
+[vars]
+NODE_VERSION = "22"

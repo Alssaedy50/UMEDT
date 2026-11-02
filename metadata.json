@@ -1,0 +1,6 @@
+{
+  "name": "DictEngine UMD — Hybrid Medical Translation & Knowledge Graph",
+  "description": "منظومة القاموس الطبي الهجين (WHO UMD) ومحرك الترجمة السريرية المقيدة بالمعجم (GC-NMT) وشبكة المعرفة المحلية عبر SQLite FTS5 وTermux.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
