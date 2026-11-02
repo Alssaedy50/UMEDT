@@ -26,10 +26,6 @@ import {
   suggestNextDataVersion,
   buildAndSignReleaseBundle
 } from '../src/services/dataPlatformService';
-import {
-  INITIAL_TERMS,
-  INITIAL_LINKED_SENTENCES
-} from '../src/data/medicalLexiconData';
 import { autoEnrichAllTermsRelations } from '../src/engine/knowledgeLinker';
 import { loadMasterMedicalRepository } from './validate-master-data';
 import type { DataPackagePayload, PublishedReleaseBundle } from '../src/types/lexicon';
@@ -85,7 +81,7 @@ export async function executeProductionDataReleasePublish(
 
   const summary =
     (options.summary || env.UMED_RELEASE_SUMMARY || '').trim() ||
-    `إصدار البيانات الطبية الموحد ${targetVersion} (WHO UMD Verified Package)`;
+    `إصدار البيانات الطبية الموحد ${targetVersion} (UMEDT verified data release)`;
 
   const requestedAlgo = (
     options.signatureAlgorithm ||
