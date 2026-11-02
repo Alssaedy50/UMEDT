@@ -2,8 +2,11 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
   INITIAL_TERMS,
-  INITIAL_LINKED_SENTENCES
+  INITIAL_LINKED_SENTENCES,
+  MORPHOLOGICAL_AFFIXES,
+  CLINICAL_ABBREVIATIONS
 } from '../src/data/medicalLexiconData';
+import { INITIAL_TOPICS } from '../src/data/topicsSeedData';
 import type {
   DictionaryTerm,
   LinkedSentence,
@@ -67,9 +70,9 @@ function normalizeTerm(value: string): string {
 export function loadMasterMedicalRepository(rootDir = process.cwd()): MasterMedicalRepository {
   const terms = readArray<DictionaryTerm>(rootDir, 'terms.json', INITIAL_TERMS);
   const sentences = readArray<LinkedSentence>(rootDir, 'sentences.json', INITIAL_LINKED_SENTENCES);
-  const topics = readArray<TopicArticle>(rootDir, 'topics.json', []);
-  const customAffixes = readArray<MorphologicalAffix>(rootDir, 'custom-affixes.json', []);
-  const customAbbreviations = readArray<ClinicalAbbreviation>(rootDir, 'custom-abbreviations.json', []);
+  const topics = readArray<TopicArticle>(rootDir, 'topics.json', INITIAL_TOPICS);
+  const customAffixes = readArray<MorphologicalAffix>(rootDir, 'custom-affixes.json', MORPHOLOGICAL_AFFIXES);
+  const customAbbreviations = readArray<ClinicalAbbreviation>(rootDir, 'custom-abbreviations.json', CLINICAL_ABBREVIATIONS);
 
   assertUniqueIds(terms, 'terms');
   assertUniqueIds(sentences, 'sentences');
