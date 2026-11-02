@@ -10,6 +10,9 @@ function assert(condition: boolean, message: string): void {
 const bundled = loadMasterMedicalRepository(process.cwd());
 assert(bundled.terms.length > 0, 'missing master files must fall back to bundled terms');
 assert(bundled.sentences.length > 0, 'missing sentence file must fall back to bundled sentences');
+assert(bundled.topics.length > 0, 'missing topic file must fall back to bundled topics');
+assert(bundled.customAffixes.length > 0, 'missing affix file must fall back to bundled affixes');
+assert(bundled.customAbbreviations.length > 0, 'missing abbreviation file must fall back to bundled abbreviations');
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'umedt-master-data-'));
 try {
