@@ -14523,20 +14523,16 @@ const ChevronDown = createLucideIcon("chevron-down", __iconNode$L);
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const __iconNode$K = [["path", { d: "m18 15-6-6-6 6", key: "153udz" }]];
-const ChevronUp = createLucideIcon("chevron-up", __iconNode$K);
+const __iconNode$K = [["path", { d: "m15 18-6-6 6-6", key: "1wnfg3" }]];
+const ChevronLeft = createLucideIcon("chevron-left", __iconNode$K);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const __iconNode$J = [
-  ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
-  ["line", { x1: "12", x2: "12", y1: "8", y2: "12", key: "1pkeuh" }],
-  ["line", { x1: "12", x2: "12.01", y1: "16", y2: "16", key: "4dfq90" }]
-];
-const CircleAlert = createLucideIcon("circle-alert", __iconNode$J);
+const __iconNode$J = [["path", { d: "m18 15-6-6-6 6", key: "153udz" }]];
+const ChevronUp = createLucideIcon("chevron-up", __iconNode$J);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14545,9 +14541,10 @@ const CircleAlert = createLucideIcon("circle-alert", __iconNode$J);
  */
 const __iconNode$I = [
   ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
-  ["path", { d: "m9 12 2 2 4-4", key: "dzmm74" }]
+  ["line", { x1: "12", x2: "12", y1: "8", y2: "12", key: "1pkeuh" }],
+  ["line", { x1: "12", x2: "12.01", y1: "16", y2: "16", key: "4dfq90" }]
 ];
-const CircleCheck = createLucideIcon("circle-check", __iconNode$I);
+const CircleAlert = createLucideIcon("circle-alert", __iconNode$I);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14555,13 +14552,10 @@ const CircleCheck = createLucideIcon("circle-check", __iconNode$I);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$H = [
-  ["path", { d: "M11 14h10", key: "1w8e9d" }],
-  ["path", { d: "M16 4h2a2 2 0 0 1 2 2v1.344", key: "1e62lh" }],
-  ["path", { d: "m17 18 4-4-4-4", key: "z2g111" }],
-  ["path", { d: "M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 1.793-1.113", key: "bjbb7m" }],
-  ["rect", { x: "8", y: "2", width: "8", height: "4", rx: "1", key: "ublpy" }]
+  ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
+  ["path", { d: "m9 12 2 2 4-4", key: "dzmm74" }]
 ];
-const ClipboardPaste = createLucideIcon("clipboard-paste", __iconNode$H);
+const CircleCheck = createLucideIcon("circle-check", __iconNode$H);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14569,10 +14563,13 @@ const ClipboardPaste = createLucideIcon("clipboard-paste", __iconNode$H);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$G = [
-  ["path", { d: "M12 6v6l4 2", key: "mmk7yg" }],
-  ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }]
+  ["path", { d: "M11 14h10", key: "1w8e9d" }],
+  ["path", { d: "M16 4h2a2 2 0 0 1 2 2v1.344", key: "1e62lh" }],
+  ["path", { d: "m17 18 4-4-4-4", key: "z2g111" }],
+  ["path", { d: "M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 1.793-1.113", key: "bjbb7m" }],
+  ["rect", { x: "8", y: "2", width: "8", height: "4", rx: "1", key: "ublpy" }]
 ];
-const Clock = createLucideIcon("clock", __iconNode$G);
+const ClipboardPaste = createLucideIcon("clipboard-paste", __iconNode$G);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14580,11 +14577,10 @@ const Clock = createLucideIcon("clock", __iconNode$G);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$F = [
-  ["path", { d: "M12 13v8l-4-4", key: "1f5nwf" }],
-  ["path", { d: "m12 21 4-4", key: "1lfcce" }],
-  ["path", { d: "M4.393 15.269A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.436 8.284", key: "ui1hmy" }]
+  ["path", { d: "M12 6v6l4 2", key: "mmk7yg" }],
+  ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }]
 ];
-const CloudDownload = createLucideIcon("cloud-download", __iconNode$F);
+const Clock = createLucideIcon("clock", __iconNode$F);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14592,11 +14588,11 @@ const CloudDownload = createLucideIcon("cloud-download", __iconNode$F);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$E = [
-  ["path", { d: "m18 16 4-4-4-4", key: "1inbqp" }],
-  ["path", { d: "m6 8-4 4 4 4", key: "15zrgr" }],
-  ["path", { d: "m14.5 4-5 16", key: "e7oirm" }]
+  ["path", { d: "M12 13v8l-4-4", key: "1f5nwf" }],
+  ["path", { d: "m12 21 4-4", key: "1lfcce" }],
+  ["path", { d: "M4.393 15.269A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.436 8.284", key: "ui1hmy" }]
 ];
-const CodeXml = createLucideIcon("code-xml", __iconNode$E);
+const CloudDownload = createLucideIcon("cloud-download", __iconNode$E);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14604,10 +14600,11 @@ const CodeXml = createLucideIcon("code-xml", __iconNode$E);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$D = [
-  ["rect", { width: "14", height: "14", x: "8", y: "8", rx: "2", ry: "2", key: "17jyea" }],
-  ["path", { d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2", key: "zix9uf" }]
+  ["path", { d: "m18 16 4-4-4-4", key: "1inbqp" }],
+  ["path", { d: "m6 8-4 4 4 4", key: "15zrgr" }],
+  ["path", { d: "m14.5 4-5 16", key: "e7oirm" }]
 ];
-const Copy = createLucideIcon("copy", __iconNode$D);
+const CodeXml = createLucideIcon("code-xml", __iconNode$D);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14615,6 +14612,17 @@ const Copy = createLucideIcon("copy", __iconNode$D);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$C = [
+  ["rect", { width: "14", height: "14", x: "8", y: "8", rx: "2", ry: "2", key: "17jyea" }],
+  ["path", { d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2", key: "zix9uf" }]
+];
+const Copy = createLucideIcon("copy", __iconNode$C);
+/**
+ * @license lucide-react v0.546.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+const __iconNode$B = [
   ["path", { d: "M12 20v2", key: "1lh1kg" }],
   ["path", { d: "M12 2v2", key: "tus03m" }],
   ["path", { d: "M17 20v2", key: "1rnc9c" }],
@@ -14630,19 +14638,7 @@ const __iconNode$C = [
   ["rect", { x: "4", y: "4", width: "16", height: "16", rx: "2", key: "1vbyd7" }],
   ["rect", { x: "8", y: "8", width: "8", height: "8", rx: "1", key: "z9xiuo" }]
 ];
-const Cpu = createLucideIcon("cpu", __iconNode$C);
-/**
- * @license lucide-react v0.546.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */
-const __iconNode$B = [
-  ["ellipse", { cx: "12", cy: "5", rx: "9", ry: "3", key: "msslwz" }],
-  ["path", { d: "M3 5V19A9 3 0 0 0 21 19V5", key: "1wlel7" }],
-  ["path", { d: "M3 12A9 3 0 0 0 21 12", key: "mv7ke4" }]
-];
-const Database = createLucideIcon("database", __iconNode$B);
+const Cpu = createLucideIcon("cpu", __iconNode$B);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14769,11 +14765,11 @@ const Globe = createLucideIcon("globe", __iconNode$t);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$s = [
-  ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", key: "1357e3" }],
-  ["path", { d: "M3 3v5h5", key: "1xhq8a" }],
-  ["path", { d: "M12 7v5l4 2", key: "1fdv2h" }]
+  ["rect", { width: "18", height: "18", x: "3", y: "3", rx: "2", ry: "2", key: "1m3agn" }],
+  ["circle", { cx: "9", cy: "9", r: "2", key: "af1f0g" }],
+  ["path", { d: "m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21", key: "1xmnt7" }]
 ];
-const History = createLucideIcon("history", __iconNode$s);
+const Image = createLucideIcon("image", __iconNode$s);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14781,18 +14777,6 @@ const History = createLucideIcon("history", __iconNode$s);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$r = [
-  ["rect", { width: "18", height: "18", x: "3", y: "3", rx: "2", ry: "2", key: "1m3agn" }],
-  ["circle", { cx: "9", cy: "9", r: "2", key: "af1f0g" }],
-  ["path", { d: "m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21", key: "1xmnt7" }]
-];
-const Image = createLucideIcon("image", __iconNode$r);
-/**
- * @license lucide-react v0.546.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */
-const __iconNode$q = [
   [
     "path",
     {
@@ -14815,7 +14799,19 @@ const __iconNode$q = [
     }
   ]
 ];
-const Layers = createLucideIcon("layers", __iconNode$q);
+const Layers = createLucideIcon("layers", __iconNode$r);
+/**
+ * @license lucide-react v0.546.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+const __iconNode$q = [
+  ["path", { d: "M9 17H7A5 5 0 0 1 7 7h2", key: "8i5ue5" }],
+  ["path", { d: "M15 7h2a5 5 0 1 1 0 10h-2", key: "1b9ql8" }],
+  ["line", { x1: "8", x2: "16", y1: "12", y2: "12", key: "1jonct" }]
+];
+const Link2 = createLucideIcon("link-2", __iconNode$q);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14823,11 +14819,11 @@ const Layers = createLucideIcon("layers", __iconNode$q);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$p = [
-  ["path", { d: "M9 17H7A5 5 0 0 1 7 7h2", key: "8i5ue5" }],
-  ["path", { d: "M15 7h2a5 5 0 1 1 0 10h-2", key: "1b9ql8" }],
-  ["line", { x1: "8", x2: "16", y1: "12", y2: "12", key: "1jonct" }]
+  ["path", { d: "M4 5h16", key: "1tepv9" }],
+  ["path", { d: "M4 12h16", key: "1lakjw" }],
+  ["path", { d: "M4 19h16", key: "1djgab" }]
 ];
-const Link2 = createLucideIcon("link-2", __iconNode$p);
+const Menu = createLucideIcon("menu", __iconNode$p);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14835,17 +14831,6 @@ const Link2 = createLucideIcon("link-2", __iconNode$p);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$o = [
-  ["rect", { width: "18", height: "11", x: "3", y: "11", rx: "2", ry: "2", key: "1w4ew1" }],
-  ["path", { d: "M7 11V7a5 5 0 0 1 10 0v4", key: "fwvmzm" }]
-];
-const Lock = createLucideIcon("lock", __iconNode$o);
-/**
- * @license lucide-react v0.546.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */
-const __iconNode$n = [
   [
     "path",
     {
@@ -14854,7 +14839,21 @@ const __iconNode$n = [
     }
   ]
 ];
-const Moon = createLucideIcon("moon", __iconNode$n);
+const Moon = createLucideIcon("moon", __iconNode$o);
+/**
+ * @license lucide-react v0.546.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+const __iconNode$n = [
+  ["rect", { x: "16", y: "16", width: "6", height: "6", rx: "1", key: "4q2zg0" }],
+  ["rect", { x: "2", y: "16", width: "6", height: "6", rx: "1", key: "8cvhb9" }],
+  ["rect", { x: "9", y: "2", width: "6", height: "6", rx: "1", key: "1egb70" }],
+  ["path", { d: "M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3", key: "1jsf9p" }],
+  ["path", { d: "M12 12V8", key: "2874zd" }]
+];
+const Network = createLucideIcon("network", __iconNode$n);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14862,20 +14861,6 @@ const Moon = createLucideIcon("moon", __iconNode$n);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$m = [
-  ["rect", { x: "16", y: "16", width: "6", height: "6", rx: "1", key: "4q2zg0" }],
-  ["rect", { x: "2", y: "16", width: "6", height: "6", rx: "1", key: "8cvhb9" }],
-  ["rect", { x: "9", y: "2", width: "6", height: "6", rx: "1", key: "1egb70" }],
-  ["path", { d: "M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3", key: "1jsf9p" }],
-  ["path", { d: "M12 12V8", key: "2874zd" }]
-];
-const Network = createLucideIcon("network", __iconNode$m);
-/**
- * @license lucide-react v0.546.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */
-const __iconNode$l = [
   [
     "path",
     {
@@ -14884,14 +14869,14 @@ const __iconNode$l = [
     }
   ]
 ];
-const Paperclip = createLucideIcon("paperclip", __iconNode$l);
+const Paperclip = createLucideIcon("paperclip", __iconNode$m);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const __iconNode$k = [
+const __iconNode$l = [
   ["path", { d: "M13 21h8", key: "1jsn5i" }],
   [
     "path",
@@ -14901,7 +14886,18 @@ const __iconNode$k = [
     }
   ]
 ];
-const PenLine = createLucideIcon("pen-line", __iconNode$k);
+const PenLine = createLucideIcon("pen-line", __iconNode$l);
+/**
+ * @license lucide-react v0.546.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+const __iconNode$k = [
+  ["path", { d: "M5 12h14", key: "1ays0h" }],
+  ["path", { d: "M12 5v14", key: "s699le" }]
+];
+const Plus = createLucideIcon("plus", __iconNode$k);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14909,10 +14905,12 @@ const PenLine = createLucideIcon("pen-line", __iconNode$k);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$j = [
-  ["path", { d: "M5 12h14", key: "1ays0h" }],
-  ["path", { d: "M12 5v14", key: "s699le" }]
+  ["path", { d: "M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8", key: "v9h5vc" }],
+  ["path", { d: "M21 3v5h-5", key: "1q7to0" }],
+  ["path", { d: "M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16", key: "3uifl3" }],
+  ["path", { d: "M8 16H3v5", key: "1cv678" }]
 ];
-const Plus = createLucideIcon("plus", __iconNode$j);
+const RefreshCw = createLucideIcon("refresh-cw", __iconNode$j);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14920,12 +14918,10 @@ const Plus = createLucideIcon("plus", __iconNode$j);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$i = [
-  ["path", { d: "M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8", key: "v9h5vc" }],
-  ["path", { d: "M21 3v5h-5", key: "1q7to0" }],
-  ["path", { d: "M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16", key: "3uifl3" }],
-  ["path", { d: "M8 16H3v5", key: "1cv678" }]
+  ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", key: "1357e3" }],
+  ["path", { d: "M3 3v5h5", key: "1xhq8a" }]
 ];
-const RefreshCw = createLucideIcon("refresh-cw", __iconNode$i);
+const RotateCcw = createLucideIcon("rotate-ccw", __iconNode$i);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14933,10 +14929,10 @@ const RefreshCw = createLucideIcon("refresh-cw", __iconNode$i);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$h = [
-  ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", key: "1357e3" }],
-  ["path", { d: "M3 3v5h5", key: "1xhq8a" }]
+  ["path", { d: "m21 21-4.34-4.34", key: "14j7rj" }],
+  ["circle", { cx: "11", cy: "11", r: "8", key: "4ej97u" }]
 ];
-const RotateCcw = createLucideIcon("rotate-ccw", __iconNode$h);
+const Search = createLucideIcon("search", __iconNode$h);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -14944,10 +14940,16 @@ const RotateCcw = createLucideIcon("rotate-ccw", __iconNode$h);
  * See the LICENSE file in the root directory of this source tree.
  */
 const __iconNode$g = [
-  ["path", { d: "m21 21-4.34-4.34", key: "14j7rj" }],
-  ["circle", { cx: "11", cy: "11", r: "8", key: "4ej97u" }]
+  [
+    "path",
+    {
+      d: "M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915",
+      key: "1i5ecw"
+    }
+  ],
+  ["circle", { cx: "12", cy: "12", r: "3", key: "1v7zrd" }]
 ];
-const Search = createLucideIcon("search", __iconNode$g);
+const Settings = createLucideIcon("settings", __iconNode$g);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -20721,9 +20723,6 @@ function getEmbeddedTrustedPublicKeyPem() {
     return normalizeEmbeddedPublicKeyPem(define_process_env_default.VITE_UMED_PUBLIC_KEY_PEM);
   }
   return "";
-}
-function isTrustedPublicKeyLockedByBuild() {
-  return Boolean(getEmbeddedTrustedPublicKeyPem());
 }
 const envPublicKeyPem = buildTimeEmbeddedPublicKeyPem;
 const DEFAULT_ONLINE_UPDATE_CONFIG = {
@@ -28640,41 +28639,19 @@ Myocarditis - التهاب عضلة القلب`,
 const LibraryView = ({
   terms,
   sentences,
-  topics,
+  studyStats,
   activeCollection,
   onOpenCollectionsMenu,
   onRecordSm2Review,
   onOpenTermDetail,
   onToggleFavoriteTerm,
   onToggleFavoriteSentence,
-  onTriggerTTS,
-  dbMetrics,
-  versionMetadata,
-  onlineUpdateConfig,
-  onlineUpdateStatus,
-  onUpdateOnlineConfig,
-  onCheckForUpdates,
-  onRunLiveServerOtaTest,
-  onRollbackToPreviousVersion,
-  backupHistory,
-  onCreateManualBackup,
-  onRestoreBackupById,
-  onDeleteBackupById,
-  onExportBackup,
-  onExportZipPackage,
-  onImportPackageFile,
-  onShareDataFile,
-  onResetDefaults,
-  lastBackupTime
+  onTriggerTTS
 }) => {
   var _a;
-  const fileInputRef = reactExports.useRef(null);
   const [favoritesTab, setFavoritesTab] = reactExports.useState("terms");
   const [flashcardIdx, setFlashcardIdx] = reactExports.useState(0);
   const [flashcardFlipped, setFlashcardFlipped] = reactExports.useState(false);
-  const [showOtaConfigPanel, setShowOtaConfigPanel] = reactExports.useState(false);
-  const [isRunningLiveOtaTest, setIsRunningLiveOtaTest] = reactExports.useState(false);
-  const publicKeyLockedByBuild = isTrustedPublicKeyLockedByBuild();
   const favoriteTerms = reactExports.useMemo(() => {
     const allFavs = terms.filter((t) => t.favorite);
     if (activeCollection === "الكل") return allFavs;
@@ -28714,320 +28691,35 @@ const LibraryView = ({
     setFlashcardFlipped(false);
     setFlashcardIdx((prev) => prev + 1);
   };
-  const handleFileChange = (e) => {
-    var _a2;
-    const file = (_a2 = e.target.files) == null ? void 0 : _a2[0];
-    if (!file) return;
-    onImportPackageFile(file);
-    e.target.value = "";
-  };
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "max-w-4xl mx-auto space-y-6 w-full overflow-x-clip box-border", children: [
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "max-w-4xl mx-auto space-y-6 w-full overflow-x-clip box-border pb-8", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-2 sm:grid-cols-4 gap-3", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between gap-1", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between text-slate-400", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs font-bold text-slate-500 dark:text-slate-400", children: "المصطلحات" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs font-bold text-slate-500 dark:text-slate-400", children: "المصطلحات المحفوظة" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(BookOpen, { className: "w-4 h-4 text-emerald-600 dark:text-emerald-400" })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums", children: terms.length.toLocaleString() })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums", children: favoriteTerms.length.toLocaleString() })
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between gap-1", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between text-slate-400", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs font-bold text-slate-500 dark:text-slate-400", children: "الجمل السياقية" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs font-bold text-slate-500 dark:text-slate-400", children: "الجمل المحفوظة" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(FileText, { className: "w-4 h-4 text-emerald-600 dark:text-emerald-400" })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums", children: sentences.length.toLocaleString() })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums", children: favoriteSentences.length.toLocaleString() })
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between gap-1", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between text-slate-400", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs font-bold text-slate-500 dark:text-slate-400", children: "المواضيع" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Layers, { className: "w-4 h-4 text-emerald-600 dark:text-emerald-400" })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs font-bold text-slate-500 dark:text-slate-400", children: "مراجعات متقنة" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(CircleCheck, { className: "w-4 h-4 text-emerald-600 dark:text-emerald-400" })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums", children: topics.length.toLocaleString() })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xl sm:text-2xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400 tabular-nums", children: studyStats.gotIt.toLocaleString() })
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between gap-1", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between text-slate-400", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs font-bold text-slate-500 dark:text-slate-400", children: "حجم التخزين" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Database, { className: "w-4 h-4 text-emerald-600 dark:text-emerald-400" })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs font-bold text-slate-500 dark:text-slate-400", children: "تحتاج مراجعة" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(RotateCcw, { className: "w-4 h-4 text-amber-500" })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "span",
-          {
-            dir: "ltr",
-            className: "text-xl sm:text-2xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400 tabular-nums text-right",
-            children: [
-              dbMetrics.actualSizeKb.toLocaleString(),
-              " KB"
-            ]
-          }
-        )
-      ] })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-5 sm:p-6 space-y-4 shadow-xs", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start justify-between flex-wrap gap-3", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 flex-wrap", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(CloudDownload, { className: "w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-base font-extrabold text-slate-900 dark:text-white", children: "التحديث السحابي للبيانات الطبية (Cloud Data OTA)" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs(
-              "span",
-              {
-                dir: "ltr",
-                className: "px-2.5 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[11px] font-mono font-bold",
-                children: [
-                  "APK v",
-                  APP_VERSION,
-                  " · Schema v",
-                  DB_SCHEMA_VERSION
-                ]
-              }
-            )
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-500 dark:text-slate-400", children: "فحص وتنزيل حزم البيانات الطبية الموقعة رقمياً (ECDSA-P256-SHA256) دون الحاجة لإعادة تثبيت التطبيق" })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "button",
-          {
-            type: "button",
-            onClick: () => setShowOtaConfigPanel((prev) => !prev),
-            className: "min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5",
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "إعدادات مستودع التحديث" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
-                ChevronDown,
-                {
-                  className: `w-3.5 h-3.5 transition-transform ${showOtaConfigPanel ? "rotate-180" : ""}`
-                }
-              )
-            ]
-          }
-        )
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 space-y-3", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 flex items-center justify-between", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-slate-500 font-semibold", children: "إصدار البيانات المثبت:" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "span",
-              {
-                dir: "ltr",
-                className: "font-mono font-extrabold text-slate-900 dark:text-white",
-                children: versionMetadata.dataVersion
-              }
-            )
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 flex items-center justify-between", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-slate-500 font-semibold", children: "الإصدار السحابي المتاح:" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "span",
-              {
-                dir: "ltr",
-                className: "font-mono font-extrabold text-emerald-600 dark:text-emerald-400",
-                children: onlineUpdateStatus.availableDataVersion || "—"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 flex items-center justify-between", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-slate-500 font-semibold", children: "حالة التحديث:" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs(
-              "span",
-              {
-                className: `px-2 py-0.5 rounded-md font-bold text-[11px] ${onlineUpdateStatus.phase === "update-available" ? "bg-amber-500/15 text-amber-700 dark:text-amber-300" : onlineUpdateStatus.phase === "completed" || onlineUpdateStatus.phase === "up-to-date" ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : onlineUpdateStatus.phase === "error" || onlineUpdateStatus.phase === "incompatible" ? "bg-rose-500/15 text-rose-600 dark:text-rose-400" : "bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`,
-                children: [
-                  onlineUpdateStatus.phase === "idle" && "جاهز للفحص",
-                  onlineUpdateStatus.phase === "unconfigured" && "محلي (غير مرتبط بمستودع)",
-                  onlineUpdateStatus.phase === "checking" && "جاري فحص المستودع...",
-                  onlineUpdateStatus.phase === "update-available" && "تحديث جديد متاح",
-                  onlineUpdateStatus.phase === "downloading" && "جاري التنزيل...",
-                  onlineUpdateStatus.phase === "verifying" && "جاري التحقق الرقمي...",
-                  onlineUpdateStatus.phase === "installing" && "جاري التثبيت الذري...",
-                  onlineUpdateStatus.phase === "completed" && "اكتمل التحديث بنجاح",
-                  onlineUpdateStatus.phase === "up-to-date" && "محدّث لآخر إصدار",
-                  onlineUpdateStatus.phase === "incompatible" && "إصدار غير متوافق",
-                  onlineUpdateStatus.phase === "offline" && "وضع عدم الاتصال (Offline)",
-                  onlineUpdateStatus.phase === "error" && "تنبيه في التحديث"
-                ]
-              }
-            )
-          ] })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start justify-between gap-2 flex-wrap text-xs", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 text-slate-700 dark:text-slate-300 font-medium", children: [
-            onlineUpdateStatus.phase === "error" || onlineUpdateStatus.phase === "incompatible" ? /* @__PURE__ */ jsxRuntimeExports.jsx(CircleAlert, { className: "w-4 h-4 text-rose-500 shrink-0" }) : /* @__PURE__ */ jsxRuntimeExports.jsx(ShieldCheck, { className: "w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: onlineUpdateStatus.message })
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5 flex-wrap", children: [
-            onlineUpdateStatus.checksumVerified && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[11px] font-mono font-bold", children: "SHA-256 ✓" }),
-            onlineUpdateStatus.signatureVerified && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[11px] font-mono font-bold", children: "ECDSA-P256 ✓" })
-          ] })
-        ] }),
-        typeof onlineUpdateStatus.progressPercent === "number" && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: "h-full bg-emerald-500 transition-all duration-200",
-            style: {
-              width: `${Math.min(100, Math.max(5, onlineUpdateStatus.progressPercent))}%`
-            }
-          }
-        ) })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "button",
-          {
-            type: "button",
-            disabled: onlineUpdateStatus.phase === "checking" || onlineUpdateStatus.phase === "downloading" || onlineUpdateStatus.phase === "verifying" || onlineUpdateStatus.phase === "installing",
-            onClick: () => void onCheckForUpdates({ forceInstall: false }),
-            className: "min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-extrabold flex items-center justify-center gap-2 transition-colors",
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
-                RefreshCw,
-                {
-                  className: `w-4 h-4 shrink-0 ${onlineUpdateStatus.phase === "checking" ? "animate-spin" : ""}`
-                }
-              ),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "فحص التحديثات الآن" })
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "button",
-          {
-            type: "button",
-            disabled: !onlineUpdateConfig.manifestUrl.trim() || onlineUpdateStatus.phase === "checking" || onlineUpdateStatus.phase === "downloading" || onlineUpdateStatus.phase === "verifying" || onlineUpdateStatus.phase === "installing",
-            onClick: () => void onCheckForUpdates({ forceInstall: true }),
-            className: "min-h-[44px] px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center justify-center gap-2 transition-colors",
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(CloudDownload, { className: "w-4 h-4 shrink-0" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "تنزيل وتثبيت التحديث" })
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "button",
-          {
-            type: "button",
-            disabled: isRunningLiveOtaTest,
-            onClick: async () => {
-              setIsRunningLiveOtaTest(true);
-              try {
-                await onRunLiveServerOtaTest();
-              } finally {
-                setIsRunningLiveOtaTest(false);
-              }
-            },
-            className: "min-h-[44px] px-4 py-2.5 rounded-2xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-extrabold flex items-center justify-center gap-2 transition-colors",
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(Sparkles, { className: "w-4 h-4 shrink-0" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: isRunningLiveOtaTest ? "جاري الاختبار الحي..." : "اختبار محلي تجريبي (Dev OTA)" })
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "button",
-          {
-            type: "button",
-            disabled: backupHistory.length === 0,
-            onClick: () => void onRollbackToPreviousVersion(),
-            className: "min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 disabled:opacity-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center justify-center gap-2 transition-colors",
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(RotateCcw, { className: "w-4 h-4 shrink-0 text-amber-500" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "التراجع للإصدار السابق" })
-            ]
-          }
-        )
-      ] }),
-      showOtaConfigPanel && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "pt-3 border-t border-slate-200/80 dark:border-slate-800 space-y-3", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-3 rounded-xl bg-slate-100/70 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 space-y-1", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(ShieldCheck, { className: "w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "منظومة التحديث السحابي الإنتاجية (Cloudflare R2 Production OTA):" })
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "يتم تنزيل حزم البيانات الطبية مباشرة عبر HTTPS من مستودع Cloudflare R2 العام دون الحاجة إلى خادم Node.js محلي أو إعادة بناء ملف APK. الحزم غير قابلة للتعديل (Immutable) وموقعة رقمياً بمفتاح ECDSA-P256 الدائم." })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-3 gap-3", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1 sm:col-span-2", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-xs font-bold text-slate-700 dark:text-slate-300 block", children: "رابط ملف البيان السحابي (Manifest URL — Cloudflare R2 / CDN)" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "input",
-              {
-                type: "url",
-                dir: "ltr",
-                value: onlineUpdateConfig.manifestUrl,
-                onChange: (e) => onUpdateOnlineConfig({
-                  ...onlineUpdateConfig,
-                  manifestUrl: e.target.value
-                }),
-                placeholder: "https://data.umed2.org/stable/manifest.json",
-                className: "w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono text-left focus:outline-none focus:border-emerald-500"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-xs font-bold text-slate-700 dark:text-slate-300 block", children: "قناة الإصدار (Channel)" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs(
-              "select",
-              {
-                value: onlineUpdateConfig.channel || "stable",
-                onChange: (e) => onUpdateOnlineConfig({
-                  ...onlineUpdateConfig,
-                  channel: e.target.value
-                }),
-                className: "w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold focus:outline-none focus:border-emerald-500",
-                children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "stable", children: "مستقرة (Stable — إنتاجية معتمدة)" }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "beta", children: "تجريبية (Beta — إصدارات مبكرة)" })
-                ]
-              }
-            )
-          ] })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-xs font-bold text-slate-700 dark:text-slate-300 block", children: "سياسة التحديث الهوائي (Auto-Update Policy)" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(
-            "select",
-            {
-              value: onlineUpdateConfig.autoUpdatePolicy,
-              onChange: (e) => onUpdateOnlineConfig({
-                ...onlineUpdateConfig,
-                autoUpdatePolicy: e.target.value
-              }),
-              className: "w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold focus:outline-none focus:border-emerald-500",
-              children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "notify-only", children: "إشعار فقط مع التنزيل عند الطلب (Notify-Only — افتراضي آمن)" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "auto-install", children: "تنزيل وتثبيت ذري تلقائي عند توفر إصدار موقع (Auto-Install)" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "manual", children: "فحص وتنزيل يدوي فقط (Manual)" })
-              ]
-            }
-          )
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between flex-wrap gap-2", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(Lock, { className: "w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "المفتاح العام الموثوق للتحقق من التوقيع الرقمي (ECDSA-P256-SHA256 SPKI PEM)" })
-            ] }),
-            publicKeyLockedByBuild && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold", children: "مقفل ومؤمّن من بناء التطبيق (VITE_UMED_PUBLIC_KEY_PEM)" })
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "textarea",
-            {
-              rows: 3,
-              dir: "ltr",
-              readOnly: publicKeyLockedByBuild,
-              value: onlineUpdateConfig.publicKeyPem,
-              onChange: (e) => {
-                if (publicKeyLockedByBuild) return;
-                onUpdateOnlineConfig({
-                  ...onlineUpdateConfig,
-                  publicKeyPem: e.target.value,
-                  requireSignature: Boolean(e.target.value.trim())
-                });
-              },
-              placeholder: "-----BEGIN PUBLIC KEY----- ... -----END PUBLIC KEY-----",
-              className: "w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-mono text-left focus:outline-none focus:border-emerald-500"
-            }
-          )
-        ] })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums", children: studyStats.needsReview.toLocaleString() })
       ] })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-5 sm:p-6 space-y-5 shadow-xs", children: [
@@ -29255,166 +28947,9 @@ const LibraryView = ({
         },
         sent.id
       )) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-500 py-6 text-center", children: "لا توجد جمل سريرية محفوظة في المفضلة حالياً." })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-5 sm:p-6 space-y-4 shadow-xs", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between flex-wrap gap-2", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("h3", { className: "text-base font-extrabold flex items-center gap-2 text-slate-900 dark:text-white", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(FolderSync, { className: "w-5 h-5 text-emerald-600 dark:text-emerald-400" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "النسخ الاحتياطي والاستعادة" })
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-500 mt-0.5", children: "تصدير واستيراد بياناتك ومفضلتك بصيغة JSON أو حزمة ZIP، أو استعادتها من النقاط المحفوظة محلياً" })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[11px] font-mono text-slate-400", children: [
-          "آخر حفظ: ",
-          lastBackupTime
-        ] })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "input",
-        {
-          ref: fileInputRef,
-          type: "file",
-          accept: ".zip,.json",
-          onChange: handleFileChange,
-          className: "hidden"
-        }
-      ),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "button",
-          {
-            type: "button",
-            onClick: onExportBackup,
-            className: "min-h-[44px] px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center justify-center gap-2 transition-colors",
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(Download, { className: "w-4 h-4 shrink-0" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "تصدير نسخة JSON" })
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "button",
-          {
-            type: "button",
-            onClick: onExportZipPackage,
-            className: "min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-extrabold flex items-center justify-center gap-2 transition-colors",
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(Download, { className: "w-4 h-4 shrink-0" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "تصدير حزمة ZIP" })
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "button",
-          {
-            type: "button",
-            onClick: () => {
-              var _a2;
-              return (_a2 = fileInputRef.current) == null ? void 0 : _a2.click();
-            },
-            className: "min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center justify-center gap-2 transition-colors",
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(Upload, { className: "w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "استعادة من ملف (JSON / ZIP)" })
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "button",
-          {
-            type: "button",
-            onClick: onShareDataFile,
-            className: "min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center justify-center gap-2 transition-colors",
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(Share2, { className: "w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "مشاركة ملف البيانات" })
-            ]
-          }
-        )
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between flex-wrap gap-2", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(History, { className: "w-4 h-4 text-emerald-600 dark:text-emerald-400" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
-              "نقاط الاستعادة المحفوظة (",
-              backupHistory.length,
-              ")"
-            ] })
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 flex-wrap", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "button",
-              {
-                type: "button",
-                onClick: onCreateManualBackup,
-                className: "min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-bold",
-                children: "+ حفظ نقطة استعادة الآن"
-              }
-            ),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs(
-              "button",
-              {
-                type: "button",
-                onClick: onResetDefaults,
-                className: "min-h-[36px] px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-1",
-                children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(RotateCcw, { className: "w-3.5 h-3.5" }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "استعادة الضبط الافتراضي" })
-                ]
-              }
-            )
-          ] })
-        ] }),
-        backupHistory.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "space-y-2", children: backupHistory.map((item) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "div",
-          {
-            className: "p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap text-xs",
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "font-bold text-slate-800 dark:text-slate-200", children: item.label || `نسخة ${item.versionMetadata.dataVersion}` }),
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-[11px] text-slate-500", children: [
-                  new Date(item.createdAt).toLocaleString("ar-SA"),
-                  " ·",
-                  " ",
-                  item.manifest.counts.terms.toLocaleString(),
-                  " مصطلح ·",
-                  " ",
-                  item.manifest.counts.sentences.toLocaleString(),
-                  " جملة"
-                ] })
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "button",
-                  {
-                    type: "button",
-                    onClick: () => onRestoreBackupById(item.backupId),
-                    className: "min-h-[34px] px-3 py-1 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-bold",
-                    children: "استعادة"
-                  }
-                ),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "button",
-                  {
-                    type: "button",
-                    onClick: () => onDeleteBackupById(item.backupId),
-                    className: "min-h-[34px] px-2.5 py-1 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400",
-                    title: "حذف النقطة",
-                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(Trash2, { className: "w-3.5 h-3.5" })
-                  }
-                )
-              ] })
-            ]
-          },
-          item.backupId
-        )) })
-      ] })
     ] })
   ] });
 };
-var reactDomExports = requireReactDom();
 const scriptRel = "modulepreload";
 const assetsURL = function(dep) {
   return "/" + dep;
@@ -29520,7 +29055,7 @@ function usePWAInstall() {
     window.addEventListener("appinstalled", handleAppInstalled);
     if (!isNative && "serviceWorker" in navigator) {
       __vitePreload(async () => {
-        const { registerSW } = await import("./virtual_pwa-register-mS8GiYjc.js");
+        const { registerSW } = await import("./virtual_pwa-register-B1uO9CGS.js");
         return { registerSW };
       }, true ? [] : void 0).then(({ registerSW }) => {
         const updateSW = registerSW({
@@ -29596,11 +29131,531 @@ function useOnlineStatus() {
   }, []);
   return browserOnline;
 }
+const CONFLICT_LABELS = {
+  merge: "دمج",
+  overwrite: "استبدال",
+  ignore: "تجاهل"
+};
+const SettingsView = ({
+  isDark,
+  onToggleDark,
+  conflictPolicy,
+  onChangeConflictPolicy,
+  simulatedOffline,
+  onToggleSimulatedOffline,
+  recentTermsCount,
+  onClearRecentTerms,
+  versionMetadata,
+  onlineUpdateConfig,
+  onlineUpdateStatus,
+  onUpdateOnlineConfig,
+  onCheckForUpdates,
+  onRollbackToPreviousVersion,
+  backupHistory,
+  onCreateManualBackup,
+  onRestoreBackupById,
+  onDeleteBackupById,
+  onExportBackup,
+  onExportZipPackage,
+  onImportPackageFile,
+  onShareDataFile,
+  onResetDefaults
+}) => {
+  const fileInputRef = reactExports.useRef(null);
+  const [activeModal, setActiveModal] = reactExports.useState(null);
+  const [copiedLink, setCopiedLink] = reactExports.useState(false);
+  const { isInstallable, isCapacitorNative, install } = usePWAInstall();
+  const browserOnline = useOnlineStatus();
+  const effectiveOnline = browserOnline && !simulatedOffline;
+  const shareableAppUrl = typeof window !== "undefined" ? window.location.origin.replace("//ais-dev-", "//ais-pre-") : "";
+  const handleCopyAppUrl = () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(shareableAppUrl);
+      } else {
+        const area = document.createElement("textarea");
+        area.value = shareableAppUrl;
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand("copy");
+        document.body.removeChild(area);
+      }
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 1800);
+    } catch {
+    }
+  };
+  const handleFileChange = (e) => {
+    var _a;
+    const file = (_a = e.target.files) == null ? void 0 : _a[0];
+    if (!file) return;
+    onImportPackageFile(file);
+    e.target.value = "";
+    setActiveModal(null);
+  };
+  const isBusyUpdating = onlineUpdateStatus.phase === "checking" || onlineUpdateStatus.phase === "downloading" || onlineUpdateStatus.phase === "verifying" || onlineUpdateStatus.phase === "installing";
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "max-w-lg mx-auto w-full pb-6", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "input",
+      {
+        ref: fileInputRef,
+        type: "file",
+        accept: ".zip,.json",
+        onChange: handleFileChange,
+        className: "hidden"
+      }
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/80 overflow-hidden", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-4 py-3.5 flex items-center justify-between gap-3", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white", children: [
+          isDark ? /* @__PURE__ */ jsxRuntimeExports.jsx(Moon, { className: "w-4 h-4 text-emerald-400 shrink-0" }) : /* @__PURE__ */ jsxRuntimeExports.jsx(Sun, { className: "w-4 h-4 text-amber-500 shrink-0" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "المظهر" })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            type: "button",
+            onClick: () => onToggleDark(!isDark),
+            className: "min-h-[36px] px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors",
+            children: isDark ? "ليلي" : "نهاري"
+          }
+        )
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-4 py-3.5 flex items-center justify-between gap-3", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white", children: [
+          effectiveOnline ? /* @__PURE__ */ jsxRuntimeExports.jsx(Wifi, { className: "w-4 h-4 text-emerald-500 shrink-0" }) : /* @__PURE__ */ jsxRuntimeExports.jsx(WifiOff, { className: "w-4 h-4 text-amber-500 shrink-0" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "وضع الاتصال" })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            type: "button",
+            onClick: onToggleSimulatedOffline,
+            className: `min-h-[36px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors ${effectiveOnline ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/15 text-amber-700 dark:text-amber-300"}`,
+            children: effectiveOnline ? "متصل" : "دون إنترنت"
+          }
+        )
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "button",
+        {
+          type: "button",
+          onClick: () => setActiveModal("conflict"),
+          className: "w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-right",
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(Layers, { className: "w-4 h-4 text-emerald-500 shrink-0" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "تكرار المصطلحات" })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: CONFLICT_LABELS[conflictPolicy] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(ChevronLeft, { className: "w-4 h-4" })
+            ] })
+          ]
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "button",
+        {
+          type: "button",
+          onClick: () => setActiveModal("updates"),
+          className: "w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-right",
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(CloudDownload, { className: "w-4 h-4 text-emerald-500 shrink-0" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "التحديثات" })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5 text-xs font-mono text-slate-500 dark:text-slate-400", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { dir: "ltr", children: versionMetadata.dataVersion }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(ChevronLeft, { className: "w-4 h-4" })
+            ] })
+          ]
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "button",
+        {
+          type: "button",
+          onClick: () => setActiveModal("backup"),
+          className: "w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-right",
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(FolderSync, { className: "w-4 h-4 text-emerald-500 shrink-0" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "النسخ الاحتياطي" })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "إدارة" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(ChevronLeft, { className: "w-4 h-4" })
+            ] })
+          ]
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-4 py-3.5 flex items-center justify-between gap-3", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Trash2, { className: "w-4 h-4 text-slate-400 shrink-0" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "سجل البحث" })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "button",
+          {
+            type: "button",
+            disabled: recentTermsCount === 0,
+            onClick: onClearRecentTerms,
+            className: "min-h-[36px] px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-40 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors",
+            children: [
+              "مسح (",
+              recentTermsCount,
+              ")"
+            ]
+          }
+        )
+      ] }),
+      !isCapacitorNative && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-4 py-3.5 flex items-center justify-between gap-3", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Smartphone, { className: "w-4 h-4 text-emerald-500 shrink-0" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "تثبيت التطبيق" })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5", children: [
+          isInstallable && /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              type: "button",
+              onClick: () => void install(),
+              className: "min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-bold",
+              children: "تثبيت"
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              type: "button",
+              onClick: handleCopyAppUrl,
+              className: "min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1",
+              children: copiedLink ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(Check, { className: "w-3.5 h-3.5 text-emerald-500" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "تم" })
+              ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(Copy, { className: "w-3.5 h-3.5" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "الرابط" })
+              ] })
+            }
+          )
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "button",
+        {
+          type: "button",
+          onClick: () => setActiveModal("reset"),
+          className: "w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-rose-500/5 transition-colors text-right",
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2.5 text-sm font-bold text-rose-600 dark:text-rose-400", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(RotateCcw, { className: "w-4 h-4 shrink-0" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "إعادة الضبط" })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(ChevronLeft, { className: "w-4 h-4 text-rose-400" })
+          ]
+        }
+      )
+    ] }),
+    activeModal && /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        onClick: () => setActiveModal(null),
+        className: "fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4",
+        children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            onClick: (e) => e.stopPropagation(),
+            className: "w-full max-w-sm rounded-t-3xl sm:rounded-2xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 p-4 space-y-3 shadow-2xl max-h-[85vh] overflow-y-auto",
+            children: [
+              activeModal === "conflict" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm font-extrabold text-slate-900 dark:text-white", children: "تكرار المصطلحات" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "button",
+                    {
+                      type: "button",
+                      onClick: () => setActiveModal(null),
+                      className: "p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white",
+                      children: /* @__PURE__ */ jsxRuntimeExports.jsx(X, { className: "w-4 h-4" })
+                    }
+                  )
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "space-y-1.5", children: ["merge", "overwrite", "ignore"].map((opt) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                  "button",
+                  {
+                    type: "button",
+                    onClick: () => {
+                      onChangeConflictPolicy(opt);
+                      setActiveModal(null);
+                    },
+                    className: `w-full min-h-[42px] px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between border ${conflictPolicy === opt ? "bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300" : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300"}`,
+                    children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: CONFLICT_LABELS[opt] }),
+                      conflictPolicy === opt && /* @__PURE__ */ jsxRuntimeExports.jsx(Check, { className: "w-4 h-4 text-emerald-500" })
+                    ]
+                  },
+                  opt
+                )) })
+              ] }),
+              activeModal === "updates" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm font-extrabold text-slate-900 dark:text-white", children: "التحديثات" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "button",
+                    {
+                      type: "button",
+                      onClick: () => setActiveModal(null),
+                      className: "p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white",
+                      children: /* @__PURE__ */ jsxRuntimeExports.jsx(X, { className: "w-4 h-4" })
+                    }
+                  )
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-2.5 text-xs", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-slate-500 font-bold", children: "الإصدار الحالي" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { dir: "ltr", className: "font-mono font-extrabold", children: versionMetadata.dataVersion })
+                  ] }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "input",
+                    {
+                      type: "url",
+                      dir: "ltr",
+                      value: onlineUpdateConfig.manifestUrl,
+                      onChange: (e) => onUpdateOnlineConfig({
+                        ...onlineUpdateConfig,
+                        manifestUrl: e.target.value
+                      }),
+                      placeholder: "Manifest URL (GitHub)",
+                      className: "w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono text-left focus:outline-none focus:border-emerald-500"
+                    }
+                  ),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-2 gap-2", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                      "button",
+                      {
+                        type: "button",
+                        disabled: isBusyUpdating,
+                        onClick: () => void onCheckForUpdates({ forceInstall: false }),
+                        className: "min-h-[42px] px-3 py-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 font-bold flex items-center justify-center gap-1.5 disabled:opacity-50",
+                        children: [
+                          /* @__PURE__ */ jsxRuntimeExports.jsx(
+                            RefreshCw,
+                            {
+                              className: `w-3.5 h-3.5 ${isBusyUpdating ? "animate-spin" : ""}`
+                            }
+                          ),
+                          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "فحص" })
+                        ]
+                      }
+                    ),
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                      "button",
+                      {
+                        type: "button",
+                        disabled: !onlineUpdateConfig.manifestUrl.trim() || isBusyUpdating,
+                        onClick: () => void onCheckForUpdates({ forceInstall: true }),
+                        className: "min-h-[42px] px-3 py-2 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-extrabold flex items-center justify-center gap-1.5 disabled:opacity-50",
+                        children: [
+                          /* @__PURE__ */ jsxRuntimeExports.jsx(CloudDownload, { className: "w-3.5 h-3.5" }),
+                          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "تثبيت" })
+                        ]
+                      }
+                    )
+                  ] }),
+                  backupHistory.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                    "button",
+                    {
+                      type: "button",
+                      onClick: () => void onRollbackToPreviousVersion(),
+                      className: "w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5",
+                      children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsx(RotateCcw, { className: "w-3.5 h-3.5 text-amber-500" }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "تراجع للإصدار السابق" })
+                      ]
+                    }
+                  )
+                ] })
+              ] }),
+              activeModal === "backup" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm font-extrabold text-slate-900 dark:text-white", children: "النسخ الاحتياطي" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "button",
+                    {
+                      type: "button",
+                      onClick: () => setActiveModal(null),
+                      className: "p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white",
+                      children: /* @__PURE__ */ jsxRuntimeExports.jsx(X, { className: "w-4 h-4" })
+                    }
+                  )
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-2 gap-2 text-xs", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                    "button",
+                    {
+                      type: "button",
+                      onClick: () => {
+                        onExportBackup();
+                        setActiveModal(null);
+                      },
+                      className: "min-h-[42px] px-3 py-2 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-extrabold flex items-center justify-center gap-1.5",
+                      children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsx(Download, { className: "w-3.5 h-3.5" }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "تصدير JSON" })
+                      ]
+                    }
+                  ),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                    "button",
+                    {
+                      type: "button",
+                      onClick: () => {
+                        onExportZipPackage();
+                        setActiveModal(null);
+                      },
+                      className: "min-h-[42px] px-3 py-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 font-bold flex items-center justify-center gap-1.5",
+                      children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsx(Download, { className: "w-3.5 h-3.5" }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "تصدير ZIP" })
+                      ]
+                    }
+                  ),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                    "button",
+                    {
+                      type: "button",
+                      onClick: () => {
+                        var _a;
+                        return (_a = fileInputRef.current) == null ? void 0 : _a.click();
+                      },
+                      className: "min-h-[42px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5",
+                      children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsx(Upload, { className: "w-3.5 h-3.5 text-emerald-500" }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "استيراد ملف" })
+                      ]
+                    }
+                  ),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                    "button",
+                    {
+                      type: "button",
+                      onClick: () => {
+                        onShareDataFile();
+                        setActiveModal(null);
+                      },
+                      className: "min-h-[42px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5",
+                      children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsx(Share2, { className: "w-3.5 h-3.5 text-emerald-500" }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "مشاركة" })
+                      ]
+                    }
+                  )
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-xs font-bold text-slate-500", children: [
+                      "نقاط الاستعادة (",
+                      backupHistory.length,
+                      ")"
+                    ] }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      "button",
+                      {
+                        type: "button",
+                        onClick: onCreateManualBackup,
+                        className: "px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs font-bold",
+                        children: "+ حفظ نقطة"
+                      }
+                    )
+                  ] }),
+                  backupHistory.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "space-y-1.5 max-h-40 overflow-y-auto", children: backupHistory.map((item) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                    "div",
+                    {
+                      className: "p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-xs",
+                      children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-bold truncate", children: item.versionMetadata.dataVersion }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1 shrink-0", children: [
+                          /* @__PURE__ */ jsxRuntimeExports.jsx(
+                            "button",
+                            {
+                              type: "button",
+                              onClick: () => {
+                                onRestoreBackupById(item.backupId);
+                                setActiveModal(null);
+                              },
+                              className: "px-2.5 py-1 rounded-lg bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-bold",
+                              children: "استعادة"
+                            }
+                          ),
+                          /* @__PURE__ */ jsxRuntimeExports.jsx(
+                            "button",
+                            {
+                              type: "button",
+                              onClick: () => onDeleteBackupById(item.backupId),
+                              className: "p-1 rounded-lg text-rose-500 hover:bg-rose-500/10",
+                              children: /* @__PURE__ */ jsxRuntimeExports.jsx(Trash2, { className: "w-3.5 h-3.5" })
+                            }
+                          )
+                        ] })
+                      ]
+                    },
+                    item.backupId
+                  )) })
+                ] })
+              ] }),
+              activeModal === "reset" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm font-extrabold text-rose-600 dark:text-rose-400", children: "إعادة الضبط" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "button",
+                    {
+                      type: "button",
+                      onClick: () => setActiveModal(null),
+                      className: "p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white",
+                      children: /* @__PURE__ */ jsxRuntimeExports.jsx(X, { className: "w-4 h-4" })
+                    }
+                  )
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-2 gap-2 pt-1 text-xs", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "button",
+                    {
+                      type: "button",
+                      onClick: () => {
+                        onResetDefaults();
+                        setActiveModal(null);
+                      },
+                      className: "min-h-[42px] px-3 py-2 rounded-xl bg-rose-600 text-white font-extrabold",
+                      children: "تأكيد الضبط"
+                    }
+                  ),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "button",
+                    {
+                      type: "button",
+                      onClick: () => setActiveModal(null),
+                      className: "min-h-[42px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold",
+                      children: "إلغاء"
+                    }
+                  )
+                ] })
+              ] })
+            ]
+          }
+        )
+      }
+    )
+  ] });
+};
+var reactDomExports = requireReactDom();
 const PWAInstallBanner = ({
   simulatedOffline,
   onToggleSimulatedOffline,
   onExportZipPackage,
-  onExportJsonBackup
+  onExportJsonBackup,
+  hideHeaderButtons = false
 }) => {
   const {
     isInstallable,
@@ -29654,7 +29709,7 @@ const PWAInstallBanner = ({
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start justify-between gap-2", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx(RefreshCw, { className: "w-4 h-4 text-emerald-400 shrink-0" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs font-extrabold", children: "يتوفر تحديث جديد لواجهة التطبيق (UMED-2 PWA)" })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs font-extrabold", children: "يتوفر تحديث جديد لواجهة التطبيق (UMEDT PWA)" })
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
@@ -29698,7 +29753,7 @@ const PWAInstallBanner = ({
           children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(ShieldCheck, { className: "w-4 h-4 shrink-0" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "تم تخزين واجهة UMED-2 للعمل بدون إنترنت (Offline App-Shell Ready)" })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "تم تخزين واجهة UMEDT للعمل بدون إنترنت (Offline App-Shell Ready)" })
             ] }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "button",
@@ -29753,7 +29808,7 @@ const PWAInstallBanner = ({
                   /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2.5", children: [
                     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-10 h-10 rounded-2xl bg-emerald-500/15 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Smartphone, { className: "w-5 h-5" }) }),
                     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-                      /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-sm font-extrabold text-slate-900 dark:text-white", children: "تثبيت UMED-2 (PWA / Android APK) ونقل البيانات" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-sm font-extrabold text-slate-900 dark:text-white", children: "تثبيت UMEDT (PWA / Android APK) ونقل البيانات" }),
                       /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold block", children: "تطبيق ويب تقدمي مستقل (PWA) + حزمة Android APK" })
                     ] })
                   ] }),
@@ -29777,7 +29832,7 @@ const PWAInstallBanner = ({
                       className: "w-full min-h-[42px] py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center justify-center gap-2",
                       children: [
                         /* @__PURE__ */ jsxRuntimeExports.jsx(Download, { className: "w-4 h-4 shrink-0" }),
-                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "تثبيت UMED-2 مباشرة على الشاشة الرئيسية" })
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "تثبيت UMEDT مباشرة على الشاشة الرئيسية" })
                       ]
                     }
                   ),
@@ -29897,6 +29952,9 @@ const PWAInstallBanner = ({
     ] }),
     document.body
   ) : null;
+  if (hideHeaderButtons) {
+    return /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: portalOverlays });
+  }
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -30009,7 +30067,8 @@ const ROUTE_TO_TAB = {
   "/datacenter": "datacenter",
   "/medical-data-center": "datacenter",
   "/ingest": "ingest",
-  "/library": "library"
+  "/library": "library",
+  "/settings": "settings"
 };
 const TAB_TO_HASH = {
   home: "#home",
@@ -30017,12 +30076,22 @@ const TAB_TO_HASH = {
   translator: "#translator",
   datacenter: "#datacenter",
   ingest: "#ingest",
-  library: "#library"
+  library: "#library",
+  settings: "#settings"
+};
+const PAGE_LABELS = {
+  home: "القاموس",
+  topics: "المواضيع",
+  translator: "المترجم",
+  datacenter: "البيانات",
+  ingest: "البيانات",
+  library: "مكتبتي",
+  settings: "الإعدادات"
 };
 function resolveInitialTabFromLocation() {
   if (typeof window === "undefined") return "home";
   const hashClean = window.location.hash.replace(/^#\/?/, "").toLowerCase();
-  if (hashClean === "home" || hashClean === "topics" || hashClean === "translator" || hashClean === "datacenter" || hashClean === "medical-data-center" || hashClean === "ingest" || hashClean === "library") {
+  if (hashClean === "home" || hashClean === "topics" || hashClean === "translator" || hashClean === "datacenter" || hashClean === "medical-data-center" || hashClean === "ingest" || hashClean === "library" || hashClean === "settings") {
     if (hashClean === "medical-data-center") return "datacenter";
     return hashClean;
   }
@@ -30076,6 +30145,7 @@ function App() {
   const [selectedDesktopTermId, setSelectedDesktopTermId] = reactExports.useState("m1");
   const [toast, setToast] = reactExports.useState(null);
   const [openMenu, setOpenMenu] = reactExports.useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = reactExports.useState(false);
   reactExports.useEffect(() => {
     const root = document.documentElement;
     if (isDark) {
@@ -30107,7 +30177,7 @@ function App() {
   const [clinicalInput, setClinicalInput] = reactExports.useState(
     CLINICAL_BENCHMARK_CASES[0].sourceEn
   );
-  const [conflictPolicy] = reactExports.useState(
+  const [conflictPolicy, setConflictPolicy] = reactExports.useState(
     initialPersisted.settings.conflictPolicy
   );
   const [activeCollection, setActiveCollection] = reactExports.useState("الكل");
@@ -30160,7 +30230,21 @@ function App() {
   }, [activeTab]);
   reactExports.useEffect(() => {
     if (typeof window === "undefined") return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && isSidebarOpen) {
+        setIsSidebarOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isSidebarOpen]);
+  reactExports.useEffect(() => {
+    if (typeof window === "undefined") return;
     const handlePopState = () => {
+      if (isSidebarOpen) {
+        setIsSidebarOpen(false);
+        return;
+      }
       if (openMenu) {
         setOpenMenu(null);
         return;
@@ -30189,7 +30273,7 @@ function App() {
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [openMenu, previewTerm, detailTermId, detailHistory, activeTab]);
+  }, [isSidebarOpen, openMenu, previewTerm, detailTermId, detailHistory, activeTab]);
   const showToast = (message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => {
@@ -31053,7 +31137,7 @@ function App() {
       });
       if (typeof navigator !== "undefined" && navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
         await navigator.share({
-          title: "بيانات المعجم الطبي الموحد DictEngine UMD",
+          title: "بيانات المعجم الطبي UMEDT",
           text: `نسخة بيانات القاموس الطبي (${terms.length} مصطلح و ${sentences.length} جملة سياقية)`,
           files: [file]
         });
@@ -31062,7 +31146,7 @@ function App() {
       }
       if (typeof navigator !== "undefined" && navigator.share) {
         await navigator.share({
-          title: "بيانات المعجم الطبي الموحد DictEngine UMD",
+          title: "بيانات المعجم الطبي UMEDT",
           text: buildAiLinguisticAuditPack(terms.slice(0, 15), sentences.slice(0, 15))
         });
         showToast("تمت مشاركة حزمة المراجعة بنجاح");
@@ -31077,11 +31161,18 @@ function App() {
     "div",
     {
       dir: "rtl",
-      style: {
-        paddingBottom: "calc(4.5rem + env(safe-area-inset-bottom, 0px))"
-      },
-      className: "min-h-screen w-full max-w-full overflow-x-clip box-border bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col lg:pb-12 transition-colors duration-150",
+      className: "min-h-screen w-full max-w-full box-border bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col pb-10",
       children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          PWAInstallBanner,
+          {
+            hideHeaderButtons: true,
+            simulatedOffline,
+            onToggleSimulatedOffline: handleToggleSimulatedOffline,
+            onExportZipPackage: handleExportZipPackage,
+            onExportJsonBackup: handleExportFullBackup
+          }
+        ),
         toast && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "fixed top-16 inset-x-4 max-w-md mx-auto z-50 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-slate-900 dark:bg-slate-800 border border-emerald-500/40 text-white shadow-xl", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2.5 text-xs font-medium", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(CircleCheck, { className: "w-4 h-4 text-emerald-400 shrink-0" }),
@@ -31097,7 +31188,20 @@ function App() {
             }
           )
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("header", { className: "sticky top-0 z-30 min-h-[4rem] py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-3 sm:px-4 lg:px-8 flex items-center justify-between gap-2 flex-wrap w-full max-w-full box-border", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("header", { className: "sticky top-0 z-30 h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-3 w-full box-border", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-center gap-2.5 min-w-0", children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "button",
+            {
+              type: "button",
+              onClick: () => setIsSidebarOpen(true),
+              "aria-label": "القائمة",
+              className: "min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-extrabold flex items-center gap-2 transition-colors shrink-0",
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(Menu, { className: "w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: PAGE_LABELS[activeTab] })
+              ]
+            }
+          ) }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "a",
             {
@@ -31106,57 +31210,74 @@ function App() {
                 e.preventDefault();
                 setActiveTab("home");
               },
-              className: "text-base sm:text-lg font-extrabold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0",
-              children: "DictEngine UMD"
+              className: "text-sm sm:text-base font-extrabold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0",
+              children: "UMEDT"
             }
-          ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("nav", { className: "hidden lg:flex items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300", children: [
-            { id: "home", label: "القاموس والبحث" },
-            { id: "topics", label: "مواضيع" },
-            { id: "translator", label: "المترجم السريري" },
-            { id: "datacenter", label: "محرك البيانات" },
-            { id: "library", label: "مكتبتي والإعدادات" }
-          ].map((item) => {
-            const isActive = activeTab === item.id || item.id === "datacenter" && activeTab === "ingest";
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "button",
+          )
+        ] }),
+        isSidebarOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            onClick: () => setIsSidebarOpen(false),
+            className: "fixed inset-0 z-50 bg-black/60 flex justify-start",
+            children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              "aside",
               {
-                type: "button",
-                onClick: () => setActiveTab(item.id),
-                className: `py-3 transition-colors whitespace-nowrap shrink-0 border-b-2 ${isActive ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 font-bold" : "border-transparent hover:text-slate-900 dark:hover:text-white"}`,
-                children: item.label
-              },
-              item.id
-            );
-          }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5 sm:gap-2 shrink-0", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              PWAInstallBanner,
-              {
-                simulatedOffline,
-                onToggleSimulatedOffline: handleToggleSimulatedOffline,
-                onExportZipPackage: handleExportZipPackage,
-                onExportJsonBackup: handleExportFullBackup
-              }
-            ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "button",
-              {
-                type: "button",
-                onClick: () => setIsDark((d) => !d),
-                className: "min-h-[38px] px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0",
-                children: isDark ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(Sun, { className: "w-4 h-4 text-amber-400 shrink-0" }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "hidden sm:inline", children: "الوضع النهاري" })
-                ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(Moon, { className: "w-4 h-4 text-slate-700 shrink-0" }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "hidden sm:inline", children: "الوضع الليلي" })
-                ] })
+                onClick: (e) => e.stopPropagation(),
+                className: "w-64 max-w-[80vw] h-full bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col p-4 overflow-y-auto",
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between pb-3 mb-3 border-b border-slate-100 dark:border-slate-800", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm font-extrabold text-slate-900 dark:text-white", children: "القائمة" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      "button",
+                      {
+                        type: "button",
+                        onClick: () => setIsSidebarOpen(false),
+                        "aria-label": "إغلاق",
+                        className: "min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300",
+                        children: /* @__PURE__ */ jsxRuntimeExports.jsx(X, { className: "w-4 h-4" })
+                      }
+                    )
+                  ] }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("nav", { className: "space-y-1", children: [
+                    { id: "home", label: "القاموس", icon: Search },
+                    { id: "topics", label: "المواضيع", icon: BookOpen },
+                    { id: "translator", label: "المترجم", icon: Activity },
+                    { id: "datacenter", label: "البيانات", icon: Upload },
+                    { id: "library", label: "مكتبتي", icon: Star },
+                    { id: "settings", label: "الإعدادات", icon: Settings }
+                  ].map((item) => {
+                    const IconComp = item.icon;
+                    const isActive = activeTab === item.id || item.id === "datacenter" && activeTab === "ingest";
+                    return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                      "button",
+                      {
+                        type: "button",
+                        onClick: () => {
+                          setDetailTermId(null);
+                          setActiveTab(item.id);
+                          setIsSidebarOpen(false);
+                        },
+                        className: `w-full min-h-[44px] px-3.5 py-2 rounded-xl text-right flex items-center gap-3 text-sm transition-colors ${isActive ? "bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-extrabold" : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold"}`,
+                        children: [
+                          /* @__PURE__ */ jsxRuntimeExports.jsx(
+                            IconComp,
+                            {
+                              className: `w-4 h-4 shrink-0 ${isActive ? "text-white dark:text-slate-950" : "text-emerald-600 dark:text-emerald-400"}`
+                            }
+                          ),
+                          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: item.label })
+                        ]
+                      },
+                      item.id
+                    );
+                  }) })
+                ]
               }
             )
-          ] })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("main", { className: "flex-1 w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 pt-4 overflow-x-clip box-border", children: [
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("main", { className: "flex-1 w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 pt-4 box-border", children: [
           onlineUpdateStatus.phase === "update-available" && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mb-4 p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 flex-wrap", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-xs font-bold text-emerald-800 dark:text-emerald-200", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
               "يتوفر تحديث سحابي جديد للبيانات الطبية (",
@@ -31177,9 +31298,9 @@ function App() {
                 "button",
                 {
                   type: "button",
-                  onClick: () => setActiveTab("library"),
+                  onClick: () => setActiveTab("settings"),
                   className: "min-h-[36px] px-3 py-1.5 rounded-xl bg-white/80 dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-800",
-                  children: "التفاصيل"
+                  children: "الإعدادات"
                 }
               )
             ] })
@@ -31281,13 +31402,30 @@ function App() {
               terms,
               sentences,
               topics,
+              studyStats,
               activeCollection,
               onOpenCollectionsMenu: () => setOpenMenu(openMenu === "collections" ? null : "collections"),
               onRecordSm2Review: handleRecordSm2Review,
               onOpenTermDetail: openTermDetail,
               onToggleFavoriteTerm: toggleFavoriteTerm,
               onToggleFavoriteSentence: toggleFavoriteSentence,
-              onTriggerTTS: triggerTTS,
+              onTriggerTTS: triggerTTS
+            }
+          ),
+          activeTab === "settings" && /* @__PURE__ */ jsxRuntimeExports.jsx(
+            SettingsView,
+            {
+              isDark,
+              onToggleDark: setIsDark,
+              conflictPolicy,
+              onChangeConflictPolicy: (nextPolicy) => {
+                setConflictPolicy(nextPolicy);
+                showToast("تم تحديث سياسة معالجة المصطلحات المكررة");
+              },
+              simulatedOffline,
+              onToggleSimulatedOffline: handleToggleSimulatedOffline,
+              recentTermsCount: recentTermIds.length,
+              onClearRecentTerms: handleClearRecentTerms,
               dbMetrics,
               versionMetadata,
               onlineUpdateConfig,
@@ -31535,41 +31673,6 @@ function App() {
                 ]
               }
             )
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "nav",
-          {
-            style: {
-              paddingBottom: "env(safe-area-inset-bottom, 0px)"
-            },
-            className: "lg:hidden fixed bottom-0 inset-x-0 z-40 min-h-[4rem] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 grid grid-cols-5 items-center px-2",
-            children: [
-              { id: "home", label: "القاموس", icon: Search },
-              { id: "topics", label: "مواضيع", icon: BookOpen },
-              { id: "translator", label: "المترجم", icon: Activity },
-              { id: "datacenter", label: "محرك البيانات", icon: Upload },
-              { id: "library", label: "مكتبتي", icon: Star }
-            ].map((nav) => {
-              const IconComp = nav.icon;
-              const isActive = activeTab === nav.id || nav.id === "datacenter" && activeTab === "ingest";
-              return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-                "button",
-                {
-                  type: "button",
-                  onClick: () => {
-                    setDetailTermId(null);
-                    setActiveTab(nav.id);
-                  },
-                  className: `min-h-[48px] flex flex-col items-center justify-center gap-1 rounded-xl transition-colors ${isActive ? "text-emerald-600 dark:text-emerald-400 font-bold" : "text-slate-500 dark:text-slate-400"}`,
-                  children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx(IconComp, { className: "w-5 h-5" }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[11px] tracking-tight whitespace-nowrap", children: nav.label })
-                  ]
-                },
-                nav.id
-              );
-            })
           }
         )
       ]

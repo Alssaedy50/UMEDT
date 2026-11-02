@@ -1,4 +1,4 @@
-import { _ as __vitePreload } from "./index-D7fc2FAL.js";
+import { _ as __vitePreload } from "./index-CpVm2img.js";
 function registerSW(options = {}) {
   const {
     immediate = false,
