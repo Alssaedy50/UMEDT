@@ -143,7 +143,7 @@ const envManifestUrl =
     : '';
 
 function normalizeEmbeddedPublicKeyPem(rawKey: string | null | undefined): string {
-  const cleaned = String(rawKey || '')
+  let cleaned = String(rawKey || '')
     .replace(/\\n/g, '\n')
     .trim();
   if (!cleaned) return '';
@@ -152,6 +152,12 @@ function normalizeEmbeddedPublicKeyPem(rawKey: string | null | undefined): strin
       '[StorageService] SECURITY BLOCK: A PRIVATE KEY was detected in VITE_UMED_PUBLIC_KEY_PEM and was rejected.'
     );
     return '';
+  }
+  if (!cleaned.includes('-----BEGIN PUBLIC KEY-----')) {
+    const pure = cleaned.replace(/\s+/g, '');
+    if (/^[A-Za-z0-9+/=_-]+$/.test(pure)) {
+      cleaned = `-----BEGIN PUBLIC KEY-----\n${pure}\n-----END PUBLIC KEY-----`;
+    }
   }
   return cleaned;
 }

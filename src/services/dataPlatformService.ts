@@ -1893,7 +1893,16 @@ export function assertValidSignatureAlgorithm(
  * Normalizes a PEM string (handling escaped "\\n" sequences from environment variables or secrets).
  */
 export function normalizePemString(rawPem: string): string {
-  return (rawPem || '').replace(/\\n/g, '\n').trim();
+  const cleaned = (rawPem || '').replace(/\\n/g, '\n').trim();
+  if (!cleaned) return '';
+  if (
+    !cleaned.includes('-----BEGIN') &&
+    !cleaned.includes('-----END') &&
+    /^[A-Za-z0-9+/=\s_-]+$/.test(cleaned)
+  ) {
+    return formatPemBlock(cleaned, 'PUBLIC KEY');
+  }
+  return cleaned;
 }
 
 /**
