@@ -17,5 +17,5 @@
 - **المحتويات:** 41 مصطلح · 94 جملة سريرية · 4 موضوع · 131 جذر صرفي · 73 اختصار
 - **ملف الحزمة:** `umed2-data-2026.10.1-umd.zip` (263.4 KB)
 - **رابط التنزيل المباشر (CDN):** `https://github.com/Alssaedy50/UMEDT/releases/download/data-v2026.10.1-umd/umed2-data-2026.10.1-umd.zip`
-- **بصمة التكامل (SHA-256):** `4c73bf7567fe11f1e286e47f6bd8ade201ceafe1e2d314a76c0bea032bb4e46f`
+- **بصمة التكامل (SHA-256):** `44edeb1579e2d5da4249238ed07bccc0a3772892dc47f9aa7d7d0070ea91b2c2`
 - **خوارزمية التوقيع الرقمي:** `ECDSA-P256-SHA256` (Key ID: `0849eefaee12bb75`)

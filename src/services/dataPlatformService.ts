@@ -1892,15 +1892,27 @@ export function assertValidSignatureAlgorithm(
 /**
  * Normalizes a PEM string (handling escaped "\\n" sequences from environment variables or secrets).
  */
-export function normalizePemString(rawPem: string): string {
+export function normalizePemString(
+  rawPem: string,
+  preferredLabel?: 'PUBLIC KEY' | 'PRIVATE KEY'
+): string {
   const cleaned = (rawPem || '').replace(/\\n/g, '\n').trim();
   if (!cleaned) return '';
-  if (
-    !cleaned.includes('-----BEGIN') &&
-    !cleaned.includes('-----END') &&
-    /^[A-Za-z0-9+/=\s_-]+$/.test(cleaned)
-  ) {
-    return formatPemBlock(cleaned, 'PUBLIC KEY');
+  if (cleaned.includes('-----BEGIN') && cleaned.includes('-----END')) {
+    return cleaned;
+  }
+  const pure = cleaned.replace(/\s+/g, '');
+  if (/^[A-Za-z0-9+/=_-]+$/.test(pure)) {
+    if (preferredLabel) {
+      return formatPemBlock(pure, preferredLabel);
+    }
+    const isPrivate =
+      pure.startsWith('MIGHAgE') ||
+      pure.startsWith('MIGTAgE') ||
+      pure.startsWith('MIIEvgIB') ||
+      pure.startsWith('MIIBPAIBA');
+    const label = isPrivate ? 'PRIVATE KEY' : 'PUBLIC KEY';
+    return formatPemBlock(pure, label);
   }
   return cleaned;
 }

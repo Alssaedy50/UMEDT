@@ -92,13 +92,15 @@ export async function executeProductionDataReleasePublish(
 
   // 2. Require permanent Private Key and Public Key (NO ephemeral key fallback allowed)
   const privateKeyPem = normalizePemString(
-    options.privateKeyPem ?? env.UMED_PUBLISHER_PRIVATE_KEY_PEM ?? ''
+    options.privateKeyPem ?? env.UMED_PUBLISHER_PRIVATE_KEY_PEM ?? '',
+    'PRIVATE KEY'
   );
   const publicKeyPem = normalizePemString(
     options.publicKeyPem ??
       env.VITE_UMED_PUBLIC_KEY_PEM ??
       env.UMED_PUBLISHER_PUBLIC_KEY_PEM ??
-      ''
+      '',
+    'PUBLIC KEY'
   );
 
   if (!privateKeyPem) {
@@ -121,7 +123,7 @@ export async function executeProductionDataReleasePublish(
     publicKeyPem,
     algorithm: validatedAlgorithm,
     requireProductionEcdsa: true,
-    strictPemHeaders: true
+    strictPemHeaders: false
   });
 
   if (!keyMatch.valid) {
