@@ -14,7 +14,7 @@
     "تضمين 41 مصطلح طبي و 94 جملة سياقية و 4 موضوع سريري"
   ],
   "author": "UMED-2 Release Automation",
-  "downloadUrl": "https://github.com/Alssaedy50/UMEDT/releases/download/data-v2026.10.1-umd/umed2-data-2026.10.1-umd.zip",
+  "downloadUrl": "https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/stable/umed2-data-2026.10.1-umd.zip",
   "counts": {
     "terms": 41,
     "sentences": 94,

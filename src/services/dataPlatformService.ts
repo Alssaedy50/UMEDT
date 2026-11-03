@@ -2332,32 +2332,64 @@ export async function downloadRemotePackageBytes(
 
   const fetchFn = options?.customFetch || globalThis.fetch;
 
-  // Build candidate download URLs (automatic fallback from github.com/releases/download to raw.githubusercontent.com)
-  const candidateUrls: string[] = [cleanUrl];
-  if (cleanUrl.includes('github.com/') && cleanUrl.includes('/releases/download/')) {
-    const rawFallback = cleanUrl
-      .replace('https://github.com/', 'https://raw.githubusercontent.com/')
-      .replace(/\/releases\/download\/[^/]+\//, '/main/data/releases/stable/');
-    if (rawFallback !== cleanUrl && !candidateUrls.includes(rawFallback)) {
-      candidateUrls.push(rawFallback);
-    }
-  }
-
   let response: Response | null = null;
   let lastError: Error | null = null;
 
-  for (const targetUrl of candidateUrls) {
+  // 1. If it's a GitHub Release download URL, prefer the GitHub Releases API which provides full CORS headers
+  const ghReleaseMatch = cleanUrl.match(
+    /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/releases\/download\/([^/]+)\/([^/]+)$/i
+  );
+  if (ghReleaseMatch) {
+    const [, owner, repo, tag, filename] = ghReleaseMatch;
     try {
-      const res = await fetchFn(targetUrl, {
+      const releaseApiUrl = `https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}`;
+      const relRes = await fetchFn(releaseApiUrl, {
+        headers: { Accept: 'application/json' },
         cache: 'no-store'
       });
-      if (res.ok) {
-        response = res;
-        break;
+      if (relRes.ok) {
+        const relData = (await relRes.json()) as { assets?: Array<{ name: string; url: string }> };
+        const asset = relData.assets?.find((a) => a.name === filename);
+        if (asset?.url) {
+          const assetRes = await fetchFn(asset.url, {
+            headers: { Accept: 'application/octet-stream' },
+            cache: 'no-store'
+          });
+          if (assetRes.ok) {
+            response = assetRes;
+          }
+        }
       }
-      lastError = new Error(`HTTP ${res.status} ${res.statusText}`);
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
+    } catch (apiErr) {
+      lastError = apiErr instanceof Error ? apiErr : new Error(String(apiErr));
+    }
+  }
+
+  // 2. Fallback to candidate URLs (raw.githubusercontent.com and direct URL)
+  if (!response) {
+    const candidateUrls: string[] = [cleanUrl];
+    if (cleanUrl.includes('github.com/') && cleanUrl.includes('/releases/download/')) {
+      const rawFallback = cleanUrl
+        .replace('https://github.com/', 'https://raw.githubusercontent.com/')
+        .replace(/\/releases\/download\/[^/]+\//, '/main/data/releases/stable/');
+      if (rawFallback !== cleanUrl && !candidateUrls.includes(rawFallback)) {
+        candidateUrls.push(rawFallback);
+      }
+    }
+
+    for (const targetUrl of candidateUrls) {
+      try {
+        const res = await fetchFn(targetUrl, {
+          cache: 'no-store'
+        });
+        if (res.ok) {
+          response = res;
+          break;
+        }
+        lastError = new Error(`HTTP ${res.status} ${res.statusText}`);
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+      }
     }
   }
 

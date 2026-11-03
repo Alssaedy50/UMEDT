@@ -169,7 +169,7 @@ export async function executeProductionDataReleasePublish(
   const channelPrefix = channel === 'beta' ? 'beta' : 'stable';
   const defaultPackageFileName = `umed2-data-${targetVersion}.zip`;
 
-  const defaultGithubDownloadUrl = `https://github.com/Alssaedy50/UMEDT/releases/download/data-v${targetVersion}/${defaultPackageFileName}`;
+  const defaultGithubDownloadUrl = `https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/${channelPrefix}/${defaultPackageFileName}`;
   const defaultGithubManifestUrl = `https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/${channelPrefix}/manifest.json`;
 
   const packageDownloadUrl =
