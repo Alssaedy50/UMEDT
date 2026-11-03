@@ -84,7 +84,7 @@ jobs:
           npx tsx scripts/publish-data-release.ts --channel "$UMED_RELEASE_CHANNEL"
 
       - name: Optional Cloudflare R2 Backup Mirror
-        if: ${{ github.event.inputs.skip_r2_upload == 'false' && secrets.CLOUDFLARE_API_TOKEN != '' }}
+        if: ${{ vars.UMED_ENABLE_R2_BACKUP == 'true' }}
         id: upload_r2
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
