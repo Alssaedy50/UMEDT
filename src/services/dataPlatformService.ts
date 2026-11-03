@@ -2331,13 +2331,39 @@ export async function downloadRemotePackageBytes(
   assertNotSqlitePayload(new Uint8Array(0), cleanUrl.split('?')[0]);
 
   const fetchFn = options?.customFetch || globalThis.fetch;
-  const response = await fetchFn(cleanUrl, {
-    cache: 'no-store'
-  });
 
-  if (!response.ok) {
+  // Build candidate download URLs (automatic fallback from github.com/releases/download to raw.githubusercontent.com)
+  const candidateUrls: string[] = [cleanUrl];
+  if (cleanUrl.includes('github.com/') && cleanUrl.includes('/releases/download/')) {
+    const rawFallback = cleanUrl
+      .replace('https://github.com/', 'https://raw.githubusercontent.com/')
+      .replace(/\/releases\/download\/[^/]+\//, '/main/data/releases/stable/');
+    if (rawFallback !== cleanUrl && !candidateUrls.includes(rawFallback)) {
+      candidateUrls.push(rawFallback);
+    }
+  }
+
+  let response: Response | null = null;
+  let lastError: Error | null = null;
+
+  for (const targetUrl of candidateUrls) {
+    try {
+      const res = await fetchFn(targetUrl, {
+        cache: 'no-store'
+      });
+      if (res.ok) {
+        response = res;
+        break;
+      }
+      lastError = new Error(`HTTP ${res.status} ${res.statusText}`);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
+  }
+
+  if (!response || !response.ok) {
     throw new Error(
-      `فشل تنزيل حزمة البيانات الطبية (${response.status} ${response.statusText}).`
+      `فشل تنزيل حزمة البيانات الطبية (${lastError?.message || 'تعذر الاتصال بخادم التحديثات'}). تأكد من اتصال الإنترنت.`
     );
   }
 
