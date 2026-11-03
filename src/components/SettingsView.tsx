@@ -411,6 +411,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono text-left focus:outline-none focus:border-emerald-500"
                   />
 
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[11px] text-slate-400">مستودع التحديثات:</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onUpdateOnlineConfig({
+                          ...onlineUpdateConfig,
+                          manifestUrl:
+                            'https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/stable/manifest.json'
+                        })
+                      }
+                      className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold hover:underline"
+                    >
+                      تعيين الرابط الرسمي لـ UMEDT
+                    </button>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"

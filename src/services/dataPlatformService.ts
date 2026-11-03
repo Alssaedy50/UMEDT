@@ -2179,6 +2179,38 @@ function resolveDownloadUrl(manifestUrl: string, downloadUrl?: string): string |
 }
 
 /**
+ * Normalizes a user-provided Manifest URL, converting GitHub repository, blob, or release URLs
+ * automatically into the raw direct manifest JSON URL.
+ */
+export function normalizeManifestUrl(inputUrl: string): string {
+  let url = (inputUrl || '').trim();
+  if (!url) return '';
+  const githubRepoMatch = url.match(
+    /^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(\.git)?(\/.*)?$/i
+  );
+  if (githubRepoMatch) {
+    const owner = githubRepoMatch[1];
+    const repo = githubRepoMatch[2];
+    const subpath = githubRepoMatch[4] || '';
+    if (
+      !subpath ||
+      subpath === '/' ||
+      subpath.startsWith('/releases') ||
+      subpath.startsWith('/actions') ||
+      subpath.startsWith('/tree')
+    ) {
+      return `https://raw.githubusercontent.com/${owner}/${repo}/main/data/releases/stable/manifest.json`;
+    }
+    if (subpath.includes('/blob/')) {
+      return url
+        .replace('https://github.com/', 'https://raw.githubusercontent.com/')
+        .replace('/blob/', '/');
+    }
+  }
+  return url;
+}
+
+/**
  * Connects to a configurable GitHub/CDN manifest endpoint, validates App & Schema compatibility,
  * and compares the remote `dataVersion` against the currently installed `dataVersion`.
  */
@@ -2196,7 +2228,7 @@ export async function checkRemoteDataManifest(
   manifest: DataPackageManifest;
   reason?: string;
 }> {
-  const cleanUrl = manifestUrl.trim();
+  const cleanUrl = normalizeManifestUrl(manifestUrl);
   if (!cleanUrl) {
     throw new Error('لم يتم تحديد رابط بيان التحديث السحابي (Manifest URL).');
   }

@@ -72,7 +72,7 @@ jobs:
 
       - name: Build Production Web & PWA Bundle (dist) with Cloud OTA Config
         env:
-          VITE_UMED_MANIFEST_URL: ${{ vars.VITE_UMED_MANIFEST_URL }}
+          VITE_UMED_MANIFEST_URL: ${{ vars.VITE_UMED_MANIFEST_URL || 'https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/stable/manifest.json' }}
           VITE_UMED_PUBLIC_KEY_PEM: ${{ vars.VITE_UMED_PUBLIC_KEY_PEM }}
         run: npm run build
 
@@ -108,8 +108,16 @@ jobs:
             echo "signed=true" >> $GITHUB_OUTPUT
             echo "Release signing secrets detected. Building signed release APK."
           else
-            echo "signed=false" >> $GITHUB_OUTPUT
-            echo "Release signing secrets not set. Building unsigned release APK."
+            echo "Generating self-signed release keystore so APK installs directly on Android."
+            keytool -genkeypair -v -keystore "$RUNNER_TEMP/umed2-release.keystore" \
+              -alias umed2-release -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass umed2defaultpass -keypass umed2defaultpass \
+              -dname "CN=UMEDT, OU=Medical, O=UMEDT, L=Global, S=Global, C=US"
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/umed2-release.keystore" >> $GITHUB_ENV
+            echo "ANDROID_KEYSTORE_PASSWORD=umed2defaultpass" >> $GITHUB_ENV
+            echo "ANDROID_KEY_ALIAS=umed2-release" >> $GITHUB_ENV
+            echo "ANDROID_KEY_PASSWORD=umed2defaultpass" >> $GITHUB_ENV
+            echo "signed=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Build Release APK

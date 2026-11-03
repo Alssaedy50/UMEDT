@@ -108,8 +108,11 @@ import {
   validateDataPackageObject,
   verifyBackupRecordIntegrity,
   verifyPackageChecksum,
-  verifyPackageSignature
+  verifyPackageSignature,
+  normalizeManifestUrl
 } from './dataPlatformService';
+
+export { normalizeManifestUrl };
 
 export const STORAGE_KEYS = {
   VERSION_META: 'dictengine_umd_version_meta_v2',
@@ -2324,7 +2327,10 @@ export async function runOnlineUpdateCycle(options?: {
     return next;
   };
 
-  if (!config.manifestUrl || !config.manifestUrl.trim()) {
+  const rawUrl = config.manifestUrl || '';
+  const cleanUrl = normalizeManifestUrl(rawUrl);
+
+  if (!cleanUrl) {
     const status = emit({
       phase: 'unconfigured',
       progressPercent: null,
@@ -2338,6 +2344,11 @@ export async function runOnlineUpdateCycle(options?: {
     });
     return { status };
   }
+
+  const effectiveConfig: OnlineUpdateConfig = {
+    ...config,
+    manifestUrl: cleanUrl
+  };
 
   if (options?.isStartup && (!config.autoCheckOnStartup || config.autoUpdatePolicy === 'manual')) {
     const status = emit({
@@ -2379,14 +2390,14 @@ export async function runOnlineUpdateCycle(options?: {
   });
 
   try {
-    const checkRes = await checkRemoteDataManifest(config.manifestUrl, {
+    const checkRes = await checkRemoteDataManifest(effectiveConfig.manifestUrl, {
       installedDataVersion,
-      channel: config.channel,
+      channel: effectiveConfig.channel,
       customFetch: options?.customFetch
     });
 
     const updatedConfig: OnlineUpdateConfig = {
-      ...config,
+      ...effectiveConfig,
       lastCheckedAt: nowIso,
       lastAvailableVersion: checkRes.manifest.dataVersion
     };

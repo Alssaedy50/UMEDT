@@ -53,6 +53,7 @@ import {
   saveVersionMetadata,
   loadOnlineUpdateConfig,
   saveOnlineUpdateConfig,
+  normalizeManifestUrl,
   createInitialOnlineUpdateStatus,
   runOnlineUpdateCycle,
   loadBackupHistory,
@@ -357,13 +358,18 @@ export default function App() {
   };
 
   const handleUpdateOnlineConfig = (nextConfig: OnlineUpdateConfig) => {
-    setOnlineUpdateConfig(nextConfig);
-    saveOnlineUpdateConfig(nextConfig);
+    const cleanUrl = normalizeManifestUrl(nextConfig.manifestUrl);
+    const normalized: OnlineUpdateConfig = {
+      ...nextConfig,
+      manifestUrl: cleanUrl
+    };
+    setOnlineUpdateConfig(normalized);
+    saveOnlineUpdateConfig(normalized);
     setVersionMetadata((prev) => {
       const updated: VersionMetadata = {
         ...prev,
-        remoteManifestUrl: nextConfig.manifestUrl || undefined,
-        remoteChannel: nextConfig.channel
+        remoteManifestUrl: cleanUrl || undefined,
+        remoteChannel: normalized.channel
       };
       saveVersionMetadata(updated);
       return updated;
