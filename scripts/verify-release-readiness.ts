@@ -414,6 +414,10 @@ async function main() {
 
   // 8. Stage 5, Stage 6 & Stage 7 End-to-End Live HTTP Server-to-App OTA Update Test
   const preOtaVersion = loadAppState().versionMetadata.dataVersion;
+  // Keep the isolated test key authoritative for the complete OTA lifecycle.
+  // The build-embedded production key must remain locked in real app builds;
+  // this override only simulates a matching trusted key inside this test process.
+  setEmbeddedTrustedPublicKeyOverrideForTesting(keyGenA.publicKeyPem);
   let otaHttpServer: http.Server | null = null;
   try {
     const liveTargetVersion = '2026.12.0-umd';
@@ -508,8 +512,11 @@ async function main() {
         rollbackRes.state.versionMetadata.dataVersion === preOtaVersion,
       'Rollback after live HTTP OTA update must restore exact previous dataVersion'
     );
-    saveOnlineUpdateConfig(DEFAULT_ONLINE_UPDATE_CONFIG);
   } finally {
+    // Always restore the production-key behavior and default updater config,
+    // including when any OTA assertion fails.
+    setEmbeddedTrustedPublicKeyOverrideForTesting(null);
+    saveOnlineUpdateConfig(DEFAULT_ONLINE_UPDATE_CONFIG);
     if (otaHttpServer) {
       await new Promise<void>((resolve) => otaHttpServer!.close(() => resolve()));
     }
