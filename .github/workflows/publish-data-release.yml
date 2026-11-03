@@ -53,8 +53,13 @@ jobs:
         run: npm ci
 
       - name: Pre-Publish Code Quality & Readiness Gates
+        env:
+          VITE_UMED_MANIFEST_URL: ${{ vars.VITE_UMED_MANIFEST_URL }}
+          VITE_UMED_PUBLIC_KEY_PEM: ${{ vars.VITE_UMED_PUBLIC_KEY_PEM }}
         run: |
           npm run lint
+          npm run build
+          npx cap sync android
           npm test
 
       - name: Validate Permanent Signing Keys
@@ -96,7 +101,7 @@ jobs:
           npx tsx scripts/upload-release-to-r2.ts --channel "$UMED_RELEASE_CHANNEL" --dir "releases"
 
       - name: Upload Signed Release Artifacts
-        if: ${{ always() && hashFiles('releases/**') != '' }}
+        if: ${{ success() && steps.build_bundle.outcome == 'success' && hashFiles('releases/**') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: umedt-data-release-${{ github.event.inputs.channel || 'stable' }}-${{ github.run_id }}
@@ -105,7 +110,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish to GitHub Releases & Update Manifest in Main
-        if: ${{ github.event.inputs.dry_run != 'true' && !cancelled() }}
+        if: ${{ success() && steps.build_bundle.outcome == 'success' && github.event.inputs.dry_run != 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANNEL: ${{ github.event.inputs.channel || 'stable' }}
