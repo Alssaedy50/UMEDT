@@ -1,0 +1,1335 @@
+[
+  {
+    "id": "ab1",
+    "abbr": "MS",
+    "isAmbiguous": true,
+    "defaultExpansionEn": "Multiple Sclerosis",
+    "defaultTranslationAr": "التصلب اللويحي المتعدد",
+    "category": "Neurology & Labs",
+    "priority": 100,
+    "candidates": [
+      {
+        "expansionEn": "Multiple Sclerosis",
+        "translationAr": "التصلب اللويحي المتعدد",
+        "specialty": "Neurology · طب الأعصاب",
+        "triggers": [
+          {
+            "token": "demyelinating",
+            "weight": 10
+          },
+          {
+            "token": "optic",
+            "weight": 8
+          },
+          {
+            "token": "neuritis",
+            "weight": 9
+          },
+          {
+            "token": "plaques",
+            "weight": 9
+          },
+          {
+            "token": "mri",
+            "weight": 7
+          },
+          {
+            "token": "relapsing",
+            "weight": 9
+          },
+          {
+            "token": "remitting",
+            "weight": 9
+          },
+          {
+            "token": "neurological",
+            "weight": 7
+          },
+          {
+            "token": "paresthesia",
+            "weight": 8
+          },
+          {
+            "token": "ataxia",
+            "weight": 7
+          },
+          {
+            "token": "weakness",
+            "weight": 5
+          }
+        ]
+      },
+      {
+        "expansionEn": "Mitral Stenosis",
+        "translationAr": "تضيّق الصمام التاجي (الميترالي)",
+        "specialty": "Cardiology · أمراض القلب",
+        "triggers": [
+          {
+            "token": "diastolic",
+            "weight": 10
+          },
+          {
+            "token": "murmur",
+            "weight": 10
+          },
+          {
+            "token": "rheumatic",
+            "weight": 9
+          },
+          {
+            "token": "atrial",
+            "weight": 8
+          },
+          {
+            "token": "echocardiogram",
+            "weight": 8
+          },
+          {
+            "token": "valve",
+            "weight": 9
+          },
+          {
+            "token": "apex",
+            "weight": 8
+          },
+          {
+            "token": "opening",
+            "weight": 7
+          },
+          {
+            "token": "snap",
+            "weight": 8
+          },
+          {
+            "token": "cardiac",
+            "weight": 6
+          }
+        ]
+      },
+      {
+        "expansionEn": "Morphine Sulfate",
+        "translationAr": "سلفات المورفين",
+        "specialty": "Pharmacology · الأدوية والتخدير",
+        "triggers": [
+          {
+            "token": "iv",
+            "weight": 9
+          },
+          {
+            "token": "mg",
+            "weight": 10
+          },
+          {
+            "token": "pain",
+            "weight": 8
+          },
+          {
+            "token": "prn",
+            "weight": 9
+          },
+          {
+            "token": "analgesia",
+            "weight": 9
+          },
+          {
+            "token": "administered",
+            "weight": 8
+          },
+          {
+            "token": "bolus",
+            "weight": 8
+          },
+          {
+            "token": "subcutaneous",
+            "weight": 7
+          },
+          {
+            "token": "dose",
+            "weight": 7
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "ab2",
+    "abbr": "PT",
+    "isAmbiguous": true,
+    "defaultExpansionEn": "Patient",
+    "defaultTranslationAr": "المريض",
+    "category": "Ward & Hx",
+    "priority": 95,
+    "candidates": [
+      {
+        "expansionEn": "Patient",
+        "translationAr": "المريض",
+        "specialty": "General Clinical · سريري عام",
+        "triggers": [
+          {
+            "token": "admitted",
+            "weight": 9
+          },
+          {
+            "token": "presents",
+            "weight": 9
+          },
+          {
+            "token": "c/o",
+            "weight": 10
+          },
+          {
+            "token": "hx",
+            "weight": 8
+          },
+          {
+            "token": "history",
+            "weight": 7
+          },
+          {
+            "token": "male",
+            "weight": 8
+          },
+          {
+            "token": "female",
+            "weight": 8
+          },
+          {
+            "token": "yo",
+            "weight": 9
+          },
+          {
+            "token": "denies",
+            "weight": 8
+          },
+          {
+            "token": "reports",
+            "weight": 7
+          }
+        ]
+      },
+      {
+        "expansionEn": "Prothrombin Time",
+        "translationAr": "زمن البروثرومبين (فحص التخثر)",
+        "specialty": "Hematology & Labs · المختبر وأمراض الدم",
+        "triggers": [
+          {
+            "token": "inr",
+            "weight": 10
+          },
+          {
+            "token": "warfarin",
+            "weight": 10
+          },
+          {
+            "token": "aptt",
+            "weight": 9
+          },
+          {
+            "token": "ptt",
+            "weight": 9
+          },
+          {
+            "token": "seconds",
+            "weight": 8
+          },
+          {
+            "token": "coagulation",
+            "weight": 9
+          },
+          {
+            "token": "bleeding",
+            "weight": 7
+          },
+          {
+            "token": "elevated",
+            "weight": 6
+          },
+          {
+            "token": "heparin",
+            "weight": 7
+          }
+        ]
+      },
+      {
+        "expansionEn": "Physical Therapy",
+        "translationAr": "العلاج الطبيعي والتأهيل الحركي",
+        "specialty": "Rehabilitation · التأهيل الطبي",
+        "triggers": [
+          {
+            "token": "mobility",
+            "weight": 9
+          },
+          {
+            "token": "rehab",
+            "weight": 10
+          },
+          {
+            "token": "rehabilitation",
+            "weight": 10
+          },
+          {
+            "token": "gait",
+            "weight": 9
+          },
+          {
+            "token": "exercises",
+            "weight": 8
+          },
+          {
+            "token": "ambulation",
+            "weight": 9
+          },
+          {
+            "token": "discharge",
+            "weight": 6
+          },
+          {
+            "token": "walker",
+            "weight": 8
+          },
+          {
+            "token": "strength",
+            "weight": 6
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "ab3",
+    "abbr": "PE",
+    "isAmbiguous": true,
+    "defaultExpansionEn": "Pulmonary Embolism",
+    "defaultTranslationAr": "الانصمام الرئوي (جلطة الشريان الرئوي)",
+    "category": "Cardiopulmonary",
+    "priority": 95,
+    "candidates": [
+      {
+        "expansionEn": "Pulmonary Embolism",
+        "translationAr": "الانصمام الرئوي (جلطة الشريان الرئوي)",
+        "specialty": "Pulmonology & Emergency · الصدرية والطوارئ",
+        "triggers": [
+          {
+            "token": "dvt",
+            "weight": 10
+          },
+          {
+            "token": "ctpa",
+            "weight": 10
+          },
+          {
+            "token": "d-dimer",
+            "weight": 9
+          },
+          {
+            "token": "anticoagulation",
+            "weight": 9
+          },
+          {
+            "token": "heparin",
+            "weight": 8
+          },
+          {
+            "token": "tachypnea",
+            "weight": 8
+          },
+          {
+            "token": "hypoxia",
+            "weight": 8
+          },
+          {
+            "token": "pleuritic",
+            "weight": 9
+          },
+          {
+            "token": "chest",
+            "weight": 6
+          }
+        ]
+      },
+      {
+        "expansionEn": "Physical Examination",
+        "translationAr": "الفحص السريري (البدني)",
+        "specialty": "General Ward · الفحص السريري",
+        "triggers": [
+          {
+            "token": "vitals",
+            "weight": 9
+          },
+          {
+            "token": "afebrile",
+            "weight": 9
+          },
+          {
+            "token": "auscultation",
+            "weight": 8
+          },
+          {
+            "token": "palpation",
+            "weight": 9
+          },
+          {
+            "token": "abdomen",
+            "weight": 7
+          },
+          {
+            "token": "nad",
+            "weight": 9
+          },
+          {
+            "token": "wnl",
+            "weight": 8
+          },
+          {
+            "token": "unremarkable",
+            "weight": 9
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "ab4",
+    "abbr": "MI",
+    "isAmbiguous": true,
+    "defaultExpansionEn": "Myocardial Infarction",
+    "defaultTranslationAr": "احتشاء عضلة القلب",
+    "category": "Cardiopulmonary",
+    "priority": 96,
+    "candidates": [
+      {
+        "expansionEn": "Myocardial Infarction",
+        "translationAr": "احتشاء عضلة القلب",
+        "specialty": "Cardiology · أمراض القلب",
+        "triggers": [
+          {
+            "token": "stemi",
+            "weight": 10
+          },
+          {
+            "token": "nstemi",
+            "weight": 10
+          },
+          {
+            "token": "troponin",
+            "weight": 10
+          },
+          {
+            "token": "ecg",
+            "weight": 8
+          },
+          {
+            "token": "ischemia",
+            "weight": 9
+          },
+          {
+            "token": "coronary",
+            "weight": 9
+          },
+          {
+            "token": "angina",
+            "weight": 8
+          },
+          {
+            "token": "catheterization",
+            "weight": 8
+          }
+        ]
+      },
+      {
+        "expansionEn": "Mitral Insufficiency (Regurgitation)",
+        "translationAr": "قصور (ارتجاع) الصمام التاجي",
+        "specialty": "Cardiology · أمراض الصمامات",
+        "triggers": [
+          {
+            "token": "systolic",
+            "weight": 9
+          },
+          {
+            "token": "murmur",
+            "weight": 9
+          },
+          {
+            "token": "holosystolic",
+            "weight": 10
+          },
+          {
+            "token": "regurgitation",
+            "weight": 10
+          },
+          {
+            "token": "valve",
+            "weight": 8
+          },
+          {
+            "token": "prolapse",
+            "weight": 9
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "ab5",
+    "abbr": "CA",
+    "isAmbiguous": true,
+    "defaultExpansionEn": "Carcinoma (Malignancy)",
+    "defaultTranslationAr": "سرطان (ورم خبيث)",
+    "category": "Neurology & Labs",
+    "priority": 90,
+    "candidates": [
+      {
+        "expansionEn": "Carcinoma (Malignancy)",
+        "translationAr": "سرطان (ورم خبيث)",
+        "specialty": "Oncology · علم الأورام",
+        "triggers": [
+          {
+            "token": "metastatic",
+            "weight": 10
+          },
+          {
+            "token": "biopsy",
+            "weight": 9
+          },
+          {
+            "token": "oncology",
+            "weight": 9
+          },
+          {
+            "token": "chemotherapy",
+            "weight": 9
+          },
+          {
+            "token": "staging",
+            "weight": 8
+          },
+          {
+            "token": "tumor",
+            "weight": 9
+          },
+          {
+            "token": "resection",
+            "weight": 8
+          }
+        ]
+      },
+      {
+        "expansionEn": "Calcium (Serum Calcium)",
+        "translationAr": "الكالسيوم في الدم",
+        "specialty": "Biochemistry & Labs · الكيمياء الحيوية والمختبر",
+        "triggers": [
+          {
+            "token": "mg/dl",
+            "weight": 10
+          },
+          {
+            "token": "mmol/l",
+            "weight": 10
+          },
+          {
+            "token": "albumin",
+            "weight": 8
+          },
+          {
+            "token": "pth",
+            "weight": 9
+          },
+          {
+            "token": "electrolytes",
+            "weight": 9
+          },
+          {
+            "token": "vitamin",
+            "weight": 6
+          },
+          {
+            "token": "ionized",
+            "weight": 9
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "ab6",
+    "abbr": "RA",
+    "isAmbiguous": true,
+    "defaultExpansionEn": "Rheumatoid Arthritis",
+    "defaultTranslationAr": "التهاب المفاصل الروماتويدي",
+    "category": "Ward & Hx",
+    "priority": 90,
+    "candidates": [
+      {
+        "expansionEn": "Rheumatoid Arthritis",
+        "translationAr": "التهاب المفاصل الروماتويدي",
+        "specialty": "Rheumatology · أمراض المفاصل والروماتيزم",
+        "triggers": [
+          {
+            "token": "synovitis",
+            "weight": 10
+          },
+          {
+            "token": "joints",
+            "weight": 9
+          },
+          {
+            "token": "methotrexate",
+            "weight": 10
+          },
+          {
+            "token": "autoimmune",
+            "weight": 8
+          },
+          {
+            "token": "morning",
+            "weight": 7
+          },
+          {
+            "token": "stiffness",
+            "weight": 8
+          },
+          {
+            "token": "anti-ccp",
+            "weight": 10
+          }
+        ]
+      },
+      {
+        "expansionEn": "Right Atrium",
+        "translationAr": "الأذين الأيمن للقلب",
+        "specialty": "Cardiology · أمراض القلب",
+        "triggers": [
+          {
+            "token": "rv",
+            "weight": 9
+          },
+          {
+            "token": "tricuspid",
+            "weight": 10
+          },
+          {
+            "token": "vena",
+            "weight": 9
+          },
+          {
+            "token": "cava",
+            "weight": 9
+          },
+          {
+            "token": "pressure",
+            "weight": 7
+          },
+          {
+            "token": "catheter",
+            "weight": 8
+          },
+          {
+            "token": "echocardiogram",
+            "weight": 8
+          }
+        ]
+      },
+      {
+        "expansionEn": "Room Air",
+        "translationAr": "هواء الغرفة الاعتيادي (بدون أكسجين إضافي)",
+        "specialty": "Pulmonology & Ward · الصدرية والأجنحة",
+        "triggers": [
+          {
+            "token": "spo2",
+            "weight": 10
+          },
+          {
+            "token": "saturation",
+            "weight": 10
+          },
+          {
+            "token": "98%",
+            "weight": 8
+          },
+          {
+            "token": "99%",
+            "weight": 8
+          },
+          {
+            "token": "breathing",
+            "weight": 8
+          },
+          {
+            "token": "oxygen",
+            "weight": 7
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "ab7",
+    "abbr": "CHF",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Congestive Heart Failure",
+    "defaultTranslationAr": "فشل القلب الاحتقاني",
+    "category": "Cardiopulmonary",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab8",
+    "abbr": "SOB",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Shortness of Breath (Dyspnea)",
+    "defaultTranslationAr": "ضيق التنفس (الزلة التنفسية)",
+    "category": "Cardiopulmonary",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab9",
+    "abbr": "DOE",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Dyspnea on Exertion",
+    "defaultTranslationAr": "الزلة التنفسية الجهدية",
+    "category": "Cardiopulmonary",
+    "priority": 89,
+    "candidates": []
+  },
+  {
+    "id": "ab10",
+    "abbr": "PND",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Paroxysmal Nocturnal Dyspnea",
+    "defaultTranslationAr": "الزلة التنفسية الليلية الانتيابية",
+    "category": "Cardiopulmonary",
+    "priority": 88,
+    "candidates": []
+  },
+  {
+    "id": "ab11",
+    "abbr": "COPD",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Chronic Obstructive Pulmonary Disease",
+    "defaultTranslationAr": "الداء الرئوي السادّ المزمن",
+    "category": "Cardiopulmonary",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab12",
+    "abbr": "ARDS",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Acute Respiratory Distress Syndrome",
+    "defaultTranslationAr": "متلازمة الضائقة التنفسية الحادة",
+    "category": "Cardiopulmonary",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab13",
+    "abbr": "HTN",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Hypertension",
+    "defaultTranslationAr": "فرط ضغط الدم الشرياني",
+    "category": "Cardiopulmonary",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab14",
+    "abbr": "DM",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Diabetes Mellitus",
+    "defaultTranslationAr": "داء السكري",
+    "category": "Ward & Hx",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab15",
+    "abbr": "DKA",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Diabetic Ketoacidosis",
+    "defaultTranslationAr": "الحماض الكيتوني السكري",
+    "category": "Ward & Hx",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab16",
+    "abbr": "CKD",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Chronic Kidney Disease",
+    "defaultTranslationAr": "مرض الكلى المزمن (القصور الكلوي المزمن)",
+    "category": "Ward & Hx",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab17",
+    "abbr": "AKI",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Acute Kidney Injury",
+    "defaultTranslationAr": "أذية الكلية الحادة (القصور الكلوي الحاد)",
+    "category": "Ward & Hx",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab18",
+    "abbr": "ESRD",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "End-Stage Renal Disease",
+    "defaultTranslationAr": "الداء الكلوي بالمراحل النهائية",
+    "category": "Ward & Hx",
+    "priority": 89,
+    "candidates": []
+  },
+  {
+    "id": "ab19",
+    "abbr": "CVA",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Cerebrovascular Accident (Stroke)",
+    "defaultTranslationAr": "الحادث الوعائي الدماغي (السكتة الدماغية)",
+    "category": "Neurology & Labs",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab20",
+    "abbr": "TIA",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Transient Ischemic Attack",
+    "defaultTranslationAr": "نوبة نقص التروية الدماغية العابرة",
+    "category": "Neurology & Labs",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab21",
+    "abbr": "CAD",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Coronary Artery Disease",
+    "defaultTranslationAr": "داء الشرايين التاجية (الإكليلية)",
+    "category": "Cardiopulmonary",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab22",
+    "abbr": "ACS",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Acute Coronary Syndrome",
+    "defaultTranslationAr": "المتلازمة الإكليلية (التاجية) الحادة",
+    "category": "Cardiopulmonary",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab23",
+    "abbr": "STEMI",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "ST-Elevation Myocardial Infarction",
+    "defaultTranslationAr": "احتشاء عضلة القلب المترافق بارتفاع القطعة ST",
+    "category": "Cardiopulmonary",
+    "priority": 92,
+    "candidates": []
+  },
+  {
+    "id": "ab24",
+    "abbr": "NSTEMI",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Non-ST-Elevation Myocardial Infarction",
+    "defaultTranslationAr": "احتشاء عضلة القلب غير المترافق بارتفاع القطعة ST",
+    "category": "Cardiopulmonary",
+    "priority": 92,
+    "candidates": []
+  },
+  {
+    "id": "ab25",
+    "abbr": "AFib",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Atrial Fibrillation",
+    "defaultTranslationAr": "الرجفان الأذيني",
+    "category": "Cardiopulmonary",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab26",
+    "abbr": "DVT",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Deep Vein Thrombosis",
+    "defaultTranslationAr": "خثار الأوردة العميقة",
+    "category": "Cardiopulmonary",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab27",
+    "abbr": "GERD",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Gastroesophageal Reflux Disease",
+    "defaultTranslationAr": "داء الارتجاع المعدي المريئي",
+    "category": "Ward & Hx",
+    "priority": 88,
+    "candidates": []
+  },
+  {
+    "id": "ab28",
+    "abbr": "IBD",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Inflammatory Bowel Disease",
+    "defaultTranslationAr": "الداء المعوي الالتهابي",
+    "category": "Ward & Hx",
+    "priority": 88,
+    "candidates": []
+  },
+  {
+    "id": "ab29",
+    "abbr": "UTI",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Urinary Tract Infection",
+    "defaultTranslationAr": "عدوى (إنتان) المسالك البولية",
+    "category": "Ward & Hx",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab30",
+    "abbr": "BPH",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Benign Prostatic Hyperplasia",
+    "defaultTranslationAr": "فرط التنسّج الحميد في البروستات",
+    "category": "Ward & Hx",
+    "priority": 88,
+    "candidates": []
+  },
+  {
+    "id": "ab31",
+    "abbr": "CBC",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Complete Blood Count",
+    "defaultTranslationAr": "تعداد الدم الكامل (صورة الدم الشاملة)",
+    "category": "Neurology & Labs",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab32",
+    "abbr": "ABG",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Arterial Blood Gas",
+    "defaultTranslationAr": "غازات الدم الشرياني",
+    "category": "Neurology & Labs",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab33",
+    "abbr": "LFT",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Liver Function Tests",
+    "defaultTranslationAr": "اختبارات وظائف الكبد",
+    "category": "Neurology & Labs",
+    "priority": 88,
+    "candidates": []
+  },
+  {
+    "id": "ab34",
+    "abbr": "RFT",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Renal Function Tests",
+    "defaultTranslationAr": "اختبارات وظائف الكلية",
+    "category": "Neurology & Labs",
+    "priority": 88,
+    "candidates": []
+  },
+  {
+    "id": "ab35",
+    "abbr": "CSF",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Cerebrospinal Fluid",
+    "defaultTranslationAr": "السائل الدماغي الشوكي",
+    "category": "Neurology & Labs",
+    "priority": 89,
+    "candidates": []
+  },
+  {
+    "id": "ab36",
+    "abbr": "ECG",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Electrocardiogram",
+    "defaultTranslationAr": "تخطيط كهربية القلب",
+    "category": "Cardiopulmonary",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab37",
+    "abbr": "EEG",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Electroencephalogram",
+    "defaultTranslationAr": "تخطيط كهربية الدماغ",
+    "category": "Neurology & Labs",
+    "priority": 89,
+    "candidates": []
+  },
+  {
+    "id": "ab38",
+    "abbr": "MRI",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Magnetic Resonance Imaging",
+    "defaultTranslationAr": "التصوير بالرنين المغناطيسي",
+    "category": "Neurology & Labs",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab39",
+    "abbr": "CT",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Computed Tomography",
+    "defaultTranslationAr": "التصوير المقطعي المحوسب (الطبقي المحوري)",
+    "category": "Neurology & Labs",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab40",
+    "abbr": "ICU",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Intensive Care Unit",
+    "defaultTranslationAr": "وحدة العناية المركزة",
+    "category": "Ward & Hx",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab41",
+    "abbr": "NICU",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Neonatal Intensive Care Unit",
+    "defaultTranslationAr": "وحدة العناية المركزة لحديثي الولادة",
+    "category": "Ward & Hx",
+    "priority": 89,
+    "candidates": []
+  },
+  {
+    "id": "ab42",
+    "abbr": "c/o",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Complains of",
+    "defaultTranslationAr": "يشكو من",
+    "category": "Ward & Hx",
+    "priority": 95,
+    "candidates": []
+  },
+  {
+    "id": "ab43",
+    "abbr": "Hx",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Medical History",
+    "defaultTranslationAr": "السوابق المرضية (التاريخ الطبي)",
+    "category": "Ward & Hx",
+    "priority": 92,
+    "candidates": []
+  },
+  {
+    "id": "ab44",
+    "abbr": "PMH",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Past Medical History",
+    "defaultTranslationAr": "التاريخ المرضي السابق",
+    "category": "Ward & Hx",
+    "priority": 92,
+    "candidates": []
+  },
+  {
+    "id": "ab45",
+    "abbr": "PSH",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Past Surgical History",
+    "defaultTranslationAr": "السوابق الجراحية",
+    "category": "Ward & Hx",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab46",
+    "abbr": "FH",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Family History",
+    "defaultTranslationAr": "التاريخ العائلي المرضي",
+    "category": "Ward & Hx",
+    "priority": 88,
+    "candidates": []
+  },
+  {
+    "id": "ab47",
+    "abbr": "HPI",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "History of Present Illness",
+    "defaultTranslationAr": "قصة المرض الحالي",
+    "category": "Ward & Hx",
+    "priority": 91,
+    "candidates": []
+  },
+  {
+    "id": "ab48",
+    "abbr": "Dx",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Diagnosis",
+    "defaultTranslationAr": "التشخيص السريري",
+    "category": "Ward & Hx",
+    "priority": 92,
+    "candidates": []
+  },
+  {
+    "id": "ab49",
+    "abbr": "DDx",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Differential Diagnosis",
+    "defaultTranslationAr": "التشخيص التفريقي",
+    "category": "Ward & Hx",
+    "priority": 92,
+    "candidates": []
+  },
+  {
+    "id": "ab50",
+    "abbr": "Tx",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Treatment / Therapy",
+    "defaultTranslationAr": "الخطة العلاجية",
+    "category": "Ward & Hx",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab51",
+    "abbr": "Rx",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Prescription / Medication",
+    "defaultTranslationAr": "الوصفة الدوائية",
+    "category": "Prescription (Rx)",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab52",
+    "abbr": "Sx",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Symptoms",
+    "defaultTranslationAr": "الأعراض السريرية",
+    "category": "Ward & Hx",
+    "priority": 89,
+    "candidates": []
+  },
+  {
+    "id": "ab53",
+    "abbr": "Px",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Prognosis",
+    "defaultTranslationAr": "المآل السريري (الإنذار)",
+    "category": "Ward & Hx",
+    "priority": 88,
+    "candidates": []
+  },
+  {
+    "id": "ab54",
+    "abbr": "WNL",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Within Normal Limits",
+    "defaultTranslationAr": "ضمن الحدود الطبيعية",
+    "category": "Ward & Hx",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab55",
+    "abbr": "NAD",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "No Acute Distress",
+    "defaultTranslationAr": "لا توجد ضائقة حادة ظاهرة",
+    "category": "Ward & Hx",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab56",
+    "abbr": "y/o",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Years Old",
+    "defaultTranslationAr": "من العمر (سنة)",
+    "category": "Ward & Hx",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab57",
+    "abbr": "yo",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Years Old",
+    "defaultTranslationAr": "من العمر (سنة)",
+    "category": "Ward & Hx",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab58",
+    "abbr": "PO",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Per Os (By Mouth)",
+    "defaultTranslationAr": "عن طريق الفم (فموياً)",
+    "category": "Prescription (Rx)",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab59",
+    "abbr": "IV",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Intravenous",
+    "defaultTranslationAr": "وريدياً (داخل الوريد)",
+    "category": "Prescription (Rx)",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab60",
+    "abbr": "IM",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Intramuscular",
+    "defaultTranslationAr": "عضلياً (داخل العضل)",
+    "category": "Prescription (Rx)",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab61",
+    "abbr": "SC",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Subcutaneous",
+    "defaultTranslationAr": "تحت الجلد",
+    "category": "Prescription (Rx)",
+    "priority": 89,
+    "candidates": []
+  },
+  {
+    "id": "ab62",
+    "abbr": "SL",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Sublingual",
+    "defaultTranslationAr": "تحت اللسان",
+    "category": "Prescription (Rx)",
+    "priority": 89,
+    "candidates": []
+  },
+  {
+    "id": "ab63",
+    "abbr": "NPO",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Nil Per Os (Nothing by Mouth)",
+    "defaultTranslationAr": "صائم تماماً عن الفم",
+    "category": "Prescription (Rx)",
+    "priority": 92,
+    "candidates": []
+  },
+  {
+    "id": "ab64",
+    "abbr": "PRN",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Pro Re Nata (As Needed)",
+    "defaultTranslationAr": "عند اللزوم",
+    "category": "Prescription (Rx)",
+    "priority": 91,
+    "candidates": []
+  },
+  {
+    "id": "ab65",
+    "abbr": "STAT",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Statim (Immediately)",
+    "defaultTranslationAr": "فوراً وبصورة عاجلة",
+    "category": "Prescription (Rx)",
+    "priority": 92,
+    "candidates": []
+  },
+  {
+    "id": "ab66",
+    "abbr": "QD",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Quaque Die (Once Daily)",
+    "defaultTranslationAr": "مرة واحدة يومياً",
+    "category": "Prescription (Rx)",
+    "priority": 88,
+    "candidates": []
+  },
+  {
+    "id": "ab67",
+    "abbr": "OD",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Omne in Die (Once Daily)",
+    "defaultTranslationAr": "مرة واحدة يومياً",
+    "category": "Prescription (Rx)",
+    "priority": 88,
+    "candidates": []
+  },
+  {
+    "id": "ab68",
+    "abbr": "BID",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Bis In Die (Twice Daily)",
+    "defaultTranslationAr": "مرتين يومياً (كل 12 ساعة)",
+    "category": "Prescription (Rx)",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab69",
+    "abbr": "TID",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Ter In Die (Three Times Daily)",
+    "defaultTranslationAr": "ثلاث مرات يومياً (كل 8 ساعات)",
+    "category": "Prescription (Rx)",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab70",
+    "abbr": "QID",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Quater In Die (Four Times Daily)",
+    "defaultTranslationAr": "أربع مرات يومياً (كل 6 ساعات)",
+    "category": "Prescription (Rx)",
+    "priority": 90,
+    "candidates": []
+  },
+  {
+    "id": "ab71",
+    "abbr": "QHS",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Quaque Hora Somni (At Bedtime)",
+    "defaultTranslationAr": "عند النوم ليلاً",
+    "category": "Prescription (Rx)",
+    "priority": 88,
+    "candidates": []
+  },
+  {
+    "id": "ab72",
+    "abbr": "AC",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Ante Cibum (Before Meals)",
+    "defaultTranslationAr": "قبل الطعام",
+    "category": "Prescription (Rx)",
+    "priority": 87,
+    "candidates": []
+  },
+  {
+    "id": "ab73",
+    "abbr": "PC",
+    "isAmbiguous": false,
+    "defaultExpansionEn": "Post Cibum (After Meals)",
+    "defaultTranslationAr": "بعد الطعام",
+    "category": "Prescription (Rx)",
+    "priority": 87,
+    "candidates": []
+  }
+]

@@ -38,11 +38,11 @@ function readArray<T>(root: string, fileName: MasterFileName, fallback: T[]): T[
   try {
     parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch (error) {
-    throw new Error(\`Invalid JSON in data/master/\${fileName}: \${error instanceof Error ? error.message : String(error)}\`);
+    throw new Error(`Invalid JSON in data/master/${fileName}: ${error instanceof Error ? error.message : String(error)}`);
   }
 
   if (!Array.isArray(parsed)) {
-    throw new Error(\`data/master/\${fileName} must contain a JSON array.\`);
+    throw new Error(`data/master/${fileName} must contain a JSON array.`);
   }
   return parsed as T[];
 }
@@ -51,10 +51,10 @@ function assertUniqueIds<T extends { id?: unknown }>(records: T[], label: string
   const seen = new Set<string>();
   for (const record of records) {
     if (!record || typeof record !== 'object' || typeof record.id !== 'string' || !record.id.trim()) {
-      throw new Error(\`\${label}: every record must have a non-empty string id.\`);
+      throw new Error(`${label}: every record must have a non-empty string id.`);
     }
     const id = record.id.trim();
-    if (seen.has(id)) throw new Error(\`\${label}: duplicate id "\${id}".\`);
+    if (seen.has(id)) throw new Error(`${label}: duplicate id "${id}".`);
     seen.add(id);
   }
 }
@@ -86,8 +86,8 @@ export function loadMasterMedicalRepository(rootDir = process.cwd()): MasterMedi
       throw new Error('terms: every record must have a non-empty term.');
     }
     const key = normalizeTerm(term.term);
-    if (!key) throw new Error(\`terms: invalid normalized term for "\${term.term}".\`);
-    if (termKeys.has(key)) throw new Error(\`terms: duplicate normalized term "\${term.term}".\`);
+    if (!key) throw new Error(`terms: invalid normalized term for "${term.term}".`);
+    if (termKeys.has(key)) throw new Error(`terms: duplicate normalized term "${term.term}".`);
     termKeys.add(key);
   }
 

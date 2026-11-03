@@ -1,0 +1,2071 @@
+[
+  {
+    "id": "m1",
+    "term": "Myocardial Infarction",
+    "termNormalized": "myocardial infarction",
+    "translation": "احتشاء عضلة القلب",
+    "phonetic": "/ˌmaɪəˈkɑːrdiəl ɪnˈfɑːrkʃən/",
+    "pos": "Noun · تشخيص سريري",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "umdCode": "UMD-I21.9",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "طب الطوارئ والقلب",
+      "مراجعة أساسية"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "نخر إقفاري حاد في نسيج عضلة القلب ناتج عن انسداد الشريان التاجي وانقطاع التروية، مما يسبب حالة Ischemia مطوّلة وتلفاً خلوياً غير عكوس. يترافق سريرياً مع ألم صدري عاصر وعلامات Tachycardia أو Arrhythmia بطينية، ويتطلب إجراء Differential Diagnosis عاجل وتدخلاً قسطرياً.",
+    "definitionEn": "Acute ischemic necrosis of heart muscle tissue caused by prolonged coronary Ischemia, frequently accompanied by Tachycardia or life-threatening Arrhythmia.",
+    "clinicalNote": "وفق المعجم الطبي الموحد (WHO UMD): يُترجم المصطلح دائماً إلى \"احتشاء عضلة القلب\" مع إبقاء المصطلح الإنجليزي بين قوسين في تقارير الخروج السريرية.",
+    "morphology": {
+      "prefix": {
+        "affix": "Myo-",
+        "meaningAr": "عضلي",
+        "meaningEn": "Muscle"
+      },
+      "root": {
+        "affix": "cardi",
+        "meaningAr": "القلب",
+        "meaningEn": "Heart"
+      },
+      "suffix": {
+        "affix": "-al / Infarction",
+        "meaningAr": "احتشاء / نخر وعائي",
+        "meaningEn": "Tissue necrosis due to obstruction"
+      },
+      "literalSynthesisAr": "احتشاء النسيج العضلي القلبي"
+    },
+    "examples": [
+      {
+        "en": "Prolonged coronary Ischemia rapidly progresses into an acute Myocardial Infarction if blood flow is not restored.",
+        "ar": "يتطور نقص التروية التاجي المطول سريعاً إلى احتشاء عضلة القلب الحاد إذا لم تتم استعادة تدفق الدم."
+      },
+      {
+        "en": "Emergency physicians perform a rapid Differential Diagnosis to distinguish Myocardial Infarction from Pulmonary Embolism.",
+        "ar": "يجري أطباء الطوارئ تشخيصاً تفريقياً سريعاً للتمييز بين احتشاء عضلة القلب والانصمام الرئوي."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Heart Attack",
+        "Acute Coronary Syndrome"
+      ],
+      "broader": [
+        "Differential Diagnosis",
+        "Pathophysiology"
+      ],
+      "related": [
+        "Ischemia",
+        "Angina Pectoris",
+        "Tachycardia",
+        "Arrhythmia",
+        "Atherosclerosis"
+      ]
+    }
+  },
+  {
+    "id": "m2",
+    "term": "Ischemia",
+    "termNormalized": "ischemia",
+    "translation": "نقص التروية الدموية (الإقفار)",
+    "phonetic": "/ɪˈskiːmiə/",
+    "pos": "Noun · آلية مرضية",
+    "category": "Medical",
+    "specialty": "Pathology & Vascular · الأمراض الوعائية",
+    "umdCode": "UMD-I99.8",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "طب الطوارئ والقلب"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "قصور في الإمداد الدموي الشرياني الواصل إلى نسيج أو عضو حيوي، مما يؤدي إلى عوز الأكسجين الخلوي وضعف نقل الغازات عبر Hemoglobin داخل Erythrocyte. تُعد دراسة Pathophysiology الخاصة بحالة Ischemia الأساس لمنع التحول إلى Myocardial Infarction أو Ischemic Stroke.",
+    "definitionEn": "Inadequate blood supply to an organ or tissue due to arterial obstruction, central to the Pathophysiology of Myocardial Infarction and Ischemic Stroke.",
+    "clinicalNote": "يُعتمد مصطلح \"الإقفار\" أو \"نقص التروية الدموية\" في المعجم الطبي الموحد حسب السياق التشريحي.",
+    "morphology": {
+      "prefix": {
+        "affix": "Isch-",
+        "meaningAr": "احتباس / كبح",
+        "meaningEn": "Restriction / suppression"
+      },
+      "root": {
+        "affix": "hem",
+        "meaningAr": "الدم",
+        "meaningEn": "Blood"
+      },
+      "suffix": {
+        "affix": "-ia",
+        "meaningAr": "حالة مرضية",
+        "meaningEn": "Pathological condition"
+      },
+      "literalSynthesisAr": "حالة انحباس الدم عن النسيج"
+    },
+    "examples": [
+      {
+        "en": "Silent cerebral Ischemia can occur without immediate neurological deficits.",
+        "ar": "يمكن أن يحدث نقص التروية الدموية الدماغي الصامت دون عجز عصبي فوري."
+      },
+      {
+        "en": "Understanding the cellular Pathophysiology of Ischemia helps prevent irreversible Myocardial Infarction.",
+        "ar": "يساعد فهم الفيزيولوجيا المرضية الخلوية لحالة نقص التروية الدموية في منع احتشاء عضلة القلب غير العكوس."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Hypoperfusion",
+        "Vascular Restriction"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Myocardial Infarction",
+        "Angina Pectoris",
+        "Ischemic Stroke",
+        "Tachycardia",
+        "Anemia"
+      ]
+    }
+  },
+  {
+    "id": "m3",
+    "term": "Tachycardia",
+    "termNormalized": "tachycardia",
+    "translation": "تسرّع القلب",
+    "phonetic": "/ˌtækɪˈkɑːrdiə/",
+    "pos": "Noun · علامة سريرية",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "umdCode": "UMD-R00.0",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "طب الطوارئ والقلب"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "تسارع نظم القلب ليتجاوز 100 نبضة في الدقيقة وقت الراحة. يُصنف ضمن طيف اضطرابات Arrhythmia، وقد ينشأ كاستجابة معاوضة في حالات Anemia الشديدة أو Hypovolemic Shock أو كعلامة منذرة بحدوث Ischemia أو Myocardial Infarction.",
+    "definitionEn": "A heart rate exceeding 100 beats per minute at rest, classified under Arrhythmia and frequently triggered by Ischemia, Hypovolemic Shock, or Anemia.",
+    "clinicalNote": "تركيب قياسي من السابقة اليونانية Tachy- (سريع) والجذر cardi (قلب).",
+    "morphology": {
+      "prefix": {
+        "affix": "Tachy-",
+        "meaningAr": "تسارع / فرط السرعة",
+        "meaningEn": "Fast / rapid"
+      },
+      "root": {
+        "affix": "cardi",
+        "meaningAr": "القلب",
+        "meaningEn": "Heart"
+      },
+      "suffix": {
+        "affix": "-ia",
+        "meaningAr": "حالة سريرية",
+        "meaningEn": "Clinical state"
+      },
+      "literalSynthesisAr": "حالة تسارع نبض القلب"
+    },
+    "examples": [
+      {
+        "en": "Ventricular Tachycardia is a life-threatening Arrhythmia that requires immediate intervention.",
+        "ar": "يُعد تسرّع القلب البطيني اضطراب نظم مهدداً للحياة يتطلب تدخلاً فورياً."
+      },
+      {
+        "en": "Patients presenting with chest pain and Tachycardia must be evaluated for Myocardial Infarction and Pulmonary Embolism.",
+        "ar": "يجب تقييم المرضى الذين يحضرون بألم صدري مع تسرّع القلب لاستبعاد احتشاء عضلة القلب والانصمام الرئوي."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Rapid Heart Rate",
+        "Tachyarrhythmia"
+      ],
+      "broader": [
+        "Arrhythmia",
+        "Pathophysiology"
+      ],
+      "related": [
+        "Myocardial Infarction",
+        "Atrial Fibrillation",
+        "Hypovolemic Shock",
+        "Anemia"
+      ]
+    }
+  },
+  {
+    "id": "m4",
+    "term": "Arrhythmia",
+    "termNormalized": "arrhythmia",
+    "translation": "اضطراب النظم القلبي",
+    "phonetic": "/əˈrɪðmiə/",
+    "pos": "Noun · اضطراب فيزيولوجي",
+    "category": "Medical",
+    "specialty": "Electrophysiology · فسلجة القلب الكهربائية",
+    "umdCode": "UMD-I49.9",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "طب الطوارئ والقلب"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "اختلال في توليد أو توصيل السيالة الكهربائية في عضلة القلب، مما يسبب نبضاً متسارعاً مثل Tachycardia أو غير منتظم مثل Atrial Fibrillation. ترتبط Pathophysiology هذا الاضطراب غالباً ببؤر Ischemia أو ندبات تالية لحالة Myocardial Infarction.",
+    "definitionEn": "Irregularity in the electrical conduction system of the heart, encompassing Tachycardia and Atrial Fibrillation, often triggered by Ischemia or Myocardial Infarction.",
+    "morphology": {
+      "prefix": {
+        "affix": "A-",
+        "meaningAr": "انعدام / غياب",
+        "meaningEn": "Without / absence of"
+      },
+      "root": {
+        "affix": "rhythm",
+        "meaningAr": "إيقاع / نظم",
+        "meaningEn": "Rhythm"
+      },
+      "suffix": {
+        "affix": "-ia",
+        "meaningAr": "حالة مرضية",
+        "meaningEn": "Condition"
+      },
+      "literalSynthesisAr": "حالة غياب انتظام النظم القلبي"
+    },
+    "examples": [
+      {
+        "en": "Continuous ECG telemetry detects subtle Arrhythmia episodes following Myocardial Infarction.",
+        "ar": "يكتشف رصد تخطيط القلب المستمر نوبات اضطراب النظم القلبي الدقيقة عقب احتشاء عضلة القلب."
+      },
+      {
+        "en": "Electrolyte imbalance and myocardial Ischemia frequently precipitate supraventricular Arrhythmia such as Atrial Fibrillation.",
+        "ar": "يؤدي اختلال الشوارد ونقص تروية عضلة القلب غالباً إلى تحريض اضطراب النظم القلبي فوق البطيني مثل الرجفان الأذيني."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Cardiac Dysrhythmia",
+        "Irregular Heartbeat"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Tachycardia",
+        "Atrial Fibrillation",
+        "Myocardial Infarction",
+        "Ischemia"
+      ]
+    }
+  },
+  {
+    "id": "m5",
+    "term": "Hyperbilirubinemia",
+    "termNormalized": "hyperbilirubinemia",
+    "translation": "فرط بيليروبين الدم",
+    "phonetic": "/ˌhaɪpərbɪlɪˌruːbɪˈniːmiə/",
+    "pos": "Noun · علامة مخبرية وسريرية",
+    "category": "Medical",
+    "specialty": "Hepatology · أمراض الكبد والجهاز الهضمي",
+    "umdCode": "UMD-E80.6",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "الطب الباطني والكبد",
+      "مراجعة أساسية"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "ارتفاع تركيز صبغة البيليروبين في مصل الدم فوق الحد الفسيولوجي الطبيعي نتيجة انحلال Erythrocyte المتسارع أو انسداد القنوات الصفراوية كما في Cholecystolithiasis أو قصور الخلية الكبدية في Hepatic Cirrhosis.",
+    "definitionEn": "Excessive concentration of bilirubin in the blood, resulting from accelerated Erythrocyte hemolysis, Hepatic Cirrhosis, or biliary obstruction such as Cholecystolithiasis.",
+    "clinicalNote": "مثال قياسي للمحلل الصرفي: Hyper- (فرط) + bilirubin (بيليروبين) + -emia (في الدم).",
+    "morphology": {
+      "prefix": {
+        "affix": "Hyper-",
+        "meaningAr": "فرط / ارتفاع فوق الطبيعي",
+        "meaningEn": "Excessive / above normal"
+      },
+      "root": {
+        "affix": "bilirubin",
+        "meaningAr": "البيليروبين (صبغة الصفراء)",
+        "meaningEn": "Bilirubin pigment"
+      },
+      "suffix": {
+        "affix": "-emia",
+        "meaningAr": "في الدم (حالة دموية)",
+        "meaningEn": "Blood condition"
+      },
+      "literalSynthesisAr": "فرط تركيز البيليروبين في الدم"
+    },
+    "examples": [
+      {
+        "en": "Conjugated Hyperbilirubinemia often points to biliary tract obstruction or Cholecystolithiasis.",
+        "ar": "يشير فرط بيليروبين الدم المقترن غالباً إلى انسداد المسالك الصفراوية أو تحصّي المرارة."
+      },
+      {
+        "en": "Accelerated Erythrocyte hemolysis releases excess Hemoglobin, leading to unconjugated Hyperbilirubinemia and Anemia.",
+        "ar": "يؤدي انحلال كريات الدم الحمراء المتسارع إلى تحرير فائض الهيموغلوبين، مما يسبب فرط بيليروبين الدم غير المقترن وفقر الدم."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Jaundice Biochemical Marker",
+        "Elevated Serum Bilirubin"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Cholecystolithiasis",
+        "Hepatic Cirrhosis",
+        "Erythrocyte",
+        "Hemoglobin",
+        "Anemia"
+      ]
+    }
+  },
+  {
+    "id": "m6",
+    "term": "Cholecystolithiasis",
+    "termNormalized": "cholecystolithiasis",
+    "translation": "تحصّي المرارة (الحصيات المرارية)",
+    "phonetic": "/ˌkoʊlɪˌsɪstoʊlɪˈθaɪəsɪs/",
+    "pos": "Noun · تشخيص جراحي هضمي",
+    "category": "Medical",
+    "specialty": "General Surgery · الجراحة العامة والهضمية",
+    "umdCode": "UMD-K80.2",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "الطب الباطني والكبد"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "تشكّل حصيات صلبة داخل الحويصل الصفراوي (المرارة)، وقد تؤدي هجرة الحصية إلى القناة الجامعة لحدوث انسداد صفراوي ومضاعفات Hyperbilirubinemia أو تحريض Acute Pancreatitis.",
+    "definitionEn": "The presence or formation of gallstones inside the gallbladder, capable of causing biliary colic, obstructive Hyperbilirubinemia, and Acute Pancreatitis.",
+    "morphology": {
+      "prefix": {
+        "affix": "Chole- + cysto-",
+        "meaningAr": "الصفراء + الحويصل (المرارة)",
+        "meaningEn": "Bile + bladder (Gallbladder)"
+      },
+      "root": {
+        "affix": "lith",
+        "meaningAr": "حصاة",
+        "meaningEn": "Stone / calculus"
+      },
+      "suffix": {
+        "affix": "-iasis",
+        "meaningAr": "حالة تولّد أو وجود مرضي",
+        "meaningEn": "Abnormal presence / formation"
+      },
+      "literalSynthesisAr": "حالة تكوّن الحصيات في الحويصل الصفراوي (المرارة)"
+    },
+    "examples": [
+      {
+        "en": "Ultrasound confirmed Cholecystolithiasis in the patient presenting with right upper quadrant pain and Hyperbilirubinemia.",
+        "ar": "أكد التصوير بالأمواج فوق الصوتية وجود تحصّي المرارة لدى المريض الذي حضر بألم في المراق الأيمن وفرط بيليروبين الدم."
+      },
+      {
+        "en": "Impacted gallstones from Cholecystolithiasis frequently trigger biliary Acute Pancreatitis.",
+        "ar": "تؤدي الحصيات المرارية المنحشرة الناجمة عن تحصّي المرارة غالباً إلى تحريض التهاب البنكرياس الحاد الصفراوي."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Gallstones",
+        "Cholelithiasis"
+      ],
+      "broader": [
+        "Differential Diagnosis"
+      ],
+      "related": [
+        "Hyperbilirubinemia",
+        "Acute Pancreatitis",
+        "Pathophysiology"
+      ]
+    }
+  },
+  {
+    "id": "m7",
+    "term": "Hemoglobin",
+    "termNormalized": "hemoglobin",
+    "translation": "الهيموغلوبين (خضاب الدم)",
+    "phonetic": "/ˈhiːməɡloʊbɪn/",
+    "pos": "Noun · بروتين ناقل",
+    "category": "Medical",
+    "specialty": "Hematology · أمراض الدم",
+    "umdCode": "UMD-D50.9",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "أمراض الدم والمختبر"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "بروتين معدني حامل للحديد يوجد داخل Erythrocyte، ويضطلع بوظيفة نقل الأكسجين من الحويصلات الرئوية إلى الأنسجة لمنع حدوث Ischemia. يؤدي انخفاض مستواه السريري إلى تشخيص حالة Anemia.",
+    "definitionEn": "Iron-containing oxygen-transport metalloprotein in the Erythrocyte of vertebrates; its deficiency defines Anemia.",
+    "morphology": {
+      "prefix": {
+        "affix": "Hemo-",
+        "meaningAr": "دموي / هيم",
+        "meaningEn": "Blood / heme group"
+      },
+      "root": {
+        "affix": "glob",
+        "meaningAr": "كروي (بروتين الغلوبين)",
+        "meaningEn": "Globular protein"
+      },
+      "suffix": {
+        "affix": "-in",
+        "meaningAr": "مادة كيميائية / بروتين",
+        "meaningEn": "Neutral substance / protein"
+      },
+      "literalSynthesisAr": "البروتين الكروي الدموي (خضاب الدم)"
+    },
+    "examples": [
+      {
+        "en": "Hemoglobin carries oxygen inside each Erythrocyte to prevent tissue Ischemia.",
+        "ar": "ينقل الهيموغلوبين الأكسجين داخل كل كرية دم حمراء لمنع نقص تروية الأنسجة."
+      },
+      {
+        "en": "A drop in serum Hemoglobin concentration below 7 g/dL indicates severe Anemia requiring transfusion.",
+        "ar": "يدل انخفاض تركيز الهيموغلوبين في المصل دون 7 غ/دل على فقر الدم الشديد الذي يستدعي نقل الدم."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Haemoglobin",
+        "Hgb"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Erythrocyte",
+        "Anemia",
+        "Hyperbilirubinemia",
+        "Ischemia"
+      ]
+    }
+  },
+  {
+    "id": "m8",
+    "term": "Erythrocyte",
+    "termNormalized": "erythrocyte",
+    "translation": "كرية الدم الحمراء",
+    "phonetic": "/ɪˈrɪθrəsaɪt/",
+    "pos": "Noun · خلية دموية",
+    "category": "Medical",
+    "specialty": "Hematology · أمراض الدم",
+    "umdCode": "UMD-D64.9",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "أمراض الدم والمختبر"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "خلية دموية ناضجة عديمة النواة، قرصية الشكل ثنائية التقعر، غنية ببروتين Hemoglobin. يؤدي نقص عددها إلى Anemia، بينما يسبب تكسرها المفرط ارتفاع البيليروبين وحالة Hyperbilirubinemia.",
+    "definitionEn": "Mature biconcave blood cell rich in Hemoglobin; accelerated destruction leads to hemolytic Anemia and Hyperbilirubinemia.",
+    "morphology": {
+      "prefix": {
+        "affix": "Erythro-",
+        "meaningAr": "أحمر",
+        "meaningEn": "Red"
+      },
+      "root": {
+        "affix": "cyt",
+        "meaningAr": "خلية",
+        "meaningEn": "Cell"
+      },
+      "suffix": {
+        "affix": "-e",
+        "meaningAr": "لاحقة اسمية",
+        "meaningEn": "Noun suffix"
+      },
+      "literalSynthesisAr": "الخلية الحمراء (كرية الدم الحمراء)"
+    },
+    "examples": [
+      {
+        "en": "The biconcave geometry of an Erythrocyte maximizes surface area for Hemoglobin gas exchange.",
+        "ar": "تعمل الهندسة ثنائية التقعر لكرية الدم الحمراء على تعظيم مساحة السطح لتبادل الغازات عبر الهيموغلوبين."
+      },
+      {
+        "en": "Premature Erythrocyte destruction in hemolytic Anemia elevates serum bilirubin and causes Hyperbilirubinemia.",
+        "ar": "يؤدي تحطم كرية الدم الحمراء المبكر في فقر الدم الانحلالي إلى رفع بيليروبين المصل وإحداث فرط بيليروبين الدم."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Red Blood Cell",
+        "RBC"
+      ],
+      "broader": [
+        "Hemoglobin"
+      ],
+      "related": [
+        "Anemia",
+        "Hyperbilirubinemia",
+        "Thrombocytopenia"
+      ]
+    }
+  },
+  {
+    "id": "m9",
+    "term": "Anemia",
+    "termNormalized": "anemia",
+    "translation": "فقر الدم",
+    "phonetic": "/əˈniːmiə/",
+    "pos": "Noun · اضطراب دموي",
+    "category": "Medical",
+    "specialty": "Hematology · أمراض الدم",
+    "umdCode": "UMD-D64.9",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "أمراض الدم والمختبر",
+      "مراجعة أساسية"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "انخفاض تركيز Hemoglobin أو عدد خلايا Erythrocyte دون الحدود المرجعية للعمر والجنس، مما يضعف نقل الأكسجين للأنسجة ويحث القلب على إحداث Tachycardia معاوضة، ويشيع أيضاً كمضاعفة في Chronic Kidney Disease.",
+    "definitionEn": "Decrease in total amount of Erythrocyte or Hemoglobin in the blood, reducing oxygen transport capacity and provoking compensatory Tachycardia.",
+    "morphology": {
+      "prefix": {
+        "affix": "An-",
+        "meaningAr": "نقص / انعدام",
+        "meaningEn": "Without / lack of"
+      },
+      "root": {
+        "affix": "em (hem)",
+        "meaningAr": "الدم",
+        "meaningEn": "Blood"
+      },
+      "suffix": {
+        "affix": "-ia",
+        "meaningAr": "حالة مرضية",
+        "meaningEn": "Condition"
+      },
+      "literalSynthesisAr": "حالة فقر أو نقص الدم"
+    },
+    "examples": [
+      {
+        "en": "Severe iron-deficiency Anemia frequently causes exertional dyspnea and compensatory Tachycardia.",
+        "ar": "يسبب فقر الدم الشديد بنقص الحديد غالباً زلة تنفسية جهدية وتسرّع قلب معاوض."
+      },
+      {
+        "en": "Patients with advanced Chronic Kidney Disease develop normocytic Anemia due to low Hemoglobin and Erythrocyte production.",
+        "ar": "يُصاب مرضى مرض الكلى المزمن المتقدم بحالة فقر الدم سوي الكريات نتيجة انخفاض إنتاج الهيموغلوبين وكريات الدم الحمراء."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Haemoglobin Deficiency"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Hemoglobin",
+        "Erythrocyte",
+        "Thrombocytopenia",
+        "Chronic Kidney Disease",
+        "Tachycardia"
+      ]
+    }
+  },
+  {
+    "id": "m10",
+    "term": "Acute Decompensated Congestive Heart Failure",
+    "termNormalized": "acute decompensated congestive heart failure",
+    "translation": "فشل القلب الاحتقاني اللاتعاوضي الحاد",
+    "phonetic": "/əˈkjuːt diːˈkɒmpənseɪtɪd kənˈdʒɛstɪv hɑːrt ˈfeɪljər/",
+    "pos": "Noun · حالة إسعافية قلبية",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "umdCode": "UMD-I50.9",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "طب الطوارئ والقلب",
+      "مراجعة أساسية"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "تدهور مفاجئ أو تدريجي في علامات وأعراض قصور القلب الاحتقاني يستدعي التدخل الإسعافي العاجل لإزالة الاحتقان الوعائي ومعالجة Pulmonary Edema والوذمة المحيطية.",
+    "definitionEn": "Sudden or gradual worsening of congestive heart failure signs and symptoms requiring urgent therapy to relieve Pulmonary Edema.",
+    "clinicalNote": "يُلتقط كعبارة كاملة متعددة الكلمات عبر خوارزمية Aho-Corasick بأولوية التطابق الأطول (Longest-Match-First).",
+    "examples": [
+      {
+        "en": "The patient was admitted to the ICU with Acute Decompensated Congestive Heart Failure and Pulmonary Edema.",
+        "ar": "أُدخل المريض إلى وحدة العناية المركزة بسبب فشل القلب الاحتقاني اللاتعاوضي الحاد والوذمة الرئوية."
+      },
+      {
+        "en": "Intravenous loop diuretics rapidly relieve vascular congestion in Acute Decompensated Congestive Heart Failure triggered by Atrial Fibrillation.",
+        "ar": "تعمل مدرات العروة الوريدية سريعاً على تخفيف الاحتقان الوعائي في فشل القلب الاحتقاني اللاتعاوضي الحاد المحرّض بالرجفان الأذيني."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "ADHF",
+        "Acute Decompensated Heart Failure"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Pulmonary Edema",
+        "Myocardial Infarction",
+        "Atrial Fibrillation",
+        "Mitral Stenosis"
+      ]
+    }
+  },
+  {
+    "id": "m11",
+    "term": "Angina Pectoris",
+    "termNormalized": "angina pectoris",
+    "translation": "الذبحة الصدرية (خناق الصدر)",
+    "phonetic": "/ænˈdʒaɪnə ˈpɛktərɪs/",
+    "pos": "Noun · متلازمة سريرية",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "umdCode": "UMD-I20.9",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "طب الطوارئ والقلب"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "ألم أو انزعاج صدري عاصر ينجم عن نقص عابر في تروية عضلة القلب (Ischemia) نتيجة Atherosclerosis في الشرايين التاجية دون حدوث نخر خلوي كما في Myocardial Infarction.",
+    "definitionEn": "Paroxysmal thoracic pain caused by transient myocardial Ischemia secondary to coronary Atherosclerosis without cellular necrosis.",
+    "clinicalNote": "يُعتمد مصطلح الذبحة الصدرية أو خناق الصدر في المعجم الطبي الموحد.",
+    "examples": [
+      {
+        "en": "Sublingual nitroglycerin relieves stable Angina Pectoris within minutes.",
+        "ar": "يخفف النتروغليسرين تحت اللسان من نوبة الذبحة الصدرية المستقرة خلال دقائق."
+      },
+      {
+        "en": "Coronary Atherosclerosis causes exertional Ischemia presenting clinically as Angina Pectoris before progressing to Myocardial Infarction.",
+        "ar": "يسبب تصلّب الشرايين العصيدي التاجي نقص تروية جهدي يتظاهر سريرياً بالذبحة الصدرية قبل أن يتطور إلى احتشاء عضلة القلب."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Stable Angina",
+        "Unstable Angina"
+      ],
+      "broader": [
+        "Ischemia"
+      ],
+      "related": [
+        "Myocardial Infarction",
+        "Atherosclerosis",
+        "Tachycardia"
+      ]
+    }
+  },
+  {
+    "id": "m12",
+    "term": "Atrial Fibrillation",
+    "termNormalized": "atrial fibrillation",
+    "translation": "الرجفان الأذيني",
+    "phonetic": "/ˈeɪtriəl ˌfɪbrɪˈleɪʃən/",
+    "pos": "Noun · اضطراب نظم قلبي",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "umdCode": "UMD-I48.91",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "طب الطوارئ والقلب"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "اضطراب نظم قلبي فوق بطيني ضمن طيف Arrhythmia يتميز بتفعيل كهربائي أذيني فوضوي وسريع يؤدي إلى فقدان الانقباض الأذيني الفعال، وغالباً ما ينجم عن Mitral Stenosis ويرفع خطر حدوث Ischemic Stroke.",
+    "definitionEn": "Supraventricular tachyarrhythmia characterized by uncoordinated atrial electrical activation, predisposing to thromboembolic Ischemic Stroke.",
+    "clinicalNote": "أشيع اضطراب نظم قلبي فوق بطيني مستمر، ويرفع خطر السكتة الدماغية الخثارية.",
+    "examples": [
+      {
+        "en": "Anticoagulation is indicated in Atrial Fibrillation to prevent thromboembolic Ischemic Stroke.",
+        "ar": "يستطب العلاج المضاد للتخثر في الرجفان الأذيني للوقاية من السكتة الدماغية الإقفارية الخثارية."
+      },
+      {
+        "en": "Left atrial dilation secondary to rheumatic Mitral Stenosis frequently triggers chronic Atrial Fibrillation and rapid Tachycardia.",
+        "ar": "يؤدي توسع الأذين الأيسر الثانوي لتضيّق الصمام التاجي الرثوي غالباً إلى تحريض الرجفان الأذيني المزمن وتسرّع القلب السريع."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "AFib",
+        "Auricular Fibrillation"
+      ],
+      "broader": [
+        "Arrhythmia"
+      ],
+      "related": [
+        "Tachycardia",
+        "Mitral Stenosis",
+        "Ischemic Stroke"
+      ]
+    }
+  },
+  {
+    "id": "m13",
+    "term": "Mitral Stenosis",
+    "termNormalized": "mitral stenosis",
+    "translation": "تضيّق الصمام التاجي (الميترالي)",
+    "phonetic": "/ˈmaɪtrəl stəˈnoʊsɪs/",
+    "pos": "Noun · آفة صمامية قلبية",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "umdCode": "UMD-I05.0",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "طب الطوارئ والقلب"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "تضيّق في فوهة الصمام التاجي يعيق جريان الدم من الأذين الأيسر إلى البطين الأيسر أثناء طور الانبساط، وغالباً ما ينجم عن الحمى الرثوية ويؤهب لحدوث Atrial Fibrillation وPulmonary Edema.",
+    "definitionEn": "Obstruction of blood flow across the mitral valve from left atrium to left ventricle during diastole, often leading to Atrial Fibrillation.",
+    "clinicalNote": "المرشح القلبي الأول لفك التباس الاختصار MS عند وجود كلمات دلالية مثل diastolic murmur أو rheumatic.",
+    "morphology": {
+      "root": {
+        "affix": "Mitral",
+        "meaningAr": "الصمام التاجي",
+        "meaningEn": "Mitral valve"
+      },
+      "suffix": {
+        "affix": "-stenosis",
+        "meaningAr": "تضيّق",
+        "meaningEn": "Narrowing"
+      },
+      "literalSynthesisAr": "تضيّق الصمام التاجي"
+    },
+    "examples": [
+      {
+        "en": "Auscultation at the cardiac apex revealed a rumbling diastolic murmur classic for Mitral Stenosis.",
+        "ar": "أظهر الإصغاء عند قمة القلب نفخة انبساطية مدمدمة نموذجية لتضيّق الصمام التاجي."
+      },
+      {
+        "en": "Severe Mitral Stenosis elevates left atrial pressure, predisposing the patient to Atrial Fibrillation and Pulmonary Edema.",
+        "ar": "يرفع تضيّق الصمام التاجي الشديد ضغط الأذين الأيسر، مما يؤهب المريض للرجفان الأذيني والوذمة الرئوية."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Mitral Valve Stenosis"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Atrial Fibrillation",
+        "Pulmonary Edema",
+        "Acute Decompensated Congestive Heart Failure"
+      ]
+    }
+  },
+  {
+    "id": "m14",
+    "term": "Cardiac Tamponade",
+    "termNormalized": "cardiac tamponade",
+    "translation": "الاندحاس القلبي (الدكّ القلبي)",
+    "phonetic": "/ˈkɑːrdiæk ˌtæmpəˈneɪd/",
+    "pos": "Noun · طوارئ قلبية صدرية",
+    "category": "Medical",
+    "specialty": "Cardiology & Emergency · طب الطوارئ والقلب",
+    "umdCode": "UMD-I31.4",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "طب الطوارئ والقلب"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "انضغاط حجرات القلب نتيجة تراكم سريع أو غزير للسوائل أو الدم داخل جوف التامور، مما يعيق امتلاء البطينين ويخفض النتاج القلبي محدثاً Tachycardia معاوضة وصدمة انسدادية تشبه سريرياً Hypovolemic Shock.",
+    "definitionEn": "Life-threatening compression of the heart due to fluid accumulation within the pericardial sac.",
+    "clinicalNote": "حالة إسعافية مهددة للحياة تتطلب بزل التامور الفوري (Pericardiocentesis).",
+    "examples": [
+      {
+        "en": "Beck triad of hypotension, jugular venous distension, and muffled heart sounds indicates Cardiac Tamponade.",
+        "ar": "يشير ثلاثي بيك المكون من هبوط الضغط وتمدد أوردة العنق وخفوت أصوات القلب إلى الاندحاس القلبي."
+      },
+      {
+        "en": "Emergency bedside echocardiography differentiates obstructive Cardiac Tamponade from Pulmonary Embolism and Hypovolemic Shock.",
+        "ar": "يميز تخطيط صدى القلب السريري الإسعافي بين الاندحاس القلبي الانسدادي وكل من الانصمام الرئوي وصدمة نقص حجم الدم."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Pericardial Tamponade"
+      ],
+      "broader": [
+        "Differential Diagnosis"
+      ],
+      "related": [
+        "Hypovolemic Shock",
+        "Tachycardia"
+      ]
+    }
+  },
+  {
+    "id": "m15",
+    "term": "Hepatic Cirrhosis",
+    "termNormalized": "hepatic cirrhosis",
+    "translation": "تشمّع الكبد (تليّف الكبد الكامل)",
+    "phonetic": "/hɪˈpætɪk sɪˈroʊsɪs/",
+    "pos": "Noun · مرض كبدي مزمن",
+    "category": "Medical",
+    "specialty": "Hepatology · أمراض الكبد",
+    "umdCode": "UMD-K74.6",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "الطب الباطني والكبد"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "مرحلة متقدمة وغير عكوسة من التندب الكبدي تتميز باستبدال النسيج الكبدي الطبيعي بعقيدات تجددية محاطة بحزم ليفية كثيفة، مما يؤدي إلى فرط ضغط وريد الباب وHyperbilirubinemia وThrombocytopenia.",
+    "definitionEn": "Diffuse irreversible hepatic fibrosis with nodular regeneration and distortion of liver architecture.",
+    "clinicalNote": "يُعتمد مصطلح تشمّع الكبد في المعجم الطبي الموحد مقابل Cirrhosis، بينما يُخصص التليّف لـ Fibrosis.",
+    "examples": [
+      {
+        "en": "Decompensated Hepatic Cirrhosis presents with ascites, variceal hemorrhage, and hepatic encephalopathy.",
+        "ar": "يتظاهر تشمّع الكبد اللاتعاوضي بالحبن ونزف الدوالي والاعتلال الدماغي الكبدي."
+      },
+      {
+        "en": "Portal hypertension in Hepatic Cirrhosis causes hypersplenism, Thrombocytopenia, and progressive Hyperbilirubinemia.",
+        "ar": "يسبب فرط ضغط وريد الباب في تشمّع الكبد فرط نشاط الطحال وقلة الصفيحات الدموية وفرط بيليروبين الدم المترقي."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Liver Cirrhosis"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Hyperbilirubinemia",
+        "Thrombocytopenia",
+        "Pharmacokinetics"
+      ]
+    }
+  },
+  {
+    "id": "m16",
+    "term": "Diabetic Ketoacidosis",
+    "termNormalized": "diabetic ketoacidosis",
+    "translation": "الحماض الكيتوني السكري",
+    "phonetic": "/ˌdaɪəˈbɛtɪk ˌkiːtoʊˌæsɪˈdoʊsɪs/",
+    "pos": "Noun · طوارئ الغدد الصم والاستقلاب",
+    "category": "Medical",
+    "specialty": "Endocrinology & Emergency · الغدد الصم والطوارئ",
+    "umdCode": "UMD-E10.10",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "الطب الباطني والكبد",
+      "مراجعة أساسية"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "مضاعفة استقلابية حادة ومهددة للحياة لداء السكري تنجم عن عوز الأنسولين الشديد وارتفاع الهرمونات المضادة، وتتميز بفرط سكر الدم والحماض الاستقلابي والتجفاف الذي قد يقود إلى Hypovolemic Shock.",
+    "definitionEn": "Life-threatening acute metabolic complication of diabetes characterized by hyperglycemia, ketonemia, and metabolic acidosis.",
+    "clinicalNote": "حالة طوارئ استقلابية تتطلب تعويض السوائل الوريدية والأنسولين ومراقبة البوتاسيوم.",
+    "examples": [
+      {
+        "en": "Initial management of Diabetic Ketoacidosis prioritizes aggressive isotonic intravenous fluid resuscitation.",
+        "ar": "تعطي المعالجة الأولية للحماض الكيتوني السكري الأولوية للإنعاش المكثف بالسوائل الوريدية متساوية التوتر."
+      },
+      {
+        "en": "Severe osmotic diuresis in untreated Diabetic Ketoacidosis can precipitate Hypovolemic Shock and acute renal injury.",
+        "ar": "يمكن أن يؤدي الإدرار التناضحي الشديد في الحماض الكيتوني السكري غير المعالج إلى تحريض صدمة نقص حجم الدم وأذية كلوية حادة."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "DKA"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Chronic Kidney Disease",
+        "Pulmonary Edema",
+        "Hypovolemic Shock"
+      ]
+    }
+  },
+  {
+    "id": "m17",
+    "term": "Chronic Kidney Disease",
+    "termNormalized": "chronic kidney disease",
+    "translation": "مرض الكلى المزمن (القصور الكلوي المزمن)",
+    "phonetic": "/ˈkrɒnɪk ˈkɪdni dɪˈziːz/",
+    "pos": "Noun · تشخيص كلوي باطني",
+    "category": "Medical",
+    "specialty": "Nephrology · أمراض الكلى",
+    "umdCode": "UMD-N18.9",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "الطب الباطني والكبد"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "تدهور تدريجي ومستمر في بنية أو وظيفة الكليتين يمتد لأكثر من ثلاثة أشهر، ويترافق مع Anemia بنقص الإريثروبويتين وتغيرات جوهرية في Pharmacokinetics الأدوية المنحلة بالماء.",
+    "definitionEn": "Progressive loss in renal structure or function persisting for more than 3 months, frequently causing Anemia and altered Pharmacokinetics.",
+    "clinicalNote": "يصنف إلى 5 مراحل تبعاً لمعدل الرشح الكبيبي المقدر (eGFR).",
+    "examples": [
+      {
+        "en": "Anemia in Chronic Kidney Disease is primarily driven by reduced renal erythropoietin synthesis.",
+        "ar": "ينجم فقر الدم في مرض الكلى المزمن بصورة رئيسية عن نقص تصنيع الإريثروبويتين الكلوي."
+      },
+      {
+        "en": "Reduced glomerular filtration in Chronic Kidney Disease alters drug Pharmacokinetics and increases the risk of Pulmonary Edema.",
+        "ar": "يغيّر انخفاض الرشح الكبيبي في مرض الكلى المزمن من الحرائك الدوائية للأدوية ويرفع خطر الوذمة الرئوية."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "CKD",
+        "Chronic Renal Failure"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Anemia",
+        "Diabetic Ketoacidosis",
+        "Pharmacokinetics"
+      ]
+    }
+  },
+  {
+    "id": "m18",
+    "term": "Acute Pancreatitis",
+    "termNormalized": "acute pancreatitis",
+    "translation": "التهاب البنكرياس الحاد (التهاب المعثكلة الحاد)",
+    "phonetic": "/əˈkjuːt ˌpæŋkriəˈtaɪtɪs/",
+    "pos": "Noun · طوارئ هضمية وجراحية",
+    "category": "Medical",
+    "specialty": "Gastroenterology · أمراض الجهاز الهضمي",
+    "umdCode": "UMD-K85.9",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "الطب الباطني والكبد"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "التهاب حاد غير إنتاني في نسيج البنكرياس ناتج عن التفعيل المبكر للإنزيمات الهاضمة داخل الخلايا العنبية وما يتبعه من هضم ذاتي للغدة، وأشيع أسبابه الحصيات المرارية (Cholecystolithiasis).",
+    "definitionEn": "Sudden inflammation of the pancreas triggered by premature intra-acinar activation of digestive zymogens, frequently secondary to Cholecystolithiasis.",
+    "clinicalNote": "أشيع أسبابه الحصيات المرارية المهاجرة (Cholecystolithiasis) وترتفع فيه خمائر الأميلاز والليباز.",
+    "morphology": {
+      "root": {
+        "affix": "pancreat",
+        "meaningAr": "البنكرياس (المعثكلة)",
+        "meaningEn": "Pancreas"
+      },
+      "suffix": {
+        "affix": "-itis",
+        "meaningAr": "التهاب",
+        "meaningEn": "Inflammation"
+      },
+      "literalSynthesisAr": "التهاب البنكرياس الحاد"
+    },
+    "examples": [
+      {
+        "en": "Severe epigastric pain radiating to the back with elevated serum lipase confirms Acute Pancreatitis.",
+        "ar": "يؤكد الألم الشرسوفي الشديد المنتشر إلى الظهر مع ارتفاع ليباز المصل تشخيص التهاب البنكرياس الحاد."
+      },
+      {
+        "en": "Biliary Acute Pancreatitis is commonly precipitated by Cholecystolithiasis and third-space fluid loss leading to Hypovolemic Shock.",
+        "ar": "يُحرّض التهاب البنكرياس الحاد الصفراوي غالباً بتحصّي المرارة وفقدان السوائل إلى الحيز الثالث مما يؤدي إلى صدمة نقص حجم الدم."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Acute Pancreatic Inflammation"
+      ],
+      "broader": [
+        "Differential Diagnosis"
+      ],
+      "related": [
+        "Cholecystolithiasis",
+        "Hyperbilirubinemia",
+        "Hypovolemic Shock"
+      ]
+    }
+  },
+  {
+    "id": "m19",
+    "term": "Multiple Sclerosis",
+    "termNormalized": "multiple sclerosis",
+    "translation": "التصلب اللويحي المتعدد",
+    "phonetic": "/ˈmʌltɪpəl sklɪˈroʊsɪs/",
+    "pos": "Noun · مرض عصبي مناعي ذاتي",
+    "category": "Medical",
+    "specialty": "Neurology · طب الأعصاب",
+    "umdCode": "UMD-G35",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "طب وجراحة الأعصاب",
+      "مراجعة أساسية"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "مرض مناعي ذاتي مزمن يصيب الجهاز العصبي المركزي (الدماغ والنخاع الشوكي) ويتميز بزوال الميالين الالتهابي البؤري وتشكّل لويحات متصلبة تؤدي إلى نوبات عصبية متكررة.",
+    "definitionEn": "Chronic autoimmune demyelinating disease of the central nervous system.",
+    "clinicalNote": "المرشح العصبي الأول لفك التباس الاختصار MS عند وجود كلمات دلالية مثل demyelinating أو optic neuritis أو plaques.",
+    "morphology": {
+      "root": {
+        "affix": "Multiple",
+        "meaningAr": "متعدد",
+        "meaningEn": "Multiple"
+      },
+      "suffix": {
+        "affix": "-sclerosis",
+        "meaningAr": "تصلّب",
+        "meaningEn": "Hardening"
+      },
+      "literalSynthesisAr": "التصلب المتعدد"
+    },
+    "examples": [
+      {
+        "en": "Periventricular white matter plaques on brain MRI are characteristic of relapsing-remitting Multiple Sclerosis.",
+        "ar": "تُعد لويحات المادة البيضاء حول البطينات في رنين الدماغ المغناطيسي سمة مميزة للتصلب اللويحي المتعدد الناكس الهاجع."
+      },
+      {
+        "en": "Acute optic neuritis and focal demyelination help distinguish Multiple Sclerosis from acute Ischemic Stroke.",
+        "ar": "يساعد التهاب العصب البصري الحاد وزوال الميالين البؤري في تمييز التصلب اللويحي المتعدد عن السكتة الدماغية الإقفارية الحادة."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Disseminated Sclerosis",
+        "MS"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Ischemic Stroke",
+        "Status Epilepticus",
+        "Subarachnoid Hemorrhage"
+      ]
+    }
+  },
+  {
+    "id": "m20",
+    "term": "Ischemic Stroke",
+    "termNormalized": "ischemic stroke",
+    "translation": "السكتة الدماغية الإقفارية",
+    "phonetic": "/ɪˈskiːmɪk stroʊk/",
+    "pos": "Noun · طوارئ وعائية دماغية",
+    "category": "Medical",
+    "specialty": "Neurology · طب الأعصاب",
+    "umdCode": "UMD-I63.9",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "طب وجراحة الأعصاب",
+      "مراجعة أساسية"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "عجز عصبي بؤري مفاجئ ينجم عن انسداد وعائي شرياني دماغي خثاري أو صمّي (غالباً بسبب Atrial Fibrillation أو Atherosclerosis سباتية) يؤدي إلى Ischemia حادة واحتشاء نسيج الدماغ.",
+    "definitionEn": "Sudden neurological deficit resulting from focal cerebral arterial occlusion and tissue infarction.",
+    "clinicalNote": "تستدعي التقييم العاجل لإعطاء حالّات الخثرة الوريدية (Alteplase) أو استئصال الخثرة الميكانيكي بعد نفي النزف.",
+    "examples": [
+      {
+        "en": "Non-contrast head CT is performed immediately to exclude hemorrhage prior to thrombolysis in Ischemic Stroke.",
+        "ar": "يُجرى التصوير المقطعي للرأس بدون حقن فوراً لاستبعاد النزف قبل إعطاء حالّات الخثرة في السكتة الدماغية الإقفارية."
+      },
+      {
+        "en": "Cardioembolic Ischemic Stroke is a major complication of untreated Atrial Fibrillation and carotid Atherosclerosis.",
+        "ar": "تُعد السكتة الدماغية الإقفارية الصمّية القلبية مضاعفة رئيسية للرجفان الأذيني غير المعالج وتصلّب الشرايين العصيدي السباتي."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Cerebral Infarction",
+        "CVA"
+      ],
+      "broader": [
+        "Ischemia"
+      ],
+      "related": [
+        "Atrial Fibrillation",
+        "Atherosclerosis",
+        "Subarachnoid Hemorrhage",
+        "Status Epilepticus"
+      ]
+    }
+  },
+  {
+    "id": "m21",
+    "term": "Subarachnoid Hemorrhage",
+    "termNormalized": "subarachnoid hemorrhage",
+    "translation": "النزف تحت العنكبوتية",
+    "phonetic": "/ˌsʌbəˈræknoɪd ˈhɛmərɪdʒ/",
+    "pos": "Noun · طوارئ جراحة عصبية",
+    "category": "Medical",
+    "specialty": "Neurology & Neurosurgery · طب وجراحة الأعصاب",
+    "umdCode": "UMD-I60.9",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "طب وجراحة الأعصاب"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "نزف حاد يتجمع في الحيز تحت العنكبوتية المحيط بالدماغ، ويمثل حالة طوارئ عصبية جراحية حرجة تتطلب التفريق الفوري عن Ischemic Stroke.",
+    "definitionEn": "Extravasation of blood into the subarachnoid space between the arachnoid and pia mater.",
+    "clinicalNote": "يتظاهر سريرياً بصداع قصف الرعد (Thunderclap headache) وينجم غالباً عن تمزق أم دم شريانية دماغية.",
+    "morphology": {
+      "prefix": {
+        "affix": "Sub-",
+        "meaningAr": "تحت",
+        "meaningEn": "Under"
+      },
+      "root": {
+        "affix": "arachnoid",
+        "meaningAr": "الأم العنكبوتية",
+        "meaningEn": "Arachnoid mater"
+      },
+      "suffix": {
+        "affix": "-hemorrhage",
+        "meaningAr": "نزف",
+        "meaningEn": "Bleeding"
+      },
+      "literalSynthesisAr": "النزف في الحيز تحت العنكبوتية"
+    },
+    "examples": [
+      {
+        "en": "A sudden thunderclap headache with nuchal rigidity strongly suggests Subarachnoid Hemorrhage.",
+        "ar": "يوحي صداع قصف الرعد المفاجئ المترافق مع صلابة النقرة بشدة بحدوث النزف تحت العنكبوتية."
+      },
+      {
+        "en": "Delayed cerebral vasospasm following Subarachnoid Hemorrhage can induce secondary cerebral Ischemia and Ischemic Stroke.",
+        "ar": "يمكن أن يؤدي التشنج الوعائي الدماغي المتأخر عقب النزف تحت العنكبوتية إلى إحداث نقص تروية دماغي ثانوي وسكتة دماغية إقفارية."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "SAH"
+      ],
+      "broader": [
+        "Differential Diagnosis"
+      ],
+      "related": [
+        "Ischemic Stroke",
+        "Status Epilepticus"
+      ]
+    }
+  },
+  {
+    "id": "m22",
+    "term": "Status Epilepticus",
+    "termNormalized": "status epilepticus",
+    "translation": "الحالة الصرعية المستمرة",
+    "phonetic": "/ˈsteɪtəs ˌɛpɪˈlɛptɪkəs/",
+    "pos": "Noun · طوارئ عصبية حرجة",
+    "category": "Medical",
+    "specialty": "Neurology & Emergency · الأعصاب والطوارئ",
+    "umdCode": "UMD-G40.901",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "طب وجراحة الأعصاب"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "نوبة صرعية مستمرة تمتد لأكثر من خمس دقائق، أو نوبات متلاحقة دون استعادة الوعي الكامل بينها، وقد تنجم عن عقابيل Ischemic Stroke أو Subarachnoid Hemorrhage.",
+    "definitionEn": "Continuous seizure activity lasting more than 5 minutes or recurrent seizures without recovery of consciousness.",
+    "clinicalNote": "تتطلب إعطاء البنزوديازيبينات الوريدية الفورية لحماية الدماغ من الأذية الإقفارية والسمية الاستشارية.",
+    "examples": [
+      {
+        "en": "Intravenous lorazepam is the first-line pharmacotherapy for convulsive Status Epilepticus.",
+        "ar": "يُعد اللورازيبام الوريدي خط العلاج الدوائي الأول في الحالة الصرعية المستمرة الاختلاجية."
+      },
+      {
+        "en": "Refractory Status Epilepticus may occur as an acute neurological complication of Ischemic Stroke or Subarachnoid Hemorrhage.",
+        "ar": "قد تحدث الحالة الصرعية المستمرة المعندة كمضاعفة عصبية حادة للسكتة الدماغية الإقفارية أو النزف تحت العنكبوتية."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Prolonged Seizure State"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Ischemic Stroke",
+        "Subarachnoid Hemorrhage",
+        "Multiple Sclerosis"
+      ]
+    }
+  },
+  {
+    "id": "m23",
+    "term": "Pulmonary Embolism",
+    "termNormalized": "pulmonary embolism",
+    "translation": "الانصمام الرئوي (جلطة الشريان الرئوي)",
+    "phonetic": "/ˈpʊlməˌnɛri ˈɛmbəˌlɪzəm/",
+    "pos": "Noun · طوارئ صدرية ووعائية",
+    "category": "Medical",
+    "specialty": "Pulmonology & Emergency · الصدرية والطوارئ",
+    "umdCode": "UMD-I26.99",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "طب الطوارئ والقلب",
+      "مراجعة أساسية"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "انسداد مفاجئ في الشريان الرئوي أو أحد فروعه بخثرة دموية مهاجرة تنشأ غالباً من الأوردة العميقة في الطرفين السفليين، ويسبب زلة تنفسية حادة وTachycardia ويتطلب التشخيص التفريقي العاجل عن Myocardial Infarction.",
+    "definitionEn": "Obstruction of the pulmonary arterial tree by a thrombus originating from the deep venous system.",
+    "clinicalNote": "المرشح الرئوي الأول لفك التباس الاختصار PE عند وجود كلمات مثل DVT أو CTPA أو hypoxia.",
+    "examples": [
+      {
+        "en": "CT pulmonary angiography confirmed a saddle Pulmonary Embolism secondary to lower extremity DVT.",
+        "ar": "أكد تصوير الأوعية الرئوية المقطعي وجود انصمام رئوي سرجي ثانوي لخثار الأوردة العميقة في الطرف السفلي."
+      },
+      {
+        "en": "Massive Pulmonary Embolism presents with sudden hypoxia, sinus Tachycardia, and right ventricular strain mimicking Myocardial Infarction.",
+        "ar": "يتظاهر الانصمام الرئوي الجسيم بنقص أكسجة مفاجئ وتسرّع قلب جيبي وإجهاد بطيني أيمن يحاكي احتشاء عضلة القلب."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "PE",
+        "Pulmonary Thromboembolism"
+      ],
+      "broader": [
+        "Differential Diagnosis"
+      ],
+      "related": [
+        "Myocardial Infarction",
+        "Pulmonary Edema",
+        "Tachycardia"
+      ]
+    }
+  },
+  {
+    "id": "m24",
+    "term": "Pulmonary Edema",
+    "termNormalized": "pulmonary edema",
+    "translation": "الوذمة الرئوية",
+    "phonetic": "/ˈpʊlməˌnɛri ɪˈdiːmə/",
+    "pos": "Noun · حالة حرجة تنفسية قلبية",
+    "category": "Medical",
+    "specialty": "Pulmonology & Cardiology · الصدرية والقلب",
+    "umdCode": "UMD-J81.0",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "طب الطوارئ والقلب"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "تراكم غير طبيعي للسوائل في النسيج الخلالي للرئة وداخل الأسناخ الهوائية، غالباً كمضاعفة لحالة Acute Decompensated Congestive Heart Failure أو Mitral Stenosis، مما يعيق التبادل الغازي ويسبب زلة تنفسية حادة.",
+    "definitionEn": "Extravascular accumulation of fluid within the pulmonary interstitium and alveoli.",
+    "clinicalNote": "تُصنف إلى وذمة رئوية قلبية المنشأ (Cardiogenic) وغير قلبية المنشأ (Non-cardiogenic).",
+    "examples": [
+      {
+        "en": "Crackles on lung auscultation and bilateral alveolar infiltrates indicate acute Pulmonary Edema.",
+        "ar": "تدل الخراخر عند إصغاء الرئتين والارتشاحات السنخية ثنائية الجانب على الوذمة الرئوية الحادة."
+      },
+      {
+        "en": "Cardiogenic Pulmonary Edema is a hallmark presentation of Acute Decompensated Congestive Heart Failure and severe Mitral Stenosis.",
+        "ar": "تُعد الوذمة الرئوية قلبية المنشأ تظاهرة سريرية مميزة لفشل القلب الاحتقاني اللاتعاوضي الحاد وتضيّق الصمام التاجي الشديد."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Lung Congestion"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Acute Decompensated Congestive Heart Failure",
+        "Mitral Stenosis",
+        "Pulmonary Embolism"
+      ]
+    }
+  },
+  {
+    "id": "m25",
+    "term": "Anaphylactic Shock",
+    "termNormalized": "anaphylactic shock",
+    "translation": "الصدمة التأقية (صدمة الحساسية المفرطة)",
+    "phonetic": "/ˌænəfɪˈlæktɪk ʃɒk/",
+    "pos": "Noun · طوارئ مناعية حرجة",
+    "category": "Medical",
+    "specialty": "Emergency Medicine & Immunology · طب الطوارئ والمناعة",
+    "umdCode": "UMD-T78.2",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "طب الطوارئ والقلب"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "تفاعل فرط حساسية جهازي حاد ومهدد للحياة يترافق مع توسع وعائي شديد، هبوط ضغط شرياني، وتشنج قصبي ووذمة حنجرية، ويتميز في الفرز الإسعافي عن Hypovolemic Shock.",
+    "definitionEn": "Severe, life-threatening systemic hypersensitivity reaction characterized by airway compromise and distributive hypotension.",
+    "clinicalNote": "العلاج المنقذ للحياة هو حقن الإبينفرين (الأدرينالين) عضلياً فوراً (IM Epinephrine).",
+    "examples": [
+      {
+        "en": "Intramuscular epinephrine into the anterolateral thigh is the immediate treatment for Anaphylactic Shock.",
+        "ar": "يُعد حقن الإبينفرين عضلياً في الوجه الأمامي الوحشي للفخذ العلاج الفوري للصدمة التأقية."
+      },
+      {
+        "en": "Systemic vasodilation in Anaphylactic Shock causes severe hypotension and reflex Tachycardia similar to Hypovolemic Shock.",
+        "ar": "يسبب التوسع الوعائي الجهازي في الصدمة التأقية هبوط ضغط شديد وتسرّع قلب انعكاسي يشبه صدمة نقص حجم الدم."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Anaphylaxis"
+      ],
+      "broader": [
+        "Differential Diagnosis"
+      ],
+      "related": [
+        "Hypovolemic Shock",
+        "Pulmonary Edema",
+        "Tachycardia"
+      ]
+    }
+  },
+  {
+    "id": "m26",
+    "term": "Hypovolemic Shock",
+    "termNormalized": "hypovolemic shock",
+    "translation": "صدمة نقص حجم الدم",
+    "phonetic": "/ˌhaɪpoʊvoʊˈliːmɪk ʃɒk/",
+    "pos": "Noun · طوارئ الجراحة والإصابات",
+    "category": "Medical",
+    "specialty": "Emergency & Trauma Surgery · الطوارئ وجراحة الإصابات",
+    "umdCode": "UMD-R57.1",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "طب الطوارئ والقلب"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "حالة قصور دوراني حاد تنجم عن فقدان شديد في حجم الدم داخل الأوعية أو السوائل خارج الخلوية، مما يؤدي إلى انخفاض العود الوريدي وحدوث Ischemia في الأعضاء الحيوية مع Tachycardia معاوضة.",
+    "definitionEn": "Circulatory failure due to critical loss of intravascular blood or fluid volume resulting in tissue hypoperfusion.",
+    "clinicalNote": "تنجم عن النزف الحاد أو فقدان السوائل الغزير وتتظاهر بتسرع القلب وهبوط الضغط ونقص تروية الأعضاء.",
+    "morphology": {
+      "prefix": {
+        "affix": "Hypo-",
+        "meaningAr": "نقص",
+        "meaningEn": "Low"
+      },
+      "root": {
+        "affix": "vol",
+        "meaningAr": "حجم",
+        "meaningEn": "Volume"
+      },
+      "suffix": {
+        "affix": "-emic",
+        "meaningAr": "دموي",
+        "meaningEn": "In blood"
+      },
+      "literalSynthesisAr": "صدمة نقص الحجم الدموي"
+    },
+    "examples": [
+      {
+        "en": "Massive gastrointestinal hemorrhage rapidly leads to Hypovolemic Shock and compensatory Tachycardia.",
+        "ar": "يؤدي النزف الهضمي الغزير سريعاً إلى صدمة نقص حجم الدم وتسرّع القلب المعاوض."
+      },
+      {
+        "en": "Uncorrected Hypovolemic Shock results in systemic organ Ischemia, acute Anemia, and metabolic acidosis.",
+        "ar": "تؤدي صدمة نقص حجم الدم غير المصححة إلى نقص تروية الأعضاء الجهازي وفقر الدم الحاد والحماض الاستقلابي."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Hemorrhagic Shock"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Ischemia",
+        "Tachycardia",
+        "Anaphylactic Shock",
+        "Cardiac Tamponade"
+      ]
+    }
+  },
+  {
+    "id": "m27",
+    "term": "Thrombocytopenia",
+    "termNormalized": "thrombocytopenia",
+    "translation": "قلة الصفيحات الدموية",
+    "phonetic": "/ˌθrɒmboʊˌsaɪtoʊˈpiːniə/",
+    "pos": "Noun · اضطراب دموي ومخبري",
+    "category": "Medical",
+    "specialty": "Hematology · أمراض الدم",
+    "umdCode": "UMD-D69.6",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "أمراض الدم والمختبر",
+      "مراجعة أساسية"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "انخفاض عدد الصفيحات الدموية في الدم المحيطي دون 150,000 صفيحة لكل ميكرولتر، مما يرفع خطر النزف الجلدي والمخاطي، وغالباً ما يترافق مع Hepatic Cirrhosis أو حالات Anemia.",
+    "definitionEn": "Abnormally low platelet count in peripheral blood below 150,000/µL.",
+    "clinicalNote": "مركب صرفي قياسي: Thrombocyto- (الصفيحات الدموية) + -penia (قلة / عوز).",
+    "morphology": {
+      "prefix": {
+        "affix": "Thrombo-",
+        "meaningAr": "خثري / صفيحي",
+        "meaningEn": "Clot / platelet"
+      },
+      "root": {
+        "affix": "cyto",
+        "meaningAr": "خلية",
+        "meaningEn": "Cell"
+      },
+      "suffix": {
+        "affix": "-penia",
+        "meaningAr": "قلة / عوز",
+        "meaningEn": "Deficiency"
+      },
+      "literalSynthesisAr": "قلة الخلايا الصفيحية الدموية"
+    },
+    "examples": [
+      {
+        "en": "Heparin-induced Thrombocytopenia requires immediate discontinuation of all heparin products.",
+        "ar": "تتطلب قلة الصفيحات الدموية المحرّضة بالهيبارين الإيقاف الفوري لجميع مستحضرات الهيبارين."
+      },
+      {
+        "en": "Splenic sequestration in advanced Hepatic Cirrhosis frequently causes concurrent Thrombocytopenia and Anemia.",
+        "ar": "يسبب الاحتجاز الطحالي في تشمّع الكبد المتقدم غالباً حدوث قلة الصفيحات الدموية وفقر الدم بصورة متزامنة."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Low Platelet Count"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Anemia",
+        "Hemoglobin",
+        "Erythrocyte",
+        "Hepatic Cirrhosis"
+      ]
+    }
+  },
+  {
+    "id": "m28",
+    "term": "Pharmacokinetics",
+    "termNormalized": "pharmacokinetics",
+    "translation": "الحرائك الدوائية (حركية الدواء في الجسم)",
+    "phonetic": "/ˌfɑːrməkoʊkɪˈnɛtɪks/",
+    "pos": "Noun · علم الأدوية السريري",
+    "category": "Medical",
+    "specialty": "Pharmacology · علم الأدوية السريري",
+    "umdCode": "UMD-Y40-Y59",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "الطب الباطني والكبد"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "فرع علم الأدوية الذي يدرس مسار الدواء داخل الجسم الحي من حيث الامتصاص والتوزع والاستقلاب الكبدي (الذي يتأثر في Hepatic Cirrhosis) والإطراح الكلوي (الذي يتأثر في Chronic Kidney Disease).",
+    "definitionEn": "Quantitative study of drug absorption, distribution, metabolism, and excretion (ADME) over time.",
+    "clinicalNote": "تُلخص مراحلها الأربع اختصاراً بـ ADME (الامتصاص، التوزع، الاستقلاب، الإطراح).",
+    "morphology": {
+      "prefix": {
+        "affix": "Pharmaco-",
+        "meaningAr": "دوائي",
+        "meaningEn": "Drug"
+      },
+      "root": {
+        "affix": "kinet",
+        "meaningAr": "حركية",
+        "meaningEn": "Movement"
+      },
+      "suffix": {
+        "affix": "-ics",
+        "meaningAr": "علم",
+        "meaningEn": "Science"
+      },
+      "literalSynthesisAr": "علم حركية الدواء"
+    },
+    "examples": [
+      {
+        "en": "Renal impairment in Chronic Kidney Disease alters the Pharmacokinetics of water-soluble antibiotics, necessitating dose adjustment.",
+        "ar": "يغيّر القصور الكلوي في مرض الكلى المزمن من الحرائك الدوائية للمضادات الحيوية المنحلة بالماء، مما يستلزم تعديل الجرعة."
+      },
+      {
+        "en": "Impaired hepatic metabolism in Hepatic Cirrhosis significantly prolongs drug half-life and alters clinical Pharmacokinetics.",
+        "ar": "يؤدي ضعف الاستقلاب الكبدي في تشمّع الكبد إلى إطالة عمر النصف الدوائي وتغيير الحرائك الدوائية السريرية بشكل جوهري."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "ADME Profile",
+        "Drug Kinetics"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Chronic Kidney Disease",
+        "Hepatic Cirrhosis"
+      ]
+    }
+  },
+  {
+    "id": "m29",
+    "term": "Atherosclerosis",
+    "termNormalized": "atherosclerosis",
+    "translation": "تصلّب الشرايين العصيدي (التصلب العصيدي)",
+    "phonetic": "/ˌæθəroʊskləˈroʊsɪs/",
+    "pos": "Noun · آلية مرضية وعائية",
+    "category": "Medical",
+    "specialty": "Pathology & Vascular · علم الأمراض والأوعية",
+    "umdCode": "UMD-I70.9",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "طب الطوارئ والقلب"
+    ],
+    "ingestedAt": "قاعدة المعجم الطبي الموحد (UMD)",
+    "definitionAr": "مرض التهابي مزمن يصيب جدران الشرايين الكبيرة والمتوسطة ويتميز بتراكم الشحوم والخلايا الالتهابية والألياف لتشكيل لويحات عصيدية تسبب Ischemia وتؤدي إلى Angina Pectoris وMyocardial Infarction وIschemic Stroke.",
+    "definitionEn": "Chronic arterial disease characterized by intimal fibrofatty plaque formation narrowing the vascular lumen.",
+    "clinicalNote": "السبب المرضي الأساسي لداء الشرايين التاجية واحتشاء عضلة القلب والسكتة الدماغية.",
+    "morphology": {
+      "prefix": {
+        "affix": "Athero-",
+        "meaningAr": "عصيدة شحمية",
+        "meaningEn": "Gruel / plaque"
+      },
+      "root": {
+        "affix": "scler",
+        "meaningAr": "تصلّب",
+        "meaningEn": "Hardening"
+      },
+      "suffix": {
+        "affix": "-osis",
+        "meaningAr": "حالة مرضية",
+        "meaningEn": "Pathological condition"
+      },
+      "literalSynthesisAr": "تصلّب الشرايين باللويحات العصيدية"
+    },
+    "examples": [
+      {
+        "en": "Rupture of an unstable coronary plaque in Atherosclerosis triggers acute thrombosis and Myocardial Infarction.",
+        "ar": "يؤدي تمزق اللويحة التاجية غير المستقرة في تصلّب الشرايين العصيدي إلى خثار حاد واحتشاء عضلة القلب."
+      },
+      {
+        "en": "Progressive carotid Atherosclerosis narrows the arterial lumen, causing cerebral Ischemia and Ischemic Stroke.",
+        "ar": "يؤدي تصلّب الشرايين العصيدي السباتي المترقي إلى تضيق لمعة الشريان، مما يسبب نقص التروية الدموية الدماغي والسكتة الدماغية الإقفارية."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Arteriosclerotic Vascular Disease"
+      ],
+      "broader": [
+        "Pathophysiology"
+      ],
+      "related": [
+        "Myocardial Infarction",
+        "Angina Pectoris",
+        "Ischemic Stroke",
+        "Ischemia"
+      ]
+    }
+  },
+  {
+    "id": "t1",
+    "term": "Neural Network",
+    "termNormalized": "neural network",
+    "translation": "شبكة عصبية اصطناعية",
+    "phonetic": "/ˈnjʊərəl ˈnɛtwɜːrk/",
+    "pos": "Noun · معمارية حوسبية",
+    "category": "AI",
+    "specialty": "Deep Learning & Medical NLP",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "معمارية الذكاء الاصطناعي",
+      "مراجعة أساسية"
+    ],
+    "ingestedAt": "القاموس الأساسي",
+    "definitionAr": "نموذج حوسبي مستوحى من بنية الدماغ البشري، يتكون من طبقات مترابطة تعالج البيانات وتستخرج الأنماط المعقدة. تعتمد كلياً على تقنية Backpropagation لضبط الأوزان مع خوارزمية Gradient Descent، وتُعد الأساس لبناء نماذج Transformer الحديثة.",
+    "definitionEn": "A computational model inspired by the biological brain, relying on Backpropagation and Gradient Descent to power modern Transformer architectures.",
+    "examples": [
+      {
+        "en": "Training a deep Neural Network requires massive parallel compute and careful Backpropagation tuning.",
+        "ar": "يتطلب تدريب شبكة عصبية اصطناعية عميقة قدرة حوسبة متوازية هائلة وضبطاً دقيقاً لخوارزمية الانتشار العكسي."
+      },
+      {
+        "en": "Clinical researchers applied a Neural Network to detect Myocardial Infarction patterns in ECG signals.",
+        "ar": "طبّق الباحثون السريريون شبكة عصبية اصطناعية لاكتشاف أنماط احتشاء عضلة القلب في إشارات تخطيط القلب."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Artificial Neural Net",
+        "Connectionist System"
+      ],
+      "broader": [
+        "Deep Learning"
+      ],
+      "related": [
+        "Backpropagation",
+        "Transformer",
+        "Gradient Descent",
+        "Retrieval-Augmented Generation"
+      ]
+    }
+  },
+  {
+    "id": "t2",
+    "term": "Backpropagation",
+    "termNormalized": "backpropagation",
+    "translation": "الانتشار العكسي للخطأ",
+    "phonetic": "/ˌbækprɒpəˈɡeɪʃən/",
+    "pos": "Noun · خوارزمية رياضية",
+    "category": "AI",
+    "specialty": "Optimization & Neural Training",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "معمارية الذكاء الاصطناعي"
+    ],
+    "ingestedAt": "القاموس الأساسي",
+    "definitionAr": "خوارزمية رياضية جوهرية لتدريب أي Neural Network، تقوم بحساب تدرج دالة الخسارة بالنسبة للأوزان الداخلية من الطبقات النهائية رجوعاً إلى البداية، وتعمل بالتكامل مع Gradient Descent لتقليل نسبة الخطأ تدريجياً.",
+    "definitionEn": "The core algorithm for training a Neural Network by calculating loss gradients layer-by-layer backward using Gradient Descent.",
+    "examples": [
+      {
+        "en": "Without efficient Backpropagation, updating millions of weights in a Transformer would be computationally infeasible.",
+        "ar": "بدون خوارزمية الانتشار العكسي للخطأ الفعالة، سيكون تحديث ملايين الأوزان في نموذج المحول مستحيلاً حسابياً."
+      },
+      {
+        "en": "During each training epoch, Backpropagation computes layer gradients that guide Gradient Descent across the Neural Network.",
+        "ar": "خلال كل دورة تدريبية، يحسب الانتشار العكسي للخطأ تدرجات الطبقات التي توجه الانحدار التدريجي عبر الشبكة العصبية الاصطناعية."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Backward Propagation of Errors"
+      ],
+      "broader": [
+        "Neural Network"
+      ],
+      "related": [
+        "Gradient Descent",
+        "Transformer"
+      ]
+    }
+  },
+  {
+    "id": "t3",
+    "term": "Transformer",
+    "termNormalized": "transformer",
+    "translation": "نموذج المحوّل الانتباهي",
+    "phonetic": "/trænsˈfɔːrmər/",
+    "pos": "Noun · بنية معمارية للذكاء الاصطناعي",
+    "category": "AI",
+    "specialty": "Natural Language Processing (NMT)",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "معمارية الذكاء الاصطناعي",
+      "النماذج اللغوية الكبيرة"
+    ],
+    "ingestedAt": "القاموس الأساسي",
+    "definitionAr": "بنية معمارية ثورية تعتمد على آلية الانتباه الذاتي لمعالجة السلاسل النصية بالتوازي. تفوقت هذه البنية على كل Neural Network تقليدية في الترجمة العصبية ومهّدت الطريق لدمج النماذج مع أنظمة Retrieval-Augmented Generation.",
+    "definitionEn": "A deep learning architecture based on self-attention mechanisms, powering neural machine translation and Retrieval-Augmented Generation.",
+    "examples": [
+      {
+        "en": "Combining a quantized Transformer with Retrieval-Augmented Generation and glossary constraints eliminates clinical translation errors.",
+        "ar": "إن دمج نموذج المحوّل الانتباهي المكمّم مع التوليد المعزز بالاسترجاع والقيود المعجمية يقضي على أخطاء الترجمة السريرية."
+      },
+      {
+        "en": "The self-attention mechanism in a Transformer Neural Network triggered a Paradigm Shift in clinical natural language processing.",
+        "ar": "أحدثت آلية الانتباه الذاتي في الشبكة العصبية الاصطناعية لنموذج المحوّل الانتباهي تحولاً جذرياً في النموذج المعرفي لمعالجة اللغات الطبيعية السريرية."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Self-Attention Architecture"
+      ],
+      "broader": [
+        "Neural Network"
+      ],
+      "related": [
+        "Retrieval-Augmented Generation",
+        "Backpropagation",
+        "Gradient Descent"
+      ]
+    }
+  },
+  {
+    "id": "t4",
+    "term": "Gradient Descent",
+    "termNormalized": "gradient descent",
+    "translation": "الانحدار التدريجي",
+    "phonetic": "/ˈɡreɪdiənt dɪˈsɛnt/",
+    "pos": "Noun · خوارزمية تحسين",
+    "category": "AI",
+    "specialty": "Mathematical Optimization",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "معمارية الذكاء الاصطناعي"
+    ],
+    "ingestedAt": "القاموس الأساسي",
+    "definitionAr": "خوارزمية تحسين تكرارية تُستخدم للعثور على القيم المثلى للمعاملات عبر التحرك في الاتجاه المعاكس لميل الدالة. تُنفذ هذه الخطوة مباشرة بعد حساب المشتقات بواسطة Backpropagation داخل كل Neural Network.",
+    "definitionEn": "An iterative first-order optimization algorithm used alongside Backpropagation to minimize loss functions in a Neural Network.",
+    "examples": [
+      {
+        "en": "Stochastic Gradient Descent updates Neural Network parameters iteratively using mini-batches.",
+        "ar": "يقوم الانحدار التدريجي العشوائي بتحديث معاملات الشبكة العصبية تكرارياً باستخدام دفعات مصغرة."
+      },
+      {
+        "en": "Adaptive learning rates accelerate Gradient Descent convergence when training a large Transformer via Backpropagation.",
+        "ar": "تعمل معدلات التعلم التكيفية على تسريع تقارب الانحدار التدريجي عند تدريب نموذج المحوّل الانتباهي الكبير عبر الانتشار العكسي للخطأ."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Steepest Descent"
+      ],
+      "broader": [
+        "Neural Network"
+      ],
+      "related": [
+        "Backpropagation",
+        "Transformer"
+      ]
+    }
+  },
+  {
+    "id": "t5",
+    "term": "Retrieval-Augmented Generation",
+    "termNormalized": "retrieval-augmented generation",
+    "translation": "التوليد المعزّز بالاسترجاع المعرفي (RAG)",
+    "phonetic": "/rɪˈtriːvəl ɔːɡˈmɛntɪd ˌdʒɛnəˈreɪʃən/",
+    "pos": "Noun · معمارية هجينة",
+    "category": "AI",
+    "specialty": "Knowledge-Grounded AI",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "النماذج اللغوية الكبيرة",
+      "مراجعة أساسية"
+    ],
+    "ingestedAt": "القاموس الأساسي",
+    "definitionAr": "إطار عمل هجين يربط نماذج Transformer بمحرك بحث نصي أو قاعدة بيانات محلية مثل SQLite FTS5 لاسترجاع الوثائق الموثوقة قبل صياغة الإجابة. يعزز موثوقية Epistemology الأنظمة الذكية ويمنع الهلوسة.",
+    "definitionEn": "A hybrid framework connecting a Transformer model to an external index (such as SQLite FTS5) to ground responses in verified knowledge and strengthen system Epistemology.",
+    "examples": [
+      {
+        "en": "Our offline architecture pairs SQLite FTS5 with Retrieval-Augmented Generation for deterministic medical lookup.",
+        "ar": "تجمع المعمارية المحلية لدينا بين محرك SQLite FTS5 وتقنية التوليد المعزّز بالاسترجاع المعرفي للبحث الطبي الحتمي."
+      },
+      {
+        "en": "Grounding a Transformer with Retrieval-Augmented Generation strengthens clinical Epistemology when reviewing Differential Diagnosis cases.",
+        "ar": "يعزز ربط نموذج المحوّل الانتباهي بالتوليد المعزّز بالاسترجاع المعرفي نظرية المعرفة السريرية عند مراجعة حالات التشخيص التفريقي."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "RAG Architecture",
+        "Grounded LLM Pipeline"
+      ],
+      "broader": [
+        "Transformer"
+      ],
+      "related": [
+        "Neural Network",
+        "Epistemology",
+        "Idempotency"
+      ]
+    }
+  },
+  {
+    "id": "p1",
+    "term": "Idempotency",
+    "termNormalized": "idempotency",
+    "translation": "خاصية التكرار الآمن (ثبات النتيجة بتكرار التنفيذ)",
+    "phonetic": "/ˌaɪdɛmˈpoʊtənsi/",
+    "pos": "Noun · مبدأ هندسي برمجي",
+    "category": "Programming",
+    "specialty": "Distributed Systems & Database Pipelines",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "هندسة الأنظمة والـ APIs",
+      "مراجعة أساسية"
+    ],
+    "ingestedAt": "القاموس الأساسي",
+    "definitionAr": "مبدأ أساسي في تصميم قواعد البيانات والأنظمة الموزعة يضمن أن تنفيذ العملية نفسها عدة مرات ينتج عنه نفس الأثر تماماً كما لو نُفذت مرة واحدة. يحمي هذا المبدأ فهارس SQLite أثناء عمليات Concurrency ويمنع تضارب الدفعات.",
+    "definitionEn": "A foundational property in database pipelines ensuring that repeating an operation multiple times yields the exact same state without unintended side effects during high Concurrency.",
+    "examples": [
+      {
+        "en": "Our Termux ingestion pipeline uses SQLite UPSERT statements to guarantee Idempotency during batch syncs.",
+        "ar": "يستخدم خط أنابيب الاستيعاب في Termux عبارات التحديث والإدراج في SQLite لضمان خاصية التكرار الآمن أثناء مزامنة الدفعات."
+      },
+      {
+        "en": "Enforcing Idempotency across pure functions allows safe Memoization even under heavy multi-threaded Concurrency.",
+        "ar": "يتيح فرض خاصية التكرار الآمن عبر الدوال النقية تطبيق الاستذكار الحوسبي بأمان حتى في ظل التزامن التنفيذي الكثيف متعدد الخيوط."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Safe Retry Property",
+        "State Invariance"
+      ],
+      "broader": [
+        "Concurrency"
+      ],
+      "related": [
+        "Memoization",
+        "Garbage Collection"
+      ]
+    }
+  },
+  {
+    "id": "p2",
+    "term": "Memoization",
+    "termNormalized": "memoization",
+    "translation": "الاستذكار الحوسبي (التخزين المؤقت لنتائج الدوال)",
+    "phonetic": "/ˌmɛmoʊɪˈzeɪʃən/",
+    "pos": "Noun · تقنية تحسين الأداء",
+    "category": "Programming",
+    "specialty": "Algorithmic Optimization & Memory",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "هندسة الأنظمة والـ APIs"
+    ],
+    "ingestedAt": "القاموس الأساسي",
+    "definitionAr": "تقنية تحسين برمجية تقوم بحفظ نتائج استدعاءات الدوال المكلفة حسابياً في الذاكرة لإرجاع النتيجة فوراً عند تكرار نفس المدخلات. تعتمد فعالية Memoization على نقاء الدالة وارتباطها بمفهوم Idempotency، مع موازنة استهلاك الذاكرة عبر Garbage Collection.",
+    "definitionEn": "An optimization technique that caches expensive function calls based on input arguments, relying on Idempotency and balanced against Garbage Collection overhead.",
+    "examples": [
+      {
+        "en": "Bounded Memoization caches accelerate repeated morphological lookups while keeping Garbage Collection efficient.",
+        "ar": "تعمل ذاكرات الاستذكار الحوسبي المحدودة على تسريع عمليات البحث الصرفي المتكررة مع الحفاظ على كفاءة تحرير الذاكرة التلقائي."
+      },
+      {
+        "en": "Deterministic morphological decomposition leverages Idempotency and Memoization to avoid redundant regex scans during high Concurrency.",
+        "ar": "يستفيد التفكيك الصرفي الحتمي من خاصية التكرار الآمن والاستذكار الحوسبي لتجنب عمليات المسح المتكررة أثناء التزامن التنفيذي العالي."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Function Result Caching",
+        "Tabulation"
+      ],
+      "broader": [
+        "Concurrency"
+      ],
+      "related": [
+        "Idempotency",
+        "Garbage Collection"
+      ]
+    }
+  },
+  {
+    "id": "p3",
+    "term": "Concurrency",
+    "termNormalized": "concurrency",
+    "translation": "التزامن التنفيذي (تعدد المهام المتداخلة)",
+    "phonetic": "/kənˈkʌrənsi/",
+    "pos": "Noun · معمارية الأنظمة",
+    "category": "Programming",
+    "specialty": "Systems Architecture",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "هندسة الأنظمة والـ APIs"
+    ],
+    "ingestedAt": "القاموس الأساسي",
+    "definitionAr": "قدرة النظام البرمجي على إدارة وتنفيذ عدة مهام في فترات زمنية متداخلة دون تعارض. يتطلب التعامل مع Concurrency عالية تطبيق معايير Idempotency الصارمة وضبط إعدادات Garbage Collection لضمان عدم تجميد واجهة المستخدم.",
+    "definitionEn": "The composition of independently executing computations in overlapping time periods, requiring strict Idempotency and careful Garbage Collection tuning.",
+    "examples": [
+      {
+        "en": "SQLite WAL mode enables high read Concurrency while a background Termux script writes new dictionary batches.",
+        "ar": "يتيح وضع WAL في SQLite مستوى عالياً من التزامن التنفيذي للقراءة بينما يقوم سكربت Termux في الخلفية بكتابة دفعات القاموس الجديدة."
+      },
+      {
+        "en": "Combining non-blocking Concurrency with transactional Idempotency prevents database lock contention and reduces Garbage Collection pauses.",
+        "ar": "إن الجمع بين التزامن التنفيذي غير الحاجب وخاصية التكرار الآمن للمعاملات يمنع تنازع أقفال قاعدة البيانات ويقلل توقفات تحرير الذاكرة التلقائي."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Multitasking Execution",
+        "Parallel Interleaving"
+      ],
+      "broader": [
+        "Idempotency"
+      ],
+      "related": [
+        "Memoization",
+        "Garbage Collection"
+      ]
+    }
+  },
+  {
+    "id": "p4",
+    "term": "Garbage Collection",
+    "termNormalized": "garbage collection",
+    "translation": "تحرير الذاكرة التلقائي (جمع القمامة البرمجية)",
+    "phonetic": "/ˈɡɑːrbɪdʒ kəˈlɛkʃən/",
+    "pos": "Noun · إدارة موارد النظام",
+    "category": "Programming",
+    "specialty": "Runtime Memory Management",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "هندسة الأنظمة والـ APIs"
+    ],
+    "ingestedAt": "القاموس الأساسي",
+    "definitionAr": "آلية إدارة ذاكرة آلية في بيئات التشغيل الحديثة تقوم برصد الكائنات التي لم يعد البرنامج بحاجة إليها وتحرير مساحتها. تتأثر كفاءة Garbage Collection بحجم بيانات Memoization المخزنة ومستوى Concurrency النشط.",
+    "definitionEn": "Automatic memory management that reclaims unused heap allocations, interacting closely with Memoization caches and multi-threaded Concurrency.",
+    "examples": [
+      {
+        "en": "Closing database cursors and releasing unused buffers promptly allows Garbage Collection to maintain smooth application performance.",
+        "ar": "يتيح إغلاق مؤشرات قاعدة البيانات وتحرير المخازن المؤقتة غير المستخدمة فوراً لآلية تحرير الذاكرة التلقائي الحفاظ على سلاسة أداء التطبيق."
+      },
+      {
+        "en": "Unbounded Memoization tables under heavy Concurrency can increase heap pressure and trigger frequent Garbage Collection cycles.",
+        "ar": "يمكن أن تؤدي جداول الاستذكار الحوسبي غير المحدودة تحت التزامن التنفيذي الكثيف إلى زيادة ضغط الذاكرة وتحفيز دورات تحرير الذاكرة التلقائي المتكررة."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Automatic Memory Reclamation",
+        "Heap Compaction"
+      ],
+      "broader": [
+        "Concurrency"
+      ],
+      "related": [
+        "Memoization",
+        "Idempotency"
+      ]
+    }
+  },
+  {
+    "id": "g1",
+    "term": "Paradigm Shift",
+    "termNormalized": "paradigm shift",
+    "translation": "تحوّل جذري في النموذج المعرفي",
+    "phonetic": "/ˈpærədaɪm ʃɪft/",
+    "pos": "Noun · مفهوم معرفي وفلسفي",
+    "category": "General",
+    "specialty": "Philosophy of Science",
+    "keepEnglish": true,
+    "favorite": true,
+    "collections": [
+      "المفاهيم الفكرية والمنهجية"
+    ],
+    "ingestedAt": "القاموس الأساسي",
+    "definitionAr": "تغيير جوهري وشامل في الفرضيات الأساسية والمنهجيات السائدة داخل حقل علمي أو تقني، كما صاغه الفيلسوف توماس كون في إطار Epistemology العلوم. على سبيل المثال، أحدث ظهور معمارية Transformer حالة Paradigm Shift كاملة في الترجمة العصبية.",
+    "definitionEn": "A fundamental transformation in the underlying assumptions and practices of a scientific discipline, rooted in Epistemology and exemplified by the Transformer revolution.",
+    "examples": [
+      {
+        "en": "The transition from unconstrained neural translation to Glossary-Constrained Transformer pipelines represents a clinical Paradigm Shift.",
+        "ar": "يمثل الانتقال من الترجمة العصبية غير المقيدة إلى خطوط أنابيب المحوّل المقيدة بالمعجم تحولاً جذرياً في النموذج المعرفي السريري."
+      },
+      {
+        "en": "In scientific Epistemology, a Paradigm Shift occurs when accumulated anomalies replace an older Heuristic model.",
+        "ar": "في نظرية المعرفة العلمية، يحدث التحوّل الجذري في النموذج المعرفي عندما تحل الشواذ المتراكمة محل نموذج القاعدة الاستدلالية الأقدم."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Fundamental Transformation",
+        "Conceptual Revolution"
+      ],
+      "broader": [
+        "Epistemology"
+      ],
+      "related": [
+        "Heuristic",
+        "Transformer"
+      ]
+    }
+  },
+  {
+    "id": "g2",
+    "term": "Epistemology",
+    "termNormalized": "epistemology",
+    "translation": "نظرية المعرفة (الإبستمولوجيا)",
+    "phonetic": "/ɪˌpɪstɪˈmɒlədʒi/",
+    "pos": "Noun · منهجية علمية",
+    "category": "General",
+    "specialty": "Knowledge Engineering",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "المفاهيم الفكرية والمنهجية"
+    ],
+    "ingestedAt": "القاموس الأساسي",
+    "definitionAr": "المبحث الفلسفي الذي يدرس طبيعة المعرفة البشرية ومصادرها وحدودها ومعايير التحقق من صحتها. تتقاطع Epistemology حديثاً مع بناء الرسوم البيانية المعرفية وأنظمة Retrieval-Augmented Generation وتفسر كيف تقود قواعد Heuristic إلى حدوث Paradigm Shift.",
+    "definitionEn": "The philosophical study of the nature, origin, and limits of human knowledge, informing knowledge graphs, Heuristic reasoning, and every scientific Paradigm Shift.",
+    "examples": [
+      {
+        "en": "Medical Differential Diagnosis applies clinical Epistemology and Heuristic rules to rule out rare pathologies.",
+        "ar": "يطبق التشخيص التفريقي الطبي نظرية المعرفة السريرية والقواعد الاستدلالية لاستبعاد الأمراض النادرة."
+      },
+      {
+        "en": "Combining Retrieval-Augmented Generation with verified lexicons establishes a rigorous Epistemology that drives a Paradigm Shift in medical AI.",
+        "ar": "يرسي دمج التوليد المعزّز بالاسترجاع المعرفي مع المعاجم الموثقة نظرية معرفة صارمة تقود تحولاً جذرياً في النموذج المعرفي للذكاء الاصطناعي الطبي."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Theory of Knowledge",
+        "Cognitive Philosophy"
+      ],
+      "broader": [
+        "Paradigm Shift"
+      ],
+      "related": [
+        "Heuristic",
+        "Retrieval-Augmented Generation"
+      ]
+    }
+  },
+  {
+    "id": "g3",
+    "term": "Heuristic",
+    "termNormalized": "heuristic",
+    "translation": "قاعدة استدلالية عملية",
+    "phonetic": "/hjʊˈrɪstɪk/",
+    "pos": "Noun / Adjective · منهجية حل المشكلات",
+    "category": "General",
+    "specialty": "Decision Theory & Triage",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "المفاهيم الفكرية والمنهجية"
+    ],
+    "ingestedAt": "القاموس الأساسي",
+    "definitionAr": "منهجية عملية أو قاعدة إرشادية سريعة تُستخدم لاتخاذ القرارات أو حل المشكلات المعقدة عندما يكون الحل الرياضي الشامل بطيئاً. تُستخدم قواعد Heuristic بكثافة في خوارزميات البحث والـ Epistemology التطبيقية، وكذلك في تسريع الفرز السريري.",
+    "definitionEn": "A practical mental shortcut or algorithmic rule-of-thumb used for rapid problem-solving in Epistemology, search algorithms, and clinical triage.",
+    "examples": [
+      {
+        "en": "Experienced clinicians rely on a rapid Heuristic during emergency triage before completing a full Differential Diagnosis.",
+        "ar": "يعتمد الأطباء ذوو الخبرة على قاعدة استدلالية عملية سريعة أثناء فرز الطوارئ قبل استكمال التشخيص التفريقي الكامل."
+      },
+      {
+        "en": "Morphological affix decomposition acts as a deterministic Heuristic rooted in linguistic Epistemology for out-of-vocabulary medical terms.",
+        "ar": "يعمل تفكيك اللواحق الصرفية كقاعدة استدلالية عملية حتمية متجذرة في نظرية المعرفة اللغوية للمصطلحات الطبية خارج المعجم."
+      }
+    ],
+    "relations": {
+      "synonyms": [
+        "Rule of Thumb",
+        "Mental Shortcut"
+      ],
+      "broader": [
+        "Epistemology"
+      ],
+      "related": [
+        "Paradigm Shift"
+      ]
+    }
+  }
+]

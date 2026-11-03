@@ -78,6 +78,7 @@ import { LibraryView } from './components/LibraryView';
 import { SettingsView } from './components/SettingsView';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { prepareAndDownloadFile } from './utils/downloadHelper';
+import { runSafeIndexedDbMigration, putAllInStore, IDB_STORES } from './services/indexedDbService';
 
 type MainTab = 'home' | 'topics' | 'translator' | 'datacenter' | 'ingest' | 'library' | 'settings';
 
@@ -597,6 +598,24 @@ export default function App() {
       return next;
     });
   };
+
+  // Safe IndexedDB Migration on startup
+  useEffect(() => {
+    void runSafeIndexedDbMigration().then((report) => {
+      if (report.migrated) {
+        console.log('[IndexedDB] Safe migration completed:', report.counts);
+      }
+    });
+  }, []);
+
+  // Sync terms and sentences into IndexedDB stores in background
+  useEffect(() => {
+    void putAllInStore(IDB_STORES.TERMS, terms);
+  }, [terms]);
+
+  useEffect(() => {
+    void putAllInStore(IDB_STORES.SENTENCES, sentences);
+  }, [sentences]);
 
   // Non-blocking startup online update check
   useEffect(() => {
