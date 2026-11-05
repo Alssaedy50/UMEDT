@@ -14,6 +14,26 @@ assert(bundled.topics.length > 0, 'missing topic file must fall back to bundled 
 assert(bundled.customAffixes.length > 0, 'missing affix file must fall back to bundled affixes');
 assert(bundled.customAbbreviations.length > 0, 'missing abbreviation file must fall back to bundled abbreviations');
 
+const parasitologyIds = [
+  'pt-parasito-01-foundations',
+  'pt-parasito-02-nematodes-intestinal',
+  'pt-parasito-03-nematodes-filaria',
+  'pt-parasito-04-cestodes',
+  'pt-parasito-05-trematodes',
+  'pt-parasito-06-practical-spotter',
+  'pt-parasito-07-one-day-plan',
+  'pt-parasito-08-mcq-viva'
+];
+for (const id of parasitologyIds) {
+  assert(bundled.topics.some((topic) => topic.id === id), `missing Parasitology course topic: ${id}`);
+}
+const parasitology = bundled.topics.filter((topic) => parasitologyIds.includes(topic.id));
+assert(parasitology.reduce((n, topic) => n + topic.images.length, 0) >= 20, 'Parasitology course must include at least 20 learning images/diagrams');
+assert(parasitology.reduce((n, topic) => n + topic.links.length, 0) >= 25, 'Parasitology course must include external reference and 3D model links');
+const mcqTopic = bundled.topics.find((topic) => topic.id === 'pt-parasito-08-mcq-viva');
+assert(Boolean(mcqTopic?.sections.some((section) => section.paragraphs.some((p) => p.startsWith('Q22.')))), 'MCQ topic must contain the full 22-question bank');
+
+
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'umedt-master-data-'));
 try {
   const masterDir = path.join(tempRoot, 'data', 'master');
