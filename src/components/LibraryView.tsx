@@ -13,7 +13,8 @@ import {
   DictionaryTerm,
   LinkedSentence,
   SpacedRepetitionData,
-  TopicArticle
+  TopicArticle,
+  VersionMetadata
 } from '../types/lexicon';
 
 interface LibraryViewProps {
@@ -21,6 +22,7 @@ interface LibraryViewProps {
   sentences: LinkedSentence[];
   topics: TopicArticle[];
   studyStats: { gotIt: number; needsReview: number };
+  versionMetadata: VersionMetadata;
   activeCollection: string;
   onOpenCollectionsMenu: () => void;
   onRecordSm2Review: (
@@ -39,6 +41,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   terms,
   sentences,
   studyStats,
+  versionMetadata,
   activeCollection,
   onOpenCollectionsMenu,
   onRecordSm2Review,
@@ -112,11 +115,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       {/* ====================================================================
           1. LIBRARY & STUDY SUMMARY METRICS
          ==================================================================== */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between gap-1">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-              المصطلحات المحفوظة
+              المصطلحات المفضلة
             </span>
             <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
@@ -128,12 +131,36 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between gap-1">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-              الجمل المحفوظة
+              الجمل المفضلة
             </span>
             <FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
           <span className="text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums">
             {favoriteSentences.length.toLocaleString()}
+          </span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between gap-1">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+              إجمالي المصطلحات المحلية
+            </span>
+            <BookOpen className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+          </div>
+          <span className="text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums">
+            {terms.length.toLocaleString()}
+          </span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between gap-1">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+              إجمالي الجمل المحلية
+            </span>
+            <FileText className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+          </div>
+          <span className="text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums">
+            {sentences.length.toLocaleString()}
           </span>
         </div>
 
@@ -159,6 +186,45 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           <span className="text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums">
             {studyStats.needsReview.toLocaleString()}
           </span>
+        </div>
+      </div>
+
+      <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
+            حالة قاعدة البيانات المحلية
+          </span>
+          <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+            الأعداد أعلاه مأخوذة من البيانات المحمّلة داخل التطبيق
+          </span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+          <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3">
+            <div className="text-slate-500 dark:text-slate-400 mb-1">الإصدار المحلي المسجّل</div>
+            <div dir="ltr" className="font-mono font-bold text-slate-900 dark:text-white break-all">
+              {versionMetadata.dataVersion || 'غير محدد'}
+            </div>
+          </div>
+          <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3">
+            <div className="text-slate-500 dark:text-slate-400 mb-1">مصدر البيانات المسجّل</div>
+            <div className="font-bold text-slate-900 dark:text-white">
+              {{
+                'bundled-seed': 'بيانات مدمجة مع التطبيق',
+                'local-json': 'استيراد ملف JSON محلي',
+                'local-zip': 'استيراد حزمة ZIP محلية',
+                'remote-cdn': 'تحديث سحابي',
+                'manual-mixed': 'بيانات محلية مختلطة'
+              }[versionMetadata.dataSource] || 'غير محدد'}
+            </div>
+          </div>
+          <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3">
+            <div className="text-slate-500 dark:text-slate-400 mb-1">آخر تحديث بيانات مسجّل</div>
+            <div className="font-bold text-slate-900 dark:text-white">
+              {Number.isNaN(Date.parse(versionMetadata.lastDataUpdateAt))
+                ? versionMetadata.lastDataUpdateAt || 'غير متوفر'
+                : new Date(versionMetadata.lastDataUpdateAt).toLocaleString('ar')}
+            </div>
+          </div>
         </div>
       </div>
 
