@@ -263,7 +263,16 @@ export const SearchHub: React.FC<SearchHubProps> = ({
                   setIsSearchFocused(true);
                 }}
                 onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => window.setTimeout(() => setIsSearchFocused(false), 160)}
+                onPaste={(event) => {
+                  const pastedText = event.clipboardData.getData('text/plain');
+                  if (!pastedText) return;
+                  event.preventDefault();
+                  const nextQuery = pastedText.trim();
+                  setDraftQuery(nextQuery);
+                  setActiveSuggestionIndex(-1);
+                  setIsSearchFocused(Boolean(nextQuery));
+                }}
+                onBlur={() => window.setTimeout(() => setIsSearchFocused(false), 320)}
                 onKeyDown={handleSearchKeyDown}
                 dir="auto"
                 autoComplete="off"
