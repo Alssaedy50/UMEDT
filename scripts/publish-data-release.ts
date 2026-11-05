@@ -91,11 +91,30 @@ export async function executeProductionDataReleasePublish(
     }
   }
 
+  // Keep OTA versions monotonic even if the stable manifest was accidentally rolled back.
+  // The floor is a lower bound only; a newer published manifest always takes precedence.
+  const versionFloorPath = path.resolve(
+    process.cwd(),
+    'data/releases/' + channel + '/version-floor.json'
+  );
+  let versionFloor: string | undefined;
+  if (fs.existsSync(versionFloorPath)) {
+    try {
+      const floor = JSON.parse(fs.readFileSync(versionFloorPath, 'utf-8')) as { dataVersion?: string };
+      versionFloor = floor.dataVersion?.trim() || undefined;
+    } catch {
+      throw new Error(
+        '[UMED-2 Publisher] Could not read the stable data version floor at ' + versionFloorPath + '.'
+      );
+    }
+  }
+
   const targetVersion =
     (options.targetVersion || env.UMED_RELEASE_VERSION || '').trim() ||
     suggestNextDataVersion(currentPublishedVersion, 'patch', channel, [
       BUNDLED_DATA_VERSION,
-      currentPublishedVersion
+      currentPublishedVersion,
+      ...(versionFloor ? [versionFloor] : [])
     ]);
 
   const cdnBaseUrl = (options.cdnBaseUrl || DEFAULT_CDN_RELEASE_BASE_URL).trim();
