@@ -2067,5 +2067,5005 @@
         "Paradigm Shift"
       ]
     }
+  },
+  {
+    "id": "add001",
+    "term": "Microcytosis",
+    "termNormalized": "microcytosis",
+    "translation": "صغر الكريات",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: صغر الكريات.",
+    "definitionEn": "Medical terminology: Microcytosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add002",
+    "term": "Macrocytosis",
+    "termNormalized": "macrocytosis",
+    "translation": "كبر الكريات",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: كبر الكريات.",
+    "definitionEn": "Medical terminology: Macrocytosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add003",
+    "term": "Normocytosis",
+    "termNormalized": "normocytosis",
+    "translation": "سوي الكريات",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: سوي الكريات.",
+    "definitionEn": "Medical terminology: Normocytosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add004",
+    "term": "Hypochromia",
+    "termNormalized": "hypochromia",
+    "translation": "نقص الصباغ",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: نقص الصباغ.",
+    "definitionEn": "Medical terminology: Hypochromia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add005",
+    "term": "Normochromia",
+    "termNormalized": "normochromia",
+    "translation": "سوي الصباغ",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: سوي الصباغ.",
+    "definitionEn": "Medical terminology: Normochromia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add006",
+    "term": "Poikilocytosis",
+    "termNormalized": "poikilocytosis",
+    "translation": "تفاوت أشكال الكريات",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تفاوت أشكال الكريات.",
+    "definitionEn": "Medical terminology: Poikilocytosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add007",
+    "term": "Anisocytosis",
+    "termNormalized": "anisocytosis",
+    "translation": "تفاوت أحجام الكريات",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تفاوت أحجام الكريات.",
+    "definitionEn": "Medical terminology: Anisocytosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add008",
+    "term": "Reticulocyte",
+    "termNormalized": "reticulocyte",
+    "translation": "خلية شبكية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: خلية شبكية.",
+    "definitionEn": "Medical terminology: Reticulocyte.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add009",
+    "term": "Reticulocytosis",
+    "termNormalized": "reticulocytosis",
+    "translation": "كثرة الخلايا الشبكية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: كثرة الخلايا الشبكية.",
+    "definitionEn": "Medical terminology: Reticulocytosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add010",
+    "term": "Reticulocytopenia",
+    "termNormalized": "reticulocytopenia",
+    "translation": "قلة الخلايا الشبكية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: قلة الخلايا الشبكية.",
+    "definitionEn": "Medical terminology: Reticulocytopenia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add011",
+    "term": "Erythropoiesis",
+    "termNormalized": "erythropoiesis",
+    "translation": "تكوّن الكريات الحمراء",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تكوّن الكريات الحمراء.",
+    "definitionEn": "Medical terminology: Erythropoiesis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add012",
+    "term": "Erythropoietin",
+    "termNormalized": "erythropoietin",
+    "translation": "الإريثروبويتين",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الإريثروبويتين.",
+    "definitionEn": "Medical terminology: Erythropoietin.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add013",
+    "term": "Hemolysis",
+    "termNormalized": "hemolysis",
+    "translation": "انحلال الدم",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: انحلال الدم.",
+    "definitionEn": "Medical terminology: Hemolysis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add014",
+    "term": "Intravascular Hemolysis",
+    "termNormalized": "intravascular hemolysis",
+    "translation": "انحلال الدم داخل الأوعية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: انحلال الدم داخل الأوعية.",
+    "definitionEn": "Medical terminology: Intravascular Hemolysis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add015",
+    "term": "Extravascular Hemolysis",
+    "termNormalized": "extravascular hemolysis",
+    "translation": "انحلال الدم خارج الأوعية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: انحلال الدم خارج الأوعية.",
+    "definitionEn": "Medical terminology: Extravascular Hemolysis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add016",
+    "term": "Hemoglobinuria",
+    "termNormalized": "hemoglobinuria",
+    "translation": "بيلة هيموغلوبينية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: بيلة هيموغلوبينية.",
+    "definitionEn": "Medical terminology: Hemoglobinuria.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add017",
+    "term": "Hemosiderinuria",
+    "termNormalized": "hemosiderinuria",
+    "translation": "بيلة هيموسيديرينية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: بيلة هيموسيديرينية.",
+    "definitionEn": "Medical terminology: Hemosiderinuria.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add018",
+    "term": "Haptoglobin",
+    "termNormalized": "haptoglobin",
+    "translation": "هابتوغلوبين",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: هابتوغلوبين.",
+    "definitionEn": "Medical terminology: Haptoglobin.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add019",
+    "term": "Lactate Dehydrogenase",
+    "termNormalized": "lactate dehydrogenase",
+    "translation": "نازعة هيدروجين اللاكتات",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: نازعة هيدروجين اللاكتات.",
+    "definitionEn": "Medical terminology: Lactate Dehydrogenase.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add020",
+    "term": "Indirect Bilirubin",
+    "termNormalized": "indirect bilirubin",
+    "translation": "البيليروبين غير المباشر",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: البيليروبين غير المباشر.",
+    "definitionEn": "Medical terminology: Indirect Bilirubin.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add021",
+    "term": "Direct Bilirubin",
+    "termNormalized": "direct bilirubin",
+    "translation": "البيليروبين المباشر",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: البيليروبين المباشر.",
+    "definitionEn": "Medical terminology: Direct Bilirubin.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add022",
+    "term": "Spherocyte",
+    "termNormalized": "spherocyte",
+    "translation": "كرية كروية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: كرية كروية.",
+    "definitionEn": "Medical terminology: Spherocyte.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add023",
+    "term": "Schistocyte",
+    "termNormalized": "schistocyte",
+    "translation": "كرية مجزأة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: كرية مجزأة.",
+    "definitionEn": "Medical terminology: Schistocyte.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add024",
+    "term": "Target Cell",
+    "termNormalized": "target cell",
+    "translation": "خلية هدفية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: خلية هدفية.",
+    "definitionEn": "Medical terminology: Target Cell.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add025",
+    "term": "Sickle Cell",
+    "termNormalized": "sickle cell",
+    "translation": "خلية منجلية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: خلية منجلية.",
+    "definitionEn": "Medical terminology: Sickle Cell.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add026",
+    "term": "Elliptocyte",
+    "termNormalized": "elliptocyte",
+    "translation": "كرية إهليلجية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: كرية إهليلجية.",
+    "definitionEn": "Medical terminology: Elliptocyte.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add027",
+    "term": "Stomatocyte",
+    "termNormalized": "stomatocyte",
+    "translation": "كرية فموية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: كرية فموية.",
+    "definitionEn": "Medical terminology: Stomatocyte.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add028",
+    "term": "Acanthocyte",
+    "termNormalized": "acanthocyte",
+    "translation": "خلية شوكية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: خلية شوكية.",
+    "definitionEn": "Medical terminology: Acanthocyte.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add029",
+    "term": "Echinocyte",
+    "termNormalized": "echinocyte",
+    "translation": "خلية شائكة منتظمة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: خلية شائكة منتظمة.",
+    "definitionEn": "Medical terminology: Echinocyte.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add030",
+    "term": "Basophilic Stippling",
+    "termNormalized": "basophilic stippling",
+    "translation": "التنقيط القاعدي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: التنقيط القاعدي.",
+    "definitionEn": "Medical terminology: Basophilic Stippling.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add031",
+    "term": "Howell-Jolly Bodies",
+    "termNormalized": "howell jolly bodies",
+    "translation": "أجسام هاول جولي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: أجسام هاول جولي.",
+    "definitionEn": "Medical terminology: Howell-Jolly Bodies.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add032",
+    "term": "Pappenheimer Bodies",
+    "termNormalized": "pappenheimer bodies",
+    "translation": "أجسام بابنهايمر",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: أجسام بابنهايمر.",
+    "definitionEn": "Medical terminology: Pappenheimer Bodies.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add033",
+    "term": "Heinz Bodies",
+    "termNormalized": "heinz bodies",
+    "translation": "أجسام هاينز",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: أجسام هاينز.",
+    "definitionEn": "Medical terminology: Heinz Bodies.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add034",
+    "term": "Iron Deficiency Anemia",
+    "termNormalized": "iron deficiency anemia",
+    "translation": "فقر الدم بعوز الحديد",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: فقر الدم بعوز الحديد.",
+    "definitionEn": "Medical terminology: Iron Deficiency Anemia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add035",
+    "term": "Ferritin",
+    "termNormalized": "ferritin",
+    "translation": "الفيريتين",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الفيريتين.",
+    "definitionEn": "Medical terminology: Ferritin.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add036",
+    "term": "Transferrin",
+    "termNormalized": "transferrin",
+    "translation": "الترانسفيرين",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الترانسفيرين.",
+    "definitionEn": "Medical terminology: Transferrin.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add037",
+    "term": "Total Iron-Binding Capacity",
+    "termNormalized": "total iron binding capacity",
+    "translation": "السعة الكلية لارتباط الحديد",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: السعة الكلية لارتباط الحديد.",
+    "definitionEn": "Medical terminology: Total Iron-Binding Capacity.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add038",
+    "term": "Transferrin Saturation",
+    "termNormalized": "transferrin saturation",
+    "translation": "إشباع الترانسفيرين",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: إشباع الترانسفيرين.",
+    "definitionEn": "Medical terminology: Transferrin Saturation.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add039",
+    "term": "Anemia of Chronic Disease",
+    "termNormalized": "anemia of chronic disease",
+    "translation": "فقر الدم المصاحب للأمراض المزمنة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: فقر الدم المصاحب للأمراض المزمنة.",
+    "definitionEn": "Medical terminology: Anemia of Chronic Disease.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add040",
+    "term": "Megaloblastic Anemia",
+    "termNormalized": "megaloblastic anemia",
+    "translation": "فقر الدم ضخم الأرومات",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: فقر الدم ضخم الأرومات.",
+    "definitionEn": "Medical terminology: Megaloblastic Anemia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add041",
+    "term": "Pernicious Anemia",
+    "termNormalized": "pernicious anemia",
+    "translation": "فقر الدم الخبيث",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: فقر الدم الخبيث.",
+    "definitionEn": "Medical terminology: Pernicious Anemia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add042",
+    "term": "Intrinsic Factor",
+    "termNormalized": "intrinsic factor",
+    "translation": "العامل الداخلي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: العامل الداخلي.",
+    "definitionEn": "Medical terminology: Intrinsic Factor.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add043",
+    "term": "Folate",
+    "termNormalized": "folate",
+    "translation": "الفولات",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الفولات.",
+    "definitionEn": "Medical terminology: Folate.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add044",
+    "term": "Vitamin B12",
+    "termNormalized": "vitamin b12",
+    "translation": "فيتامين B12",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: فيتامين B12.",
+    "definitionEn": "Medical terminology: Vitamin B12.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add045",
+    "term": "Thalassemia",
+    "termNormalized": "thalassemia",
+    "translation": "الثلاسيميا",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الثلاسيميا.",
+    "definitionEn": "Medical terminology: Thalassemia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add046",
+    "term": "Alpha Thalassemia",
+    "termNormalized": "alpha thalassemia",
+    "translation": "ألفا ثلاسيميا",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ألفا ثلاسيميا.",
+    "definitionEn": "Medical terminology: Alpha Thalassemia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add047",
+    "term": "Beta Thalassemia",
+    "termNormalized": "beta thalassemia",
+    "translation": "بيتا ثلاسيميا",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: بيتا ثلاسيميا.",
+    "definitionEn": "Medical terminology: Beta Thalassemia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add048",
+    "term": "Hemoglobin A2",
+    "termNormalized": "hemoglobin a2",
+    "translation": "الهيموغلوبين A2",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الهيموغلوبين A2.",
+    "definitionEn": "Medical terminology: Hemoglobin A2.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add049",
+    "term": "Hemoglobin F",
+    "termNormalized": "hemoglobin f",
+    "translation": "الهيموغلوبين الجنيني",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الهيموغلوبين الجنيني.",
+    "definitionEn": "Medical terminology: Hemoglobin F.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add050",
+    "term": "Hemoglobin Electrophoresis",
+    "termNormalized": "hemoglobin electrophoresis",
+    "translation": "رحلان الهيموغلوبين الكهربائي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: رحلان الهيموغلوبين الكهربائي.",
+    "definitionEn": "Medical terminology: Hemoglobin Electrophoresis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add051",
+    "term": "Glucose-6-Phosphate Dehydrogenase Deficiency",
+    "termNormalized": "glucose 6 phosphate dehydrogenase deficiency",
+    "translation": "عوز إنزيم G6PD",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: عوز إنزيم G6PD.",
+    "definitionEn": "Medical terminology: Glucose-6-Phosphate Dehydrogenase Deficiency.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add052",
+    "term": "Hereditary Spherocytosis",
+    "termNormalized": "hereditary spherocytosis",
+    "translation": "تكور الكريات الوراثي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تكور الكريات الوراثي.",
+    "definitionEn": "Medical terminology: Hereditary Spherocytosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add053",
+    "term": "Autoimmune Hemolytic Anemia",
+    "termNormalized": "autoimmune hemolytic anemia",
+    "translation": "فقر الدم الانحلالي المناعي الذاتي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: فقر الدم الانحلالي المناعي الذاتي.",
+    "definitionEn": "Medical terminology: Autoimmune Hemolytic Anemia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add054",
+    "term": "Direct Antiglobulin Test",
+    "termNormalized": "direct antiglobulin test",
+    "translation": "اختبار مضاد الغلوبولين المباشر",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: اختبار مضاد الغلوبولين المباشر.",
+    "definitionEn": "Medical terminology: Direct Antiglobulin Test.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add055",
+    "term": "Indirect Antiglobulin Test",
+    "termNormalized": "indirect antiglobulin test",
+    "translation": "اختبار مضاد الغلوبولين غير المباشر",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: اختبار مضاد الغلوبولين غير المباشر.",
+    "definitionEn": "Medical terminology: Indirect Antiglobulin Test.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add056",
+    "term": "Aplastic Anemia",
+    "termNormalized": "aplastic anemia",
+    "translation": "فقر الدم اللاتنسجي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: فقر الدم اللاتنسجي.",
+    "definitionEn": "Medical terminology: Aplastic Anemia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add057",
+    "term": "Pure Red Cell Aplasia",
+    "termNormalized": "pure red cell aplasia",
+    "translation": "لاتنسج السلسلة الحمراء",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: لاتنسج السلسلة الحمراء.",
+    "definitionEn": "Medical terminology: Pure Red Cell Aplasia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add058",
+    "term": "Pancytopenia",
+    "termNormalized": "pancytopenia",
+    "translation": "نقص شامل لخلايا الدم",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: نقص شامل لخلايا الدم.",
+    "definitionEn": "Medical terminology: Pancytopenia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add059",
+    "term": "Leukocytosis",
+    "termNormalized": "leukocytosis",
+    "translation": "كثرة الكريات البيضاء",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: كثرة الكريات البيضاء.",
+    "definitionEn": "Medical terminology: Leukocytosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add060",
+    "term": "Leukopenia",
+    "termNormalized": "leukopenia",
+    "translation": "قلة الكريات البيضاء",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: قلة الكريات البيضاء.",
+    "definitionEn": "Medical terminology: Leukopenia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add061",
+    "term": "Neutrophilia",
+    "termNormalized": "neutrophilia",
+    "translation": "كثرة العدلات",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: كثرة العدلات.",
+    "definitionEn": "Medical terminology: Neutrophilia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add062",
+    "term": "Neutropenia",
+    "termNormalized": "neutropenia",
+    "translation": "قلة العدلات",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: قلة العدلات.",
+    "definitionEn": "Medical terminology: Neutropenia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add063",
+    "term": "Lymphocytosis",
+    "termNormalized": "lymphocytosis",
+    "translation": "كثرة الخلايا اللمفاوية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: كثرة الخلايا اللمفاوية.",
+    "definitionEn": "Medical terminology: Lymphocytosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add064",
+    "term": "Lymphopenia",
+    "termNormalized": "lymphopenia",
+    "translation": "قلة الخلايا اللمفاوية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: قلة الخلايا اللمفاوية.",
+    "definitionEn": "Medical terminology: Lymphopenia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add065",
+    "term": "Eosinophilia",
+    "termNormalized": "eosinophilia",
+    "translation": "كثرة الحمضات",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: كثرة الحمضات.",
+    "definitionEn": "Medical terminology: Eosinophilia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add066",
+    "term": "Basophilia",
+    "termNormalized": "basophilia",
+    "translation": "كثرة القعدات",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: كثرة القعدات.",
+    "definitionEn": "Medical terminology: Basophilia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add067",
+    "term": "Monocytosis",
+    "termNormalized": "monocytosis",
+    "translation": "كثرة الوحيدات",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: كثرة الوحيدات.",
+    "definitionEn": "Medical terminology: Monocytosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add068",
+    "term": "Agranulocytosis",
+    "termNormalized": "agranulocytosis",
+    "translation": "انعدام المحببات",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: انعدام المحببات.",
+    "definitionEn": "Medical terminology: Agranulocytosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add069",
+    "term": "Left Shift",
+    "termNormalized": "left shift",
+    "translation": "الانحراف إلى اليسار",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الانحراف إلى اليسار.",
+    "definitionEn": "Medical terminology: Left Shift.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add070",
+    "term": "Band Cell",
+    "termNormalized": "band cell",
+    "translation": "خلية عصوية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: خلية عصوية.",
+    "definitionEn": "Medical terminology: Band Cell.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add071",
+    "term": "Blast Cell",
+    "termNormalized": "blast cell",
+    "translation": "خلية أرومية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: خلية أرومية.",
+    "definitionEn": "Medical terminology: Blast Cell.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add072",
+    "term": "Bone Marrow",
+    "termNormalized": "bone marrow",
+    "translation": "نخاع العظم",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: نخاع العظم.",
+    "definitionEn": "Medical terminology: Bone Marrow.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add073",
+    "term": "Hypercellular Bone Marrow",
+    "termNormalized": "hypercellular bone marrow",
+    "translation": "نخاع عظم مفرط الخلوية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: نخاع عظم مفرط الخلوية.",
+    "definitionEn": "Medical terminology: Hypercellular Bone Marrow.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add074",
+    "term": "Hypocellular Bone Marrow",
+    "termNormalized": "hypocellular bone marrow",
+    "translation": "نخاع عظم ناقص الخلوية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: نخاع عظم ناقص الخلوية.",
+    "definitionEn": "Medical terminology: Hypocellular Bone Marrow.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add075",
+    "term": "Hematopoiesis",
+    "termNormalized": "hematopoiesis",
+    "translation": "تكوّن الدم",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تكوّن الدم.",
+    "definitionEn": "Medical terminology: Hematopoiesis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add076",
+    "term": "Hematopoietic Stem Cell",
+    "termNormalized": "hematopoietic stem cell",
+    "translation": "خلية جذعية مكوّنة للدم",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: خلية جذعية مكوّنة للدم.",
+    "definitionEn": "Medical terminology: Hematopoietic Stem Cell.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add077",
+    "term": "Myeloid",
+    "termNormalized": "myeloid",
+    "translation": "نقوي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: نقوي.",
+    "definitionEn": "Medical terminology: Myeloid.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add078",
+    "term": "Lymphoid",
+    "termNormalized": "lymphoid",
+    "translation": "لمفاوي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: لمفاوي.",
+    "definitionEn": "Medical terminology: Lymphoid.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add079",
+    "term": "Myeloblast",
+    "termNormalized": "myeloblast",
+    "translation": "أرومة نقوية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: أرومة نقوية.",
+    "definitionEn": "Medical terminology: Myeloblast.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add080",
+    "term": "Lymphoblast",
+    "termNormalized": "lymphoblast",
+    "translation": "أرومة لمفاوية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: أرومة لمفاوية.",
+    "definitionEn": "Medical terminology: Lymphoblast.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add081",
+    "term": "Acute Leukemia",
+    "termNormalized": "acute leukemia",
+    "translation": "ابيضاض الدم الحاد",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ابيضاض الدم الحاد.",
+    "definitionEn": "Medical terminology: Acute Leukemia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add082",
+    "term": "Chronic Leukemia",
+    "termNormalized": "chronic leukemia",
+    "translation": "ابيضاض الدم المزمن",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ابيضاض الدم المزمن.",
+    "definitionEn": "Medical terminology: Chronic Leukemia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add083",
+    "term": "Acute Lymphoblastic Leukemia",
+    "termNormalized": "acute lymphoblastic leukemia",
+    "translation": "ابيضاض الدم اللمفاوي الحاد",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ابيضاض الدم اللمفاوي الحاد.",
+    "definitionEn": "Medical terminology: Acute Lymphoblastic Leukemia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add084",
+    "term": "Acute Myeloid Leukemia",
+    "termNormalized": "acute myeloid leukemia",
+    "translation": "ابيضاض الدم النقوي الحاد",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ابيضاض الدم النقوي الحاد.",
+    "definitionEn": "Medical terminology: Acute Myeloid Leukemia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add085",
+    "term": "Chronic Myeloid Leukemia",
+    "termNormalized": "chronic myeloid leukemia",
+    "translation": "ابيضاض الدم النقوي المزمن",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ابيضاض الدم النقوي المزمن.",
+    "definitionEn": "Medical terminology: Chronic Myeloid Leukemia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add086",
+    "term": "Chronic Lymphocytic Leukemia",
+    "termNormalized": "chronic lymphocytic leukemia",
+    "translation": "ابيضاض الدم اللمفاوي المزمن",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ابيضاض الدم اللمفاوي المزمن.",
+    "definitionEn": "Medical terminology: Chronic Lymphocytic Leukemia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add087",
+    "term": "Philadelphia Chromosome",
+    "termNormalized": "philadelphia chromosome",
+    "translation": "صبغي فيلادلفيا",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: صبغي فيلادلفيا.",
+    "definitionEn": "Medical terminology: Philadelphia Chromosome.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add088",
+    "term": "BCR-ABL1",
+    "termNormalized": "bcr abl1",
+    "translation": "جين الاندماج BCR-ABL1",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: جين الاندماج BCR-ABL1.",
+    "definitionEn": "Medical terminology: BCR-ABL1.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add089",
+    "term": "Myeloproliferative Neoplasm",
+    "termNormalized": "myeloproliferative neoplasm",
+    "translation": "ورم تكاثري نقوي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ورم تكاثري نقوي.",
+    "definitionEn": "Medical terminology: Myeloproliferative Neoplasm.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add090",
+    "term": "Myelodysplastic Syndrome",
+    "termNormalized": "myelodysplastic syndrome",
+    "translation": "متلازمة خلل التنسج النقوي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: متلازمة خلل التنسج النقوي.",
+    "definitionEn": "Medical terminology: Myelodysplastic Syndrome.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add091",
+    "term": "Leukemoid Reaction",
+    "termNormalized": "leukemoid reaction",
+    "translation": "تفاعل ابيضاضي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تفاعل ابيضاضي.",
+    "definitionEn": "Medical terminology: Leukemoid Reaction.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add092",
+    "term": "Lymphoma",
+    "termNormalized": "lymphoma",
+    "translation": "لمفوما",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: لمفوما.",
+    "definitionEn": "Medical terminology: Lymphoma.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add093",
+    "term": "Hodgkin Lymphoma",
+    "termNormalized": "hodgkin lymphoma",
+    "translation": "لمفوما هودجكين",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: لمفوما هودجكين.",
+    "definitionEn": "Medical terminology: Hodgkin Lymphoma.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add094",
+    "term": "Non-Hodgkin Lymphoma",
+    "termNormalized": "non hodgkin lymphoma",
+    "translation": "لمفوما لاهودجكينية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: لمفوما لاهودجكينية.",
+    "definitionEn": "Medical terminology: Non-Hodgkin Lymphoma.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add095",
+    "term": "Reed-Sternberg Cell",
+    "termNormalized": "reed sternberg cell",
+    "translation": "خلية ريد-ستيرنبرغ",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: خلية ريد-ستيرنبرغ.",
+    "definitionEn": "Medical terminology: Reed-Sternberg Cell.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add096",
+    "term": "Lymphadenopathy",
+    "termNormalized": "lymphadenopathy",
+    "translation": "اعتلال العقد اللمفاوية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: اعتلال العقد اللمفاوية.",
+    "definitionEn": "Medical terminology: Lymphadenopathy.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add097",
+    "term": "Lymphadenitis",
+    "termNormalized": "lymphadenitis",
+    "translation": "التهاب العقد اللمفاوية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: التهاب العقد اللمفاوية.",
+    "definitionEn": "Medical terminology: Lymphadenitis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add098",
+    "term": "Splenomegaly",
+    "termNormalized": "splenomegaly",
+    "translation": "تضخم الطحال",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تضخم الطحال.",
+    "definitionEn": "Medical terminology: Splenomegaly.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add099",
+    "term": "Hepatomegaly",
+    "termNormalized": "hepatomegaly",
+    "translation": "تضخم الكبد",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تضخم الكبد.",
+    "definitionEn": "Medical terminology: Hepatomegaly.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add100",
+    "term": "Hepatosplenomegaly",
+    "termNormalized": "hepatosplenomegaly",
+    "translation": "تضخم الكبد والطحال",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تضخم الكبد والطحال.",
+    "definitionEn": "Medical terminology: Hepatosplenomegaly.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add101",
+    "term": "Thrombocytosis",
+    "termNormalized": "thrombocytosis",
+    "translation": "كثرة الصفيحات",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: كثرة الصفيحات.",
+    "definitionEn": "Medical terminology: Thrombocytosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add102",
+    "term": "Platelet",
+    "termNormalized": "platelet",
+    "translation": "صفيحة دموية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: صفيحة دموية.",
+    "definitionEn": "Medical terminology: Platelet.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add103",
+    "term": "Megakaryocyte",
+    "termNormalized": "megakaryocyte",
+    "translation": "خلية نواء",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: خلية نواء.",
+    "definitionEn": "Medical terminology: Megakaryocyte.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add104",
+    "term": "Thrombopoietin",
+    "termNormalized": "thrombopoietin",
+    "translation": "الثرومبوبويتين",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الثرومبوبويتين.",
+    "definitionEn": "Medical terminology: Thrombopoietin.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add105",
+    "term": "Hemostasis",
+    "termNormalized": "hemostasis",
+    "translation": "الإرقاء",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الإرقاء.",
+    "definitionEn": "Medical terminology: Hemostasis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add106",
+    "term": "Coagulation",
+    "termNormalized": "coagulation",
+    "translation": "التخثر",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: التخثر.",
+    "definitionEn": "Medical terminology: Coagulation.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add107",
+    "term": "Fibrin",
+    "termNormalized": "fibrin",
+    "translation": "الفيبرين",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الفيبرين.",
+    "definitionEn": "Medical terminology: Fibrin.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add108",
+    "term": "Fibrinogen",
+    "termNormalized": "fibrinogen",
+    "translation": "الفيبرينوجين",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الفيبرينوجين.",
+    "definitionEn": "Medical terminology: Fibrinogen.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add109",
+    "term": "Prothrombin Time",
+    "termNormalized": "prothrombin time",
+    "translation": "زمن البروثرومبين",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: زمن البروثرومبين.",
+    "definitionEn": "Medical terminology: Prothrombin Time.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add110",
+    "term": "Activated Partial Thromboplastin Time",
+    "termNormalized": "activated partial thromboplastin time",
+    "translation": "زمن الثرومبوبلاستين الجزئي المنشط",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: زمن الثرومبوبلاستين الجزئي المنشط.",
+    "definitionEn": "Medical terminology: Activated Partial Thromboplastin Time.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add111",
+    "term": "International Normalized Ratio",
+    "termNormalized": "international normalized ratio",
+    "translation": "النسبة المعيارية الدولية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: النسبة المعيارية الدولية.",
+    "definitionEn": "Medical terminology: International Normalized Ratio.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add112",
+    "term": "Disseminated Intravascular Coagulation",
+    "termNormalized": "disseminated intravascular coagulation",
+    "translation": "التخثر المنتشر داخل الأوعية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: التخثر المنتشر داخل الأوعية.",
+    "definitionEn": "Medical terminology: Disseminated Intravascular Coagulation.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add113",
+    "term": "Von Willebrand Factor",
+    "termNormalized": "von willebrand factor",
+    "translation": "عامل فون ويلبراند",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: عامل فون ويلبراند.",
+    "definitionEn": "Medical terminology: Von Willebrand Factor.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add114",
+    "term": "Hemophilia A",
+    "termNormalized": "hemophilia a",
+    "translation": "الهيموفيليا A",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الهيموفيليا A.",
+    "definitionEn": "Medical terminology: Hemophilia A.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add115",
+    "term": "Hemophilia B",
+    "termNormalized": "hemophilia b",
+    "translation": "الهيموفيليا B",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الهيموفيليا B.",
+    "definitionEn": "Medical terminology: Hemophilia B.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add116",
+    "term": "Thrombosis",
+    "termNormalized": "thrombosis",
+    "translation": "الخثار",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الخثار.",
+    "definitionEn": "Medical terminology: Thrombosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add117",
+    "term": "Embolism",
+    "termNormalized": "embolism",
+    "translation": "الصمّة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الصمّة.",
+    "definitionEn": "Medical terminology: Embolism.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add118",
+    "term": "Petechiae",
+    "termNormalized": "petechiae",
+    "translation": "حبرات",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: حبرات.",
+    "definitionEn": "Medical terminology: Petechiae.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add119",
+    "term": "Purpura",
+    "termNormalized": "purpura",
+    "translation": "فرفرية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: فرفرية.",
+    "definitionEn": "Medical terminology: Purpura.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add120",
+    "term": "Ecchymosis",
+    "termNormalized": "ecchymosis",
+    "translation": "كَدمة نزفية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: كَدمة نزفية.",
+    "definitionEn": "Medical terminology: Ecchymosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add121",
+    "term": "Hematoma",
+    "termNormalized": "hematoma",
+    "translation": "ورم دموي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ورم دموي.",
+    "definitionEn": "Medical terminology: Hematoma.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add122",
+    "term": "Blood Transfusion",
+    "termNormalized": "blood transfusion",
+    "translation": "نقل الدم",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: نقل الدم.",
+    "definitionEn": "Medical terminology: Blood Transfusion.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add123",
+    "term": "Crossmatching",
+    "termNormalized": "crossmatching",
+    "translation": "اختبار التوافق",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: اختبار التوافق.",
+    "definitionEn": "Medical terminology: Crossmatching.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add124",
+    "term": "ABO Blood Group",
+    "termNormalized": "abo blood group",
+    "translation": "زمرة الدم ABO",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: زمرة الدم ABO.",
+    "definitionEn": "Medical terminology: ABO Blood Group.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add125",
+    "term": "Rh Factor",
+    "termNormalized": "rh factor",
+    "translation": "عامل ريسوس",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: عامل ريسوس.",
+    "definitionEn": "Medical terminology: Rh Factor.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add126",
+    "term": "Leukocyte",
+    "termNormalized": "leukocyte",
+    "translation": "كرية دم بيضاء",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: كرية دم بيضاء.",
+    "definitionEn": "Medical terminology: Leukocyte.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add127",
+    "term": "Mean Corpuscular Volume",
+    "termNormalized": "mean corpuscular volume",
+    "translation": "متوسط حجم الكرية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: متوسط حجم الكرية.",
+    "definitionEn": "Medical terminology: Mean Corpuscular Volume.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add128",
+    "term": "Mean Corpuscular Hemoglobin",
+    "termNormalized": "mean corpuscular hemoglobin",
+    "translation": "متوسط هيموغلوبين الكرية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: متوسط هيموغلوبين الكرية.",
+    "definitionEn": "Medical terminology: Mean Corpuscular Hemoglobin.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add129",
+    "term": "Mean Corpuscular Hemoglobin Concentration",
+    "termNormalized": "mean corpuscular hemoglobin concentration",
+    "translation": "متوسط تركيز هيموغلوبين الكرية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: متوسط تركيز هيموغلوبين الكرية.",
+    "definitionEn": "Medical terminology: Mean Corpuscular Hemoglobin Concentration.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add130",
+    "term": "Red Cell Distribution Width",
+    "termNormalized": "red cell distribution width",
+    "translation": "عرض توزع الكريات الحمراء",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: عرض توزع الكريات الحمراء.",
+    "definitionEn": "Medical terminology: Red Cell Distribution Width.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add131",
+    "term": "Complete Blood Count",
+    "termNormalized": "complete blood count",
+    "translation": "تعداد الدم الكامل",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تعداد الدم الكامل.",
+    "definitionEn": "Medical terminology: Complete Blood Count.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add132",
+    "term": "Peripheral Blood Smear",
+    "termNormalized": "peripheral blood smear",
+    "translation": "لطاخة الدم المحيطية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: لطاخة الدم المحيطية.",
+    "definitionEn": "Medical terminology: Peripheral Blood Smear.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add133",
+    "term": "Hematocrit",
+    "termNormalized": "hematocrit",
+    "translation": "الهيماتوكريت",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الهيماتوكريت.",
+    "definitionEn": "Medical terminology: Hematocrit.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add134",
+    "term": "Plasma",
+    "termNormalized": "plasma",
+    "translation": "البلازما",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: البلازما.",
+    "definitionEn": "Medical terminology: Plasma.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add135",
+    "term": "Serum",
+    "termNormalized": "serum",
+    "translation": "المصل",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: المصل.",
+    "definitionEn": "Medical terminology: Serum.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add136",
+    "term": "Albumin",
+    "termNormalized": "albumin",
+    "translation": "الألبومين",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الألبومين.",
+    "definitionEn": "Medical terminology: Albumin.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add137",
+    "term": "Globulin",
+    "termNormalized": "globulin",
+    "translation": "الغلوبولين",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الغلوبولين.",
+    "definitionEn": "Medical terminology: Globulin.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add138",
+    "term": "Immunoglobulin",
+    "termNormalized": "immunoglobulin",
+    "translation": "غلوبولين مناعي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: غلوبولين مناعي.",
+    "definitionEn": "Medical terminology: Immunoglobulin.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add139",
+    "term": "Antigen",
+    "termNormalized": "antigen",
+    "translation": "مستضد",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: مستضد.",
+    "definitionEn": "Medical terminology: Antigen.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add140",
+    "term": "Antibody",
+    "termNormalized": "antibody",
+    "translation": "جسم مضاد",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: جسم مضاد.",
+    "definitionEn": "Medical terminology: Antibody.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add141",
+    "term": "Complement",
+    "termNormalized": "complement",
+    "translation": "المتممة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: المتممة.",
+    "definitionEn": "Medical terminology: Complement.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add142",
+    "term": "Macrophage",
+    "termNormalized": "macrophage",
+    "translation": "خلية بلعمية كبيرة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: خلية بلعمية كبيرة.",
+    "definitionEn": "Medical terminology: Macrophage.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add143",
+    "term": "Phagocytosis",
+    "termNormalized": "phagocytosis",
+    "translation": "البلعمة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: البلعمة.",
+    "definitionEn": "Medical terminology: Phagocytosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add144",
+    "term": "Neutrophil",
+    "termNormalized": "neutrophil",
+    "translation": "عدلة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: عدلة.",
+    "definitionEn": "Medical terminology: Neutrophil.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add145",
+    "term": "Eosinophil",
+    "termNormalized": "eosinophil",
+    "translation": "حمضة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: حمضة.",
+    "definitionEn": "Medical terminology: Eosinophil.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add146",
+    "term": "Basophil",
+    "termNormalized": "basophil",
+    "translation": "قاعدة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: قاعدة.",
+    "definitionEn": "Medical terminology: Basophil.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add147",
+    "term": "Monocyte",
+    "termNormalized": "monocyte",
+    "translation": "وحيدة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: وحيدة.",
+    "definitionEn": "Medical terminology: Monocyte.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add148",
+    "term": "B Lymphocyte",
+    "termNormalized": "b lymphocyte",
+    "translation": "خلية لمفاوية بائية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: خلية لمفاوية بائية.",
+    "definitionEn": "Medical terminology: B Lymphocyte.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add149",
+    "term": "T Lymphocyte",
+    "termNormalized": "t lymphocyte",
+    "translation": "خلية لمفاوية تائية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: خلية لمفاوية تائية.",
+    "definitionEn": "Medical terminology: T Lymphocyte.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add150",
+    "term": "Natural Killer Cell",
+    "termNormalized": "natural killer cell",
+    "translation": "خلية قاتلة طبيعية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: خلية قاتلة طبيعية.",
+    "definitionEn": "Medical terminology: Natural Killer Cell.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add151",
+    "term": "Plasma Cell",
+    "termNormalized": "plasma cell",
+    "translation": "خلية بلازمية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: خلية بلازمية.",
+    "definitionEn": "Medical terminology: Plasma Cell.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add152",
+    "term": "Cytokine",
+    "termNormalized": "cytokine",
+    "translation": "سيتوكين",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: سيتوكين.",
+    "definitionEn": "Medical terminology: Cytokine.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add153",
+    "term": "Interleukin",
+    "termNormalized": "interleukin",
+    "translation": "إنترلوكين",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: إنترلوكين.",
+    "definitionEn": "Medical terminology: Interleukin.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add154",
+    "term": "Tumor Necrosis Factor",
+    "termNormalized": "tumor necrosis factor",
+    "translation": "عامل نخر الورم",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: عامل نخر الورم.",
+    "definitionEn": "Medical terminology: Tumor Necrosis Factor.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add155",
+    "term": "Acute Inflammation",
+    "termNormalized": "acute inflammation",
+    "translation": "التهاب حاد",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: التهاب حاد.",
+    "definitionEn": "Medical terminology: Acute Inflammation.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add156",
+    "term": "Chronic Inflammation",
+    "termNormalized": "chronic inflammation",
+    "translation": "التهاب مزمن",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: التهاب مزمن.",
+    "definitionEn": "Medical terminology: Chronic Inflammation.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add157",
+    "term": "Necrosis",
+    "termNormalized": "necrosis",
+    "translation": "نخر",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: نخر.",
+    "definitionEn": "Medical terminology: Necrosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add158",
+    "term": "Apoptosis",
+    "termNormalized": "apoptosis",
+    "translation": "استماتة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: استماتة.",
+    "definitionEn": "Medical terminology: Apoptosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add159",
+    "term": "Neoplasia",
+    "termNormalized": "neoplasia",
+    "translation": "تكوّن ورمي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تكوّن ورمي.",
+    "definitionEn": "Medical terminology: Neoplasia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add160",
+    "term": "Benign Tumor",
+    "termNormalized": "benign tumor",
+    "translation": "ورم حميد",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ورم حميد.",
+    "definitionEn": "Medical terminology: Benign Tumor.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add161",
+    "term": "Malignant Tumor",
+    "termNormalized": "malignant tumor",
+    "translation": "ورم خبيث",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ورم خبيث.",
+    "definitionEn": "Medical terminology: Malignant Tumor.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add162",
+    "term": "Metastasis",
+    "termNormalized": "metastasis",
+    "translation": "نقيلة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: نقيلة.",
+    "definitionEn": "Medical terminology: Metastasis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add163",
+    "term": "Carcinoma",
+    "termNormalized": "carcinoma",
+    "translation": "سرطانة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: سرطانة.",
+    "definitionEn": "Medical terminology: Carcinoma.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add164",
+    "term": "Sarcoma",
+    "termNormalized": "sarcoma",
+    "translation": "ساركوما",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ساركوما.",
+    "definitionEn": "Medical terminology: Sarcoma.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add165",
+    "term": "Adenoma",
+    "termNormalized": "adenoma",
+    "translation": "ورم غدي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ورم غدي.",
+    "definitionEn": "Medical terminology: Adenoma.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add166",
+    "term": "Dysplasia",
+    "termNormalized": "dysplasia",
+    "translation": "خلل التنسج",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: خلل التنسج.",
+    "definitionEn": "Medical terminology: Dysplasia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add167",
+    "term": "Hyperplasia",
+    "termNormalized": "hyperplasia",
+    "translation": "فرط التنسج",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: فرط التنسج.",
+    "definitionEn": "Medical terminology: Hyperplasia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add168",
+    "term": "Hypertrophy",
+    "termNormalized": "hypertrophy",
+    "translation": "التضخم الخلوي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: التضخم الخلوي.",
+    "definitionEn": "Medical terminology: Hypertrophy.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add169",
+    "term": "Atrophy",
+    "termNormalized": "atrophy",
+    "translation": "الضمور",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الضمور.",
+    "definitionEn": "Medical terminology: Atrophy.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add170",
+    "term": "Metaplasia",
+    "termNormalized": "metaplasia",
+    "translation": "الحؤول",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الحؤول.",
+    "definitionEn": "Medical terminology: Metaplasia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add171",
+    "term": "Edema",
+    "termNormalized": "edema",
+    "translation": "وذمة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: وذمة.",
+    "definitionEn": "Medical terminology: Edema.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add172",
+    "term": "Hypertension",
+    "termNormalized": "hypertension",
+    "translation": "ارتفاع ضغط الدم",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ارتفاع ضغط الدم.",
+    "definitionEn": "Medical terminology: Hypertension.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add173",
+    "term": "Hypotension",
+    "termNormalized": "hypotension",
+    "translation": "انخفاض ضغط الدم",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: انخفاض ضغط الدم.",
+    "definitionEn": "Medical terminology: Hypotension.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add174",
+    "term": "Tachypnea",
+    "termNormalized": "tachypnea",
+    "translation": "تسرع التنفس",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تسرع التنفس.",
+    "definitionEn": "Medical terminology: Tachypnea.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add175",
+    "term": "Bradypnea",
+    "termNormalized": "bradypnea",
+    "translation": "بطء التنفس",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: بطء التنفس.",
+    "definitionEn": "Medical terminology: Bradypnea.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add176",
+    "term": "Dyspnea",
+    "termNormalized": "dyspnea",
+    "translation": "ضيق النفس",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ضيق النفس.",
+    "definitionEn": "Medical terminology: Dyspnea.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add177",
+    "term": "Orthopnea",
+    "termNormalized": "orthopnea",
+    "translation": "ضيق النفس الاضطجاعي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ضيق النفس الاضطجاعي.",
+    "definitionEn": "Medical terminology: Orthopnea.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add178",
+    "term": "Apnea",
+    "termNormalized": "apnea",
+    "translation": "انقطاع النفس",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: انقطاع النفس.",
+    "definitionEn": "Medical terminology: Apnea.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add179",
+    "term": "Hypoxemia",
+    "termNormalized": "hypoxemia",
+    "translation": "نقص أكسجة الدم",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: نقص أكسجة الدم.",
+    "definitionEn": "Medical terminology: Hypoxemia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add180",
+    "term": "Hypoxia",
+    "termNormalized": "hypoxia",
+    "translation": "نقص الأكسجة النسيجية",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: نقص الأكسجة النسيجية.",
+    "definitionEn": "Medical terminology: Hypoxia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add181",
+    "term": "Cyanosis",
+    "termNormalized": "cyanosis",
+    "translation": "زرقة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: زرقة.",
+    "definitionEn": "Medical terminology: Cyanosis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add182",
+    "term": "Clubbing",
+    "termNormalized": "clubbing",
+    "translation": "تعجر الأصابع",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تعجر الأصابع.",
+    "definitionEn": "Medical terminology: Clubbing.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add183",
+    "term": "Fever",
+    "termNormalized": "fever",
+    "translation": "حمى",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: حمى.",
+    "definitionEn": "Medical terminology: Fever.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add184",
+    "term": "Hypothermia",
+    "termNormalized": "hypothermia",
+    "translation": "انخفاض حرارة الجسم",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: انخفاض حرارة الجسم.",
+    "definitionEn": "Medical terminology: Hypothermia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add185",
+    "term": "Malaise",
+    "termNormalized": "malaise",
+    "translation": "توعك عام",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: توعك عام.",
+    "definitionEn": "Medical terminology: Malaise.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add186",
+    "term": "Fatigue",
+    "termNormalized": "fatigue",
+    "translation": "إعياء",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: إعياء.",
+    "definitionEn": "Medical terminology: Fatigue.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add187",
+    "term": "Syncope",
+    "termNormalized": "syncope",
+    "translation": "إغماء",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: إغماء.",
+    "definitionEn": "Medical terminology: Syncope.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add188",
+    "term": "Presyncope",
+    "termNormalized": "presyncope",
+    "translation": "ما قبل الإغماء",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ما قبل الإغماء.",
+    "definitionEn": "Medical terminology: Presyncope.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add189",
+    "term": "Seizure",
+    "termNormalized": "seizure",
+    "translation": "اختلاج",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: اختلاج.",
+    "definitionEn": "Medical terminology: Seizure.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add190",
+    "term": "Convulsion",
+    "termNormalized": "convulsion",
+    "translation": "تشنج اختلاجي",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تشنج اختلاجي.",
+    "definitionEn": "Medical terminology: Convulsion.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add191",
+    "term": "Paresthesia",
+    "termNormalized": "paresthesia",
+    "translation": "مذل",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: مذل.",
+    "definitionEn": "Medical terminology: Paresthesia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add192",
+    "term": "Analgesia",
+    "termNormalized": "analgesia",
+    "translation": "تسكين الألم",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تسكين الألم.",
+    "definitionEn": "Medical terminology: Analgesia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add193",
+    "term": "Hyperalgesia",
+    "termNormalized": "hyperalgesia",
+    "translation": "فرط التألم",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: فرط التألم.",
+    "definitionEn": "Medical terminology: Hyperalgesia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add194",
+    "term": "Allodynia",
+    "termNormalized": "allodynia",
+    "translation": "ألم اللمس",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ألم اللمس.",
+    "definitionEn": "Medical terminology: Allodynia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add195",
+    "term": "Infection",
+    "termNormalized": "infection",
+    "translation": "عدوى",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: عدوى.",
+    "definitionEn": "Medical terminology: Infection.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add196",
+    "term": "Sepsis",
+    "termNormalized": "sepsis",
+    "translation": "إنتان",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: إنتان.",
+    "definitionEn": "Medical terminology: Sepsis.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add197",
+    "term": "Bacteremia",
+    "termNormalized": "bacteremia",
+    "translation": "تجرثم الدم",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تجرثم الدم.",
+    "definitionEn": "Medical terminology: Bacteremia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add198",
+    "term": "Viremia",
+    "termNormalized": "viremia",
+    "translation": "تفيرس الدم",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: تفيرس الدم.",
+    "definitionEn": "Medical terminology: Viremia.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add199",
+    "term": "Pathogen",
+    "termNormalized": "pathogen",
+    "translation": "ممرض",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: ممرض.",
+    "definitionEn": "Medical terminology: Pathogen.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
+  },
+  {
+    "id": "add200",
+    "term": "Virulence",
+    "termNormalized": "virulence",
+    "translation": "الضراوة",
+    "phonetic": "",
+    "pos": "Medical term",
+    "category": "Medical",
+    "specialty": "General & Clinical Medicine",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "مفردات طبية أساسية",
+      "إضافة نوفمبر 2026"
+    ],
+    "ingestedAt": "UMEDT curated glossary · 2026-11",
+    "definitionAr": "مصطلح طبي يُستخدم للدلالة على: الضراوة.",
+    "definitionEn": "Medical terminology: Virulence.",
+    "examples": [],
+    "relations": {
+      "synonyms": [],
+      "broader": [],
+      "related": []
+    }
   }
 ]
