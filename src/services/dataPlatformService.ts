@@ -2213,7 +2213,7 @@ export function normalizeManifestUrl(inputUrl: string): string {
   // A ZIP is binary (PK header), while the update checker must fetch JSON first.
   // Recover the sibling manifest URL for UMEDT's stable/beta release layout.
   const zipReleaseMatch = url.match(
-    /^(https?:\/\/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\/data\/releases\/(stable|beta)\/)\[^/?#]+\.zip(?:[?#].*)?$/i
+    /^(https?:\/\/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\/data\/releases\/(stable|beta)\/)[^/?#]+\.zip(?:[?#].*)?$/i
   );
   if (zipReleaseMatch) {
     return `${zipReleaseMatch[1]}manifest.json`;
