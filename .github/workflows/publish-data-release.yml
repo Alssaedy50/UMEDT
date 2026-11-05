@@ -128,7 +128,7 @@ jobs:
           test -s "$CHANGELOG_FILE" || { echo "::error::Release changelog was not generated."; exit 1; }
 
           DATA_VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$MANIFEST_FILE')).dataVersion)")
-          PACKAGE_NAME=$(node -e "const m=JSON.parse(require(\x27fs\x27).readFileSync(\x27$MANIFEST_FILE\x27)); console.log(new URL(m.downloadUrl).pathname.split(\x27/\x27).pop())")
+          PACKAGE_NAME=$(node -e 'const fs=require("fs"); const m=JSON.parse(fs.readFileSync("releases/manifest.json","utf8")); console.log(new URL(m.downloadUrl).pathname.split("/").pop())')
           PACKAGE_FILE="releases/${PACKAGE_NAME}"
           test -s "$PACKAGE_FILE" || { echo "::error::Signed ZIP package referenced by manifest was not generated: $PACKAGE_FILE"; exit 1; }
 
