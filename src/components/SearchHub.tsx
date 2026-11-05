@@ -244,148 +244,149 @@ export const SearchHub: React.FC<SearchHubProps> = ({
   return (
     <div className="max-w-4xl mx-auto space-y-5 w-full overflow-x-clip box-border">
       {/* Search Bar, Submit Action, and Live Suggestions */}
-      <div className="space-y-2.5 w-full">
-        <div className="flex items-start gap-2 w-full">
-          <form
-            onSubmit={handleSearchSubmit}
-            className="relative flex-1 min-w-0 flex items-stretch gap-1.5"
-            role="search"
-          >
-            <div className="relative flex-1 min-w-0">
-              <Search className="w-5 h-5 text-emerald-600 dark:text-emerald-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={draftQuery}
-                onChange={(event) => {
-                  setDraftQuery(event.target.value);
-                  setActiveSuggestionIndex(-1);
-                  setIsSearchFocused(true);
-                }}
-                onFocus={() => setIsSearchFocused(true)}
-                onPaste={(event) => {
-                  const pastedText = event.clipboardData.getData('text/plain');
-                  if (!pastedText) return;
-                  event.preventDefault();
-                  const nextQuery = pastedText.trim();
-                  setDraftQuery(nextQuery);
-                  setActiveSuggestionIndex(-1);
-                  setIsSearchFocused(Boolean(nextQuery));
-                }}
-                onBlur={() => window.setTimeout(() => setIsSearchFocused(false), 320)}
-                onKeyDown={handleSearchKeyDown}
-                dir="auto"
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                enterKeyHint="search"
-                aria-label="ابحث عن كلمة أو ترجمتها"
-                aria-autocomplete="list"
-                aria-controls="dictionary-search-suggestions"
-                aria-expanded={isSearchFocused && suggestedTerms.length > 0}
-                placeholder="اكتب أو الصق الكلمة الإنجليزية أو العربية..."
-                className="w-full min-h-[50px] pr-11 pl-3 py-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none transition-colors shadow-sm [user-select:text] [-webkit-user-select:text]"
-              />
-              <div className="absolute left-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                {draftQuery ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDraftQuery('');
-                      onSearchQueryChange('');
-                      setActiveSuggestionIndex(-1);
-                      searchInputRef.current?.focus();
-                    }}
-                    className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white"
-                    title="مسح"
-                    aria-label="مسح البحث"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handlePasteFromClipboard}
-                    className="min-h-[36px] flex items-center gap-1 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium transition-colors whitespace-nowrap"
-                    title="لصق من الحافظة"
-                  >
-                    <ClipboardPaste className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    <span>لصق</span>
-                  </button>
-                )}
-              </div>
-
-              {isSearchFocused && suggestedTerms.length > 0 && (
-                <div
-                  id="dictionary-search-suggestions"
-                  role="listbox"
-                  aria-label="اقتراحات البحث"
-                  className="absolute top-full right-0 left-0 z-40 mt-2 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl"
+      <div className="space-y-2 w-full">
+        <form
+          onSubmit={handleSearchSubmit}
+          className="relative w-full flex items-stretch gap-2"
+          role="search"
+        >
+          <div className="relative flex-1 min-w-0">
+            <Search className="w-5 h-5 text-emerald-600 dark:text-emerald-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={draftQuery}
+              onChange={(event) => {
+                setDraftQuery(event.target.value);
+                setActiveSuggestionIndex(-1);
+                setIsSearchFocused(true);
+              }}
+              onFocus={() => setIsSearchFocused(true)}
+              onPaste={(event) => {
+                const pastedText = event.clipboardData.getData('text/plain');
+                if (!pastedText) return;
+                event.preventDefault();
+                const nextQuery = pastedText.trim();
+                setDraftQuery(nextQuery);
+                setActiveSuggestionIndex(-1);
+                setIsSearchFocused(Boolean(nextQuery));
+              }}
+              onBlur={() => window.setTimeout(() => setIsSearchFocused(false), 320)}
+              onKeyDown={handleSearchKeyDown}
+              dir="auto"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              enterKeyHint="search"
+              aria-label="ابحث عن كلمة أو ترجمتها"
+              aria-autocomplete="list"
+              aria-controls="dictionary-search-suggestions"
+              aria-expanded={isSearchFocused && suggestedTerms.length > 0}
+              placeholder="ابحث بالإنجليزية أو العربية..."
+              className="w-full min-h-[50px] pr-10 pl-16 py-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none transition-colors shadow-sm [user-select:text] [-webkit-user-select:text]"
+            />
+            <div className="absolute left-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              {draftQuery ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftQuery('');
+                    onSearchQueryChange('');
+                    setActiveSuggestionIndex(-1);
+                    searchInputRef.current?.focus();
+                  }}
+                  className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                  title="مسح"
+                  aria-label="مسح البحث"
                 >
-                  <div className="px-3.5 py-2 border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                    اقتراحات مطابقة · اختر كلمة لعرض ترجمتها
-                  </div>
-                  {suggestedTerms.map((item, index) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      role="option"
-                      aria-selected={activeSuggestionIndex === index}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => handleSelectSuggestion(item)}
-                      className={`w-full min-h-[54px] px-3.5 py-2 flex items-center justify-between gap-3 text-right border-b last:border-b-0 border-slate-100 dark:border-slate-800 transition-colors ${
-                        activeSuggestionIndex === index
-                          ? 'bg-emerald-500/10'
-                          : 'hover:bg-slate-50 dark:hover:bg-slate-800/70'
-                      }`}
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span dir="ltr" className="block text-left text-sm font-bold text-slate-900 dark:text-white truncate">
-                          {item.term}
-                        </span>
-                        <span className="block text-xs text-emerald-700 dark:text-emerald-300 truncate mt-0.5">
-                          {item.translation}
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-[10px] text-slate-400">
-                        {item.category === 'General' ? 'عام' : item.category === 'Medical' ? 'طبي' : item.category}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                  <X className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handlePasteFromClipboard}
+                  className="min-h-[34px] flex items-center gap-1 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors whitespace-nowrap"
+                  title="لصق من الحافظة"
+                >
+                  <ClipboardPaste className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>لصق</span>
+                </button>
               )}
             </div>
 
-            <button
-              type="submit"
-              disabled={!draftQuery.trim()}
-              className="min-w-[58px] min-h-[50px] px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-45 disabled:cursor-not-allowed text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex flex-col items-center justify-center gap-0.5 shrink-0 transition-colors shadow-sm"
-              aria-label="إدخال الكلمة والبحث عن ترجمتها"
-            >
-              <Search className="w-4 h-4" />
-              <span>بحث</span>
-            </button>
-          </form>
+            {isSearchFocused && suggestedTerms.length > 0 && (
+              <div
+                id="dictionary-search-suggestions"
+                role="listbox"
+                aria-label="اقتراحات البحث"
+                className="absolute top-full right-0 left-0 z-40 mt-2 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl"
+              >
+                <div className="px-3.5 py-2 border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  اقتراحات مطابقة · اختر كلمة لعرض ترجمتها
+                </div>
+                {suggestedTerms.map((item, index) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="option"
+                    aria-selected={activeSuggestionIndex === index}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => handleSelectSuggestion(item)}
+                    className={`w-full min-h-[54px] px-3.5 py-2 flex items-center justify-between gap-3 text-right border-b last:border-b-0 border-slate-100 dark:border-slate-800 transition-colors ${
+                      activeSuggestionIndex === index
+                        ? 'bg-emerald-500/10'
+                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/70'
+                    }`}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span dir="ltr" className="block text-left text-sm font-bold text-slate-900 dark:text-white truncate">
+                        {item.term}
+                      </span>
+                      <span className="block text-xs text-emerald-700 dark:text-emerald-300 truncate mt-0.5">
+                        {item.translation}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-[10px] text-slate-400">
+                      {item.category === 'General' ? 'عام' : item.category === 'Medical' ? 'طبي' : item.category}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
+          <button
+            type="submit"
+            disabled={!draftQuery.trim()}
+            className="min-h-[50px] px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-45 disabled:cursor-not-allowed text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1.5 shrink-0 transition-colors shadow-sm"
+            aria-label="إدخال الكلمة والبحث عن ترجمتها"
+          >
+            <Search className="w-4 h-4 shrink-0" />
+            <span>بحث</span>
+          </button>
+        </form>
+
+        <div className="flex items-center justify-between gap-2 pt-0.5">
           <button
             type="button"
             onClick={onOpenFilterMenu}
-            className={`min-h-[50px] px-3 py-2.5 rounded-2xl border text-xs font-bold flex items-center gap-2 shrink-0 transition-colors ${
+            className={`min-h-[38px] px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors ${
               selectedCategory !== 'All' || searchScope !== 'all'
                 ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950 dark:border-emerald-400'
                 : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-emerald-500/40'
             }`}
             aria-label="تصفية نطاق البحث"
           >
-            <SlidersHorizontal className="w-4 h-4 shrink-0" />
+            <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
             <span className="whitespace-nowrap">{activeFilterSummary}</span>
             <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-75" />
           </button>
+
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
+            اكتب أو الصق أي مصطلح طبي أو كلمة للبحث الفوري
+          </p>
         </div>
-        <p className="px-1 text-[11px] text-slate-400 dark:text-slate-500">
-          يمكنك اللصق بالضغط المطوّل داخل الحقل، أو اختيار اقتراح، أو الضغط على بحث. يعمل البحث بالإنجليزية والعربية.
-        </p>
       </div>
 
       {/* Dynamic Content Area */}
@@ -402,7 +403,7 @@ export const SearchHub: React.FC<SearchHubProps> = ({
                   type="button"
                   onClick={() => onOpenTermDetail(termOfDay.id)}
                   dir="ltr"
-                  className="text-sm font-bold text-slate-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400 break-words text-left transition-colors"
+                  className="text-sm font-bold text-slate-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400 truncate text-left transition-colors"
                 >
                   {termOfDay.term}
                 </button>
@@ -435,27 +436,25 @@ export const SearchHub: React.FC<SearchHubProps> = ({
 
           {/* Recently Searched Terms List */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between px-1">
-              <h3 className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>آخر المصطلحات التي تم البحث عنها</span>
-              </h3>
-              <div className="flex items-center gap-2.5">
-                {recentTerms.length > 0 && onClearRecentTerms && (
-                  <button
-                    type="button"
-                    onClick={onClearRecentTerms}
-                    className="text-[11px] font-semibold text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 flex items-center gap-1 transition-colors"
-                    title="مسح سجل البحث الأخير"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>مسح السجل</span>
-                  </button>
-                )}
-                <span className="text-xs text-slate-400 font-mono tabular-nums">
+            <div className="flex items-center justify-between gap-2 px-1">
+              <h3 className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1.5 min-w-0">
+                <Clock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span className="truncate">آخر عمليات البحث</span>
+                <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono tabular-nums shrink-0">
                   {recentTerms.length}
                 </span>
-              </div>
+              </h3>
+              {recentTerms.length > 0 && onClearRecentTerms && (
+                <button
+                  type="button"
+                  onClick={onClearRecentTerms}
+                  className="text-[11px] font-bold text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 flex items-center gap-1 shrink-0 whitespace-nowrap transition-colors"
+                  title="مسح سجل البحث الأخير"
+                >
+                  <Trash2 className="w-3 h-3 shrink-0" />
+                  <span>مسح السجل</span>
+                </button>
+              )}
             </div>
 
             {recentTerms.length > 0 ? (

@@ -229,7 +229,7 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col"
+          className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] sm:pb-2 shadow-2xl flex flex-col"
         >
           {/* Compact Top Action Bar */}
           <div className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 py-2.5 flex items-center justify-between gap-2">

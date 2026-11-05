@@ -330,7 +330,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-t-3xl sm:rounded-2xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 p-4 space-y-3 shadow-2xl max-h-[85vh] overflow-y-auto"
+            className="w-full max-w-sm rounded-t-3xl sm:rounded-2xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 p-4 pb-[calc(3.75rem+env(safe-area-inset-bottom,0px))] sm:pb-5 space-y-3 shadow-2xl max-h-[85vh] overflow-y-auto"
           >
             {/* Modal 1: Conflict Policy */}
             {activeModal === 'conflict' && (
@@ -602,36 +602,74 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
 
                   {backupHistory.length > 0 && (
-                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                      {backupHistory.map((item) => (
-                        <div
-                          key={item.backupId}
-                          className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-xs"
-                        >
-                          <span className="font-bold truncate">
-                            {item.versionMetadata.dataVersion}
-                          </span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onRestoreBackupById(item.backupId);
-                                setActiveModal(null);
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-bold"
-                            >
-                              استعادة
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onDeleteBackupById(item.backupId)}
-                              className="p-1 rounded-lg text-rose-500 hover:bg-rose-500/10"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                      {backupHistory.map((item) => {
+                        const formattedDate = (() => {
+                          try {
+                            return new Date(item.createdAt).toLocaleString('ar-EG', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            });
+                          } catch {
+                            return '';
+                          }
+                        })();
+                        const termCount = item.manifest?.counts?.terms ?? item.payload?.terms?.length ?? 0;
+                        const triggerBadge =
+                          item.trigger === 'manual' ? 'نقطة يدوية' : 'نسخ تلقائي';
+
+                        return (
+                          <div
+                            key={item.backupId}
+                            className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-xs"
+                          >
+                            <div className="min-w-0 flex-1 space-y-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  dir="ltr"
+                                  className="font-mono font-extrabold text-slate-900 dark:text-white truncate"
+                                >
+                                  {item.versionMetadata.dataVersion}
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold shrink-0">
+                                  {triggerBadge}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-400 flex items-center gap-1.5 truncate">
+                                <span>{termCount} مصطلح</span>
+                                {formattedDate && (
+                                  <>
+                                    <span>·</span>
+                                    <span>{formattedDate}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onRestoreBackupById(item.backupId);
+                                  setActiveModal(null);
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-bold"
+                              >
+                                استعادة
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onDeleteBackupById(item.backupId)}
+                                className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10"
+                                title="حذف نقطة الاستعادة"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

@@ -531,7 +531,7 @@ export const ClinicalTranslatorView: React.FC<ClinicalTranslatorViewProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-700 p-5 space-y-3.5 shadow-2xl"
+            className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-700 p-5 pb-[calc(3.75rem+env(safe-area-inset-bottom,0px))] sm:pb-5 space-y-3.5 shadow-2xl"
           >
             <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto sm:hidden" />
 

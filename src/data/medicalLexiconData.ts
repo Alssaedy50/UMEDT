@@ -1549,6 +1549,156 @@ export const INITIAL_TERMS: DictionaryTerm[] = [
       broader: ['Epistemology'],
       related: ['Paradigm Shift']
     }
+  },
+  {
+    id: 'add034',
+    term: 'Iron Deficiency Anemia',
+    termNormalized: 'iron deficiency anemia',
+    translation: 'فقر الدم بعوز الحديد',
+    phonetic: '/ˈaɪərn dɪˈfɪʃənsi əˈniːmiə/',
+    pos: 'Noun · متلازمة دموية',
+    category: 'Medical',
+    specialty: 'Hematology · أمراض الدم',
+    umdCode: 'UMD-11034',
+    keepEnglish: true,
+    favorite: false,
+    collections: ['أمراض الدم والمختبر'],
+    ingestedAt: 'القاموس الأساسي',
+    definitionAr:
+      'أشيع أنواع فقر الدم صغير الكريات ناقص الصباغ (Microcytic Hypochromic Anemia)، ينتج عن نقص مخزون الحديد اللازم لتصنيع الهيم والهيموغلوبين بسبب نقص الوارد الغذائي، أو زيادة الاحتياج أثناء النمو والحمل والرضاعة، أو فقدان الدم المزمن.',
+    definitionEn:
+      'The most common cause of microcytic hypochromic anemia resulting from depleted iron stores impaired heme and hemoglobin synthesis.',
+    examples: [
+      {
+        en: 'Iron deficiency anemia is characterized by decreased serum ferritin, increased TIBC, and microcytic hypochromic RBCs.',
+        ar: 'يتميز فقر الدم بعوز الحديد بانخفاض فيريتين المصل وارتفاع السعة الكلية لارتباط الحديد وكريات دم حمراء صغيرة الحجم ناقصة الصباغ.'
+      }
+    ],
+    relations: {
+      synonyms: ['IDA', 'Sideropenic Anemia'],
+      broader: ['Anemia'],
+      related: ['Ferritin', 'Transferrin', 'Thalassemia', 'Anemia of Chronic Disease', 'Hemoglobin']
+    }
+  },
+  {
+    id: 'add035',
+    term: 'Ferritin',
+    termNormalized: 'ferritin',
+    translation: 'الفيريتين',
+    phonetic: '/ˈfɛrɪtɪn/',
+    pos: 'Noun · بروتين مخبري',
+    category: 'Medical',
+    specialty: 'Hematology · أمراض الدم',
+    umdCode: 'UMD-11035',
+    keepEnglish: true,
+    favorite: false,
+    collections: ['أمراض الدم والمختبر'],
+    ingestedAt: 'القاموس الأساسي',
+    definitionAr:
+      'البروتين الأساسي المخزّن للحديد داخل الخلايا، ويُعد مستوى الفيريتين في المصل المؤشر المخبري الأكثر دقة وحساسية لتقييم مخزون الحديد في الجسم وتشخيص فقر الدم بعوز الحديد.',
+    definitionEn:
+      'The primary intracellular iron-storage protein; serum ferritin is the most sensitive laboratory marker of total body iron stores.',
+    examples: [
+      {
+        en: 'Decreased serum ferritin is the earliest laboratory sign of Iron Deficiency Anemia.',
+        ar: 'يُعد انخفاض فيريتين المصل العلامة المخبرية الأبكر لفقر الدم بعوز الحديد.'
+      }
+    ],
+    relations: {
+      synonyms: ['Serum Ferritin'],
+      broader: ['Hematology'],
+      related: ['Iron Deficiency Anemia', 'Transferrin', 'Total Iron-Binding Capacity', 'Hemoglobin']
+    }
+  },
+  {
+    id: 'add036',
+    term: 'Transferrin',
+    termNormalized: 'transferrin',
+    translation: 'الترانسفيرين',
+    phonetic: '/trænsˈfɛrɪn/',
+    pos: 'Noun · بروتين ناقل',
+    category: 'Medical',
+    specialty: 'Hematology · أمراض الدم',
+    umdCode: 'UMD-11036',
+    keepEnglish: true,
+    favorite: false,
+    collections: ['أمراض الدم والمختبر'],
+    ingestedAt: 'القاموس الأساسي',
+    definitionAr:
+      'البروتين السكري الرئيسي المسؤول عن نقل الحديد في بلازما الدم من مواقع الامتصاص والتخزين إلى طلائع الكريات الحمراء في نقي العظم.',
+    definitionEn:
+      'The principal plasma glycoprotein synthesized by the liver that transports iron through the blood to bone marrow erythroblasts.',
+    examples: [
+      {
+        en: 'In Iron Deficiency Anemia, serum transferrin (TIBC) is increased while transferrin saturation is decreased.',
+        ar: 'في فقر الدم بعوز الحديد، يرتفع ترانسفيرين المصل (السعة الكلية لارتباط الحديد) بينما ينخفض إشباع الترانسفيرين.'
+      }
+    ],
+    relations: {
+      synonyms: ['Siderophilin', 'Serum Transferrin'],
+      broader: ['Hematology'],
+      related: ['Ferritin', 'Total Iron-Binding Capacity', 'Iron Deficiency Anemia']
+    }
+  },
+  {
+    id: 'add039',
+    term: 'Anemia of Chronic Disease',
+    termNormalized: 'anemia of chronic disease',
+    translation: 'فقر الدم المصاحب للأمراض المزمنة',
+    phonetic: '/əˈniːmiə əv ˈkrɒnɪk dɪˈziːz/',
+    pos: 'Noun · متلازمة دموية',
+    category: 'Medical',
+    specialty: 'Hematology · أمراض الدم',
+    umdCode: 'UMD-11039',
+    keepEnglish: true,
+    favorite: false,
+    collections: ['أمراض الدم والمختبر'],
+    ingestedAt: 'القاموس الأساسي',
+    definitionAr:
+      'فقر دم سويّ الكريات أو صغير الكريات ينشأ في سياق الالتهابات المزمنة أو الأمراض المناعية أو الأورام نتيجة زيادة الهيبسيدين واحتجاز الحديد داخل البلاعم.',
+    definitionEn:
+      'Normocytic or microcytic anemia associated with chronic inflammation, autoimmune disorders, or malignancy due to hepcidin-mediated iron sequestration.',
+    examples: [
+      {
+        en: 'Anemia of Chronic Disease (AOCD) is one of the four major types of microcytic anemia.',
+        ar: 'يُعد فقر الدم المصاحب للأمراض المزمنة أحد الأنواع الأربعة الرئيسية لفقر الدم صغير الكريات.'
+      }
+    ],
+    relations: {
+      synonyms: ['AOCD', 'ACD', 'Anemia of Inflammation'],
+      broader: ['Anemia'],
+      related: ['Iron Deficiency Anemia', 'Ferritin', 'Transferrin', 'Thalassemia']
+    }
+  },
+  {
+    id: 'add045',
+    term: 'Thalassemia',
+    termNormalized: 'thalassemia',
+    translation: 'الثلاسيميا (فقر دم حوض البحر الأبيض المتوسط)',
+    phonetic: '/ˌθæləˈsiːmiə/',
+    pos: 'Noun · اعتلال خضاب وراثي',
+    category: 'Medical',
+    specialty: 'Hematology · أمراض الدم',
+    umdCode: 'UMD-11045',
+    keepEnglish: true,
+    favorite: false,
+    collections: ['أمراض الدم والمختبر'],
+    ingestedAt: 'القاموس الأساسي',
+    definitionAr:
+      'مجموعة من اضطرابات الدم الانحلالية الوراثية تنتج عن عيب كمي في تصنيع سلاسل الغلوبين (ألفا أو بيتا) المكونة للهيموغلوبين، مما يؤدي إلى فقر دم صغير الكريات.',
+    definitionEn:
+      'An inherited autosomal recessive congenital hemolytic anemia characterized by decreased or absent synthesis of alpha or beta globin chains of hemoglobin.',
+    examples: [
+      {
+        en: 'Thalassemia is a congenital hemolytic anemia that presents with microcytic hypochromic RBCs and target cells.',
+        ar: 'الثلاسيميا هي فقر دم انحلالي خلقي يتظاهر بكريات دم حمراء صغيرة الحجم ناقصة الصباغ وخلايا هدفية.'
+      }
+    ],
+    relations: {
+      synonyms: ['Mediterranean Anemia'],
+      broader: ['Anemia'],
+      related: ['Hemoglobin', 'Erythrocyte', 'Iron Deficiency Anemia', 'Anemia of Chronic Disease']
+    }
   }
 ];
 
@@ -1557,7 +1707,9 @@ export const EXTRA_LINKABLE_ALIASES: Record<string, string> = {
   'Differential Diagnosis': 'm1',
   'Pathophysiology': 'm2',
   'RBC': 'm8',
+  'RBCs': 'm8',
   'Hgb': 'm7',
+  'Hb': 'm7',
   'Gallstones': 'm6',
   'ADHF': 'm10',
   'AFib': 'm12',
@@ -1566,7 +1718,9 @@ export const EXTRA_LINKABLE_ALIASES: Record<string, string> = {
   'CVA': 'm20',
   'SAH': 'm21',
   'PE': 'm23',
-  'Anaphylaxis': 'm25'
+  'Anaphylaxis': 'm25',
+  'IDA': 'add034',
+  'AOCD': 'add039'
 };
 
 // ============================================================================
@@ -1937,7 +2091,29 @@ export const CLINICAL_ABBREVIATIONS: ClinicalAbbreviation[] = [
   { id: 'ab70', abbr: 'QID', isAmbiguous: false, defaultExpansionEn: 'Quater In Die (Four Times Daily)', defaultTranslationAr: 'أربع مرات يومياً (كل 6 ساعات)', category: 'Prescription (Rx)', priority: 90, candidates: [] },
   { id: 'ab71', abbr: 'QHS', isAmbiguous: false, defaultExpansionEn: 'Quaque Hora Somni (At Bedtime)', defaultTranslationAr: 'عند النوم ليلاً', category: 'Prescription (Rx)', priority: 88, candidates: [] },
   { id: 'ab72', abbr: 'AC', isAmbiguous: false, defaultExpansionEn: 'Ante Cibum (Before Meals)', defaultTranslationAr: 'قبل الطعام', category: 'Prescription (Rx)', priority: 87, candidates: [] },
-  { id: 'ab73', abbr: 'PC', isAmbiguous: false, defaultExpansionEn: 'Post Cibum (After Meals)', defaultTranslationAr: 'بعد الطعام', category: 'Prescription (Rx)', priority: 87, candidates: [] }
+  { id: 'ab73', abbr: 'PC', isAmbiguous: false, defaultExpansionEn: 'Post Cibum (After Meals)', defaultTranslationAr: 'بعد الطعام', category: 'Prescription (Rx)', priority: 87, candidates: [] },
+  { id: 'ab74', abbr: 'RBCs', isAmbiguous: false, defaultExpansionEn: 'Red Blood Cells (Erythrocytes)', defaultTranslationAr: 'كريات الدم الحمراء', category: 'Neurology & Labs', priority: 94, candidates: [] },
+  { id: 'ab75', abbr: 'RBC', isAmbiguous: false, defaultExpansionEn: 'Red Blood Cell (Erythrocyte)', defaultTranslationAr: 'كرية الدم الحمراء', category: 'Neurology & Labs', priority: 93, candidates: [] },
+  { id: 'ab76', abbr: 'WBCs', isAmbiguous: false, defaultExpansionEn: 'White Blood Cells (Leukocytes)', defaultTranslationAr: 'كريات الدم البيضاء', category: 'Neurology & Labs', priority: 93, candidates: [] },
+  { id: 'ab77', abbr: 'WBC', isAmbiguous: false, defaultExpansionEn: 'White Blood Cell (Leukocyte)', defaultTranslationAr: 'كرية الدم البيضاء', category: 'Neurology & Labs', priority: 92, candidates: [] },
+  { id: 'ab78', abbr: 'TIBC', isAmbiguous: false, defaultExpansionEn: 'Total Iron-Binding Capacity', defaultTranslationAr: 'السعة الكلية لارتباط الحديد (TIBC)', category: 'Neurology & Labs', priority: 95, candidates: [] },
+  { id: 'ab79', abbr: 'AOCD', isAmbiguous: false, defaultExpansionEn: 'Anemia of Chronic Disease', defaultTranslationAr: 'فقر الدم المصاحب للأمراض المزمنة', category: 'Neurology & Labs', priority: 95, candidates: [] },
+  { id: 'ab80', abbr: 'IDA', isAmbiguous: false, defaultExpansionEn: 'Iron Deficiency Anemia', defaultTranslationAr: 'فقر الدم بعوز الحديد', category: 'Neurology & Labs', priority: 94, candidates: [] },
+  { id: 'ab81', abbr: 'MCV', isAmbiguous: false, defaultExpansionEn: 'Mean Corpuscular Volume', defaultTranslationAr: 'متوسط حجم الكرية الحمراء (MCV)', category: 'Neurology & Labs', priority: 92, candidates: [] },
+  { id: 'ab82', abbr: 'MCH', isAmbiguous: false, defaultExpansionEn: 'Mean Corpuscular Hemoglobin', defaultTranslationAr: 'متوسط هيموغلوبين الكرية (MCH)', category: 'Neurology & Labs', priority: 92, candidates: [] },
+  { id: 'ab83', abbr: 'MCHC', isAmbiguous: false, defaultExpansionEn: 'Mean Corpuscular Hemoglobin Concentration', defaultTranslationAr: 'تركيز هيموغلوبين الكرية الوسطي (MCHC)', category: 'Neurology & Labs', priority: 92, candidates: [] },
+  { id: 'ab84', abbr: 'RDW', isAmbiguous: false, defaultExpansionEn: 'Red Cell Distribution Width', defaultTranslationAr: 'عرض توزع كريات الدم الحمراء (RDW)', category: 'Neurology & Labs', priority: 91, candidates: [] },
+  { id: 'ab85', abbr: 'Hb', isAmbiguous: false, defaultExpansionEn: 'Hemoglobin', defaultTranslationAr: 'الهيموغلوبين (خضاب الدم)', category: 'Neurology & Labs', priority: 91, candidates: [] },
+  { id: 'ab86', abbr: 'Hgb', isAmbiguous: false, defaultExpansionEn: 'Hemoglobin', defaultTranslationAr: 'الهيموغلوبين (خضاب الدم)', category: 'Neurology & Labs', priority: 91, candidates: [] },
+  { id: 'ab87', abbr: 'Hct', isAmbiguous: false, defaultExpansionEn: 'Hematocrit', defaultTranslationAr: 'الهيماتوكريت (مكداس الدم)', category: 'Neurology & Labs', priority: 91, candidates: [] },
+  { id: 'ab88', abbr: 'PLT', isAmbiguous: false, defaultExpansionEn: 'Platelets (Thrombocytes)', defaultTranslationAr: 'الصفيحات الدموية', category: 'Neurology & Labs', priority: 91, candidates: [] },
+  { id: 'ab89', abbr: 'LDH', isAmbiguous: false, defaultExpansionEn: 'Lactate Dehydrogenase', defaultTranslationAr: 'نازعة هيدروجين اللاكتات (LDH)', category: 'Neurology & Labs', priority: 90, candidates: [] },
+  { id: 'ab90', abbr: 'ESR', isAmbiguous: false, defaultExpansionEn: 'Erythrocyte Sedimentation Rate', defaultTranslationAr: 'سرعة تثفل الكريات الحمراء (ESR)', category: 'Neurology & Labs', priority: 90, candidates: [] },
+  { id: 'ab91', abbr: 'CRP', isAmbiguous: false, defaultExpansionEn: 'C-Reactive Protein', defaultTranslationAr: 'البروتين التفاعلي C', category: 'Neurology & Labs', priority: 90, candidates: [] },
+  { id: 'ab92', abbr: 'INR', isAmbiguous: false, defaultExpansionEn: 'International Normalized Ratio', defaultTranslationAr: 'النسبة المعيارية الدولية للتخثر (INR)', category: 'Neurology & Labs', priority: 90, candidates: [] },
+  { id: 'ab93', abbr: 'aPTT', isAmbiguous: false, defaultExpansionEn: 'Activated Partial Thromboplastin Time', defaultTranslationAr: 'زمن الثرومبوبلاستين الجزئي المفعل (aPTT)', category: 'Neurology & Labs', priority: 90, candidates: [] },
+  { id: 'ab94', abbr: 'DIC', isAmbiguous: false, defaultExpansionEn: 'Disseminated Intravascular Coagulation', defaultTranslationAr: 'التخثر المنتشر داخل الأوعية (DIC)', category: 'Neurology & Labs', priority: 91, candidates: [] },
+  { id: 'ab95', abbr: 'G6PD', isAmbiguous: false, defaultExpansionEn: 'Glucose-6-Phosphate Dehydrogenase', defaultTranslationAr: 'إنزيم سداسي فوسفات الغلوكوز النازع للهيدروجين (G6PD)', category: 'Neurology & Labs', priority: 91, candidates: [] }
 ];
 
 // ============================================================================
@@ -2079,7 +2255,18 @@ export const MORPHOLOGICAL_AFFIXES: MorphologicalAffix[] = [
   { id: 'af126', affix: '-plegia', cleanKey: 'plegia', type: 'suffix', meaningAr: 'شلل كامل', meaningEn: 'Paralysis / stroke', combiningRule: 'تفتتح الترجمة العربية بكلمة: شلل [الجذر]', examples: ['Hemiplegia', 'Paraplegia', 'Quadriplegia'] },
   { id: 'af127', affix: '-paresis', cleanKey: 'paresis', type: 'suffix', meaningAr: 'خزل (ضعف عضلي أو شلل جزئي)', meaningEn: 'Partial paralysis / weakness', combiningRule: 'تفتتح الترجمة العربية بكلمة: خزل [الجذر]', examples: ['Hemiparesis', 'Gastroparesis'] },
   { id: 'af128', affix: '-ectasis', cleanKey: 'ectasis', type: 'suffix', meaningAr: 'توسّع / تمدّد وعائي أو قصبي', meaningEn: 'Dilation / expansion / distension', combiningRule: 'تفتتح الترجمة العربية بكلمة: توسّع [الجذر]', examples: ['Bronchiectasis', 'Atelectasis'] },
-  { id: 'af129', affix: '-cele', cleanKey: 'cele', type: 'suffix', meaningAr: 'فتق / قيلة', meaningEn: 'Hernia / protrusion / swelling', combiningRule: 'تفتتح الترجمة العربية بكلمة: قيلة [الجذر]', examples: ['Meningocele', 'Hydrocele', 'Varicocele'] }
+  { id: 'af129', affix: '-cele', cleanKey: 'cele', type: 'suffix', meaningAr: 'فتق / قيلة', meaningEn: 'Hernia / protrusion / swelling', combiningRule: 'تفتتح الترجمة العربية بكلمة: قيلة [الجذر]', examples: ['Meningocele', 'Hydrocele', 'Varicocele'] },
+  { id: 'af132', affix: 'Normo-', cleanKey: 'normo', type: 'prefix', meaningAr: 'سويّ / طبيعي القياس', meaningEn: 'Normal / normo-', combiningRule: 'تترجم إلى: سويّ [الجذر] مثل سويّ الكريات أو سويّ الصباغ', examples: ['Normocytic', 'Normochromic', 'Normotensive'] },
+  { id: 'af133', affix: 'Megalo-', cleanKey: 'megalo', type: 'prefix', meaningAr: 'ضخم / متضخم', meaningEn: 'Abnormally large / megalo-', combiningRule: 'تترجم إلى: ضخم [الجذر] مثل ضخم الأرومات', examples: ['Megaloblastic', 'Megaloblast'] },
+  { id: 'af134', affix: 'Aniso-', cleanKey: 'aniso', type: 'prefix', meaningAr: 'تفاوت / عدم تساوٍ', meaningEn: 'Unequal / dissimilar', combiningRule: 'تترجم إلى: تفاوت [الجذر]', examples: ['Anisocytosis', 'Anisocoria'] },
+  { id: 'af135', affix: 'Poikilo-', cleanKey: 'poikilo', type: 'prefix', meaningAr: 'تفاوت الشكل / تعدد الأشكال', meaningEn: 'Varied / irregular shape', combiningRule: 'تترجم إلى: تفاوت أشكال [الجذر]', examples: ['Poikilocytosis'] },
+  { id: 'af136', affix: 'sidero', cleanKey: 'sider', type: 'root', meaningAr: 'الحديد', meaningEn: 'Iron / sidero-', combiningRule: 'جذر للحديد داخل الخلايا أو الأرومات', examples: ['Sideroblastic', 'Hemosiderosis', 'Sideropenia'] },
+  { id: 'af137', affix: 'chromo', cleanKey: 'chrom', type: 'root', meaningAr: 'الصباغ / اللون', meaningEn: 'Color / pigment / hemoglobin content', combiningRule: 'جذر للصباغ أو خضاب الكرية الحمراء', examples: ['Hypochromic', 'Normochromic', 'Hyperchromic'] },
+  { id: 'af138', affix: 'blasto', cleanKey: 'blast', type: 'root', meaningAr: 'الأرومات (الخلايا الفتية)', meaningEn: 'Immature precursor cell / blast', combiningRule: 'جذر للخلايا الأرومية الفتية في نقي العظم', examples: ['Sideroblastic', 'Megaloblastic', 'Erythroblast'] },
+  { id: 'af139', affix: '-cytic', cleanKey: 'cytic', type: 'suffix', meaningAr: 'الكريات / الخلايا', meaningEn: 'Pertaining to cells / corpuscles', combiningRule: 'تترجم بصيغة صفة مضافة: [السابقة] الكريات', examples: ['Microcytic', 'Macrocytic', 'Normocytic'] },
+  { id: 'af140', affix: '-chromic', cleanKey: 'chromic', type: 'suffix', meaningAr: 'الصباغ', meaningEn: 'Pertaining to color or hemoglobin pigmentation', combiningRule: 'تترجم بصيغة صفة مضافة: [السابقة] الصباغ', examples: ['Hypochromic', 'Normochromic', 'Hyperchromic'] },
+  { id: 'af141', affix: '-blastic', cleanKey: 'blastic', type: 'suffix', meaningAr: 'الأرومات', meaningEn: 'Pertaining to immature precursor cells (blasts)', combiningRule: 'تترجم بصيغة صفة مضافة: [السابقة/الجذر] الأرومات', examples: ['Sideroblastic', 'Megaloblastic'] },
+  { id: 'af142', affix: '-lytic', cleanKey: 'lytic', type: 'suffix', meaningAr: 'انحلالي / حالّ', meaningEn: 'Causing dissolution or hemolysis', combiningRule: 'تترجم بصيغة: انحلالي [الجذر] أو حالّ لـ [الجذر]', examples: ['Hemolytic', 'Thrombolytic', 'Osteolytic'] }
 ];
 
 // ============================================================================

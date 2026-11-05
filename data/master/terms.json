@@ -31874,7 +31874,7 @@
     "id": "ge-2026-0495",
     "term": "palaces",
     "termNormalized": "palaces",
-    "translation": "قصور",
+    "translation": "قصور معمارية",
     "phonetic": "quSuur",
     "pos": "General vocabulary",
     "category": "General",
@@ -35471,7 +35471,7 @@
     "id": "ge-2026-0604",
     "term": "BA",
     "termNormalized": "ba",
-    "translation": "?",
+    "translation": "بكالوريوس في الآداب",
     "phonetic": "?",
     "pos": "General vocabulary",
     "category": "General",
@@ -35482,7 +35482,7 @@
       "Everyday English"
     ],
     "ingestedAt": "UMEDT General English Vocabulary · 2026-11-05",
-    "definitionAr": "?؛ مفردة إنجليزية عامة مرتبطة بموضوع education.",
+    "definitionAr": "شهادة جامعية في الآداب والعلوم الإنسانية (Bachelor of Arts).",
     "definitionEn": "An English vocabulary item associated with everyday topics such as education.",
     "examples": [
       {
@@ -35504,7 +35504,7 @@
     "id": "ge-2026-0605",
     "term": "BS",
     "termNormalized": "bs",
-    "translation": "?",
+    "translation": "بكالوريوس في العلوم",
     "phonetic": "?",
     "pos": "General vocabulary",
     "category": "General",
@@ -35515,7 +35515,7 @@
       "Everyday English"
     ],
     "ingestedAt": "UMEDT General English Vocabulary · 2026-11-05",
-    "definitionAr": "?؛ مفردة إنجليزية عامة مرتبطة بموضوع education.",
+    "definitionAr": "شهادة جامعية في التخصصات العلمية والتطبيقية (Bachelor of Science).",
     "definitionEn": "An English vocabulary item associated with everyday topics such as education.",
     "examples": [
       {

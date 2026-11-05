@@ -39,7 +39,8 @@ import { runHybridGcNmtPipeline } from './engine/hybridTranslator';
 import {
   syncBidirectionalLinks,
   autoEnrichTermRelations,
-  autoEnrichAllTermsRelations
+  autoEnrichAllTermsRelations,
+  isLinkableSpecializedTerm
 } from './engine/knowledgeLinker';
 import {
   loadAppState,
@@ -834,7 +835,13 @@ export default function App() {
 
   const shuffleTermOfDay = () => {
     if (!termOfDay) return;
-    const pool = terms.filter((t) => t.id !== termOfDay.id);
+    const specializedPool = terms.filter(
+      (t) => t.id !== termOfDay.id && isLinkableSpecializedTerm(t)
+    );
+    const pool =
+      specializedPool.length > 0
+        ? specializedPool
+        : terms.filter((t) => t.id !== termOfDay.id);
     if (pool.length > 0) {
       const randomPick = pool[Math.floor(Math.random() * pool.length)];
       setTermOfDayId(randomPick.id);
@@ -844,11 +851,12 @@ export default function App() {
   const termLookupMap = useMemo(() => {
     const map: Record<string, DictionaryTerm & { aliasName?: string }> = {};
     terms.forEach((t) => {
+      if (!isLinkableSpecializedTerm(t)) return;
       map[t.term.toLowerCase()] = t;
     });
     Object.entries(EXTRA_LINKABLE_ALIASES).forEach(([alias, targetId]) => {
       const found = terms.find((t) => t.id === targetId);
-      if (found) {
+      if (found && isLinkableSpecializedTerm(found)) {
         map[alias.toLowerCase()] = {
           ...found,
           aliasName: alias
@@ -1423,7 +1431,7 @@ export default function App() {
   return (
     <div
       dir="rtl"
-      className="min-h-screen w-full max-w-full box-border bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col pb-10"
+      className="min-h-screen w-full max-w-full box-border bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col pb-24 sm:pb-12"
     >
       {/* Service Worker & Offline Mode Portal Notices */}
       <PWAInstallBanner
@@ -1778,7 +1786,7 @@ export default function App() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl"
+            className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 p-5 pb-[calc(3.75rem+env(safe-area-inset-bottom,0px))] sm:pb-6 space-y-4 shadow-2xl"
           >
             <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto sm:hidden" />
 
@@ -1902,7 +1910,7 @@ export default function App() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-700 p-6 space-y-4 shadow-2xl"
+            className="w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-700 p-6 pb-[calc(3.75rem+env(safe-area-inset-bottom,0px))] sm:pb-6 space-y-4 shadow-2xl"
           >
             <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto" />
 

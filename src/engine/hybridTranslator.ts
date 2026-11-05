@@ -10,7 +10,10 @@ import {
   INITIAL_LINKED_SENTENCES,
   CLINICAL_PHRASEBOOK
 } from '../data/medicalLexiconData';
-import { extractDetailedTermMatchesFromText } from './knowledgeLinker';
+import {
+  extractDetailedTermMatchesFromText,
+  isLinkableSpecializedTerm
+} from './knowledgeLinker';
 
 export interface MaskedEntityRecord {
   placeholder: string;
@@ -154,21 +157,48 @@ const NON_COMPOUND_ENGLISH_STOPWORDS = new Set([
   'chronic',
   'multiple',
   'status',
-  'acute'
+  'acute',
+  'increased',
+  'decreased',
+  'synthesis',
+  'failure',
+  'dietary',
+  'starvation',
+  'demands',
+  'growing',
+  'infants',
+  'children',
+  'puberty',
+  'pregnancy',
+  'lactation',
+  'congenital',
+  'called',
+  'saturation',
+  'types',
+  'causes',
+  'caused',
+  'deficiency',
+  'deficient',
+  'transferrin',
+  'ferritin',
+  'women',
+  'woman',
+  'before',
+  'inside',
+  'palaces',
+  'bitterness',
+  'loneliness',
+  'university',
+  'canals'
 ]);
 
 /**
  * Synthesizes natural Arabic medical terminology from decomposed Prefix + Root(s) + Suffix:
  * - Standard Arabic clinical rule: `[معنى اللاحقة] + [معنى الجذر/الجذور] + [معنى السابقة]`
- *   Examples:
- *   - `-itis` (التهاب) + `gastro` (المعدة) + `entero` (الأمعاء) -> `التهاب المعدة والأمعاء`
- *   - `-scopy` (تنظير داخلي) + `esophago` (المريء) + `gastro` (المعدة) + `duodeno` (الاثني عشر) -> `تنظير المريء والمعدة والاثني عشر`
- *   - `-otomy` (بضع) + `choledocho` (القناة الصفراوية الجامعة) + `litho` (الحصاة) -> `بضع القناة الصفراوية الجامعة لاستخراج الحصاة`
- *   - `-megaly` (ضخامة) + `hepato` (الكبد) + `spleno` (الطحال) -> `ضخامة الكبد والطحال`
+ * - Adjectival cellular/pigment/blast descriptors (`-cytic`, `-chromic`, `-blastic`, `-lytic`):
+ *   `[معنى البادئة/الصفة] + [معنى اللاحقة بالجمع]` (e.g., `صغير الكريات`, `ناقص الصباغ`, `حديدي الأرومات`, `انحلالي الدم`)
  * - Quantitative/Directional Prefix with Fluid/State Suffix (`-emia`, `-uria`, `-pnea`, `-ia`):
  *   `[معنى السابقة] + [معنى الجذر/الجذور] + [معنى اللاحقة]`
- *   Examples:
- *   - `Hyper-` (فرط) + `bilirubin` (بيليروبين) + `-emia` (الدم) -> `فرط بيليروبين الدم`
  */
 function buildArabicMorphologicalSynthesis(
   prefix: MorphologicalAffix | undefined,
@@ -202,6 +232,40 @@ function buildArabicMorphologicalSynthesis(
       rootMeanings.slice(0, -1).join(' و') + ' و' + rootMeanings[rootMeanings.length - 1];
   }
 
+  // Case 0: Adjectival hematology/cellular/pigment/blast descriptors (-cytic, -chromic, -blastic, -lytic)
+  // Or prefix + cyt/chrom/blast root without pathology suffix (e.g., Microcytic -> صغير الكريات)
+  const pKey = prefix?.cleanKey || '';
+  const sKey = suffix?.cleanKey || '';
+  const firstRootKey = roots[0]?.cleanKey || '';
+
+  if (sKey === 'cytic' || (!suffix && firstRootKey === 'cyt')) {
+    if (pKey === 'micro') return 'صغير الكريات';
+    if (pKey === 'macro') return 'كبير الكريات';
+    if (pKey === 'normo' || pKey === 'eu') return 'سويّ الكريات';
+    if (pKey === 'aniso') return 'متفاوت الكريات';
+    if (pKey === 'poikilo') return 'متفاوت أشكال الكريات';
+    return `${prefixAr || combinedRootsAr} الكريات`.trim();
+  }
+
+  if (sKey === 'chromic' || (!suffix && firstRootKey === 'chrom')) {
+    if (pKey === 'hypo') return 'ناقص الصباغ';
+    if (pKey === 'hyper') return 'مفرط الصباغ';
+    if (pKey === 'normo' || pKey === 'eu') return 'سويّ الصباغ';
+    return `${prefixAr || combinedRootsAr} الصباغ`.trim();
+  }
+
+  if (sKey === 'blastic' || (!suffix && firstRootKey === 'blast')) {
+    if (firstRootKey === 'sider' || pKey === 'sider') return 'حديدي الأرومات';
+    if (pKey === 'megalo' || pKey === 'macro') return 'ضخم الأرومات';
+    return `${prefixAr || combinedRootsAr} الأرومات`.trim();
+  }
+
+  if (sKey === 'lytic') {
+    if (firstRootKey === 'hem' || firstRootKey === 'hemat') return 'انحلالي الدم';
+    if (firstRootKey === 'thromb') return 'حالّ للخثرة';
+    return `انحلالي ${combinedRootsAr || prefixAr}`.trim();
+  }
+
   // Case 1: Quantitative/directional prefix with fluid/condition suffix (-emia, -uria, -pnea, -ia)
   const quantitativePrefixKeys = new Set([
     'hyper',
@@ -215,7 +279,11 @@ function buildArabicMorphologicalSynthesis(
     'pan',
     'hemi',
     'para',
-    'auto'
+    'auto',
+    'micro',
+    'macro',
+    'normo',
+    'megalo'
   ]);
   const fluidOrConditionSuffixKeys = new Set([
     'emia',
@@ -357,17 +425,27 @@ export function decomposeMedicalWord(
 
   if (!startsWithLongRoot) {
     for (const p of sortedPrefixes) {
+      const remAfterPrefix = remainingAfterSuffix.slice(p.cleanKey.length);
+      const isExactPrefixWithRootBearingSuffix =
+        Boolean(matchedSuffix) &&
+        (remAfterPrefix === '' || remAfterPrefix === 'o' || remAfterPrefix === 'i');
+
       if (
         remainingAfterSuffix.startsWith(p.cleanKey) &&
-        remainingAfterSuffix.length - p.cleanKey.length >= 3
+        (remainingAfterSuffix.length - p.cleanKey.length >= 3 ||
+          isExactPrefixWithRootBearingSuffix)
       ) {
-        const candidateStem = remainingAfterSuffix.slice(p.cleanKey.length);
+        const candidateStem = remAfterPrefix;
         const hasKnownRootInRemaining = sortedRoots.some((r) =>
           candidateStem.includes(r.cleanKey)
         );
-        if (p.cleanKey.length >= 3 || (hasKnownRootInRemaining && matchedSuffix)) {
+        if (
+          p.cleanKey.length >= 3 ||
+          isExactPrefixWithRootBearingSuffix ||
+          (hasKnownRootInRemaining && matchedSuffix)
+        ) {
           matchedPrefix = p;
-          stemForRoots = candidateStem;
+          stemForRoots = isExactPrefixWithRootBearingSuffix ? '' : candidateStem;
           break;
         }
       }
@@ -464,6 +542,7 @@ export function decomposeMedicalWord(
 
     const isHighConfidence =
       (matchedRoots.length >= 1 && Boolean(matchedPrefix || matchedSuffix)) ||
+      Boolean(matchedPrefix && matchedSuffix) ||
       matchedRoots.length >= 2;
 
     return {
@@ -622,8 +701,9 @@ export function splitClinicalClausesSafely(text: string): string[] {
   const DOT_TOKEN = '__DOT_PROTECTED__';
   let protectedText = text;
 
-  // 1. Protect decimal points between digits (e.g., 4.5, 0.9)
+  // 1. Protect decimal points between digits (e.g., 4.5, 0.9) and numbered list markers (1., 2., 3.)
   protectedText = protectedText.replace(/(\d)\.(\d)/g, `$1${DOT_TOKEN}$2`);
+  protectedText = protectedText.replace(/(^|\s)(\d+)\.(?=\s)/gm, `$1$2${DOT_TOKEN}`);
 
   // 2. Protect common dotted medical & Latin abbreviations
   const dottedAbbreviations = [
@@ -674,19 +754,21 @@ export function splitClinicalClausesSafely(text: string): string[] {
 function applyLayer3PhrasebookAndStructuralNmt(
   maskedInput: string,
   _terms: DictionaryTerm[],
-  sentences: LinkedSentence[] = INITIAL_LINKED_SENTENCES
+  sentences: LinkedSentence[] = INITIAL_LINKED_SENTENCES,
+  maskedEntities: MaskedEntityRecord[] = []
 ): string {
   let working = maskedInput;
 
   // Step 3A: Match longest clinical phrasebook templates first (from CLINICAL_PHRASEBOOK + sentences)
   const combinedPhraseSeeds = [
     ...CLINICAL_PHRASEBOOK.map((p) => ({ en: p.en, ar: p.ar })),
-    ...sentences.map((s) => ({ en: s.en, ar: s.ar }))
-  ].sort((a, b) => b.en.length - a.en.length);
+    ...sentences.map((s) => ({ en: s.ar ? s.en : '', ar: s.ar }))
+  ]
+    .filter((s) => s.en.length >= 18)
+    .sort((a, b) => b.en.length - a.en.length);
 
   for (const seed of combinedPhraseSeeds) {
     const cleanSeedEn = seed.en.trim();
-    if (cleanSeedEn.length < 18) continue;
     const escapedSeed = escapeRegExp(cleanSeedEn);
     const exactRegex = new RegExp(escapedSeed, 'gi');
     if (exactRegex.test(working)) {
@@ -694,7 +776,118 @@ function applyLayer3PhrasebookAndStructuralNmt(
     }
   }
 
-  // Step 3B: High-precision multi-word clinical phrasebook patterns (sorted longest-first)
+  // Step 3B: Normalize OCR artifacts (e.g., standalone 'g' between words from PDF copy-paste) and arrow chains
+  working = working.replace(/\s*>>>+\s*/g, ' ← ');
+  working = working.replace(/\s*>>\s*/g, ' ← ');
+  working = working.replace(/\s*-->?\s*/g, ' ← ');
+  working = working.replace(/\s*=>\s*/g, ' ← ');
+  working = working.replace(/\bin\s+g\s+(?=[a-z[])/gi, 'in growing ');
+  working = working.replace(/(?<=[a-z\]])\s+g\s+(?=[a-z[])/gi, ' and ');
+  working = working.replace(/\s+-lactation\b/gi, ' and lactation');
+
+  // Step 3C: Reorder English Adjective(s) + Medical Entity Noun into Arabic Noun + Adjective(s) order
+  // (تقديم الموصوف على الصفة في العربية: مثل Microcytic anemia -> [فقر الدم] [صغير الكريات])
+  const morphAdjectiveSet = new Set(
+    maskedEntities
+      .filter(
+        (e) =>
+          e.sourceLayer === 'Layer 2: Morphological Decomposer' &&
+          /(?:ic|al|ar|ous|oid)$/i.test(e.originalText)
+      )
+      .map((e) => e.placeholder)
+  );
+
+  // Pattern 1: "congenital [MORPH_XXX] [MED_YYY]" -> "[MED_YYY] [MORPH_XXX] الخلقي"
+  working = working.replace(
+    /\bcongenital\s+(\[MORPH_\d+\])\s+(\[MED_\d+\])/gi,
+    (_m, morphTok: string, medTok: string) => `${medTok} ${morphTok} الخلقي`
+  );
+
+  // Pattern 2: "[MORPH_XXX], [MORPH_YYY] [MED_ZZZ]" -> "[MED_ZZZ] [MORPH_XXX] و[MORPH_YYY]"
+  working = working.replace(
+    /(\[MORPH_\d+\])\s*,\s*(\[MORPH_\d+\])\s+(\[MED_\d+\])/g,
+    (full, m1: string, m2: string, medTok: string) => {
+      if (morphAdjectiveSet.has(m1) || morphAdjectiveSet.has(m2)) {
+        return `${medTok} ${m1} و${m2}`;
+      }
+      return full;
+    }
+  );
+
+  // Pattern 3: "[MORPH_XXX] [MED_YYY]" -> "[MED_YYY] [MORPH_XXX]"
+  working = working.replace(
+    /(\[MORPH_\d+\])\s+(\[MED_\d+\])/g,
+    (full, morphTok: string, medTok: string) => {
+      if (morphAdjectiveSet.has(morphTok)) {
+        return `${medTok} ${morphTok}`;
+      }
+      return full;
+    }
+  );
+
+  // Pattern 3B: Reorder "[MED_serum] [MED_target]" -> "[MED_target] في [MED_serum]" and "[MED_serum] iron" -> "حديد [MED_serum]"
+  const serumPlaceholders = new Set(
+    maskedEntities
+      .filter((e) => e.originalText.toLowerCase() === 'serum')
+      .map((e) => e.placeholder)
+  );
+  if (serumPlaceholders.size > 0) {
+    working = working.replace(
+      /(\[MED_\d+\])\s+(\[MED_\d+\])/g,
+      (full, firstMed: string, secondMed: string) => {
+        if (serumPlaceholders.has(firstMed)) {
+          return `${secondMed} في ${firstMed}`;
+        }
+        return full;
+      }
+    );
+    working = working.replace(
+      /(\[MED_\d+\])\s+iron\b/gi,
+      (full, firstMed: string) => {
+        if (serumPlaceholders.has(firstMed)) {
+          return `حديد ${firstMed}`;
+        }
+        return full;
+      }
+    );
+  }
+
+  // Pattern 4: Common clinical English adjective immediately preceding a [MED_XXX] noun
+  const preMedAdjectiveMap: [RegExp, string][] = [
+    [/\bcongenital\s+hemolytic\s+(\[MED_\d+\])/gi, '$1 الانحلالي الخلقي'],
+    [/\bsideroblastic\s+(\[MED_\d+\])/gi, '$1 حديدي الأرومات'],
+    [/\bmegaloblastic\s+(\[MED_\d+\])/gi, '$1 ضخم الأرومات'],
+    [/\bhemolytic\s+(\[MED_\d+\])/gi, '$1 الانحلالي'],
+    [/\bmicrocytic\s*,\s*hypochromic\s+(\[MED_\d+\])/gi, '$1 صغيرة الحجم ناقصة الصباغ'],
+    [/\bmicrocytic\s+hypochromic\s+(\[MED_\d+\])/gi, '$1 صغيرة الحجم ناقصة الصباغ'],
+    [/\bmicrocytic\s+(\[MED_\d+\])/gi, '$1 صغير الكريات'],
+    [/\bmacrocytic\s+(\[MED_\d+\])/gi, '$1 كبير الكريات'],
+    [/\bnormocytic\s+(\[MED_\d+\])/gi, '$1 سويّ الكريات'],
+    [/\bhypochromic\s+(\[MED_\d+\])/gi, '$1 ناقص الصباغ'],
+    [/\bacute\s+ventricular\s+(\[MED_\d+\])/gi, '$1 البطيني الحاد'],
+    [/\bventricular\s+(\[MED_\d+\])/gi, '$1 البطيني'],
+    [/\bsupraventricular\s+(\[MED_\d+\])/gi, '$1 فوق البطيني'],
+    [/\batrial\s+(\[MED_\d+\])/gi, '$1 الأذيني'],
+    [/\bcoronary\s+(\[MED_\d+\])/gi, '$1 التاجي'],
+    [/\bacute\s+(\[MED_\d+\])/gi, '$1 الحاد'],
+    [/\bchronic\s+(\[MED_\d+\])/gi, '$1 المزمن'],
+    [/\bsevere\s+(\[MED_\d+\])/gi, '$1 الشديد'],
+    [/\bmild\s+(\[MED_\d+\])/gi, '$1 الطفيف'],
+    [/\bmoderate\s+(\[MED_\d+\])/gi, '$1 المتوسط'],
+    [/\bcongenital\s+(\[MED_\d+\])/gi, '$1 الخلقي'],
+    [/\bhereditary\s+(\[MED_\d+\])/gi, '$1 الوراثي'],
+    [/\bautoimmune\s+(\[MED_\d+\])/gi, '$1 المناعي الذاتي'],
+    [/\bdecompensated\s+(\[MED_\d+\])/gi, '$1 اللاتعاوضي'],
+    [/\brheumatic\s+(\[MED_\d+\])/gi, '$1 الرثوي'],
+    [/\brelapsing\s+(\[MED_\d+\])/gi, '$1 الناكس'],
+    [/\bserum\s+(\[MED_\d+\])/gi, '$1 في المصل']
+  ];
+
+  for (const [adjPattern, adjReplacement] of preMedAdjectiveMap) {
+    working = working.replace(adjPattern, adjReplacement);
+  }
+
+  // Step 3D: High-precision multi-word clinical & educational phrasebook patterns (sorted longest-first)
   const phrasebookClauses: [RegExp, string][] = [
     [
       /\bThe patient presented to the emergency department with\b/gi,
@@ -781,6 +974,206 @@ function applyLayer3PhrasebookAndStructuralNmt(
       'أكدت اللويحات الدماغية والتهاب العصب البصري الإصابة الناكسة بـ'
     ],
     [
+      /\bThere are four types of\b/gi,
+      'توجد أربعة أنواع من'
+    ],
+    [
+      /\bThere are three types of\b/gi,
+      'توجد ثلاثة أنواع من'
+    ],
+    [
+      /\bThere are two types of\b/gi,
+      'يوجد نوعان من'
+    ],
+    [
+      /\bThere are several types of\b/gi,
+      'توجد عدة أنواع من'
+    ],
+    [
+      /\bThere are\b/gi,
+      'توجد'
+    ],
+    [
+      /\bThere is\b/gi,
+      'يوجد'
+    ],
+    [
+      /\btypes of\b/gi,
+      'أنواع من'
+    ],
+    [
+      /\bis caused by\b/gi,
+      'ينتج عن'
+    ],
+    [
+      /\bare caused by\b/gi,
+      'تنتج عن'
+    ],
+    [
+      /\bcaused by\b/gi,
+      'الناتج عن'
+    ],
+    [
+      /\bCauses of iron deficiency\b/gi,
+      'أسباب عوز الحديد'
+    ],
+    [
+      /\bCauses of\b/gi,
+      'أسباب'
+    ],
+    [
+      /\bfailure of heme synthesis\b/gi,
+      'فشل تصنيع الهيم'
+    ],
+    [
+      /\bfailure heme synthesis\b/gi,
+      'فشل تصنيع الهيم'
+    ],
+    [
+      /\bheme synthesis\b/gi,
+      'تصنيع الهيم'
+    ],
+    [
+      /\bdecreased synthesis of\b/gi,
+      'انخفاض تصنيع'
+    ],
+    [
+      /\bincreased synthesis of\b/gi,
+      'زيادة تصنيع'
+    ],
+    [
+      /\bdecreased\s*%\s*saturation of\b/gi,
+      'انخفاض نسبة إشباع'
+    ],
+    [
+      /\bincreased\s*%\s*saturation of\b/gi,
+      'زيادة نسبة إشباع'
+    ],
+    [
+      /%\s*saturation of\b/gi,
+      'نسبة إشباع'
+    ],
+    [
+      /\bsaturation of\b/gi,
+      'إشباع'
+    ],
+    [
+      /\bDietary iron deficiency\b/gi,
+      'عوز الحديد الغذائي'
+    ],
+    [
+      /\biron deficiency\b/gi,
+      'عوز الحديد'
+    ],
+    [
+      /\biron-deficiency\b/gi,
+      'نقص الحديد'
+    ],
+    [
+      /\bvegan diet\b/gi,
+      'النظام الغذائي النباتي الصرف'
+    ],
+    [
+      /\bvegetarian diet\b/gi,
+      'النظام الغذائي النباتي'
+    ],
+    [
+      /\bstarvation\b/gi,
+      'المجاعة أو سوء التغذية'
+    ],
+    [
+      /\bIncreased demands for iron\b/gi,
+      'زيادة الاحتياج للحديد'
+    ],
+    [
+      /\bincreased demands for\b/gi,
+      'زيادة الاحتياج لـ'
+    ],
+    [
+      /\bdecreased demands for\b/gi,
+      'انخفاض الاحتياج لـ'
+    ],
+    [
+      /\bin growing infants and children\b/gi,
+      'لدى الرضّع والأطفال في طور النمو'
+    ],
+    [
+      /\bin growing infants\b/gi,
+      'لدى الرضّع في طور النمو'
+    ],
+    [
+      /\bgrowing infants and children\b/gi,
+      'الرضّع والأطفال في طور النمو'
+    ],
+    [
+      /\bgrowing infants\b/gi,
+      'الرضّع في طور النمو'
+    ],
+    [
+      /\binfants and children\b/gi,
+      'الرضّع والأطفال'
+    ],
+    [
+      /\bat puberty\b/gi,
+      'عند البلوغ'
+    ],
+    [
+      /\bin women at pregnancy and lactation\b/gi,
+      'لدى النساء أثناء الحمل والرضاعة'
+    ],
+    [
+      /\bat pregnancy and lactation\b/gi,
+      'أثناء الحمل والرضاعة'
+    ],
+    [
+      /\bduring pregnancy and lactation\b/gi,
+      'أثناء الحمل والرضاعة'
+    ],
+    [
+      /\bpregnancy and lactation\b/gi,
+      'الحمل والرضاعة'
+    ],
+    [
+      /\bin women\b/gi,
+      'لدى النساء'
+    ],
+    [
+      /\bin men\b/gi,
+      'لدى الرجال'
+    ],
+    [
+      /\bin children\b/gi,
+      'لدى الأطفال'
+    ],
+    [
+      /\bin infants\b/gi,
+      'لدى الرضّع'
+    ],
+    [
+      /\bchronic blood loss\b/gi,
+      'فقدان الدم المزمن'
+    ],
+    [
+      /\bacute blood loss\b/gi,
+      'فقدان الدم الحاد'
+    ],
+    [
+      /\bblood loss\b/gi,
+      'فقدان الدم'
+    ],
+    [
+      /\bdecreased serum iron\b/gi,
+      'انخفاض حديد المصل'
+    ],
+    [
+      /\bincreased serum iron\b/gi,
+      'ارتفاع حديد المصل'
+    ],
+    [
+      /\bserum iron\b/gi,
+      'حديد المصل'
+    ],
+    [
       /\bECG revealed\b/gi,
       'أظهر تخطيط القلب الكهربائي (ECG) وجود'
     ],
@@ -849,10 +1242,6 @@ function applyLayer3PhrasebookAndStructuralNmt(
       'زلة تنفسية (ضيق النفس)'
     ],
     [
-      /\biron-deficiency\b/gi,
-      'نقص الحديد'
-    ],
-    [
       /\brelapsing-remitting\b/gi,
       'ناكس هاجع'
     ],
@@ -907,6 +1296,82 @@ function applyLayer3PhrasebookAndStructuralNmt(
     [
       /\bconjugated\b/gi,
       'مقترن'
+    ],
+    [
+      /\bDecreased\b/g,
+      'انخفاض'
+    ],
+    [
+      /\bdecreased\b/g,
+      'انخفاض'
+    ],
+    [
+      /\bIncreased\b/g,
+      'ارتفاع'
+    ],
+    [
+      /\bincreased\b/g,
+      'ارتفاع'
+    ],
+    [
+      /\bcalled\b/gi,
+      'المسمّى'
+    ],
+    [
+      /\bsynthesis\b/gi,
+      'تصنيع'
+    ],
+    [
+      /\bfailure\b/gi,
+      'فشل'
+    ],
+    [
+      /\bheme\b/gi,
+      'الهيم'
+    ],
+    [
+      /\biron\b/gi,
+      'الحديد'
+    ],
+    [
+      /\bserum\b/gi,
+      'المصل'
+    ],
+    [
+      /\bdietary\b/gi,
+      'غذائي'
+    ],
+    [
+      /\bcongenital\b/gi,
+      'خلقي'
+    ],
+    [
+      /\bpregnancy\b/gi,
+      'الحمل'
+    ],
+    [
+      /\blactation\b/gi,
+      'الرضاعة'
+    ],
+    [
+      /\bpuberty\b/gi,
+      'البلوغ'
+    ],
+    [
+      /\binfants\b/gi,
+      'الرضّع'
+    ],
+    [
+      /\bchildren\b/gi,
+      'الأطفال'
+    ],
+    [
+      /\bwomen\b/gi,
+      'النساء'
+    ],
+    [
+      /\bmen\b/gi,
+      'الرجال'
     ],
     [
       /\bcoronary\b/gi,
@@ -966,11 +1431,19 @@ function applyLayer3PhrasebookAndStructuralNmt(
     ],
     [
       /\bfor\b/gi,
-      'لعلاج'
+      'لـ'
     ],
     [
       /\bof\b/gi,
       'من'
+    ],
+    [
+      /\bin\b/gi,
+      'في'
+    ],
+    [
+      /\bat\b/gi,
+      'عند'
     ]
   ];
 
@@ -1132,11 +1605,13 @@ export function runHybridGcNmtPipeline(
 
   // =========================================================================
   // LAYER 1A: Longest-Match-First Multi-Word & Single-Word Lexicon Masking
-  // Uses both primary terms and synonyms/aliases sorted by length descending
+  // Uses specialized medical/technical terms sorted by length descending
+  // (excludes everyday general stopwords such as "There", "women", "children", "can")
   // =========================================================================
-  const sortedTerms = [...terms].sort((a, b) => b.term.length - a.term.length);
+  const specializedTerms = terms.filter(isLinkableSpecializedTerm);
+  const sortedTerms = [...specializedTerms].sort((a, b) => b.term.length - a.term.length);
   const termById = new Map<string, DictionaryTerm>();
-  for (const t of terms) {
+  for (const t of specializedTerms) {
     termById.set(t.id, t);
   }
 
@@ -1159,7 +1634,7 @@ export function runHybridGcNmtPipeline(
   }
 
   // Also check any remaining unmasked synonyms/aliases via knowledgeLinker
-  const remainingMatches = extractDetailedTermMatchesFromText(workingText, terms);
+  const remainingMatches = extractDetailedTermMatchesFromText(workingText, specializedTerms);
   for (const synMatch of remainingMatches) {
     if (synMatch.matchSource === 'term_ar') continue;
     const dictTerm = termById.get(synMatch.termId);
@@ -1249,16 +1724,19 @@ export function runHybridGcNmtPipeline(
         return fullMatch;
       }
 
-      const decomp = decomposeMedicalWord(candidateWord, terms, customAffixes);
+      const decomp = decomposeMedicalWord(candidateWord, specializedTerms, customAffixes);
       if (
         decomp.confidence === 'High (Rule-Matched)' ||
         decomp.confidence === 'Lexicon Verified'
       ) {
         const placeholder = nextMorphPlaceholder();
-        const rootsLabel =
-          decomp.roots && decomp.roots.length > 0
-            ? decomp.roots.map((r) => r.affix).join(' + ')
-            : decomp.root?.affix || '';
+        const morphFormulaParts = [
+          decomp.prefix?.affix,
+          ...(decomp.roots && decomp.roots.length > 0
+            ? decomp.roots.map((r) => r.affix)
+            : []),
+          decomp.suffix?.affix
+        ].filter(Boolean);
 
         maskedEntities.push({
           placeholder,
@@ -1266,7 +1744,7 @@ export function runHybridGcNmtPipeline(
           resolvedEn: candidateWord,
           translationAr: decomp.synthesizedAr,
           sourceLayer: 'Layer 2: Morphological Decomposer',
-          morphologyNote: `${decomp.prefix ? decomp.prefix.affix + ' + ' : ''}${rootsLabel}${decomp.suffix ? ' + ' + decomp.suffix.affix : ''}`
+          morphologyNote: morphFormulaParts.join(' + ')
         });
         return placeholder;
       }
@@ -1281,8 +1759,9 @@ export function runHybridGcNmtPipeline(
   // =========================================================================
   const layer3NmtStructuralAr = applyLayer3PhrasebookAndStructuralNmt(
     layer2MorphologyText,
-    terms,
-    sentences
+    specializedTerms,
+    sentences,
+    maskedEntities
   );
 
   // =========================================================================

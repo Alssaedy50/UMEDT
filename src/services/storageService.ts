@@ -1040,6 +1040,27 @@ export function loadAppState(): PersistedAppState {
   if (Array.isArray(storedTerms) && storedTerms.length > 0) {
     const seedById = new Map(INITIAL_TERMS.map((s) => [s.id, s]));
     const upgradedStored = storedTerms.map((t) => {
+      if (t.id === 'ge-2026-0495' && t.translation.includes('فشل العضو')) {
+        return {
+          ...t,
+          translation: 'القصور (جمع قصر)',
+          definitionAr: 'القصور (جمع قصر): كلمة عامة شائعة في اللغة الإنجليزية المعاصرة.'
+        };
+      }
+      if (t.id === 'ge-2026-0604' && t.term === 'BA') {
+        return {
+          ...t,
+          term: 'Bachelor of Arts',
+          termNormalized: 'bachelor of arts'
+        };
+      }
+      if (t.id === 'ge-2026-0605' && t.term === 'BS') {
+        return {
+          ...t,
+          term: 'Bachelor of Science',
+          termNormalized: 'bachelor of science'
+        };
+      }
       const seed = seedById.get(t.id);
       if (!seed) return t;
       const mergedExamples = [...(t.examples || [])];
@@ -2654,7 +2675,19 @@ export async function createDataBackupSnapshot(options?: {
 
   const existingHistory = loadBackupHistory();
   const maxAllowed = Math.max(1, Math.min(20, backupConfig.maxBackups));
-  const nextHistory = [record, ...existingHistory].slice(0, maxAllowed);
+  const filteredExisting =
+    trigger !== 'manual'
+      ? existingHistory.filter(
+          (item, idx) =>
+            !(
+              idx === 0 &&
+              item.trigger !== 'manual' &&
+              item.sha256Checksum === sha256Hex &&
+              item.versionMetadata.dataVersion === clonedVersionMeta.dataVersion
+            )
+        )
+      : existingHistory;
+  const nextHistory = [record, ...filteredExisting].slice(0, maxAllowed);
   saveBackupHistory(nextHistory);
 
   return record;

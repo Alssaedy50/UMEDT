@@ -52,6 +52,115 @@ function escapeRegExp(str: string): string {
 
 const candidateCache = new WeakMap<DictionaryTerm[], CandidateLookupEntry[]>();
 
+const NON_LINKABLE_GENERAL_STOPWORDS = new Set([
+  'there',
+  'here',
+  'where',
+  'when',
+  'what',
+  'which',
+  'inside',
+  'outside',
+  'below',
+  'above',
+  'before',
+  'after',
+  'early',
+  'late',
+  'right',
+  'left',
+  'east',
+  'west',
+  'north',
+  'south',
+  'far',
+  'near',
+  'area',
+  'center',
+  'sign',
+  'signs',
+  'can',
+  'cans',
+  'will',
+  'may',
+  'day',
+  'days',
+  'week',
+  'weeks',
+  'year',
+  'years',
+  'time',
+  'times',
+  'now',
+  'life',
+  'age',
+  'man',
+  'men',
+  'woman',
+  'women',
+  'child',
+  'children',
+  'baby',
+  'boy',
+  'boys',
+  'girl',
+  'girls',
+  'son',
+  'sons',
+  'kid',
+  'kids',
+  'dad',
+  'mom',
+  'job',
+  'jobs',
+  'work',
+  'activity',
+  'test',
+  'exam',
+  'palaces',
+  'bitterness',
+  'loneliness',
+  'canals',
+  'university',
+  'ocean',
+  'hills',
+  'hill',
+  'sea',
+  'seas',
+  'lake',
+  'pond',
+  'tree',
+  'wood',
+  'rose',
+  'rock',
+  'sand',
+  'dust',
+  'ash',
+  'soil',
+  'mud',
+  'sky',
+  'game',
+  'ball',
+  'team',
+  'bed'
+]);
+
+/**
+ * Determines whether a dictionary term is a specialized medical/scientific/technical
+ * concept suitable for entity masking and knowledge-graph auto-linking (excluding
+ * everyday general English vocabulary such as `ge-2026-*` and common stopwords).
+ */
+export function isLinkableSpecializedTerm(t: DictionaryTerm): boolean {
+  if (!t || !t.term) return false;
+  if (t.id.startsWith('ge-') || t.id.startsWith('ga-')) return false;
+  const lower = t.term.trim().toLowerCase();
+  if (NON_LINKABLE_GENERAL_STOPWORDS.has(lower)) return false;
+  if (t.category === 'General' && !['g1', 'g2', 'g3'].includes(t.id) && lower.length < 8) {
+    return false;
+  }
+  return true;
+}
+
 /**
  * Builds and caches a longest-match-first lookup table covering:
  * 1. Primary English terms (term.term)
@@ -71,8 +180,9 @@ function buildSortedCandidateEntries(terms: DictionaryTerm[]): CandidateLookupEn
     termById.set(t.id, t);
   }
 
-  // 1. Primary English terms
+  // 1. Primary English terms (specialized medical/technical terms only)
   for (const t of terms) {
+    if (!isLinkableSpecializedTerm(t)) continue;
     const cleanEn = t.term.trim();
     const lowerEn = cleanEn.toLowerCase();
     if (cleanEn.length >= 2 && !seenKeys.has(`en:${lowerEn}`)) {
