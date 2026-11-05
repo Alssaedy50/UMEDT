@@ -1,29 +1,29 @@
 {
-  "packageId": "umed2-pkg-2026.10.2-umd",
-  "dataVersion": "2026.10.2-umd",
+  "packageId": "umed2-pkg-2026.10.3-umd",
+  "dataVersion": "2026.10.3-umd",
   "minAppVersion": "2.2.3",
   "schemaVersion": 2,
-  "releasedAt": "2026-11-05T20:35:50.418Z",
+  "releasedAt": "2026-11-05T20:49:30.643Z",
   "channel": "stable",
   "signatureAlgorithm": "ECDSA-P256-SHA256",
   "keyFingerprint": "0849eefaee12bb75",
-  "description": "إصدار البيانات الطبية الموحد 2026.10.2-umd (UMEDT verified data release)",
-  "releaseNotes": "إصدار البيانات الطبية الموحد 2026.10.2-umd (UMEDT verified data release)",
+  "description": "إصدار البيانات الطبية الموحد 2026.10.3-umd (UMEDT verified data release)",
+  "releaseNotes": "إصدار البيانات الطبية الموحد 2026.10.3-umd (UMEDT verified data release)",
   "changelog": [
-    "تحديث حزمة المعجم الطبي إلى الإصدار 2026.10.2-umd",
-    "تضمين 1650 مصطلح طبي و 94 جملة سياقية و 24 موضوع سريري"
+    "تحديث حزمة المعجم الطبي إلى الإصدار 2026.10.3-umd",
+    "تضمين 1650 مصطلح طبي و 94 جملة سياقية و 25 موضوع سريري"
   ],
   "author": "UMED-2 Release Automation",
-  "downloadUrl": "https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/stable/umed2-data-2026.10.2-umd.zip",
+  "downloadUrl": "https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/stable/umed2-data-2026.10.3-umd.zip",
   "counts": {
     "terms": 1650,
     "sentences": 94,
-    "topics": 24,
+    "topics": 25,
     "affixes": 131,
     "abbreviations": 73
   },
-  "packageSizeKb": 2039.5,
-  "checksum": "bba603038be4e15b08100c933c0d52eb4a14ce024c9e013fb1ffaa04ae8ab762",
-  "sha256": "bba603038be4e15b08100c933c0d52eb4a14ce024c9e013fb1ffaa04ae8ab762",
-  "signature": "B4r4zXSSnIIZTNWa4BOUxZBFWWFC/6QOJtlnv8EyK/wwW90ewCOQVhQPLITX3xljFvJTL3LFdi5F1WY0XQ/z5w=="
+  "packageSizeKb": 2062.2,
+  "checksum": "ead86289885f6b65b1acb19005268b90cdfb346ac62c2ca5052fca4c4d486c17",
+  "sha256": "ead86289885f6b65b1acb19005268b90cdfb346ac62c2ca5052fca4c4d486c17",
+  "signature": "0xEHI23oFmy3svOvciNVnvbEi8YVWPrn6V300QpRCNDHqwjJNAhU9X/ZtDoiJ0fGdNSoXImJVtXebt7vKeW6/Q=="
 }
