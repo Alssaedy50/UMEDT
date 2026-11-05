@@ -1,20 +1,20 @@
 {
-  "packageId": "umed2-pkg-2026.10.4-umd",
-  "dataVersion": "2026.10.4-umd",
-  "minAppVersion": "2.2.1",
+  "packageId": "umed2-pkg-2026.10.5-umd",
+  "dataVersion": "2026.10.5-umd",
+  "minAppVersion": "2.2.3",
   "schemaVersion": 2,
-  "releasedAt": "2026-11-05T17:07:29.718Z",
+  "releasedAt": "2026-11-05T19:13:40.756Z",
   "channel": "stable",
   "signatureAlgorithm": "ECDSA-P256-SHA256",
   "keyFingerprint": "0849eefaee12bb75",
-  "description": "إصدار البيانات الطبية الموحد 2026.10.4-umd (UMEDT verified data release)",
-  "releaseNotes": "إصدار البيانات الطبية الموحد 2026.10.4-umd (UMEDT verified data release)",
+  "description": "إصدار البيانات الطبية الموحد 2026.10.5-umd (UMEDT verified data release)",
+  "releaseNotes": "إصدار البيانات الطبية الموحد 2026.10.5-umd (UMEDT verified data release)",
   "changelog": [
-    "تحديث حزمة المعجم الطبي إلى الإصدار 2026.10.4-umd",
+    "تحديث حزمة المعجم الطبي إلى الإصدار 2026.10.5-umd",
     "تضمين 1491 مصطلح طبي و 94 جملة سياقية و 4 موضوع سريري"
   ],
   "author": "UMED-2 Release Automation",
-  "downloadUrl": "https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/stable/umed2-data-2026.10.4-umd.zip",
+  "downloadUrl": "https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/stable/umed2-data-2026.10.5-umd.zip",
   "counts": {
     "terms": 1491,
     "sentences": 94,
@@ -22,8 +22,8 @@
     "affixes": 131,
     "abbreviations": 73
   },
-  "packageSizeKb": 1902.4,
-  "checksum": "1c770f343cd5413c239f259cbf5ea4bfe3e152698e9e925fdaff29c2018238a5",
-  "sha256": "1c770f343cd5413c239f259cbf5ea4bfe3e152698e9e925fdaff29c2018238a5",
-  "signature": "/VAr017+vYlBE687y0Ukif5chraNlyNweFlnsqhU+9JhoQiJ2n707TJWDiN23mRQjAeT8mDRce9NnaRDvMvl/A=="
+  "packageSizeKb": 1763.2,
+  "checksum": "ffd0c3bc7cd77ef61f433ffa25fd0e4618e1b6923a6ae16b56646e9bb70d7d72",
+  "sha256": "ffd0c3bc7cd77ef61f433ffa25fd0e4618e1b6923a6ae16b56646e9bb70d7d72",
+  "signature": "4pXuZ0SNZ8OerpUHBw2qXa8IYF1QVhhFjw2Lm/nxhVdjq9YnjXIPtiNp/giLBtPx1r6zoPavnoa/uZcUlrS7Hw=="
 }
