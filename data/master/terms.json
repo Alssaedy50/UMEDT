@@ -52876,5 +52876,625 @@
       ],
       "related": []
     }
+  },
+  {
+    "id": "para-2026-1631",
+    "term": "Common name",
+    "termNormalized": "common name",
+    "translation": "الاسم الشائع",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الاسم المتداول للكائن في اللغة أو الممارسة، في مقابل اسمه العلمي.",
+    "definitionEn": "The familiar name used for an organism, as distinct from its scientific name.",
+    "examples": [
+      {
+        "en": "Common name is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Common name في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1632",
+    "term": "Habitat",
+    "termNormalized": "habitat",
+    "translation": "الموطن",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "المكان أو العضو الذي يعيش فيه الطفيلي داخل العائل أو على سطحه.",
+    "definitionEn": "The site or organ in which a parasite lives in or on its host.",
+    "examples": [
+      {
+        "en": "Habitat is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Habitat في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1633",
+    "term": "Mode of infection",
+    "termNormalized": "mode of infection",
+    "translation": "طريقة حدوث العدوى",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الطريقة التي يدخل بها الطفيلي إلى جسم العائل ويبدأ العدوى.",
+    "definitionEn": "The route or mechanism by which a parasite enters a host and establishes infection.",
+    "examples": [
+      {
+        "en": "Mode of infection is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Mode of infection في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1634",
+    "term": "Treatment",
+    "termNormalized": "treatment",
+    "translation": "العلاج",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "التدبير الطبي أو الدوائي المستخدم لمعالجة العدوى أو المرض.",
+    "definitionEn": "The medical or drug-based management used to treat an infection or disease.",
+    "examples": [
+      {
+        "en": "Treatment is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Treatment في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1635",
+    "term": "Adult worm",
+    "termNormalized": "adult worm",
+    "translation": "الدودة البالغة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الطور الناضج من الدودة بعد اكتمال نموها.",
+    "definitionEn": "The mature stage of a worm after completion of development.",
+    "examples": [
+      {
+        "en": "Adult worm is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Adult worm في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1636",
+    "term": "Adult male",
+    "termNormalized": "adult male",
+    "translation": "ذكر بالغ",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الطور الذكري الناضج من الطفيلي.",
+    "definitionEn": "The sexually mature male stage of a parasite.",
+    "examples": [
+      {
+        "en": "Adult male is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Adult male في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1637",
+    "term": "Posterior part",
+    "termNormalized": "posterior part",
+    "translation": "الجزء الخلفي",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "المنطقة الخلفية من جسم الكائن أو بنيته التشريحية.",
+    "definitionEn": "The rear region of an organism or anatomical structure.",
+    "examples": [
+      {
+        "en": "Posterior part is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Posterior part في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1638",
+    "term": "Spherical",
+    "termNormalized": "spherical",
+    "translation": "كروي",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "وصف لشكل ثلاثي الأبعاد قريب من الكرة.",
+    "definitionEn": "Having a three-dimensional shape that is approximately a sphere.",
+    "examples": [
+      {
+        "en": "Spherical is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Spherical في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1639",
+    "term": "Oval",
+    "termNormalized": "oval",
+    "translation": "بيضاوي",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "وصف لشكل ممدود مستدير الطرفين.",
+    "definitionEn": "Having an elongated rounded shape, wider through the middle.",
+    "examples": [
+      {
+        "en": "Oval is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Oval في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1640",
+    "term": "Thin-walled cyst",
+    "termNormalized": "thin walled cyst",
+    "translation": "كيسة رقيقة الجدار",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "كيسة يحيط بها جدار رقيق نسبياً، كما في بعض الأطوار اليرقية للديدان الشريطية.",
+    "definitionEn": "A cyst surrounded by a relatively thin wall, as seen in some larval tapeworm stages.",
+    "examples": [
+      {
+        "en": "Thin-walled cyst is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Thin-walled cyst في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1641",
+    "term": "Fluid-filled cavity",
+    "termNormalized": "fluid filled cavity",
+    "translation": "تجويف مملوء بسائل",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "فراغ داخلي يحتوي على سائل ضمن بنية كيسية.",
+    "definitionEn": "An internal space containing fluid within a cystic structure.",
+    "examples": [
+      {
+        "en": "Fluid-filled cavity is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Fluid-filled cavity في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1642",
+    "term": "Morphological characteristics",
+    "termNormalized": "morphological characteristics",
+    "translation": "الصفات الشكلية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الخصائص البنيوية والمظهرية التي تستخدم في وصف الكائن وتمييزه.",
+    "definitionEn": "Structural and appearance-based features used to describe and identify an organism.",
+    "examples": [
+      {
+        "en": "Morphological characteristics is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Morphological characteristics في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1643",
+    "term": "Diagnostic feature",
+    "termNormalized": "diagnostic feature",
+    "translation": "صفة تشخيصية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "علامة شكلية أو بيولوجية تساعد على التعرف على الكائن أو تمييزه.",
+    "definitionEn": "A morphological or biological finding that helps identify or distinguish an organism.",
+    "examples": [
+      {
+        "en": "Diagnostic feature is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Diagnostic feature في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1644",
+    "term": "Diagnostic features",
+    "termNormalized": "diagnostic features",
+    "translation": "الصفات التشخيصية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "مجموعة العلامات التي تساعد على تحديد نوع الطفيلي.",
+    "definitionEn": "A set of findings used to identify a parasite or distinguish it from other species.",
+    "examples": [
+      {
+        "en": "Diagnostic features is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Diagnostic features في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1645",
+    "term": "Lateral genital pore",
+    "termNormalized": "lateral genital pore",
+    "translation": "الفتحة التناسلية الجانبية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "فتحة تناسلية تقع على الجانب الجانبي من القطعة الشريطية أو جسم الدودة.",
+    "definitionEn": "A reproductive opening located on the lateral side of a tapeworm segment or worm body.",
+    "examples": [
+      {
+        "en": "Lateral genital pore is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Lateral genital pore في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1646",
+    "term": "Male",
+    "termNormalized": "male",
+    "translation": "ذكر",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الفرد أو الطور الذكري من الكائن، ويُستخدم لوصف الديدان ذات الجنسين المنفصلين.",
+    "definitionEn": "The male individual or stage of an organism, including dioecious worms.",
+    "examples": [
+      {
+        "en": "Male is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Male في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1647",
+    "term": "Female",
+    "termNormalized": "female",
+    "translation": "أنثى",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الفرد أو الطور الأنثوي من الكائن، ويُستخدم لوصف الديدان ذات الجنسين المنفصلين.",
+    "definitionEn": "The female individual or stage of an organism, including dioecious worms.",
+    "examples": [
+      {
+        "en": "Female is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Female في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1648",
+    "term": "Egg",
+    "termNormalized": "egg",
+    "translation": "بيضة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "وحدة تكاثرية تنتجها الدودة وتحتوي على الجنين أو مراحله المبكرة.",
+    "definitionEn": "A reproductive unit produced by a worm that contains an embryo or early developmental stage.",
+    "examples": [
+      {
+        "en": "Egg is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Egg في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1649",
+    "term": "Eggs",
+    "termNormalized": "eggs",
+    "translation": "بيوض",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "جمع بيضة؛ وحدات التكاثر التي تنتجها الديدان وتُستخدم صفاتها في التشخيص المجهري.",
+    "definitionEn": "Plural of egg; reproductive units whose features are used in microscopic diagnosis.",
+    "examples": [
+      {
+        "en": "Eggs is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Eggs في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-1650",
+    "term": "Coarse tubercles",
+    "termNormalized": "coarse tubercles",
+    "translation": "حُديبات خشنة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "نتوءات سطحية واضحة وخشنة على الغلاف الخارجي لجسم الدودة.",
+    "definitionEn": "Prominent rough surface projections on the external covering of a worm.",
+    "examples": [
+      {
+        "en": "Coarse tubercles is used to describe and identify structures or stages in medical parasitology.",
+        "ar": "يُستخدم مصطلح Coarse tubercles في وصف وتحديد البنى أو الأطوار في علم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
   }
 ]
