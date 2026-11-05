@@ -66,12 +66,37 @@ export async function executeProductionDataReleasePublish(
 }> {
   const env = options.env || process.env;
 
-  const targetVersion =
-    (options.targetVersion || env.UMED_RELEASE_VERSION || '').trim() ||
-    suggestNextDataVersion(BUNDLED_DATA_VERSION, 'patch', 'stable', [BUNDLED_DATA_VERSION]);
-
   const channel: 'stable' | 'beta' =
     (options.channel || env.UMED_RELEASE_CHANNEL) === 'beta' ? 'beta' : 'stable';
+
+  // Continue from the latest published channel manifest, not only the bundled app version.
+  // This prevents automatic releases from reusing a version already published through OTA.
+  const currentManifestPath = path.resolve(
+    process.cwd(),
+    'data/releases/' + channel + '/manifest.json'
+  );
+  let currentPublishedVersion = BUNDLED_DATA_VERSION;
+  if (fs.existsSync(currentManifestPath)) {
+    try {
+      const currentManifest = JSON.parse(
+        fs.readFileSync(currentManifestPath, 'utf-8')
+      ) as { dataVersion?: string };
+      if (currentManifest.dataVersion?.trim()) {
+        currentPublishedVersion = currentManifest.dataVersion.trim();
+      }
+    } catch {
+      throw new Error(
+        '[UMED-2 Publisher] Could not read the existing ' + channel + ' manifest at ' + currentManifestPath + '.'
+      );
+    }
+  }
+
+  const targetVersion =
+    (options.targetVersion || env.UMED_RELEASE_VERSION || '').trim() ||
+    suggestNextDataVersion(currentPublishedVersion, 'patch', channel, [
+      BUNDLED_DATA_VERSION,
+      currentPublishedVersion
+    ]);
 
   const cdnBaseUrl = (options.cdnBaseUrl || DEFAULT_CDN_RELEASE_BASE_URL).trim();
 
