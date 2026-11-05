@@ -3,27 +3,27 @@
   "dataVersion": "2026.10.1-umd",
   "minAppVersion": "2.2.0",
   "schemaVersion": 2,
-  "releasedAt": "2026-11-03T05:42:10.956Z",
+  "releasedAt": "2026-11-05T14:55:52.553Z",
   "channel": "stable",
   "signatureAlgorithm": "ECDSA-P256-SHA256",
   "keyFingerprint": "0849eefaee12bb75",
-  "description": "إصدار البيانات الطبية الموحد 2026.10.1-umd (UMEDT verified data release)",
-  "releaseNotes": "إصدار البيانات الطبية الموحد 2026.10.1-umd (UMEDT verified data release)",
+  "description": "اظافة 200 مصطلح",
+  "releaseNotes": "اظافة 200 مصطلح",
   "changelog": [
     "تحديث حزمة المعجم الطبي إلى الإصدار 2026.10.1-umd",
-    "تضمين 41 مصطلح طبي و 94 جملة سياقية و 4 موضوع سريري"
+    "تضمين 241 مصطلح طبي و 94 جملة سياقية و 4 موضوع سريري"
   ],
   "author": "UMED-2 Release Automation",
   "downloadUrl": "https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/stable/umed2-data-2026.10.1-umd.zip",
   "counts": {
-    "terms": 41,
+    "terms": 241,
     "sentences": 94,
     "topics": 4,
     "affixes": 131,
     "abbreviations": 73
   },
-  "packageSizeKb": 263.4,
-  "checksum": "31933702ebe25fb6718750c8e80f5cf5c1aec36801df2ff5bc3a58e55f4181bd",
-  "sha256": "31933702ebe25fb6718750c8e80f5cf5c1aec36801df2ff5bc3a58e55f4181bd",
-  "signature": "sXgJzVDS9yXDejKTwd4IYAyuBCjvZLuTol10kQgrdf+aCedKrX9bw+wNj8x+S/KBv+idqvcXtKvlBsnYwVDEGg=="
+  "packageSizeKb": 413.9,
+  "checksum": "f91a5de1934ab39bfabb3f63ec1986dcaeac359345504c7f39fe47925503be49",
+  "sha256": "f91a5de1934ab39bfabb3f63ec1986dcaeac359345504c7f39fe47925503be49",
+  "signature": "1046jhhs50NL9xlc7KcEoSdCC7LiRNjEvkJG1n69kuZ6YIJErS8MLRco0JWcoP6ONQ8g2WJ8S3VwW5kyvIAZMQ=="
 }
