@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-android-apk:
@@ -173,3 +173,22 @@ jobs:
           path: artifacts/apk/UMED-2-v2.2.3-release-*.apk
           if-no-files-found: error
           retention-days: 90
+
+      - name: Publish Direct Download APKs to GitHub Releases
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v2.2.3
+          name: "UMEDT Android APK v2.2.3 (Latest)"
+          body: |
+            ### UMEDT — محرك القاموس والمترجم الطبي الهجين (v2.2.3)
+            - **نسخة التثبيت النهائية الموقّعة (Release APK):** `UMED-2-v2.2.3-release-signed.apk`
+            - **نسخة الفحص (Debug APK):** `UMED-2-v2.2.3-debug.apk`
+          files: |
+            artifacts/apk/UMED-2-v2.2.3-release-signed.apk
+            artifacts/apk/UMED-2-v2.2.3-debug.apk
+          prerelease: false
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
