@@ -1,6 +1,13 @@
 name: UMEDT Medical Data Release (GitHub Releases)
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'data/master/**'
+      - 'scripts/publish-data-release.ts'
+      - '.github/workflows/publish-data-release.yml'
   workflow_dispatch:
     inputs:
       channel:
