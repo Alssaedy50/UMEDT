@@ -1680,6 +1680,7 @@ export default function App() {
             sentences={sentences}
             topics={topics}
             studyStats={studyStats}
+            versionMetadata={versionMetadata}
             activeCollection={activeCollection}
             onOpenCollectionsMenu={() =>
               setOpenMenu(openMenu === 'collections' ? null : 'collections')
