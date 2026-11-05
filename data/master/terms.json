@@ -48567,5 +48567,4314 @@
         "geography"
       ]
     }
+  },
+  {
+    "id": "para-2026-001",
+    "term": "Endoparasite",
+    "termNormalized": "endoparasite",
+    "translation": "طفيلي داخلي",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "كائن طفيلي يعيش داخل جسم العائل، مثل بعض الديدان والأوالي.",
+    "definitionEn": "A parasite that lives inside the body of its host.",
+    "examples": [
+      {
+        "en": "Endoparasite is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Endoparasite ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-002",
+    "term": "Ectoparasite",
+    "termNormalized": "ectoparasite",
+    "translation": "طفيلي خارجي",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "طفيلي يعيش على السطح الخارجي لجسم العائل، مثل القمل والقراد.",
+    "definitionEn": "A parasite that lives on the external surface of its host.",
+    "examples": [
+      {
+        "en": "Ectoparasite is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Ectoparasite ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-003",
+    "term": "Obligate parasite",
+    "termNormalized": "obligate parasite",
+    "translation": "طفيلي إجباري",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "طفيلي يعتمد كلياً على العائل ولا يستطيع إكمال حياته أو تكاثره بدونه.",
+    "definitionEn": "A parasite that depends on a host to live or reproduce.",
+    "examples": [
+      {
+        "en": "Obligate parasite is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Obligate parasite ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-004",
+    "term": "Facultative parasite",
+    "termNormalized": "facultative parasite",
+    "translation": "طفيلي اختياري",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "كائن يستطيع العيش حراً، لكنه قد يتحول إلى نمط التطفل في ظروف معينة.",
+    "definitionEn": "An organism that can live freely but may become parasitic under certain conditions.",
+    "examples": [
+      {
+        "en": "Facultative parasite is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Facultative parasite ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-005",
+    "term": "Accidental parasite",
+    "termNormalized": "accidental parasite",
+    "translation": "طفيلي عارض",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "طفيلي يصيب عائلاً غير معتاد أو غير عائله الطبيعي.",
+    "definitionEn": "A parasite found in an unusual host rather than its normal host.",
+    "examples": [
+      {
+        "en": "Accidental parasite is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Accidental parasite ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-006",
+    "term": "Temporary parasite",
+    "termNormalized": "temporary parasite",
+    "translation": "طفيلي مؤقت",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "طفيلي يلامس العائل لفترة محدودة، غالباً للتغذي، ثم يغادره.",
+    "definitionEn": "A parasite that visits its host temporarily, often for feeding, and then leaves.",
+    "examples": [
+      {
+        "en": "Temporary parasite is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Temporary parasite ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-007",
+    "term": "Opportunistic parasite",
+    "termNormalized": "opportunistic parasite",
+    "translation": "طفيلي انتهازي",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "طفيلي يسبب العدوى بصورة أوضح لدى الأشخاص ذوي المناعة الضعيفة أو المثبطة.",
+    "definitionEn": "A parasite that causes disease particularly in susceptible or immunocompromised hosts.",
+    "examples": [
+      {
+        "en": "Opportunistic parasite is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Opportunistic parasite ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-008",
+    "term": "Direct transmission",
+    "termNormalized": "direct transmission",
+    "translation": "انتقال مباشر",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "انتقال العامل الممرض من شخص إلى آخر بالتلامس المباشر دون وسيط ناقل.",
+    "definitionEn": "Transmission of an infectious agent directly from one person to another.",
+    "examples": [
+      {
+        "en": "Direct transmission is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Direct transmission ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-009",
+    "term": "Vertical transmission",
+    "termNormalized": "vertical transmission",
+    "translation": "انتقال عمودي (من الأم إلى الطفل)",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "انتقال العدوى من الأم إلى طفلها أثناء الحمل أو الولادة.",
+    "definitionEn": "Transmission of an infection from mother to child during pregnancy or birth.",
+    "examples": [
+      {
+        "en": "Vertical transmission is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Vertical transmission ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-010",
+    "term": "Indirect transmission",
+    "termNormalized": "indirect transmission",
+    "translation": "انتقال غير مباشر",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "انتقال العدوى عبر وسيط غير حي كالماء أو الطعام أو التربة، أو عبر ناقل.",
+    "definitionEn": "Transmission through contaminated objects, food, water, soil, or vectors.",
+    "examples": [
+      {
+        "en": "Indirect transmission is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Indirect transmission ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-011",
+    "term": "Percutaneous transmission",
+    "termNormalized": "percutaneous transmission",
+    "translation": "انتقال عبر الجلد",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دخول الطفيلي عبر اختراق الجلد، كما يحدث عند التعرض لبعض يرقات البلهارسيا.",
+    "definitionEn": "Entry of a parasite through penetration of the skin.",
+    "examples": [
+      {
+        "en": "Percutaneous transmission is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Percutaneous transmission ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-012",
+    "term": "Parasite",
+    "termNormalized": "parasite",
+    "translation": "طفيلي",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "كائن يعيش في عائل أو عليه ويستمد منه الموارد، وقد يسبب له ضرراً.",
+    "definitionEn": "An organism that lives in or on a host and obtains resources at the host's expense.",
+    "examples": [
+      {
+        "en": "Parasite is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Parasite ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-013",
+    "term": "Host",
+    "termNormalized": "host",
+    "translation": "عائل",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الكائن الذي يؤوي الطفيلي ويوفر له موطناً أو موارد لازمة لمرحلة من دورة حياته.",
+    "definitionEn": "An organism that harbors a parasite and provides it with a habitat or resources.",
+    "examples": [
+      {
+        "en": "Host is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Host ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-014",
+    "term": "Commensal",
+    "termNormalized": "commensal",
+    "translation": "كائن متعايش",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "كائن يعيش مع العائل دون إحداث ضرر واضح عادةً، وقد يختلف سلوكه بحسب الظروف.",
+    "definitionEn": "An organism that lives in association with a host without usually causing apparent harm.",
+    "examples": [
+      {
+        "en": "Commensal is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Commensal ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-015",
+    "term": "Immunocompromised",
+    "termNormalized": "immunocompromised",
+    "translation": "مثبط المناعة / ضعيف المناعة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "وصف لشخص تكون كفاءة جهازه المناعي منخفضة، مما يزيد قابليته لبعض العدوى الانتهازية.",
+    "definitionEn": "Having reduced immune function and increased susceptibility to certain infections.",
+    "examples": [
+      {
+        "en": "Immunocompromised is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Immunocompromised ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-016",
+    "term": "Vector",
+    "termNormalized": "vector",
+    "translation": "ناقل",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "كائن حي، غالباً مفصلي الأرجل، ينقل العامل الممرض بين العوائل.",
+    "definitionEn": "A living carrier, often an arthropod, that transmits an infectious agent between hosts.",
+    "examples": [
+      {
+        "en": "Vector is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Vector ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-017",
+    "term": "Ancylostoma",
+    "termNormalized": "ancylostoma",
+    "translation": "الأنكلستوما (الدودة الشصية)",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "جنس من الديدان الأسطوانية المعوية يضم أنواعاً من الديدان الخطافية.",
+    "definitionEn": "A genus of hookworms that parasitize the human intestine.",
+    "examples": [
+      {
+        "en": "Ancylostoma is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Ancylostoma ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-018",
+    "term": "Entamoeba histolytica",
+    "termNormalized": "entamoeba histolytica",
+    "translation": "المتحولة الحالة للنسج",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "أميبا طفيلية ممرضة قد تسبب الزحار الأميبي وخراج الكبد الأميبي.",
+    "definitionEn": "A pathogenic amoeba that can cause amoebic dysentery and liver abscess.",
+    "examples": [
+      {
+        "en": "Entamoeba histolytica is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Entamoeba histolytica ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-019",
+    "term": "Ascaris lumbricoides",
+    "termNormalized": "ascaris lumbricoides",
+    "translation": "الإسكارس (دودة الصفر)",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة أسطوانية معوية تنتقل عدواها غالباً بابتلاع البيوض الناضجة الملوثة للطعام أو الماء.",
+    "definitionEn": "An intestinal roundworm acquired mainly by ingestion of embryonated eggs.",
+    "examples": [
+      {
+        "en": "Ascaris lumbricoides is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Ascaris lumbricoides ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-020",
+    "term": "Flea",
+    "termNormalized": "flea",
+    "translation": "برغوث",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "حشرة طفيلية خارجية ماصة للدم، وقد تعمل بعض أنواعها نواقل لمسببات الأمراض.",
+    "definitionEn": "A blood-feeding external insect parasite; some species can act as disease vectors.",
+    "examples": [
+      {
+        "en": "Flea is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Flea ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-021",
+    "term": "Louse",
+    "termNormalized": "louse",
+    "translation": "قَمْلَة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "حشرة طفيلية خارجية تعيش على جسم العائل أو شعره وتتغذى على الدم أو مشتقاته.",
+    "definitionEn": "An external insect parasite that lives on the host and may feed on blood.",
+    "examples": [
+      {
+        "en": "Louse is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Louse ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-022",
+    "term": "Pediculus",
+    "termNormalized": "pediculus",
+    "translation": "القمل (جنس Pediculus)",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "جنس من القمل يضم أنواعاً تصيب الإنسان، ومنها قمل الرأس وقمل الجسم.",
+    "definitionEn": "A genus of lice that includes species infesting humans.",
+    "examples": [
+      {
+        "en": "Pediculus is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Pediculus ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-023",
+    "term": "Tick",
+    "termNormalized": "tick",
+    "translation": "قُرادة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "مفصلي أرجل طفيلي خارجي من العنكبيات يتغذى على الدم وقد ينقل مسببات الأمراض.",
+    "definitionEn": "A blood-feeding arachnid ectoparasite that can transmit pathogens.",
+    "examples": [
+      {
+        "en": "Tick is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Tick ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-024",
+    "term": "Mite",
+    "termNormalized": "mite",
+    "translation": "حَلَم",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "مفصلي أرجل صغير من العنكبيات؛ بعض أنواعه طفيليات جلدية أو خارجية.",
+    "definitionEn": "A tiny arachnid; some species are skin or external parasites.",
+    "examples": [
+      {
+        "en": "Mite is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Mite ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-025",
+    "term": "Plasmodium",
+    "termNormalized": "plasmodium",
+    "translation": "المتصورة (طفيلي الملاريا)",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "جنس من الأوالي الطفيلية يسبب الملاريا وينتقل إلى الإنسان بواسطة أنثى بعوض الأنوفيلس.",
+    "definitionEn": "A genus of protozoan parasites that cause malaria and are transmitted by female Anopheles mosquitoes.",
+    "examples": [
+      {
+        "en": "Plasmodium is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Plasmodium ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-026",
+    "term": "Trichinella spiralis",
+    "termNormalized": "trichinella spiralis",
+    "translation": "الشعرينة الحلزونية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة أسطوانية طفيلية تنتقل غالباً بتناول لحم غير مطهو جيداً يحتوي على يرقات متكيسة.",
+    "definitionEn": "A nematode transmitted by eating undercooked meat containing encysted larvae.",
+    "examples": [
+      {
+        "en": "Trichinella spiralis is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Trichinella spiralis ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-027",
+    "term": "Acanthamoeba",
+    "termNormalized": "acanthamoeba",
+    "translation": "الأكانثاميبا",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "جنس من الأميبات الحرة المعيشة قد يسبب عدوى انتهازية، منها التهاب القرنية والتهاب الدماغ الحبيبي.",
+    "definitionEn": "A genus of free-living amoebae that can cause opportunistic infections.",
+    "examples": [
+      {
+        "en": "Acanthamoeba is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Acanthamoeba ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-028",
+    "term": "Helminth",
+    "termNormalized": "helminth",
+    "translation": "دودة طفيلية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة طفيلية متعددة الخلايا، ويشمل هذا المصطلح الديدان الأسطوانية والمفلطحة.",
+    "definitionEn": "A parasitic worm, including nematodes and flatworms.",
+    "examples": [
+      {
+        "en": "Helminth is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Helminth ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-029",
+    "term": "Nemathelminthes",
+    "termNormalized": "nemathelminthes",
+    "translation": "الديدان الأسطوانية (تسمية تصنيفية قديمة)",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "تسمية تصنيفية تقليدية للديدان الأسطوانية، ويستخدم Nematoda على نطاق أوسع في التصنيف الحديث.",
+    "definitionEn": "A traditional classification term for roundworms; Nematoda is more widely used in modern taxonomy.",
+    "examples": [
+      {
+        "en": "Nemathelminthes is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Nemathelminthes ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-030",
+    "term": "Nematoda",
+    "termNormalized": "nematoda",
+    "translation": "شعبة الديدان الأسطوانية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "شعبة من الديدان ذات أجسام أسطوانية غير مقسمة، ويضم بعضها أنواعاً طفيلية للإنسان.",
+    "definitionEn": "A phylum of unsegmented cylindrical worms, including many human parasites.",
+    "examples": [
+      {
+        "en": "Nematoda is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Nematoda ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-031",
+    "term": "Platyhelminthes",
+    "termNormalized": "platyhelminthes",
+    "translation": "شعبة الديدان المفلطحة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "شعبة من الديدان ذات أجسام مفلطحة ظهرياً وبطنياً، وتشمل الشريطيات والمثقوبات.",
+    "definitionEn": "A phylum of dorsoventrally flattened worms that includes cestodes and trematodes.",
+    "examples": [
+      {
+        "en": "Platyhelminthes is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Platyhelminthes ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-032",
+    "term": "Cestoda",
+    "termNormalized": "cestoda",
+    "translation": "طائفة الديدان الشريطية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "مجموعة من الديدان المفلطحة الشريطية، غالباً معوية في طورها البالغ، وتتكون أجسامها من قطع.",
+    "definitionEn": "A class of tapeworms, typically segmented flatworms that inhabit the intestine as adults.",
+    "examples": [
+      {
+        "en": "Cestoda is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Cestoda ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-033",
+    "term": "Trematoda",
+    "termNormalized": "trematoda",
+    "translation": "طائفة المثقوبات",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "مجموعة من الديدان المفلطحة الورقية الشكل غالباً، وتضم أنواعاً طفيلية مثل البلهارسيا والفاشيولا.",
+    "definitionEn": "A class of parasitic flatworms, often leaf-shaped, including flukes such as Schistosoma and Fasciola.",
+    "examples": [
+      {
+        "en": "Trematoda is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Trematoda ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-034",
+    "term": "Intestinal nematode",
+    "termNormalized": "intestinal nematode",
+    "translation": "دودة أسطوانية معوية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة من شعبة Nematoda يستقر طورها الطفيلي أو البالغ في الأمعاء.",
+    "definitionEn": "A nematode that inhabits the intestine during a parasitic stage.",
+    "examples": [
+      {
+        "en": "Intestinal nematode is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Intestinal nematode ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-035",
+    "term": "Tissue nematode",
+    "termNormalized": "tissue nematode",
+    "translation": "دودة أسطوانية نسيجية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة أسطوانية تعيش أطوارها الطفيلية في أنسجة الجسم أو تجاويفه خارج لمعة الأمعاء.",
+    "definitionEn": "A nematode whose parasitic stages inhabit body tissues or cavities outside the intestinal lumen.",
+    "examples": [
+      {
+        "en": "Tissue nematode is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Tissue nematode ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-036",
+    "term": "Intestinal cestode",
+    "termNormalized": "intestinal cestode",
+    "translation": "دودة شريطية معوية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة شريطية يستقر طورها البالغ في الأمعاء الدقيقة أو جزء آخر من الأمعاء.",
+    "definitionEn": "A tapeworm whose adult stage inhabits the intestine.",
+    "examples": [
+      {
+        "en": "Intestinal cestode is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Intestinal cestode ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-037",
+    "term": "Blood fluke",
+    "termNormalized": "blood fluke",
+    "translation": "مثقوبة دموية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة من جنس Schistosoma تعيش في الأوعية الدموية وتسبب داء البلهارسيات.",
+    "definitionEn": "A Schistosoma fluke that inhabits blood vessels and causes schistosomiasis.",
+    "examples": [
+      {
+        "en": "Blood fluke is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Blood fluke ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-038",
+    "term": "Intestinal fluke",
+    "termNormalized": "intestinal fluke",
+    "translation": "مثقوبة معوية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة مثقوبة طفيلية يستقر طورها البالغ في الأمعاء.",
+    "definitionEn": "A parasitic trematode whose adult stage inhabits the intestine.",
+    "examples": [
+      {
+        "en": "Intestinal fluke is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Intestinal fluke ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-039",
+    "term": "Roundworm",
+    "termNormalized": "roundworm",
+    "translation": "دودة أسطوانية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "اسم شائع للديدان الأسطوانية ذات الجسم الطويل الأسطواني غير المقسم.",
+    "definitionEn": "A common name for a cylindrical, unsegmented worm.",
+    "examples": [
+      {
+        "en": "Roundworm is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Roundworm ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-040",
+    "term": "Whipworm",
+    "termNormalized": "whipworm",
+    "translation": "الدودة السوطية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "اسم شائع لـ Trichuris trichiura بسبب شكلها الذي يشبه السوط.",
+    "definitionEn": "The common name for Trichuris trichiura, reflecting its whip-like shape.",
+    "examples": [
+      {
+        "en": "Whipworm is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Whipworm ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-041",
+    "term": "Small intestine",
+    "termNormalized": "small intestine",
+    "translation": "الأمعاء الدقيقة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الجزء من القناة الهضمية الواقع بين المعدة والأمعاء الغليظة، ويشمل الاثني عشر والصائم واللفائفي.",
+    "definitionEn": "The part of the gastrointestinal tract between the stomach and large intestine.",
+    "examples": [
+      {
+        "en": "Small intestine is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Small intestine ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-042",
+    "term": "Albendazole",
+    "termNormalized": "albendazole",
+    "translation": "ألبيندازول",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دواء مضاد للديدان من مجموعة البنزيميدازول، يستخدم لعلاج أنواع متعددة من العدوى بالديدان.",
+    "definitionEn": "A benzimidazole anthelmintic used to treat several helminth infections.",
+    "examples": [
+      {
+        "en": "Albendazole is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Albendazole ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-043",
+    "term": "Mebendazole",
+    "termNormalized": "mebendazole",
+    "translation": "ميبيندازول",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دواء مضاد للديدان من مجموعة البنزيميدازول، يستخدم خصوصاً لبعض الديدان المعوية.",
+    "definitionEn": "A benzimidazole anthelmintic commonly used for intestinal nematode infections.",
+    "examples": [
+      {
+        "en": "Mebendazole is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Mebendazole ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-044",
+    "term": "Embryonated egg",
+    "termNormalized": "embryonated egg",
+    "translation": "بيضة مُجنَّنة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "بيضة تطور داخلها الجنين إلى مرحلة قادرة على إحداث العدوى في دورة حياة الطفيلي.",
+    "definitionEn": "An egg in which the embryo has developed to an infective stage.",
+    "examples": [
+      {
+        "en": "Embryonated egg is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Embryonated egg ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-045",
+    "term": "Ingestion",
+    "termNormalized": "ingestion",
+    "translation": "الابتلاع",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دخول مادة أو كائن إلى الجهاز الهضمي عن طريق الفم.",
+    "definitionEn": "The act of taking a substance or organism into the gastrointestinal tract by mouth.",
+    "examples": [
+      {
+        "en": "Ingestion is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Ingestion ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-046",
+    "term": "Inhalation",
+    "termNormalized": "inhalation",
+    "translation": "الاستنشاق",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دخول الهواء أو الجسيمات أو الرذاذ إلى الجهاز التنفسي عبر الشهيق.",
+    "definitionEn": "The process of drawing air, particles, or droplets into the respiratory tract.",
+    "examples": [
+      {
+        "en": "Inhalation is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Inhalation ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-047",
+    "term": "Unfertilized egg",
+    "termNormalized": "unfertilized egg",
+    "translation": "بيضة غير مخصبة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "بيضة لم يحدث لها إخصاب، وقد تختلف مورفولوجيتها عن البيضة المخصبة في الفحص المجهري.",
+    "definitionEn": "An egg that has not undergone fertilization and may have a different microscopic appearance.",
+    "examples": [
+      {
+        "en": "Unfertilized egg is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Unfertilized egg ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-048",
+    "term": "Fertilized egg",
+    "termNormalized": "fertilized egg",
+    "translation": "بيضة مخصبة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "بيضة ناتجة عن اتحاد المشيجين، ويمكن أن تتطور إلى جنين وفق ظروف دورة حياة الطفيلي.",
+    "definitionEn": "An egg formed after fertilization that may develop into an embryo under suitable conditions.",
+    "examples": [
+      {
+        "en": "Fertilized egg is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Fertilized egg ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-049",
+    "term": "Caecum",
+    "termNormalized": "caecum",
+    "translation": "الأعور",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "جزء أعمى البداية من الأمعاء الغليظة يقع عند اتصال اللفائفي بالقولون.",
+    "definitionEn": "The blind pouch at the beginning of the large intestine near the ileocecal junction.",
+    "examples": [
+      {
+        "en": "Caecum is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Caecum ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-050",
+    "term": "Appendix",
+    "termNormalized": "appendix",
+    "translation": "الزائدة الدودية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "أنبوب ضيق متصل بالأعور، وقد يرد موضعاً لوجود بعض الديدان المعوية.",
+    "definitionEn": "A narrow tube attached to the caecum that may be involved in some intestinal parasitic infections.",
+    "examples": [
+      {
+        "en": "Appendix is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Appendix ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-051",
+    "term": "Trichuris trichiura",
+    "termNormalized": "trichuris trichiura",
+    "translation": "المثقوبة؟ لا؛ الدودة السوطية البشرية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة أسطوانية طفيلية تستقر غالباً في الأعور والقولون، وتنتقل بابتلاع البيوض المُجنَّنة.",
+    "definitionEn": "A human whipworm that inhabits the caecum and colon and is acquired by ingesting embryonated eggs.",
+    "examples": [
+      {
+        "en": "Trichuris trichiura is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Trichuris trichiura ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-052",
+    "term": "Enterobius vermicularis",
+    "termNormalized": "enterobius vermicularis",
+    "translation": "الدودة الدبوسية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة أسطوانية معوية صغيرة تسبب داء السرميات، وتنتقل عدواها بابتلاع البيوض أو عبر التلوث الذاتي.",
+    "definitionEn": "A small intestinal nematode that causes enterobiasis and spreads through ingestion of eggs.",
+    "examples": [
+      {
+        "en": "Enterobius vermicularis is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Enterobius vermicularis ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-053",
+    "term": "Pinworm",
+    "termNormalized": "pinworm",
+    "translation": "الدودة الدبوسية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الاسم الشائع لـ Enterobius vermicularis.",
+    "definitionEn": "The common name for Enterobius vermicularis.",
+    "examples": [
+      {
+        "en": "Pinworm is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Pinworm ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-054",
+    "term": "Ascending colon",
+    "termNormalized": "ascending colon",
+    "translation": "القولون الصاعد",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الجزء من القولون الذي يصعد في الجانب الأيمن من البطن من الأعور باتجاه الثنية الكبدية.",
+    "definitionEn": "The portion of the colon that ascends on the right side of the abdomen from the caecum.",
+    "examples": [
+      {
+        "en": "Ascending colon is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Ascending colon ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-055",
+    "term": "Piperazine",
+    "termNormalized": "piperazine",
+    "translation": "بيبيرازين",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "مركب دوائي مضاد لبعض الديدان الأسطوانية، يعمل بإحداث شلل رخو في الدودة.",
+    "definitionEn": "An anthelmintic drug that causes flaccid paralysis in susceptible nematodes.",
+    "examples": [
+      {
+        "en": "Piperazine is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Piperazine ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-056",
+    "term": "Autoinfection",
+    "termNormalized": "autoinfection",
+    "translation": "عدوى ذاتية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "إعادة إصابة الشخص نفسه بالطفيلي دون الحاجة إلى انتقاله من عائل آخر.",
+    "definitionEn": "Reinfection of the same host by the parasite without requiring transmission from another host.",
+    "examples": [
+      {
+        "en": "Autoinfection is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Autoinfection ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-057",
+    "term": "Retroinfection",
+    "termNormalized": "retroinfection",
+    "translation": "عدوى راجعة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "آلية تعود فيها اليرقات الفاقسة قرب الشرج إلى الأمعاء عبر فتحة الشرج.",
+    "definitionEn": "A proposed route in which newly hatched larvae migrate from the perianal region back into the intestine.",
+    "examples": [
+      {
+        "en": "Retroinfection is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Retroinfection ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-058",
+    "term": "Strongyloides stercoralis",
+    "termNormalized": "strongyloides stercoralis",
+    "translation": "الأسطوانية البرازية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة أسطوانية معوية تخترق يرقاتها الجلد، ويمكن أن تستمر عدواها عبر دورة العدوى الذاتية.",
+    "definitionEn": "An intestinal nematode whose larvae penetrate the skin and may persist through autoinfection.",
+    "examples": [
+      {
+        "en": "Strongyloides stercoralis is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Strongyloides stercoralis ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-059",
+    "term": "Threadworm",
+    "termNormalized": "threadworm",
+    "translation": "الدودة الخيطية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "اسم شائع يستخدم لـ Strongyloides stercoralis في بعض المراجع التعليمية.",
+    "definitionEn": "A common name used for Strongyloides stercoralis in some educational references.",
+    "examples": [
+      {
+        "en": "Threadworm is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Threadworm ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-060",
+    "term": "Duodenum",
+    "termNormalized": "duodenum",
+    "translation": "الاثنا عشر",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الجزء الأول من الأمعاء الدقيقة، يلي المعدة مباشرة.",
+    "definitionEn": "The first part of the small intestine, immediately distal to the stomach.",
+    "examples": [
+      {
+        "en": "Duodenum is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Duodenum ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-061",
+    "term": "Jejunum",
+    "termNormalized": "jejunum",
+    "translation": "الصائم",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الجزء الأوسط من الأمعاء الدقيقة، يقع بين الاثني عشر واللفائفي.",
+    "definitionEn": "The middle portion of the small intestine between the duodenum and ileum.",
+    "examples": [
+      {
+        "en": "Jejunum is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Jejunum ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-062",
+    "term": "Thiabendazole",
+    "termNormalized": "thiabendazole",
+    "translation": "ثيابندازول",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دواء مضاد للديدان من مجموعة البنزيميدازول، استُخدم لعلاج بعض العدوى بالديدان.",
+    "definitionEn": "A benzimidazole anthelmintic formerly used for selected helminth infections.",
+    "examples": [
+      {
+        "en": "Thiabendazole is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Thiabendazole ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-063",
+    "term": "Ivermectin",
+    "termNormalized": "ivermectin",
+    "translation": "إيفرمكتين",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دواء مضاد للطفيليات يستخدم لعلاج بعض العدوى بالديدان الأسطوانية والطفيليات الخارجية.",
+    "definitionEn": "An antiparasitic agent used against selected nematode and ectoparasitic infections.",
+    "examples": [
+      {
+        "en": "Ivermectin is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Ivermectin ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-064",
+    "term": "Skin penetration",
+    "termNormalized": "skin penetration",
+    "translation": "اختراق الجلد",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "عبور الطفيلي أو يرقته خلال طبقات الجلد للدخول إلى جسم العائل.",
+    "definitionEn": "Entry of a parasite or larva into the host by passing through the skin.",
+    "examples": [
+      {
+        "en": "Skin penetration is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Skin penetration ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-065",
+    "term": "Filariform larva",
+    "termNormalized": "filariform larva",
+    "translation": "يرقة خيطية الشكل",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "طور يرقي معدٍ في بعض الديدان الأسطوانية، يتميز بجسم ممدود وقد يخترق الجلد.",
+    "definitionEn": "An infective, slender larval stage of certain nematodes that can penetrate the skin.",
+    "examples": [
+      {
+        "en": "Filariform larva is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Filariform larva ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-066",
+    "term": "Rhabditiform larva",
+    "termNormalized": "rhabditiform larva",
+    "translation": "يرقة رابدتية الشكل",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "طور يرقي غير معدٍ غالباً في دورة حياة Strongyloides، يمكن تمييزه بخصائص المريء.",
+    "definitionEn": "A typically non-infective larval stage of Strongyloides recognizable by its esophageal morphology.",
+    "examples": [
+      {
+        "en": "Rhabditiform larva is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Rhabditiform larva ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-067",
+    "term": "Rhabditoid esophagus",
+    "termNormalized": "rhabditoid esophagus",
+    "translation": "مريء رابدتوي",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "نمط من المريء اليرقي يتكون من جزء أمامي متضخم وتضيق بعده ثم بصيلة خلفية.",
+    "definitionEn": "A larval esophageal pattern with an anterior portion, a constriction, and a posterior bulb.",
+    "examples": [
+      {
+        "en": "Rhabditoid esophagus is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Rhabditoid esophagus ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-068",
+    "term": "Club-shaped",
+    "termNormalized": "club shaped",
+    "translation": "هراوي الشكل",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "وصف مورفولوجي لجزء متسع يشبه الهراوة أو النادي.",
+    "definitionEn": "A morphological descriptor for a structure widened like a club.",
+    "examples": [
+      {
+        "en": "Club-shaped is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Club-shaped ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-069",
+    "term": "Postmedian constriction",
+    "termNormalized": "postmedian constriction",
+    "translation": "تضيّق خلف منتصف البنية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "منطقة تضيق تقع بعد الجزء الأوسط من بنية تشريحية أو مورفولوجية.",
+    "definitionEn": "A narrowing located posterior to the midpoint of a structure.",
+    "examples": [
+      {
+        "en": "Postmedian constriction is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Postmedian constriction ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-070",
+    "term": "Bulb",
+    "termNormalized": "bulb",
+    "translation": "بُصيلة / انتفاخ بصلي",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "جزء متضخم مستدير من بنية أنبوبية، مثل البصيلة الخلفية في مريء بعض اليرقات.",
+    "definitionEn": "A rounded enlargement of a tubular structure, such as the posterior esophageal bulb of some larvae.",
+    "examples": [
+      {
+        "en": "Bulb is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Bulb ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-071",
+    "term": "Morphology",
+    "termNormalized": "morphology",
+    "translation": "علم الشكل / المورفولوجيا",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دراسة شكل الكائن الحي وبنيته وصفاته الشكلية التي تساعد على التعرف عليه.",
+    "definitionEn": "The study of an organism's form and structural features used for identification.",
+    "examples": [
+      {
+        "en": "Morphology is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Morphology ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-072",
+    "term": "Adult female",
+    "termNormalized": "adult female",
+    "translation": "أنثى بالغة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الطور الأنثوي الناضج القادر على التكاثر في دورة حياة الطفيلي.",
+    "definitionEn": "The sexually mature female stage of a parasite.",
+    "examples": [
+      {
+        "en": "Adult female is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Adult female ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-073",
+    "term": "Loa loa",
+    "termNormalized": "loa loa",
+    "translation": "اللوا لوا",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة خيطية تصيب الأنسجة تحت الجلد والعين، وتنتقل بلسعة ذبابة Chrysops.",
+    "definitionEn": "A filarial nematode that inhabits subcutaneous tissues and may cross the eye.",
+    "examples": [
+      {
+        "en": "Loa loa is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Loa loa ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-074",
+    "term": "African eye worm",
+    "termNormalized": "african eye worm",
+    "translation": "دودة العين الإفريقية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الاسم الشائع للدودة Loa loa بسبب إمكانية رؤيتها وهي تعبر ملتحمة العين.",
+    "definitionEn": "The common name for Loa loa, which may migrate across the conjunctiva.",
+    "examples": [
+      {
+        "en": "African eye worm is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح African eye worm ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-075",
+    "term": "Chrysops",
+    "termNormalized": "chrysops",
+    "translation": "ذبابة الخيل (جنس Chrysops)",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "جنس من الذباب الناقل ليرقات Loa loa إلى الإنسان أثناء التغذي على الدم.",
+    "definitionEn": "A genus of biting flies that transmit Loa loa larvae to humans.",
+    "examples": [
+      {
+        "en": "Chrysops is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Chrysops ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-076",
+    "term": "Microfilaria",
+    "termNormalized": "microfilaria",
+    "translation": "ميكروفيلاريا (يرقة خيطية مجهرية)",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "طور جنيني/يرقي دقيق للديدان الفيلارية، وقد يوجد في الدم أو الجلد بحسب النوع.",
+    "definitionEn": "A microscopic larval stage of filarial worms, found in blood or skin depending on the species.",
+    "examples": [
+      {
+        "en": "Microfilaria is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Microfilaria ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-077",
+    "term": "Blood film",
+    "termNormalized": "blood film",
+    "translation": "لطاخة دموية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "طبقة رقيقة من الدم توضع على شريحة زجاجية وتصبغ لفحص الخلايا أو الطفيليات مجهرياً.",
+    "definitionEn": "A thin layer of blood on a glass slide, stained for microscopic examination of cells or parasites.",
+    "examples": [
+      {
+        "en": "Blood film is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Blood film ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-078",
+    "term": "Taenia solium",
+    "termNormalized": "taenia solium",
+    "translation": "الشريطية الوحيدة (دودة لحم الخنزير)",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة شريطية تنتقل عدواها المعوية بتناول لحم الخنزير غير المطهو جيداً المحتوي على الكيسة المذنبة؛ وقد تسبب بيوضها داء الكيسات المذنبة.",
+    "definitionEn": "A tapeworm acquired as an intestinal adult by eating undercooked pork containing cysticerci; its eggs can cause cysticercosis.",
+    "examples": [
+      {
+        "en": "Taenia solium is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Taenia solium ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-079",
+    "term": "Pork tapeworm",
+    "termNormalized": "pork tapeworm",
+    "translation": "الدودة الشريطية للخنزير",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الاسم الشائع لـ Taenia solium.",
+    "definitionEn": "The common name for Taenia solium.",
+    "examples": [
+      {
+        "en": "Pork tapeworm is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Pork tapeworm ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-080",
+    "term": "Ileum",
+    "termNormalized": "ileum",
+    "translation": "اللفائفي",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الجزء النهائي من الأمعاء الدقيقة، يلي الصائم وينتهي عند الأعور.",
+    "definitionEn": "The final portion of the small intestine, extending from the jejunum to the caecum.",
+    "examples": [
+      {
+        "en": "Ileum is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Ileum ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-081",
+    "term": "Raw pork",
+    "termNormalized": "raw pork",
+    "translation": "لحم خنزير نيئ أو غير مطهو جيداً",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "لحم الخنزير الذي لم يُطهَ بما يكفي للقضاء على اليرقات المتكيسة لبعض الطفيليات مثل Taenia solium.",
+    "definitionEn": "Pork that has not been cooked sufficiently to kill encysted parasite larvae such as Taenia solium.",
+    "examples": [
+      {
+        "en": "Raw pork is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Raw pork ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-082",
+    "term": "Praziquantel",
+    "termNormalized": "praziquantel",
+    "translation": "برازيكوانتيل",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دواء مضاد للديدان يُستخدم لعلاج عدد من العدوى بالديدان الشريطية والمثقوبات.",
+    "definitionEn": "An anthelmintic drug used to treat several cestode and trematode infections.",
+    "examples": [
+      {
+        "en": "Praziquantel is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Praziquantel ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-083",
+    "term": "Genital pore",
+    "termNormalized": "genital pore",
+    "translation": "الفتحة التناسلية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "فتحة خارجية في جسم الدودة تتيح خروج أو اتصال القنوات التناسلية.",
+    "definitionEn": "An external opening on a worm through which the reproductive ducts communicate.",
+    "examples": [
+      {
+        "en": "Genital pore is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Genital pore ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-084",
+    "term": "Uterine pore",
+    "termNormalized": "uterine pore",
+    "translation": "الفتحة الرحمية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "فتحة تسمح بخروج البيوض من الرحم إلى خارج الجسم في بعض الديدان.",
+    "definitionEn": "An opening through which eggs pass from the uterus to the exterior in some worms.",
+    "examples": [
+      {
+        "en": "Uterine pore is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Uterine pore ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-085",
+    "term": "Taenid egg",
+    "termNormalized": "taenid egg",
+    "translation": "بيضة التينيا",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "بيضة شريطية ذات جنين سداسي الخطاطيف ومحفظة جنينية مخططة شعاعياً.",
+    "definitionEn": "A Taenia-type egg containing a six-hooked embryo within a radially striated embryophore.",
+    "examples": [
+      {
+        "en": "Taenid egg is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Taenid egg ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-086",
+    "term": "Hyaline",
+    "termNormalized": "hyaline",
+    "translation": "شفاف زجاجي",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "وصف لمادة أو غشاء شفاف متجانس المظهر تحت المجهر.",
+    "definitionEn": "Describing a clear, glass-like, translucent material or membrane.",
+    "examples": [
+      {
+        "en": "Hyaline is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Hyaline ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-087",
+    "term": "Embryophore",
+    "termNormalized": "embryophore",
+    "translation": "الغلاف الجنيني",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "غلاف يحيط بالجنين داخل بيضة التينيا، ويظهر عادةً بتخططات شعاعية.",
+    "definitionEn": "The envelope surrounding the embryo in a Taenia egg, typically showing radial striations.",
+    "examples": [
+      {
+        "en": "Embryophore is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Embryophore ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-088",
+    "term": "Hooklet",
+    "termNormalized": "hooklet",
+    "translation": "خطاف صغير",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "بنية خطافية دقيقة تساعد الجنين أو الرأس في التثبت أو الاختراق بحسب الطفيلي.",
+    "definitionEn": "A small hook-like structure used for attachment or penetration by a parasite stage.",
+    "examples": [
+      {
+        "en": "Hooklet is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Hooklet ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-089",
+    "term": "Scolex",
+    "termNormalized": "scolex",
+    "translation": "الرأس (سكوليكس)",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الطرف الأمامي للدودة الشريطية، ويحمل أعضاء التثبت مثل الممصات وقد يحمل خطاطيف.",
+    "definitionEn": "The anterior attachment region of a tapeworm, bearing suckers and sometimes hooks.",
+    "examples": [
+      {
+        "en": "Scolex is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Scolex ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-090",
+    "term": "Sucker",
+    "termNormalized": "sucker",
+    "translation": "ممص",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "عضو عضلي يساعد الطفيلي على الالتصاق بالأنسجة أو تثبيت نفسه في العائل.",
+    "definitionEn": "A muscular attachment organ that helps a parasite adhere to host tissues.",
+    "examples": [
+      {
+        "en": "Sucker is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Sucker ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-091",
+    "term": "Rostellum",
+    "termNormalized": "rostellum",
+    "translation": "الرُّؤيس",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "بروز أمامي في رأس بعض الديدان الشريطية، وقد يحمل صفوفاً من الخطاطيف.",
+    "definitionEn": "A projecting structure on the scolex of some tapeworms, sometimes armed with hooks.",
+    "examples": [
+      {
+        "en": "Rostellum is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Rostellum ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-092",
+    "term": "Cysticercus cellulosae",
+    "termNormalized": "cysticercus cellulosae",
+    "translation": "الكيسة المذنبة للخنزير",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الطور اليرقي المتكيس لـ Taenia solium، ويحتوي على رأس منغمد داخل كيسة مملوءة بالسائل.",
+    "definitionEn": "The larval cyst stage of Taenia solium, containing an invaginated scolex within a fluid-filled cyst.",
+    "examples": [
+      {
+        "en": "Cysticercus cellulosae is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Cysticercus cellulosae ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-093",
+    "term": "Invaginated",
+    "termNormalized": "invaginated",
+    "translation": "منغمد إلى الداخل",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "وصف لبنية انطوت أو انقلبت إلى داخل تجويف أو كيسة.",
+    "definitionEn": "Folded or drawn inward into a cavity or cyst.",
+    "examples": [
+      {
+        "en": "Invaginated is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Invaginated ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-094",
+    "term": "Chitinized",
+    "termNormalized": "chitinized",
+    "translation": "متكيتن",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "وصف لبنية مدعمة أو متصلبة بمادة شبيهة بالكيتين.",
+    "definitionEn": "Hardened or reinforced with chitin-like material.",
+    "examples": [
+      {
+        "en": "Chitinized is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Chitinized ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-095",
+    "term": "Gravid proglottid",
+    "termNormalized": "gravid proglottid",
+    "translation": "قطعة شريطية حبلى",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "قطعة ناضجة من الدودة الشريطية يمتلئ رحمها بالبيوض.",
+    "definitionEn": "A mature tapeworm segment whose uterus is filled with eggs.",
+    "examples": [
+      {
+        "en": "Gravid proglottid is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Gravid proglottid ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-096",
+    "term": "Uterus",
+    "termNormalized": "uterus",
+    "translation": "الرحم",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "عضو تناسلي أنثوي يحتوي على البيوض أو الأجنة في الدودة.",
+    "definitionEn": "The female reproductive organ that contains eggs or embryos in a worm.",
+    "examples": [
+      {
+        "en": "Uterus is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Uterus ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-097",
+    "term": "Lateral branch",
+    "termNormalized": "lateral branch",
+    "translation": "فرع جانبي",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "امتداد جانبي من بنية مركزية، مثل الفروع الرحمية في القطعة الحبلى.",
+    "definitionEn": "A side branch extending from a central structure, such as a uterine branch.",
+    "examples": [
+      {
+        "en": "Lateral branch is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Lateral branch ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-098",
+    "term": "Mature segment",
+    "termNormalized": "mature segment",
+    "translation": "قطعة ناضجة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "قطعة من جسم الدودة الشريطية اكتملت فيها الأعضاء التناسلية.",
+    "definitionEn": "A tapeworm segment in which the reproductive organs are fully developed.",
+    "examples": [
+      {
+        "en": "Mature segment is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Mature segment ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-099",
+    "term": "Taenia saginata",
+    "termNormalized": "taenia saginata",
+    "translation": "الشريطية العزلاء (دودة لحم البقر)",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة شريطية تنتقل عدواها بتناول لحم البقر غير المطهو جيداً المحتوي على الكيسة المذنبة.",
+    "definitionEn": "A tapeworm acquired by eating undercooked beef containing cysticerci.",
+    "examples": [
+      {
+        "en": "Taenia saginata is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Taenia saginata ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-100",
+    "term": "Beef tapeworm",
+    "termNormalized": "beef tapeworm",
+    "translation": "الدودة الشريطية للبقر",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الاسم الشائع لـ Taenia saginata.",
+    "definitionEn": "The common name for Taenia saginata.",
+    "examples": [
+      {
+        "en": "Beef tapeworm is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Beef tapeworm ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-101",
+    "term": "Quadrate scolex",
+    "termNormalized": "quadrate scolex",
+    "translation": "رأس رباعي الشكل",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "رأس شريطي ذو مظهر رباعي ويحمل أربعة ممصات، كما في Taenia saginata.",
+    "definitionEn": "A four-sided appearing tapeworm scolex bearing four suckers, as in Taenia saginata.",
+    "examples": [
+      {
+        "en": "Quadrate scolex is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Quadrate scolex ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-102",
+    "term": "Cysticercus bovis",
+    "termNormalized": "cysticercus bovis",
+    "translation": "الكيسة المذنبة البقرية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الطور اليرقي المتكيس لـ Taenia saginata الموجود في أنسجة الأبقار.",
+    "definitionEn": "The larval cyst stage of Taenia saginata found in cattle tissues.",
+    "examples": [
+      {
+        "en": "Cysticercus bovis is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Cysticercus bovis ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-103",
+    "term": "Protoscolex",
+    "termNormalized": "protoscolex",
+    "translation": "رأس أولي",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "رأس شريطي غير مكتمل التكوين يتكون داخل الكيسة المائية ويمكن أن ينمو إلى دودة بالغة بعد انتقاله إلى العائل النهائي.",
+    "definitionEn": "An immature tapeworm scolex formed within a hydatid cyst that can develop into an adult in the definitive host.",
+    "examples": [
+      {
+        "en": "Protoscolex is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Protoscolex ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-104",
+    "term": "Hymenolepis nana",
+    "termNormalized": "hymenolepis nana",
+    "translation": "الشريطية القزمة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة شريطية صغيرة تصيب الأمعاء الدقيقة، ويمكن أن تكمل دورة حياتها في عائل واحد.",
+    "definitionEn": "A small tapeworm of the small intestine that can complete its life cycle in a single host.",
+    "examples": [
+      {
+        "en": "Hymenolepis nana is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Hymenolepis nana ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-105",
+    "term": "Polar filament",
+    "termNormalized": "polar filament",
+    "translation": "خيط قطبي",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "خيط ينشأ من الغشاء الداخلي لبيضة Hymenolepis nana ويمتد بين الأغشية.",
+    "definitionEn": "A filament arising from the inner membrane of a Hymenolepis nana egg.",
+    "examples": [
+      {
+        "en": "Polar filament is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Polar filament ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-106",
+    "term": "Hexacanth embryo",
+    "termNormalized": "hexacanth embryo",
+    "translation": "جنين سداسي الخطاطيف",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "جنين يحتوي على ستة خطاطيف، ويوجد داخل بيوض بعض الديدان الشريطية.",
+    "definitionEn": "An embryo bearing six hooks, present in the eggs of certain tapeworms.",
+    "examples": [
+      {
+        "en": "Hexacanth embryo is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Hexacanth embryo ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-107",
+    "term": "Testicle",
+    "termNormalized": "testicle",
+    "translation": "خُصية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "عضو تناسلي ذكري ينتج النطاف، ويظهر ضمن الجهاز التناسلي للديدان الخنثى.",
+    "definitionEn": "A male reproductive organ that produces sperm and forms part of the reproductive system of hermaphroditic worms.",
+    "examples": [
+      {
+        "en": "Testicle is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Testicle ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-108",
+    "term": "Diphyllobothrium latum",
+    "termNormalized": "diphyllobothrium latum",
+    "translation": "الشريطية العريضة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة شريطية عريضة تنتقل عدواها غالباً بتناول أسماك المياه العذبة النيئة أو غير المطهوة جيداً.",
+    "definitionEn": "A broad tapeworm usually acquired by eating raw or undercooked freshwater fish.",
+    "examples": [
+      {
+        "en": "Diphyllobothrium latum is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Diphyllobothrium latum ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-109",
+    "term": "Bothria",
+    "termNormalized": "bothria",
+    "translation": "أخدودا التثبيت",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "أخدودان طوليان على رأس بعض الديدان الشريطية يعملان كعضوي تثبيت.",
+    "definitionEn": "Two longitudinal grooves on the scolex of certain tapeworms that function as attachment organs.",
+    "examples": [
+      {
+        "en": "Bothria is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Bothria ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-110",
+    "term": "Operculated egg",
+    "termNormalized": "operculated egg",
+    "translation": "بيضة ذات غطاء",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "بيضة تحتوي على غطاء أو سديلة (operculum) عند أحد قطبيها يتيح خروج اليرقة.",
+    "definitionEn": "An egg with a lid-like operculum at one end through which the larva may emerge.",
+    "examples": [
+      {
+        "en": "Operculated egg is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Operculated egg ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-111",
+    "term": "Echinococcus granulosus",
+    "termNormalized": "echinococcus granulosus",
+    "translation": "المشوكة الحبيبية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "دودة شريطية صغيرة تسبب داء المشوكات الكيسي، وتكوّن يرقاتها أكياساً مائية في الأعضاء.",
+    "definitionEn": "A small tapeworm that causes cystic echinococcosis, with larval hydatid cysts in organs.",
+    "examples": [
+      {
+        "en": "Echinococcus granulosus is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Echinococcus granulosus ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-112",
+    "term": "Hydatid cyst",
+    "termNormalized": "hydatid cyst",
+    "translation": "كيسة مائية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "كيسة يرقية مملوءة بالسائل تنتج عن الطور اليرقي لـ Echinococcus granulosus.",
+    "definitionEn": "A fluid-filled larval cyst produced by Echinococcus granulosus.",
+    "examples": [
+      {
+        "en": "Hydatid cyst is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Hydatid cyst ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-113",
+    "term": "Pericyst",
+    "termNormalized": "pericyst",
+    "translation": "الغلاف المحيط بالكيسة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الطبقة الخارجية الليفية التي يشكلها نسيج العائل حول الكيسة المائية.",
+    "definitionEn": "The outer fibrous layer formed by host tissue around a hydatid cyst.",
+    "examples": [
+      {
+        "en": "Pericyst is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Pericyst ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-114",
+    "term": "Ectocyst",
+    "termNormalized": "ectocyst",
+    "translation": "الغلاف الخارجي للكيسة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الطبقة الخارجية من جدار الكيسة المائية، وتسمى أيضاً الطبقة الصفائحية.",
+    "definitionEn": "The outer laminated layer of the hydatid cyst wall.",
+    "examples": [
+      {
+        "en": "Ectocyst is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Ectocyst ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-115",
+    "term": "Endocyst",
+    "termNormalized": "endocyst",
+    "translation": "الغلاف الداخلي للكيسة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "الطبقة الجرثومية الداخلية للكيسة المائية التي تنتج الكبسولات الحاضنة والرؤيسات الأولية.",
+    "definitionEn": "The inner germinal layer of a hydatid cyst that produces brood capsules and protoscolices.",
+    "examples": [
+      {
+        "en": "Endocyst is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Endocyst ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-116",
+    "term": "Brood capsule",
+    "termNormalized": "brood capsule",
+    "translation": "كبسولة حاضنة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "بنية تنشأ من الطبقة الجرثومية للكيسة المائية وتحتوي على رؤيسات أولية.",
+    "definitionEn": "A structure arising from the germinal layer of a hydatid cyst and containing protoscolices.",
+    "examples": [
+      {
+        "en": "Brood capsule is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Brood capsule ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-117",
+    "term": "Fasciola hepatica",
+    "termNormalized": "fasciola hepatica",
+    "translation": "المتورقة الكبدية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "مثقوبة ورقية الشكل تصيب القنوات الصفراوية، وتسبب داء المتورقات.",
+    "definitionEn": "A leaf-shaped trematode that inhabits the bile ducts and causes fascioliasis.",
+    "examples": [
+      {
+        "en": "Fasciola hepatica is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Fasciola hepatica ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-118",
+    "term": "Leaf-shaped",
+    "termNormalized": "leaf shaped",
+    "translation": "ورقي الشكل",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "وصف مورفولوجي لجسم عريض ومسطح يشبه الورقة.",
+    "definitionEn": "A morphological description of a broad, flattened, leaf-like body.",
+    "examples": [
+      {
+        "en": "Leaf-shaped is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Leaf-shaped ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-119",
+    "term": "Tandem",
+    "termNormalized": "tandem",
+    "translation": "متتابع على خط واحد",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "وصف لترتيب بنى متعاقبة واحدة خلف الأخرى على المحور نفسه.",
+    "definitionEn": "Arranged one behind another along the same axis.",
+    "examples": [
+      {
+        "en": "Tandem is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Tandem ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-120",
+    "term": "Ovary",
+    "termNormalized": "ovary",
+    "translation": "مبيض",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "عضو تناسلي أنثوي ينتج البويضات، ويُستخدم موضعه وصفاً تشخيصياً في بعض المثقوبات.",
+    "definitionEn": "A female reproductive organ that produces ova; its position can aid trematode identification.",
+    "examples": [
+      {
+        "en": "Ovary is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Ovary ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-121",
+    "term": "Coiled uterus",
+    "termNormalized": "coiled uterus",
+    "translation": "رحم ملتف",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "رحم ذو مسار ملتف أو متعرج، ويُعد من الصفات الشكلية لبعض الديدان المثقوبة.",
+    "definitionEn": "A winding or coiled uterus, a morphological feature of some trematodes.",
+    "examples": [
+      {
+        "en": "Coiled uterus is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Coiled uterus ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-122",
+    "term": "Schistosoma mansoni",
+    "termNormalized": "schistosoma mansoni",
+    "translation": "البلهارسيا المنسونية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "مثقوبة دموية تسبب البلهارسيا المعوية، وتمتاز بيضتها بوجود شوكة جانبية.",
+    "definitionEn": "A blood fluke causing intestinal schistosomiasis; its egg has a lateral spine.",
+    "examples": [
+      {
+        "en": "Schistosoma mansoni is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Schistosoma mansoni ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-123",
+    "term": "Lateral spine",
+    "termNormalized": "lateral spine",
+    "translation": "شوكة جانبية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "نتوء شوكي يقع على جانب بيضة الطفيلي، كما في بيضة Schistosoma mansoni.",
+    "definitionEn": "A spine projecting from the side of an egg, as in Schistosoma mansoni.",
+    "examples": [
+      {
+        "en": "Lateral spine is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Lateral spine ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-124",
+    "term": "Schistosoma haematobium",
+    "termNormalized": "schistosoma haematobium",
+    "translation": "البلهارسيا الدموية البولية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "مثقوبة دموية تعيش في الضفائر الوريدية البولية، وتمتاز بيضتها بشوكة طرفية.",
+    "definitionEn": "A blood fluke inhabiting the urinary venous plexus; its egg has a terminal spine.",
+    "examples": [
+      {
+        "en": "Schistosoma haematobium is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Schistosoma haematobium ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-125",
+    "term": "Terminal spine",
+    "termNormalized": "terminal spine",
+    "translation": "شوكة طرفية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "نتوء شوكي يقع عند أحد قطبي البيضة، كما في بيضة Schistosoma haematobium.",
+    "definitionEn": "A spine located at one pole of an egg, as in Schistosoma haematobium.",
+    "examples": [
+      {
+        "en": "Terminal spine is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Terminal spine ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-126",
+    "term": "Cuticle",
+    "termNormalized": "cuticle",
+    "translation": "الجليد / الغلاف الخارجي",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "طبقة خارجية تغطي جسم الدودة وتحميه، وقد تحمل صفات سطحية تشخيصية.",
+    "definitionEn": "The external covering of a worm that protects the body and may show diagnostic surface features.",
+    "examples": [
+      {
+        "en": "Cuticle is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Cuticle ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-127",
+    "term": "Tubercle",
+    "termNormalized": "tubercle",
+    "translation": "حُديبة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "نتوء صغير مرتفع على سطح الجسم أو الغلاف الخارجي.",
+    "definitionEn": "A small rounded projection or elevation on a body surface.",
+    "examples": [
+      {
+        "en": "Tubercle is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Tubercle ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-128",
+    "term": "Testis",
+    "termNormalized": "testis",
+    "translation": "خُصية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "عضو تناسلي ذكري ينتج النطاف؛ وقد يختلف عدد الخصى وموضعها بين أنواع المثقوبات.",
+    "definitionEn": "A male reproductive organ that produces sperm; number and position vary among trematodes.",
+    "examples": [
+      {
+        "en": "Testis is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Testis ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-129",
+    "term": "Heterophyes heterophyes",
+    "termNormalized": "heterophyes heterophyes",
+    "translation": "المتورقة المعوية الصغيرة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "مثقوبة معوية صغيرة ذات جسم كمثري الشكل، وتنتقل عدواها بتناول أسماك تحتوي على الميتاسركاريا.",
+    "definitionEn": "A small intestinal fluke with a pyriform body, acquired by eating fish containing metacercariae.",
+    "examples": [
+      {
+        "en": "Heterophyes heterophyes is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Heterophyes heterophyes ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-130",
+    "term": "Pyriform",
+    "termNormalized": "pyriform",
+    "translation": "كمثري الشكل",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "وصف لشكل يشبه الكمثرى، أعرض من الخلف أو في أحد الطرفين بحسب البنية.",
+    "definitionEn": "Having a pear-like shape, often broader toward one end.",
+    "examples": [
+      {
+        "en": "Pyriform is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Pyriform ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-131",
+    "term": "Metacercaria",
+    "termNormalized": "metacercaria",
+    "translation": "ميتاسركاريا (يرقة متكيسة)",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "طور يرقي متكيس للمثقوبات، ويكون غالباً الطور المعدي للعائل النهائي.",
+    "definitionEn": "The encysted larval stage of trematodes, often infective to the definitive host.",
+    "examples": [
+      {
+        "en": "Metacercaria is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Metacercaria ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-132",
+    "term": "Oral sucker",
+    "termNormalized": "oral sucker",
+    "translation": "الممص الفموي",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "عضو تثبيت يقع حول الفم ويساعد المثقوبة على الالتصاق والتغذي.",
+    "definitionEn": "A sucker surrounding the mouth that helps a fluke attach and feed.",
+    "examples": [
+      {
+        "en": "Oral sucker is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Oral sucker ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-133",
+    "term": "Ventral sucker",
+    "termNormalized": "ventral sucker",
+    "translation": "الممص البطني",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "عضو تثبيت عضلي يقع على السطح البطني للمثقوبة.",
+    "definitionEn": "A muscular attachment organ located on the ventral surface of a fluke.",
+    "examples": [
+      {
+        "en": "Ventral sucker is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Ventral sucker ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-134",
+    "term": "Cecum",
+    "termNormalized": "cecum",
+    "translation": "الأعور",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "التهجئة الأمريكية لـ Caecum، وهو الجزء الأعمى من بداية الأمعاء الغليظة.",
+    "definitionEn": "The American spelling of caecum, the blind pouch at the beginning of the large intestine.",
+    "examples": [
+      {
+        "en": "Cecum is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Cecum ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-135",
+    "term": "Proglottid",
+    "termNormalized": "proglottid",
+    "translation": "قطعة شريطية",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "إحدى القطع المتتابعة التي يتكون منها جسم الدودة الشريطية، وتحوي أعضاء تناسلية بدرجات نضج مختلفة.",
+    "definitionEn": "One of the successive segments of a tapeworm, containing reproductive organs at varying stages of maturity.",
+    "examples": [
+      {
+        "en": "Proglottid is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Proglottid ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-136",
+    "term": "Hexacanth",
+    "termNormalized": "hexacanth",
+    "translation": "سداسي الخطاطيف",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "وصف لجنين أو طور يحمل ستة خطاطيف.",
+    "definitionEn": "Describing an embryo or stage bearing six hooks.",
+    "examples": [
+      {
+        "en": "Hexacanth is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Hexacanth ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-137",
+    "term": "Cysticercus",
+    "termNormalized": "cysticercus",
+    "translation": "كيسة مذنبة",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "طور يرقي متكيس لبعض الديدان الشريطية، يحتوي على رأس منغمد داخل كيسة.",
+    "definitionEn": "An encysted larval stage of certain tapeworms containing an invaginated scolex.",
+    "examples": [
+      {
+        "en": "Cysticercus is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Cysticercus ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-138",
+    "term": "Fascioliasis",
+    "termNormalized": "fascioliasis",
+    "translation": "داء المتورقات",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "عدوى طفيلية تسببها أنواع Fasciola، وتؤثر غالباً في الكبد والقنوات الصفراوية.",
+    "definitionEn": "A parasitic infection caused by Fasciola species, usually affecting the liver and bile ducts.",
+    "examples": [
+      {
+        "en": "Fascioliasis is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Fascioliasis ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
+  },
+  {
+    "id": "para-2026-139",
+    "term": "Schistosomiasis",
+    "termNormalized": "schistosomiasis",
+    "translation": "داء البلهارسيا",
+    "phonetic": "",
+    "pos": "Medical parasitology term",
+    "category": "Medical",
+    "specialty": "Medical Parasitology · علم الطفيليات الطبية",
+    "keepEnglish": true,
+    "favorite": false,
+    "collections": [
+      "Parasitology Practical Guide"
+    ],
+    "ingestedAt": "Parasitology Practical Guide · 2026-11-05",
+    "definitionAr": "مرض طفيلي تسببه ديدان Schistosoma، وتحدث العدوى غالباً باختراق اليرقات الجلد في المياه العذبة.",
+    "definitionEn": "A parasitic disease caused by Schistosoma species, usually acquired when larvae penetrate skin in freshwater.",
+    "examples": [
+      {
+        "en": "Schistosomiasis is included among the diagnostic and classification terms in the medical parasitology practical guide.",
+        "ar": "يَرِد مصطلح Schistosomiasis ضمن مصطلحات التشخيص والتصنيف في الدليل العملي لعلم الطفيليات الطبية."
+      }
+    ],
+    "relations": {
+      "synonyms": [],
+      "broader": [
+        "Medical Parasitology"
+      ],
+      "related": []
+    }
   }
 ]
