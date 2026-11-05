@@ -53,7 +53,18 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         ]
       }
     ],
-    "images": [],
+    "images": [
+      {
+        "id": "p1-img-taxonomy",
+        "url": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%221200%22%20height%3D%22680%22%20viewBox%3D%220%200%201200%20680%22%3E%3Crect%20width%3D%221200%22%20height%3D%22680%22%20rx%3D%2228%22%20fill%3D%22%23f8fafc%22%2F%3E%3Ctext%20x%3D%22600%22%20y%3D%2264%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2234%22%20font-weight%3D%22700%22%20text-anchor%3D%22middle%22%20fill%3D%22%230f172a%22%3EHELMINTHS%20CLASSIFICATION%3C%2Ftext%3E%3Ctext%20x%3D%22600%22%20y%3D%22105%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2220%22%20text-anchor%3D%22middle%22%20fill%3D%22%23475569%22%3EPractical%20taxonomy%20map%3C%2Ftext%3E%3Crect%20x%3D%22390%22%20y%3D%22140%22%20width%3D%22420%22%20height%3D%2290%22%20rx%3D%2218%22%20fill%3D%22%23dbeafe%22%20stroke%3D%22%23334155%22%20stroke-width%3D%222%22%2F%3E%3Ctext%20x%3D%22600%22%20y%3D%22178%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2224%22%20font-weight%3D%22700%22%20text-anchor%3D%22middle%22%20fill%3D%22%230f172a%22%3EHELMINTHS%3C%2Ftext%3E%3Ctext%20x%3D%22600%22%20y%3D%22215%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2217%22%20text-anchor%3D%22middle%22%20fill%3D%22%23334155%22%3EParasitic%20worms%3C%2Ftext%3E%3Cpath%20d%3D%22M600%20230%20V275%20M300%20275%20H900%20M300%20275%20V320%20M900%20275%20V320%22%20fill%3D%22none%22%20stroke%3D%22%23334155%22%20stroke-width%3D%224%22%2F%3E%3Crect%20x%3D%2290%22%20y%3D%22320%22%20width%3D%22420%22%20height%3D%22110%22%20rx%3D%2218%22%20fill%3D%22%23dcfce7%22%20stroke%3D%22%23334155%22%20stroke-width%3D%222%22%2F%3E%3Ctext%20x%3D%22300%22%20y%3D%22358%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2224%22%20font-weight%3D%22700%22%20text-anchor%3D%22middle%22%20fill%3D%22%230f172a%22%3ENEMATODA%3C%2Ftext%3E%3Ctext%20x%3D%22300%22%20y%3D%22395%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2217%22%20text-anchor%3D%22middle%22%20fill%3D%22%23334155%22%3ERoundworms%20%E2%80%A2%20cylindrical%3C%2Ftext%3E%3Crect%20x%3D%22690%22%20y%3D%22320%22%20width%3D%22420%22%20height%3D%22110%22%20rx%3D%2218%22%20fill%3D%22%23fef3c7%22%20stroke%3D%22%23334155%22%20stroke-width%3D%222%22%2F%3E%3Ctext%20x%3D%22900%22%20y%3D%22358%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2224%22%20font-weight%3D%22700%22%20text-anchor%3D%22middle%22%20fill%3D%22%230f172a%22%3EPLATYHELMINTHES%3C%2Ftext%3E%3Ctext%20x%3D%22900%22%20y%3D%22395%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2217%22%20text-anchor%3D%22middle%22%20fill%3D%22%23334155%22%3EFlatworms%20%E2%80%A2%20flattened%3C%2Ftext%3E%3Cpath%20d%3D%22M900%20430%20V475%20M800%20475%20H1000%20M800%20475%20V510%20M1000%20475%20V510%22%20fill%3D%22none%22%20stroke%3D%22%23334155%22%20stroke-width%3D%224%22%2F%3E%3Crect%20x%3D%22600%22%20y%3D%22510%22%20width%3D%22380%22%20height%3D%22100%22%20rx%3D%2218%22%20fill%3D%22%23fce7f3%22%20stroke%3D%22%23334155%22%20stroke-width%3D%222%22%2F%3E%3Ctext%20x%3D%22790%22%20y%3D%22548%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2224%22%20font-weight%3D%22700%22%20text-anchor%3D%22middle%22%20fill%3D%22%230f172a%22%3ECESTODA%3C%2Ftext%3E%3Ctext%20x%3D%22790%22%20y%3D%22585%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2217%22%20text-anchor%3D%22middle%22%20fill%3D%22%23334155%22%3ETapeworms%3C%2Ftext%3E%3Crect%20x%3D%221010%22%20y%3D%22510%22%20width%3D%22170%22%20height%3D%22100%22%20rx%3D%2218%22%20fill%3D%22%23ede9fe%22%20stroke%3D%22%23334155%22%20stroke-width%3D%222%22%2F%3E%3Ctext%20x%3D%221095%22%20y%3D%22548%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2224%22%20font-weight%3D%22700%22%20text-anchor%3D%22middle%22%20fill%3D%22%230f172a%22%3ETREMATODA%3C%2Ftext%3E%3Ctext%20x%3D%221095%22%20y%3D%22585%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2217%22%20text-anchor%3D%22middle%22%20fill%3D%22%23334155%22%3EFlukes%3C%2Ftext%3E%3C%2Fsvg%3E",
+        "caption": "Offline taxonomy diagram: Nematoda versus Platyhelminthes, with Cestoda and Trematoda."
+      },
+      {
+        "id": "p1-img-transmission",
+        "url": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%221200%22%20height%3D%22680%22%20viewBox%3D%220%200%201200%20680%22%3E%3Crect%20width%3D%221200%22%20height%3D%22680%22%20rx%3D%2228%22%20fill%3D%22%23f8fafc%22%2F%3E%3Ctext%20x%3D%22600%22%20y%3D%2264%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2234%22%20font-weight%3D%22700%22%20text-anchor%3D%22middle%22%20fill%3D%22%230f172a%22%3EPARASITE%20TRANSMISSION%3C%2Ftext%3E%3Ctext%20x%3D%22600%22%20y%3D%22105%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2220%22%20text-anchor%3D%22middle%22%20fill%3D%22%23475569%22%3EMatch%20the%20route%20to%20the%20infective%20stage%3C%2Ftext%3E%3Crect%20x%3D%2255%22%20y%3D%22170%22%20width%3D%22250%22%20height%3D%22150%22%20rx%3D%2218%22%20fill%3D%22%23dbeafe%22%20stroke%3D%22%23334155%22%20stroke-width%3D%222%22%2F%3E%3Ctext%20x%3D%22180%22%20y%3D%22208%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2224%22%20font-weight%3D%22700%22%20text-anchor%3D%22middle%22%20fill%3D%22%230f172a%22%3EDIRECT%3C%2Ftext%3E%3Ctext%20x%3D%22180%22%20y%3D%22245%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2217%22%20text-anchor%3D%22middle%22%20fill%3D%22%23334155%22%3EPerson-to-person%20%2F%20contact%3C%2Ftext%3E%3Crect%20x%3D%22345%22%20y%3D%22170%22%20width%3D%22250%22%20height%3D%22150%22%20rx%3D%2218%22%20fill%3D%22%23dcfce7%22%20stroke%3D%22%23334155%22%20stroke-width%3D%222%22%2F%3E%3Ctext%20x%3D%22470%22%20y%3D%22208%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2224%22%20font-weight%3D%22700%22%20text-anchor%3D%22middle%22%20fill%3D%22%230f172a%22%3EVERTICAL%3C%2Ftext%3E%3Ctext%20x%3D%22470%22%20y%3D%22245%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2217%22%20text-anchor%3D%22middle%22%20fill%3D%22%23334155%22%3EMother%20%E2%86%92%20child%3C%2Ftext%3E%3Crect%20x%3D%22635%22%20y%3D%22170%22%20width%3D%22250%22%20height%3D%22150%22%20rx%3D%2218%22%20fill%3D%22%23fef3c7%22%20stroke%3D%22%23334155%22%20stroke-width%3D%222%22%2F%3E%3Ctext%20x%3D%22760%22%20y%3D%22208%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2224%22%20font-weight%3D%22700%22%20text-anchor%3D%22middle%22%20fill%3D%22%230f172a%22%3EINDIRECT%3C%2Ftext%3E%3Ctext%20x%3D%22760%22%20y%3D%22245%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2217%22%20text-anchor%3D%22middle%22%20fill%3D%22%23334155%22%3EFood%20%E2%80%A2%20water%20%E2%80%A2%20soil%20%E2%80%A2%20vector%3C%2Ftext%3E%3Crect%20x%3D%22925%22%20y%3D%22170%22%20width%3D%22220%22%20height%3D%22150%22%20rx%3D%2218%22%20fill%3D%22%23fce7f3%22%20stroke%3D%22%23334155%22%20stroke-width%3D%222%22%2F%3E%3Ctext%20x%3D%221035%22%20y%3D%22208%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2224%22%20font-weight%3D%22700%22%20text-anchor%3D%22middle%22%20fill%3D%22%230f172a%22%3EPERCUTANEOUS%3C%2Ftext%3E%3Ctext%20x%3D%221035%22%20y%3D%22245%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2217%22%20text-anchor%3D%22middle%22%20fill%3D%22%23334155%22%3ESkin%20penetration%3C%2Ftext%3E%3Ctext%20x%3D%22600%22%20y%3D%22430%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2224%22%20text-anchor%3D%22middle%22%20fill%3D%22%230f172a%22%3EExamples%3C%2Ftext%3E%3Ctext%20x%3D%22600%22%20y%3D%22480%22%20font-family%3D%22Arial%2Csans-serif%22%20font-size%3D%2220%22%20text-anchor%3D%22middle%22%20fill%3D%22%23334155%22%3EEnterobius%20%E2%80%A2%20contaminated%20food%2Fwater%20%E2%80%A2%20Chrysops%20%E2%80%A2%20Schistosoma%20cercariae%3C%2Ftext%3E%3C%2Fsvg%3E",
+        "caption": "Offline route-of-transmission map with the four categories used in the course."
+      }
+    ],
     "links": [
       {
         "id": "p1-l1",
@@ -66,6 +77,12 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         "title": "Sketchfab — Helminth 3D model search",
         "url": "https://sketchfab.com/search?type=models&q=helminth%20parasite",
         "description": "ابحث عن نماذج ثلاثية الأبعاد للديدان؛ النماذج مقدمة من ناشرين مستقلين."
+      },
+      {
+        "id": "p1-l3",
+        "title": "CDC DPDx — Diagnostic Procedures and Parasite Morphology",
+        "url": "https://www.cdc.gov/dpdx/diagnosticprocedures/",
+        "description": "مرجع الصور المجهرية وطرق فحص العينات."
       }
     ],
     "attachments": []
@@ -134,9 +151,34 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
     ],
     "images": [
       {
-        "id": "p2-img1",
-        "url": "https://www.cdc.gov/dpdx/ascariasis/images/5/Ascaris_female.jpg?_=01101",
-        "caption": "Adult female Ascaris lumbricoides — CDC DPDx."
+        "id": "p2-img-ascaris-fert",
+        "url": "https://www.cdc.gov/dpdx/ascariasis/images/2/Ascaris_egg_fert_embryo.jpg?_=01116",
+        "caption": "Ascaris lumbricoides fertilized egg — CDC DPDx; compare the rounded thick-shelled egg with the elongated unfertilized form."
+      },
+      {
+        "id": "p2-img-ascaris-unfert",
+        "url": "https://www.cdc.gov/dpdx/ascariasis/images/1/Ascaris_egg_unfert.jpg?_=01127",
+        "caption": "Ascaris unfertilized egg — elongated with irregular mammillations and granular contents, CDC DPDx."
+      },
+      {
+        "id": "p2-img-trichuris",
+        "url": "https://www.cdc.gov/dpdx/trichuriasis/images/1/Trichuris_trichiura_egg1.jpg?_=01207",
+        "caption": "Trichuris trichiura egg — barrel-shaped with bipolar plugs, CDC DPDx."
+      },
+      {
+        "id": "p2-img-enterobius",
+        "url": "https://www.cdc.gov/dpdx/enterobiasis/images/1/Evermicularis_egg_HBa.jpg?_=04214",
+        "caption": "Enterobius vermicularis eggs — planoconvex / D-shaped appearance, CDC DPDx."
+      },
+      {
+        "id": "p2-img-strongy-rhab",
+        "url": "https://www.cdc.gov/dpdx/strongyloidiasis/images/1/S_stercoralis_rhabditoid_BAM8.jpg?_=04606",
+        "caption": "Strongyloides stercoralis rhabditiform larva — diagnostic larval form in stool, CDC DPDx."
+      },
+      {
+        "id": "p2-img-strongy-filar",
+        "url": "https://www.cdc.gov/dpdx/strongyloidiasis/images/2/S_stercoralis_filariform_BAM1.jpg?_=04594",
+        "caption": "Strongyloides stercoralis filariform L3 — infective skin-penetrating larva, CDC DPDx."
       }
     ],
     "links": [
@@ -169,6 +211,24 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         "title": "Sketchfab — Ascaris 3D model search",
         "url": "https://sketchfab.com/search?type=models&q=Ascaris%20lumbricoides",
         "description": "نتائج نماذج ثلاثية الأبعاد؛ تحقق من اسم النموذج ومصدره قبل الاعتماد عليه."
+      },
+      {
+        "id": "p2-l6",
+        "title": "Sketchfab — Trichuris trichiura 3D model search",
+        "url": "https://sketchfab.com/search?type=models&q=Trichuris%20trichiura",
+        "description": "بحث عن مجسمات ثلاثية الأبعاد لـ Trichuris؛ تحقق من دقة النموذج وناشره."
+      },
+      {
+        "id": "p2-l7",
+        "title": "Sketchfab — Enterobius vermicularis 3D model search",
+        "url": "https://sketchfab.com/search?type=models&q=Enterobius%20vermicularis",
+        "description": "بحث عن مجسمات Pinworm ثلاثية الأبعاد."
+      },
+      {
+        "id": "p2-l8",
+        "title": "Sketchfab — Strongyloides stercoralis 3D model search",
+        "url": "https://sketchfab.com/search?type=models&q=Strongyloides%20stercoralis",
+        "description": "بحث عن مجسمات Strongyloides ومراحلها."
       }
     ],
     "attachments": []
@@ -208,6 +268,11 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         "id": "p3-img1",
         "url": "https://www.cdc.gov/dpdx/loiasis/images/1/L_loa_whole_HBc.jpg?_=02222",
         "caption": "Loa loa microfilaria in a Giemsa-stained blood smear — CDC DPDx."
+      },
+      {
+        "id": "p3-img2",
+        "url": "https://www.cdc.gov/dpdx/loiasis/images/1/L_loa_whole_HBb.jpg",
+        "caption": "Loa loa microfilaria in a thin Giemsa-stained blood smear — CDC DPDx."
       }
     ],
     "links": [
@@ -222,6 +287,12 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         "title": "Sketchfab — Filarial worm 3D model search",
         "url": "https://sketchfab.com/search?type=models&q=filarial%20worm",
         "description": "بحث عن نماذج ثلاثية الأبعاد للديدان الخيطية."
+      },
+      {
+        "id": "p3-l3",
+        "title": "Sketchfab — Loa loa 3D model search",
+        "url": "https://sketchfab.com/search?type=models&q=Loa%20loa",
+        "description": "بحث عن مجسمات الدودة البالغة Loa loa؛ المجسمات التشريحية الخارجية ليست صوراً تشخيصية."
       }
     ],
     "attachments": []
@@ -242,7 +313,7 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         "paragraphs": [
           "Habitat: small intestine, mainly jejunum and ileum. Human intestinal taeniasis follows ingestion of undercooked pork containing cysticerci. Important distinction: ingestion of T. solium eggs can cause cysticercosis; ingestion of cysticerci in pork causes intestinal taeniasis.",
           "Scolex: globular, four suckers, armed rostellum with two rows of hooks. Adult has lateral genital pore. Taenia egg is spherical with a radially striated embryophore and a hexacanth embryo (six hooklets).",
-          "Gravid proglottid: central uterine stem with about 7–13 primary lateral branches (often taught as fewer than 12). Mature segments are approximately square and have a lateral genital pore.",
+          "Gravid proglottid: central uterine stem with about 7–13 primary lateral branches. T. saginata usually has 12–30. The ranges overlap at 12–13, so count branches rather than relying on a strict <12 / >12 rule.",
           "Cysticercus cellulosae: fluid-filled thin-walled cyst with an invaginated scolex, suckers and hooks."
         ]
       },
@@ -263,7 +334,8 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
           "Egg: oval, with outer hyaline shell and inner embryophore; polar thickenings give rise to polar filaments; contains a hexacanth embryo (six hooklets). Polar filaments are the key practical clue.",
           "Scolex: globular, four suckers, retractile rostellum with a single row of small hooks.",
           "Mature proglottid: broad segment, bilobed ovary and three rounded testes; lateral genital pore. Gravid proglottid is filled with eggs.",
-          "Remember: H. nana egg = polar filaments; Taenia egg = radially striated shell and six hooklets but no polar filaments."
+          "Remember: H. nana egg = polar filaments; Taenia egg = radially striated shell and six hooklets but no polar filaments.",
+          "CDC image note: H. nana egg is approximately 30–50 µm and has 4–8 polar filaments between the membranes; the six-hooked oncosphere is inside."
         ]
       },
       {
@@ -272,7 +344,8 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         "paragraphs": [
           "Practical structures specified in the course: scolex with two longitudinal sucking grooves called bothria, and an operculated egg.",
           "The egg is oval and operculated; the scolex is elongated rather than globular and bears bothria, not four cup-shaped suckers.",
-          "Identification key: operculated egg + bothria → Diphyllobothrium latum."
+          "Identification key: operculated egg + bothria → Diphyllobothrium latum.",
+          "Terminology note: CDC now uses Dibothriocephalus latus (= Diphyllobothrium latum) in its updated nomenclature; the course name remains recognizable for the practical exam."
         ]
       },
       {
@@ -289,7 +362,7 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         "id": "p4-s6",
         "heading": "6. High-yield cestode distinctions",
         "paragraphs": [
-          "T. solium: armed scolex + pork + 7–13 uterine branches. T. saginata: unarmed scolex + beef + 12–30 branches.",
+          "T. solium: armed scolex + pork-associated intestinal taeniasis + 7–13 uterine branches. T. saginata: unarmed scolex + beef + 12–30 branches; the ranges overlap at 12–13.",
           "Taenia egg: spherical, radially striated embryophore, six-hooked embryo; species cannot be distinguished by egg morphology.",
           "H. nana: polar filaments + retractile armed rostellum. D. latum: bothria + operculated egg. E. granulosus: hydatid cyst with three layers and protoscolices.",
           "Exam trap: Taenia solium eggs can cause cysticercosis; do not equate pork-meat cysticercus ingestion with egg ingestion."
@@ -301,6 +374,16 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         "id": "p4-img1",
         "url": "https://www.cdc.gov/dpdx/taeniasis/images/2/Taenia_solium_scolex1.jpg?_=96647",
         "caption": "Taenia solium scolex: four suckers and armed rostellum — CDC DPDx."
+      },
+      {
+        "id": "p4-img-hnana-egg",
+        "url": "https://www.cdc.gov/dpdx/hymenolepiasis/images/2/H_nana_egg_wtmt5.jpg?_=01696",
+        "caption": "Hymenolepis nana egg — polar filaments and hexacanth embryo, CDC DPDx."
+      },
+      {
+        "id": "p4-img-hnana-scolex",
+        "url": "https://www.cdc.gov/dpdx/hymenolepiasis/images/5/H_nana_scolex_DB2.jpg?_=01714",
+        "caption": "Hymenolepis nana scolex — suckers and rostellar hooks, CDC DPDx."
       }
     ],
     "links": [
@@ -339,6 +422,18 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         "title": "Sketchfab — Echinococcus hydatid cyst 3D model search",
         "url": "https://sketchfab.com/search?type=models&q=Echinococcus%20hydatid%20cyst",
         "description": "بحث عن مجسمات Hydatid cyst ثلاثية الأبعاد."
+      },
+      {
+        "id": "p4-l7",
+        "title": "Sketchfab — Hymenolepis nana 3D model search",
+        "url": "https://sketchfab.com/search?type=models&q=Hymenolepis%20nana",
+        "description": "بحث عن مجسمات H. nana والسكلِكس."
+      },
+      {
+        "id": "p4-l8",
+        "title": "Sketchfab — Diphyllobothrium latum 3D model search",
+        "url": "https://sketchfab.com/search?type=models&q=Diphyllobothrium%20latum",
+        "description": "بحث عن مجسمات scolex with bothria والديدان البالغة."
       }
     ],
     "attachments": []
@@ -409,6 +504,11 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         "id": "p5-img3",
         "url": "https://www.cdc.gov/dpdx/schistosomiasis/images/2/S_haematobium_egg_HB1.jpg?_=96128",
         "caption": "Schistosoma haematobium egg — terminal spine, CDC DPDx."
+      },
+      {
+        "id": "p5-img4",
+        "url": "https://www.cdc.gov/dpdx/schistosomiasis/images/7/S_mansoni_adult_Lammie1.jpg?_=96163",
+        "caption": "Schistosoma mansoni adults — slender female within the gynecophoral canal of the thicker male, CDC DPDx."
       }
     ],
     "links": [
@@ -441,6 +541,12 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         "title": "Sketchfab — Schistosoma 3D model search",
         "url": "https://sketchfab.com/search?type=models&q=Schistosoma",
         "description": "بحث عن مجسمات Schistosoma والبيض."
+      },
+      {
+        "id": "p5-l6",
+        "title": "Sketchfab — Heterophyes heterophyes 3D model search",
+        "url": "https://sketchfab.com/search?type=models&q=Heterophyes%20heterophyes",
+        "description": "بحث عن مجسمات Heterophyes؛ تحقق من مطابقة النوع قبل الاعتماد."
       }
     ],
     "attachments": []
@@ -463,7 +569,8 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
           "Barrel-shaped egg with bipolar plugs → Trichuris trichiura. D-shaped / planoconvex egg → Enterobius vermicularis.",
           "Rhabditiform larva with visible esophagus → Strongyloides stercoralis. Sheathed microfilaria with nuclei to tail tip → Loa loa.",
           "Radially striated spherical egg with six hooklets → Taenia spp. (egg cannot distinguish T. solium from T. saginata). Oval egg with polar filaments → Hymenolepis nana.",
-          "Operculated egg: large → Fasciola hepatica or other large fluke eggs; small oval with posterior knob → Heterophyes. Schistosoma mansoni = lateral spine; S. haematobium = terminal spine."
+          "Operculated egg: large → Fasciola hepatica or other large fluke eggs; small oval with posterior knob → Heterophyes. Schistosoma mansoni = lateral spine; S. haematobium = terminal spine.",
+          "Visual drill: identify the six images attached to this topic without reading their captions. For each one, state the organism, stage, specimen, and single diagnostic feature."
         ]
       },
       {
@@ -496,7 +603,38 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         ]
       }
     ],
-    "images": [],
+    "images": [
+      {
+        "id": "p6-img1",
+        "url": "https://www.cdc.gov/dpdx/trichuriasis/images/1/Trichuris_trichiura_egg1.jpg?_=01207",
+        "caption": "Spotter: Trichuris egg — bipolar plugs."
+      },
+      {
+        "id": "p6-img2",
+        "url": "https://www.cdc.gov/dpdx/enterobiasis/images/1/Evermicularis_egg_HBa.jpg?_=04214",
+        "caption": "Spotter: Enterobius egg — one flattened side."
+      },
+      {
+        "id": "p6-img3",
+        "url": "https://www.cdc.gov/dpdx/strongyloidiasis/images/1/S_stercoralis_rhabditoid_BAM8.jpg?_=04606",
+        "caption": "Spotter: Strongyloides rhabditiform larva — short buccal canal and rhabditoid esophagus."
+      },
+      {
+        "id": "p6-img4",
+        "url": "https://www.cdc.gov/dpdx/schistosomiasis/images/1/S_mansoni_egg_WI1.jpg?_=96146",
+        "caption": "Spotter: S. mansoni — lateral spine."
+      },
+      {
+        "id": "p6-img5",
+        "url": "https://www.cdc.gov/dpdx/schistosomiasis/images/2/S_haematobium_egg_HB1.jpg?_=96128",
+        "caption": "Spotter: S. haematobium — terminal spine."
+      },
+      {
+        "id": "p6-img6",
+        "url": "https://www.cdc.gov/dpdx/hymenolepiasis/images/2/H_nana_egg_wtmt5.jpg?_=01696",
+        "caption": "Spotter: H. nana — polar filaments."
+      }
+    ],
     "links": [
       {
         "id": "p6-l1",
@@ -515,6 +653,12 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         "title": "Sketchfab — Parasite microscopy and anatomy models",
         "url": "https://sketchfab.com/search?type=models&q=parasite%20anatomy",
         "description": "مجسمات ثلاثية الأبعاد للمراجعة البصرية؛ ليست بديلاً عن الصور المجهرية التشخيصية."
+      },
+      {
+        "id": "p6-l4",
+        "title": "CDC DPDx — Image Gallery",
+        "url": "https://www.cdc.gov/dpdx/",
+        "description": "المعرض الرسمي للصور المجهرية للطفيليات."
       }
     ],
     "attachments": []
@@ -533,15 +677,16 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         "id": "p7-s1",
         "heading": "1. جدول اليوم — 8 ساعات دراسة صافية تقريباً",
         "paragraphs": [
-          "Block 1 — 40 min: General concepts, routes of transmission and Helminths classification. أغلق الموضوع واكتب التعريفات والتصنيف من الذاكرة.",
-          "Block 2 — 90 min: Intestinal nematodes: Ascaris, Trichuris, Enterobius, Strongyloides. خصص نصف الوقت للصور والبيض واليرقات.",
+          "Block 1 — 35 min: General concepts, routes of transmission and Helminths classification. أغلق الموضوع واكتب التعريفات والتصنيف من الذاكرة.",
+          "Block 2 — 90 min: Intestinal nematodes: Ascaris, Trichuris, Enterobius, Strongyloides. خصص 35 دقيقة للصور والبيض واليرقات، و55 دقيقة للفهم والاسترجاع.",
+          "Break — 15 min.",
+          "Block 3 — 85 min: Cestodes: Taenia solium, T. saginata, H. nana, D. latum, Echinococcus. ارسم السكلِكس وقارن gravid proglottids.",
           "Break — 20 min.",
-          "Block 3 — 90 min: Cestodes: Taenia solium, T. saginata, H. nana, D. latum, Echinococcus. ارسم السكلِكس وقارن gravid proglottids.",
-          "Break — 30 min.",
-          "Block 4 — 75 min: Trematodes: Fasciola, S. mansoni, S. haematobium, Heterophyes. ركز على شكل البيضة ومكان spine.",
-          "Block 5 — 45 min: Loa loa + transmission vectors + infective versus diagnostic stages.",
-          "Block 6 — 60 min: Image spotter drill. افتح كل صورة، أخفِ caption، وسمّ organism/stage/key feature خلال 10–15 ثانية.",
-          "Block 7 — 40 min: Final self-test and correction of errors. لا تعد قراءة كل شيء؛ راجع فقط العلامات التي أخطأت فيها."
+          "Block 4 — 70 min: Trematodes: Fasciola, S. mansoni, S. haematobium, Heterophyes. ركز على شكل البيضة ومكان spine.",
+          "Block 5 — 30 min: Loa loa + vectors + infective versus diagnostic stages.",
+          "Block 6 — 50 min: Image spotter drill. افتح الصور، أخفِ captions، وسمّ organism/stage/key feature خلال 10–15 ثانية.",
+          "Block 7 — 35 min: MCQ and final correction. أجب عن اختبار الوحدة الثامنة ثم راجع الأخطاء فقط.",
+          "Total focused study: about 6 hours 35 minutes, plus 35 minutes of breaks. If you have a full day, use the remaining time for a second image-only round and sleep adequately."
         ]
       },
       {
@@ -560,7 +705,8 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         "paragraphs": [
           "□ أميز fertilized vs unfertilized Ascaris eggs. □ أعرف bipolar plugs في Trichuris. □ أتعرف على D-shaped Enterobius egg. □ أفرق Strongyloides rhabditiform عن filariform.",
           "□ أفرق armed T. solium عن unarmed T. saginata. □ أحفظ Taenia uterine branches. □ أتعرف polar filaments في H. nana وbothria في D. latum. □ أشرح طبقات hydatid cyst.",
-          "□ أميز lateral spine عن terminal spine. □ أتعرف leaf-like Fasciola adult وoperculated egg. □ أتعرف pyriform Heterophyes وposterior knob. □ أتذكر Loa loa microfilaria في blood film وChrysops vector."
+          "□ أميز lateral spine عن terminal spine. □ أتعرف leaf-like Fasciola adult وoperculated egg. □ أتعرف pyriform Heterophyes وposterior knob. □ أتذكر Loa loa microfilaria في blood film وChrysops vector.",
+          "□ أجيب عن MCQs في Topic 08 وأستطيع شرح سبب استبعاد الخيارات الخاطئة."
         ]
       },
       {
@@ -586,6 +732,106 @@ export const PARASITOLOGY_TOPICS: TopicArticle[] = [
         "title": "CDC — Stool specimen morphology comparison",
         "url": "https://www.cdc.gov/dpdx/diagnosticprocedures/stool/morphcomp.html",
         "description": "مقارنة نهائية سريعة للبيض واليرقات والقطع."
+      }
+    ],
+    "attachments": []
+  },
+  {
+    "id": "pt-parasito-08-mcq-viva",
+    "title": "اختبار شامل للطفيليات العملية — MCQ & Rapid Viva",
+    "subtitle": "22 High-Yield Questions • Image Recognition • Infective vs Diagnostic Stages",
+    "category": "Medical",
+    "author": "UMEDT — Parasitology Practical Course",
+    "publishedAt": "November 2026",
+    "readingTimeMinutes": 35,
+    "favorite": true,
+    "sections": [
+      {
+        "id": "p8-s1",
+        "heading": "طريقة الاختبار — Attempt before reading answers",
+        "paragraphs": [
+          "غطِّ سطر Answer في كل سؤال، واختر الإجابة أولاً. امنح نفسك دقيقة لكل سؤال. بعد ذلك اقرأ التفسير وحدد سبب خطأ الخيارات الأخرى.",
+          "الدرجة المقترحة: 22 سؤالاً × 1 درجة. 19–22 ممتاز؛ 16–18 جيد؛ 12–15 يحتاج مراجعة؛ أقل من 12 أعد Topic 06 ثم الاختبار."
+        ]
+      },
+      {
+        "id": "p8-s2",
+        "heading": "MCQ Bank — Core practical questions",
+        "paragraphs": [
+          "Q01. The infective stage of Ascaris lumbricoides for humans is: A) Unfertilized egg  B) Embryonated egg  C) Rhabditiform larva  D) Adult worm. Answer: B — الإنسان يبتلع embryonated egg.",
+          "Q02. The most characteristic egg feature of Trichuris trichiura is: A) Lateral spine  B) Polar filaments  C) Bipolar plugs  D) Operculum. Answer: C — barrel-shaped egg with two polar plugs.",
+          "Q03. The best routine diagnostic test for Enterobius vermicularis is: A) Blood film  B) Perianal cellophane-tape test  C) Urine microscopy  D) Sputum microscopy. Answer: B — eggs are deposited on perianal folds, especially at night.",
+          "Q04. Which Strongyloides stage is usually found in stool? A) Filariform L3  B) Rhabditiform larva  C) Microfilaria  D) Cysticercus. Answer: B — rhabditiform larvae are the usual diagnostic stage in stool.",
+          "Q05. Which Strongyloides stage penetrates human skin? A) Rhabditiform L1  B) Filariform L3  C) Egg  D) Adult female. Answer: B — infective filariform L3.",
+          "Q06. Loa loa is transmitted by: A) Anopheles  B) Chrysops  C) Culex  D) Biomphalaria. Answer: B — Chrysops day-biting fly.",
+          "Q07. The key blood-film clue for Loa loa microfilaria is: A) No sheath  B) Nuclei stop before tail tip  C) Nuclei extend to tail tip  D) Terminal spine. Answer: C — sheathed microfilaria with nuclei reaching the tip.",
+          "Q08. Taenia solium scolex is: A) Unarmed with bothria  B) Armed rostellum with two rows of hooks  C) Four suckers only  D) No suckers. Answer: B — armed rostellum and four suckers.",
+          "Q09. Taenia saginata scolex is: A) Armed  B) Unarmed, four suckers, no rostellum  C) Two bothria  D) Retractile rostellum. Answer: B — unarmed scolex.",
+          "Q10. Taenia spp. eggs can distinguish T. solium from T. saginata: A) True  B) False. Answer: B — eggs are morphologically indistinguishable; use scolex or gravid proglottid.",
+          "Q11. T. saginata infection is acquired by ingestion of: A) Pork cysticerci  B) Beef cysticerci  C) Embryonated eggs in water  D) Cercariae. Answer: B — Cysticercus bovis in undercooked beef.",
+          "Q12. The hallmark egg feature of Hymenolepis nana is: A) Bipolar plugs  B) Polar filaments  C) Terminal spine  D) Operculum. Answer: B — polar filaments between the membranes.",
+          "Q13. Diphyllobothrium latum scolex bears: A) Four cup-shaped suckers  B) Two bothria  C) Armed rostellum  D) One terminal spine. Answer: B — two longitudinal sucking grooves (bothria).",
+          "Q14. Hydatid cyst wall is classically described as: A) Two layers  B) Three layers  C) One layer  D) Four layers. Answer: B — pericyst, ectocyst and endocyst.",
+          "Q15. Fasciola hepatica adult is typically: A) Pear-shaped  B) Leaf-shaped  C) Cylindrical with curved tail  D) Segmented. Answer: B — leaf-like fluke with branched internal organs.",
+          "Q16. Schistosoma mansoni egg has: A) Terminal spine  B) Lateral spine  C) Polar filaments  D) Operculum. Answer: B — prominent lateral spine; usually stool specimen.",
+          "Q17. Schistosoma haematobium egg has: A) Lateral spine  B) Terminal spine  C) Bipolar plugs  D) Posterior knob only. Answer: B — terminal spine; classically urine specimen.",
+          "Q18. Which trematode is dioecious (separate sexes)? A) Fasciola  B) Heterophyes  C) Schistosoma  D) All trematodes. Answer: C — Schistosoma is the key exception to the usual hermaphroditic trematodes.",
+          "Q19. Heterophyes heterophyes egg is: A) Large with terminal spine  B) Small, operculated, with posterior knob  C) Barrel-shaped with plugs  D) Spherical and radially striated. Answer: B — posterior abopercular knob.",
+          "Q20. The infective stage of Schistosoma for humans is: A) Egg  B) Miracidium  C) Cercaria  D) Sporocyst. Answer: C — fork-tailed cercaria penetrates intact skin in freshwater.",
+          "Q21. Which is a correct pair? A) S. mansoni—urine  B) S. haematobium—stool only  C) S. mansoni—lateral spine  D) Fasciola—terminal spine. Answer: C — S. mansoni egg has a lateral spine and is classically found in stool.",
+          "Q22. Which pair correctly matches infective and diagnostic stages? A) Strongyloides: rhabditiform infective / filariform diagnostic  B) Strongyloides: filariform infective / rhabditiform diagnostic  C) Ascaris: unfertilized egg infective  D) Schistosoma: egg infective to human. Answer: B — L3 penetrates skin; rhabditiform larva is commonly detected in stool."
+        ]
+      },
+      {
+        "id": "p8-s3",
+        "heading": "Rapid Viva — Answer aloud in English",
+        "paragraphs": [
+          "Identify the egg with two bipolar plugs and state its infective route.",
+          "Differentiate the infective and diagnostic larval stages of Strongyloides stercoralis.",
+          "Why can a Taenia egg not distinguish T. solium from T. saginata?",
+          "Name the three layers of a hydatid cyst.",
+          "Differentiate S. mansoni and S. haematobium eggs by spine position and specimen.",
+          "State the vector and diagnostic specimen for Loa loa."
+        ]
+      },
+      {
+        "id": "p8-s4",
+        "heading": "Final answer format — Model response",
+        "paragraphs": [
+          "“This is an egg/larva/adult of [organism]. The diagnostic feature is [distinctive morphology]. The usual specimen is [stool/urine/blood/tissue].”",
+          "مثال: “This is a Schistosoma mansoni egg. It is oval with a prominent lateral spine and is usually identified in stool.”"
+        ]
+      }
+    ],
+    "images": [
+      {
+        "id": "p8-img1",
+        "url": "https://www.cdc.gov/dpdx/trichuriasis/images/1/Trichuris_trichiura_egg1.jpg?_=01207",
+        "caption": "Question clue: bipolar plugs — Trichuris trichiura."
+      },
+      {
+        "id": "p8-img2",
+        "url": "https://www.cdc.gov/dpdx/schistosomiasis/images/1/S_mansoni_egg_WI1.jpg?_=96146",
+        "caption": "Question clue: lateral spine — Schistosoma mansoni."
+      },
+      {
+        "id": "p8-img3",
+        "url": "https://www.cdc.gov/dpdx/hymenolepiasis/images/2/H_nana_egg_wtmt5.jpg?_=01696",
+        "caption": "Question clue: polar filaments — Hymenolepis nana."
+      }
+    ],
+    "links": [
+      {
+        "id": "p8-l1",
+        "title": "CDC DPDx — Stool morphology comparison",
+        "url": "https://www.cdc.gov/dpdx/diagnosticprocedures/stool/morphcomp.html",
+        "description": "مرجع مقارن لعلامات البيوض واليرقات والقطع."
+      },
+      {
+        "id": "p8-l2",
+        "title": "CDC DPDx — Parasite image gallery",
+        "url": "https://www.cdc.gov/dpdx/",
+        "description": "تدريب بصري إضافي على الصور التشخيصية."
       }
     ],
     "attachments": []
