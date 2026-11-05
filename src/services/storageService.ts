@@ -664,7 +664,7 @@ export function loadOnlineUpdateConfig(): OnlineUpdateConfig {
   const normalized: OnlineUpdateConfig = {
     manifestUrl: isFictionalPlaceholder
       ? DEFAULT_ONLINE_UPDATE_CONFIG.manifestUrl
-      : rawStoredUrl,
+      : normalizeManifestUrl(rawStoredUrl),
     autoCheckOnStartup:
       typeof stored.autoCheckOnStartup === 'boolean'
         ? stored.autoCheckOnStartup
