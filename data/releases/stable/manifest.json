@@ -1,29 +1,29 @@
 {
-  "packageId": "umed2-pkg-2026.10.8-umd",
-  "dataVersion": "2026.10.8-umd",
-  "minAppVersion": "2.2.3",
+  "packageId": "umed2-pkg-2026.10.1-umd",
+  "dataVersion": "2026.10.1-umd",
+  "minAppVersion": "2.2.0",
   "schemaVersion": 2,
-  "releasedAt": "2026-11-05T20:16:40.706Z",
+  "releasedAt": "2026-11-03T03:43:03.587Z",
   "channel": "stable",
   "signatureAlgorithm": "ECDSA-P256-SHA256",
   "keyFingerprint": "0849eefaee12bb75",
-  "description": "إصدار البيانات الطبية الموحد 2026.10.8-umd (UMEDT verified data release)",
-  "releaseNotes": "إصدار البيانات الطبية الموحد 2026.10.8-umd (UMEDT verified data release)",
+  "description": "إصدار البيانات الطبية الموحد 2026.10.1-umd (UMEDT verified data release)",
+  "releaseNotes": "إصدار البيانات الطبية الموحد 2026.10.1-umd (UMEDT verified data release)",
   "changelog": [
-    "تحديث حزمة المعجم الطبي إلى الإصدار 2026.10.8-umd",
-    "تضمين 1650 مصطلح طبي و 94 جملة سياقية و 17 موضوع سريري"
+    "تحديث حزمة المعجم الطبي إلى الإصدار 2026.10.1-umd",
+    "تضمين 41 مصطلح طبي و 94 جملة سياقية و 4 موضوع سريري"
   ],
   "author": "UMED-2 Release Automation",
-  "downloadUrl": "https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/stable/umed2-data-2026.10.8-umd.zip",
+  "downloadUrl": "https://github.com/Alssaedy50/UMEDT/releases/download/data-v2026.10.1-umd/umed2-data-2026.10.1-umd.zip",
   "counts": {
-    "terms": 1650,
+    "terms": 41,
     "sentences": 94,
-    "topics": 17,
+    "topics": 4,
     "affixes": 131,
     "abbreviations": 73
   },
-  "packageSizeKb": 2004.7,
-  "checksum": "9eaaeba4f246cbe8823ee86eca2559668ba729d663768a7c01210e04e140f6c1",
-  "sha256": "9eaaeba4f246cbe8823ee86eca2559668ba729d663768a7c01210e04e140f6c1",
-  "signature": "4rZAeLJzLE9hYXgV40WjARbg9R5QEbjefwjTZ6hgwxdsAy32fmbMWdI4vN3BBHFfKKOpC6cGmHntcGJrxszM/Q=="
+  "packageSizeKb": 263.4,
+  "checksum": "44edeb1579e2d5da4249238ed07bccc0a3772892dc47f9aa7d7d0070ea91b2c2",
+  "sha256": "44edeb1579e2d5da4249238ed07bccc0a3772892dc47f9aa7d7d0070ea91b2c2",
+  "signature": "VlioG7N07nHrH5x5uWj4FaAVZA3qHN9l5nBuiW1LER3kwEHKRWo+usffFG2fq8iSpurjUbwCX2MDavkvck8/gQ=="
 }
