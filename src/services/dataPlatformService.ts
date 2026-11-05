@@ -2185,6 +2185,7 @@ function resolveDownloadUrl(manifestUrl: string, downloadUrl?: string): string |
 export function normalizeManifestUrl(inputUrl: string): string {
   let url = (inputUrl || '').trim();
   if (!url) return '';
+
   const githubRepoMatch = url.match(
     /^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(\.git)?(\/.*)?$/i
   );
@@ -2202,11 +2203,22 @@ export function normalizeManifestUrl(inputUrl: string): string {
       return `https://raw.githubusercontent.com/${owner}/${repo}/main/data/releases/stable/manifest.json`;
     }
     if (subpath.includes('/blob/')) {
-      return url
+      url = url
         .replace('https://github.com/', 'https://raw.githubusercontent.com/')
         .replace('/blob/', '/');
     }
   }
+
+  // Users sometimes paste the package ZIP URL into the Manifest field.
+  // A ZIP is binary (PK header), while the update checker must fetch JSON first.
+  // Recover the sibling manifest URL for UMEDT's stable/beta release layout.
+  const zipReleaseMatch = url.match(
+    /^(https?:\/\/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\/data\/releases\/(stable|beta)\/)\[^/?#]+\.zip(?:[?#].*)?$/i
+  );
+  if (zipReleaseMatch) {
+    return `${zipReleaseMatch[1]}manifest.json`;
+  }
+
   return url;
 }
 
