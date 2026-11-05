@@ -135,6 +135,10 @@ jobs:
           PACKAGE_FILE="releases/${PACKAGE_NAME}"
           test -s "$PACKAGE_FILE" || { echo "::error::Signed ZIP package referenced by manifest was not generated: $PACKAGE_FILE"; exit 1; }
 
+          # Reset build/test side effects while preserving generated files under releases/.
+          git fetch origin main
+          git reset --hard origin/main
+
           mkdir -p "data/releases/${CHANNEL}"
           cp -f "$MANIFEST_FILE" "data/releases/${CHANNEL}/manifest.json"
           cp -f "$PACKAGE_FILE" "data/releases/${CHANNEL}/"
@@ -143,9 +147,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add "data/releases/${CHANNEL}/"
           git diff --staged --quiet || git commit -m "chore(release): update ${CHANNEL} medical manifest and bundle to v${DATA_VERSION} [skip ci]"
-
-          git fetch origin main
-          git rebase origin/main
           git push origin "HEAD:main"
 
           TAG_NAME="data-v${DATA_VERSION}"
