@@ -61,8 +61,8 @@ async function main() {
   console.log('UMED-2 — Independent Web, PWA & Android APK Verification Suite');
   console.log('================================================================');
 
-  // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.2.2)
-  assertCondition(APP_VERSION === '2.2.2', `Expected APP_VERSION 2.2.2, got ${APP_VERSION}`);
+  // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.2.3)
+  assertCondition(APP_VERSION === '2.2.3', `Expected APP_VERSION 2.2.3, got ${APP_VERSION}`);
   assertCondition(DB_SCHEMA_VERSION === 2, `Expected DB_SCHEMA_VERSION 2, got ${DB_SCHEMA_VERSION}`);
   assertCondition(
     BUNDLED_DATA_VERSION === '2026.10.0-umd',
@@ -155,21 +155,21 @@ async function main() {
   assertCondition(
     apkWorkflowContent.includes('assembleDebug') &&
       apkWorkflowContent.includes('assembleRelease') &&
-      apkWorkflowContent.includes('UMED-2-v2.2.2-debug-apk') &&
-      apkWorkflowContent.includes('UMED-2-v2.2.2-release-apk') &&
+      apkWorkflowContent.includes('UMED-2-v2.2.3-debug-apk') &&
+      apkWorkflowContent.includes('UMED-2-v2.2.3-release-apk') &&
       apkWorkflowContent.includes('VITE_UMED_MANIFEST_URL') &&
       apkWorkflowContent.includes('VITE_UMED_PUBLIC_KEY_PEM'),
-    'android-apk-release.yml must build v2.2.2 Debug/Release APKs with Cloud OTA env vars'
+    'android-apk-release.yml must build v2.2.3 Debug/Release APKs with Cloud OTA env vars'
   );
 
   const gradleContent = fs.readFileSync(androidBuildGradlePath, 'utf8');
   assertCondition(
     gradleContent.includes('org.umed2.dictengine') &&
-      gradleContent.includes('versionCode 20202') &&
-      gradleContent.includes('versionName "2.2.2"'),
-    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20202, and versionName "2.2.2"'
+      gradleContent.includes('versionCode 20203') &&
+      gradleContent.includes('versionName "2.2.3"'),
+    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20203, and versionName "2.2.3"'
   );
-  console.log('[PASS] 3. Capacitor Native Android Project (v2.2.2 / 20202) & Bundled Local Web Assets Synced');
+  console.log('[PASS] 3. Capacitor Native Android Project (v2.2.3 / 20203) & Bundled Local Web Assets Synced');
 
   // 4. Verify Safe, Versioned, Idempotent Storage Migration + Backup & Rollback
   const initialState = loadAppState();
