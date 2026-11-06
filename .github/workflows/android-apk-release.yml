@@ -96,38 +96,48 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          missing=()
-          [ -n "$KEYSTORE_BASE64" ] || missing+=("ANDROID_KEYSTORE_BASE64")
-          [ -n "$KEYSTORE_PASSWORD" ] || missing+=("ANDROID_KEYSTORE_PASSWORD")
-          [ -n "$KEY_ALIAS" ] || missing+=("ANDROID_KEY_ALIAS")
-          [ -n "$KEY_PASSWORD" ] || missing+=("ANDROID_KEY_PASSWORD")
-          if [ "${#missing[@]}" -gt 0 ]; then
-            printf 'ERROR: Missing required GitHub Actions secrets: %s\\n' "${missing[*]}"
-            echo "Configure the persistent release keystore secrets before building a release APK."
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::Missing ANDROID_KEYSTORE_BASE64 or ANDROID_KEYSTORE_PASSWORD repository secret."
+            echo "Run the Generate Android Release Keystore workflow, then add the Base64 output as ANDROID_KEYSTORE_BASE64."
             exit 1
           fi
 
-          KEYSTORE_FILE="$RUNNER_TEMP/umedt-release.keystore"
+          KEYSTORE_FILE="$RUNNER_TEMP/umedt-release.jks"
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
           if [ ! -s "$KEYSTORE_FILE" ]; then
-            echo "ERROR: Decoded keystore is empty."
+            echo "::error::Decoded keystore is empty."
             exit 1
           fi
-          keytool -list -keystore "$KEYSTORE_FILE" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+
+          keytool -list -keystore "$KEYSTORE_FILE" -storetype JKS -storepass "$KEYSTORE_PASSWORD" -alias umedt-release >/dev/null
           echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_FILE" >> "$GITHUB_ENV"
           echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
-          echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_ALIAS=umedt-release" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
           echo "signed=true" >> "$GITHUB_OUTPUT"
-          echo "Persistent release keystore validated. This signing identity will be used for every release."
-          
+          echo "Persistent UMEDT release keystore validated."
+
       - name: Build Release APK
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Verify Release APK Signature
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          if [ ! -f "$APK" ]; then
+            echo "::error::Expected release APK was not produced: $APK"
+            find android/app/build/outputs/apk/release -maxdepth 2 -type f -print || true
+            exit 1
+          fi
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::Android apksigner tool was not found."
+            exit 1
+          fi
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
 
       - name: Collect & Rename APK Outputs for Artifact Upload
         run: |
@@ -161,7 +171,7 @@ jobs:
 
       - name: Clean Up Temporary Keystore
         if: always()
-        run: rm -f "$RUNNER_TEMP/umed2-release.keystore"
+        run: rm -f "$RUNNER_TEMP/umedt-release.jks"
 
       - name: Upload Installable Debug APK Artifact
         uses: actions/upload-artifact@v4
