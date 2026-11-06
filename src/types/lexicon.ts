@@ -1,3 +1,5 @@
+import type { TopicContentBlock } from './learningPlatform';
+
 export interface TermExample {
   en: string;
   ar: string;
@@ -44,6 +46,11 @@ export interface DictionaryTerm {
     related: string[];
   };
   srsData?: SpacedRepetitionData;
+  linkedTopicIds?: string[];
+  linkedSubjectIds?: string[];
+  linkedBlockIds?: string[];
+  lastStudiedAt?: string;
+  studyCount?: number;
 }
 
 export type SentenceSourceType = 'manual' | 'file' | 'long_text' | 'termux' | 'seed';
@@ -124,7 +131,10 @@ export type TopicCategory = 'Medical' | 'Technology' | 'AI' | 'History' | 'Gener
 export interface TopicSection {
   id: string;
   heading?: string;
+  headingEn?: string;
+  headingAr?: string;
   paragraphs: string[];
+  contentBlocks?: TopicContentBlock[];
 }
 
 export interface TopicImageItem {
@@ -151,8 +161,13 @@ export interface TopicAttachmentItem {
 export interface TopicArticle {
   id: string;
   title: string;
+  titleEn?: string;
+  titleAr?: string;
   subtitle: string;
   category: TopicCategory;
+  blockId?: string;
+  subjectId?: string;
+  relatedTopicIds?: string[];
   author: string;
   publishedAt: string;
   readingTimeMinutes: number;
@@ -161,6 +176,7 @@ export interface TopicArticle {
   images: TopicImageItem[];
   links: TopicLinkItem[];
   attachments: TopicAttachmentItem[];
+  lastOpenedAt?: string;
 }
 
 export type DataSourceType =
@@ -766,3 +782,5 @@ export interface Stage7FinalReleaseReport {
 }
 
 export * from './umedPackage';
+export * from './learningPlatform';
+

@@ -1,4 +1,5 @@
 import { TopicArticle, TopicCategory } from '../types/lexicon';
+import { HEMATOLOGY_TOPICS } from './hematologyTopics';
 import { PARASITOLOGY_TOPICS } from './parasitologyTopics';
 
 export const TOPIC_CATEGORY_META: Record<
@@ -279,5 +280,7 @@ export const INITIAL_TOPICS: TopicArticle[] = [
     links: [],
     attachments: []
   },
+  ...HEMATOLOGY_TOPICS,
   ...PARASITOLOGY_TOPICS
 ];
+

@@ -1044,11 +1044,27 @@ export default function App() {
       let targetTerm = newTerm;
       let rawNextTerms: DictionaryTerm[];
       if (existingIdx !== -1) {
+        const existing = prevTerms[existingIdx];
         rawNextTerms = [...prevTerms];
         targetTerm = {
-          ...rawNextTerms[existingIdx],
+          ...existing,
           ...newTerm,
-          id: rawNextTerms[existingIdx].id
+          id: existing.id,
+          collections: Array.from(
+            new Set([...(existing.collections || []), ...(newTerm.collections || [])])
+          ),
+          linkedTopicIds: Array.from(
+            new Set([...(existing.linkedTopicIds || []), ...(newTerm.linkedTopicIds || [])])
+          ),
+          linkedSubjectIds: Array.from(
+            new Set([
+              ...(existing.linkedSubjectIds || []),
+              ...(newTerm.linkedSubjectIds || [])
+            ])
+          ),
+          linkedBlockIds: Array.from(
+            new Set([...(existing.linkedBlockIds || []), ...(newTerm.linkedBlockIds || [])])
+          )
         };
         rawNextTerms[existingIdx] = targetTerm;
       } else {
