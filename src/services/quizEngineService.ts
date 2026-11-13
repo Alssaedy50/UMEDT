@@ -1031,6 +1031,19 @@ export function loadQuizAttempts(): QuizAttemptRecord[] {
   }
 }
 
+export function saveQuizAttempts(attempts: QuizAttemptRecord[]): void {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(
+        LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS,
+        JSON.stringify(attempts.slice(0, 100))
+      );
+    }
+  } catch {
+    // ignore
+  }
+}
+
 export function saveQuizAttempt(attempt: QuizAttemptRecord): QuizAttemptRecord[] {
   const current = loadQuizAttempts();
   const updated = [attempt, ...current.filter((a) => a.id !== attempt.id)].slice(0, 100);

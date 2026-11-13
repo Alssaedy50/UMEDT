@@ -49,15 +49,22 @@ import {
   StudiedTermLogEntry
 } from '../types/lexicon';
 import { TOPIC_CATEGORY_META } from '../data/topicsSeedData';
-import { EXTRA_LINKABLE_ALIASES } from '../data/medicalLexiconData';
+import {
+  EXTRA_LINKABLE_ALIASES,
+  CLINICAL_ABBREVIATIONS
+} from '../data/medicalLexiconData';
 import {
   extractDetailedTermMatchesFromText,
+  extractAllTopicMatchesFromText,
   extractLinkedTermsFromText
 } from '../engine/knowledgeLinker';
 import {
   runHybridGcNmtPipeline,
   decomposeMedicalWord,
-  translateWithGeminiAI
+  translateWithGeminiAI,
+  lookupQuickWordOrPhraseAr,
+  extractInlineBilingualPairsFromText,
+  buildEnglishInflectionCandidates
 } from '../engine/hybridTranslator';
 import {
   loadMedicalBlocks,
@@ -215,12 +222,10 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   );
 
   useEffect(() => {
-    setQuizQuestions((prev) => {
-      if (prev.length === 0 && rawTopics.length > 0) {
-        return loadQuizQuestions(rawTopics, terms);
-      }
-      return prev;
-    });
+    setBlocks(loadMedicalBlocks());
+    setSubjects(loadMedicalSubjects());
+    setQuizQuestions(loadQuizQuestions(rawTopics, terms));
+    setQuizAttempts(loadQuizAttempts());
   }, [rawTopics, terms]);
 
   // 2. Navigation & Clean Popup Card States
@@ -372,10 +377,13 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     [subjects]
   );
 
-  // Map each topic ID to its automatically detected dictionary terms
+  // Map each topic ID to its automatically detected dictionary terms (including tables, inflections, synonyms & abbreviations)
   const detectedTermsByTopicId = useMemo(() => {
     const map: Record<string, DictionaryTerm[]> = {};
     const termById = new Map<string, DictionaryTerm>(terms.map((t) => [t.id, t]));
+    const termByLower = new Map<string, DictionaryTerm>(
+      terms.map((t) => [t.term.trim().toLowerCase(), t])
+    );
 
     for (const topic of topics) {
       const combinedText = [
@@ -384,14 +392,17 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         topic.subtitle || '',
         ...topic.sections.map((s) => {
           const blocksText = (s.contentBlocks || [])
-            .map(
-              (cb) =>
-                `${cb.titleEn || ''} ${cb.titleAr || ''} ${cb.text || ''} ${
-                  cb.textAr || ''
-                }`
-            )
+            .map((cb) => {
+              const tableText = [
+                ...(cb.tableHeaders || []),
+                ...((cb.tableRows || []).flat())
+              ].join(' ');
+              return `${cb.titleEn || ''} ${cb.titleAr || ''} ${cb.text || ''} ${
+                cb.textAr || ''
+              } ${tableText}`;
+            })
             .join('\n');
-          return `${s.headingEn || ''} ${s.heading || ''}\n${(
+          return `${s.headingEn || ''} ${s.headingAr || ''} ${s.heading || ''}\n${(
             s.paragraphs || []
           ).join('\n\n')}\n${blocksText}`;
         }),
@@ -399,7 +410,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         ...topic.links.map((l) => `${l.title} ${l.description || ''}`)
       ].join('\n\n');
 
-      const matches = extractDetailedTermMatchesFromText(combinedText, terms);
+      const matches = extractAllTopicMatchesFromText(combinedText, terms);
       const uniqueTerms: DictionaryTerm[] = [];
       const seenIds = new Set<string>();
 
@@ -419,6 +430,21 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           }
         }
       }
+
+      // Also detect clinical abbreviations in topic text whose expansion maps to a registered term
+      const abbrTokens = combinedText.match(/\b[A-Za-z][A-Za-z0-9/-]{1,8}\b/g) || [];
+      const abbrTokenSet = new Set(abbrTokens.map((tok) => tok.toLowerCase()));
+      for (const abbrEntry of CLINICAL_ABBREVIATIONS) {
+        const abbrLow = abbrEntry.abbr.toLowerCase();
+        if (abbrTokenSet.has(abbrLow) || abbrTokenSet.has(`${abbrLow}s`)) {
+          const expTerm = termByLower.get(abbrEntry.defaultExpansionEn.toLowerCase());
+          if (expTerm && !seenIds.has(expTerm.id)) {
+            seenIds.add(expTerm.id);
+            uniqueTerms.push(expTerm);
+          }
+        }
+      }
+
       map[topic.id] = uniqueTerms;
     }
     return map;
@@ -761,39 +787,45 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     showToast(`تم حذف المادة "${subj.titleAr}" مع الاحتفاظ بالمواضيع.`);
   };
 
-  // Lookup helper for matching a selected word/phrase to an existing DictionaryTerm
+  // Lookup helper for matching a selected word/phrase (including inflections & abbreviations) to an existing DictionaryTerm
   const findTermForSelectedString = (rawSelection: string): DictionaryTerm | null => {
     const cleaned = rawSelection
       .replace(/^[.,;:!?()[\]{}"'«»“”‘’—–-]+|[.,;:!?()[\]{}"'«»“”‘’—–-]+$/g, '')
       .trim();
     if (!cleaned || cleaned.length < 2) return null;
 
-    const lower = cleaned.toLowerCase();
+    const candidates = buildEnglishInflectionCandidates(cleaned);
 
-    const direct = terms.find(
-      (t) =>
-        t.term.toLowerCase() === lower ||
-        t.translation.trim() === cleaned ||
-        (t.relations.synonyms || []).some((syn) => syn.toLowerCase() === lower)
-    );
-    if (direct) return direct;
+    for (const cand of candidates) {
+      const direct = terms.find(
+        (t) =>
+          t.term.toLowerCase() === cand ||
+          t.translation.trim() === cleaned ||
+          (t.relations.synonyms || []).some((syn) => syn.toLowerCase() === cand)
+      );
+      if (direct) return direct;
 
-    const aliasTargetKey = Object.keys(EXTRA_LINKABLE_ALIASES).find(
-      (k) => k.toLowerCase() === lower
-    );
-    if (aliasTargetKey) {
-      const targetId = EXTRA_LINKABLE_ALIASES[aliasTargetKey];
-      const aliasTerm = terms.find((t) => t.id === targetId);
-      if (aliasTerm) return aliasTerm;
+      const aliasTargetKey = Object.keys(EXTRA_LINKABLE_ALIASES).find(
+        (k) => k.toLowerCase() === cand
+      );
+      if (aliasTargetKey) {
+        const targetId = EXTRA_LINKABLE_ALIASES[aliasTargetKey];
+        const aliasTerm = terms.find((t) => t.id === targetId);
+        if (aliasTerm) return aliasTerm;
+      }
+
+      const abbrEntry = CLINICAL_ABBREVIATIONS.find(
+        (a) => a.abbr.toLowerCase() === cand
+      );
+      if (abbrEntry) {
+        const expMatch = terms.find(
+          (t) => t.term.toLowerCase() === abbrEntry.defaultExpansionEn.toLowerCase()
+        );
+        if (expMatch) return expMatch;
+      }
     }
 
-    if (lower.endsWith('s') && lower.length > 4) {
-      const singular = lower.slice(0, -1);
-      const singularMatch = terms.find((t) => t.term.toLowerCase() === singular);
-      if (singularMatch) return singularMatch;
-    }
-
-    const detailed = extractDetailedTermMatchesFromText(cleaned, terms);
+    const detailed = extractAllTopicMatchesFromText(cleaned, terms);
     if (detailed.length > 0) {
       const found = terms.find((t) => t.id === detailed[0].termId);
       if (found) return found;
@@ -879,14 +911,42 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
       return;
     }
 
-    const fullArticleCorpus = activeTopic.sections
-      .map(
-        (s) =>
-          `${s.headingEn || s.heading || ''}.\n${(s.paragraphs || []).join(
-            '\n\n'
-          )}`
-      )
-      .join('\n\n');
+    const fullArticleCorpus = [
+      activeTopic.titleEn || activeTopic.title,
+      ...activeTopic.sections.map((s) => {
+        const blocksText = (s.contentBlocks || [])
+          .map((cb) =>
+            [
+              cb.titleEn || '',
+              cb.titleAr || '',
+              cb.text || '',
+              cb.textAr || '',
+              ...(cb.tableHeaders || []),
+              ...((cb.tableRows || []).flat())
+            ].join(' ')
+          )
+          .join('\n');
+        return `${s.headingEn || s.heading || ''}.\n${(s.paragraphs || []).join(
+          '\n\n'
+        )}\n${blocksText}`;
+      })
+    ].join('\n\n');
+
+    // Collect pre-translated inline bilingual pairs inside the active topic
+    const inlinePairs = extractInlineBilingualPairsFromText(fullArticleCorpus);
+    if (activeTopic.titleEn && activeTopic.titleAr) {
+      inlinePairs[activeTopic.titleEn.trim().toLowerCase()] = activeTopic.titleAr.trim();
+    }
+    for (const sec of activeTopic.sections) {
+      if (sec.headingEn && sec.headingAr) {
+        inlinePairs[sec.headingEn.trim().toLowerCase()] = sec.headingAr.trim();
+      }
+      for (const cb of sec.contentBlocks || []) {
+        if (cb.titleEn && cb.titleAr) {
+          inlinePairs[cb.titleEn.trim().toLowerCase()] = cb.titleAr.trim();
+        }
+      }
+    }
 
     const containingSentence = extractContainingSentence(
       fullArticleCorpus,
@@ -929,18 +989,29 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     }
 
     const morphResult = decomposeMedicalWord(cleaned, terms);
-    const wordHybridResult = runHybridGcNmtPipeline(cleaned, terms, sentences);
+    const hasRealMorphology = Boolean(
+      morphResult.prefix ||
+        (morphResult.roots && morphResult.roots.length > 0) ||
+        morphResult.suffix
+    );
 
-    const hasMorphology =
-      Boolean(morphResult.prefix) ||
-      Boolean(morphResult.root) ||
-      Boolean(morphResult.suffix);
+    const quickLookup = lookupQuickWordOrPhraseAr(
+      cleaned,
+      terms,
+      [],
+      containingSentence,
+      inlinePairs
+    );
 
-    const suggestedTranslation = hasMorphology
-      ? morphResult.synthesizedAr
-      : wordHybridResult.layer4FinalOutputAr !== cleaned
-        ? wordHybridResult.layer4FinalOutputAr
+    const morphAr =
+      hasRealMorphology &&
+      morphResult.synthesizedAr &&
+      morphResult.synthesizedAr !== 'مصطلح أحادي الجذر'
+        ? morphResult.synthesizedAr
         : '';
+
+    const suggestedTranslation =
+      quickLookup?.translationAr || morphAr || '';
 
     const morphPartsSummary = [
       morphResult.prefix
@@ -956,17 +1027,23 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
       .filter(Boolean)
       .join(' + ');
 
-    const defaultDefAr = morphPartsSummary
-      ? `مصطلح مستخرج من موضوع "${
-          activeTopic.titleEn || activeTopic.title
-        }" (${morphPartsSummary}).`
-      : `مصطلح علمي مستخرج من موضوع "${
-          activeTopic.titleEn || activeTopic.title
-        }".`;
+    const defaultDefAr = quickLookup?.definitionAr
+      ? quickLookup.definitionAr
+      : morphPartsSummary
+        ? `مصطلح مستخرج من موضوع "${
+            activeTopic.titleEn || activeTopic.title
+          }" (${morphPartsSummary}).`
+        : `مصطلح مستخرج من موضوع "${
+            activeTopic.titleEn || activeTopic.title
+          }".`;
 
     const mappedCat = mapTopicCategoryToDictionaryCategory(activeTopic.category);
 
-    setEditableNewTerm(cleaned);
+    setEditableNewTerm(
+      quickLookup?.expansionEn
+        ? `${cleaned} (${quickLookup.expansionEn})`
+        : cleaned
+    );
     setEditableTranslationAr(suggestedTranslation);
     setEditableDefinitionAr(defaultDefAr);
     setEditableExampleEn(containingSentence);
@@ -1973,12 +2050,12 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-2xl max-h-[86dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-4 shadow-2xl"
           >
-            <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setActivePopup('blocks_manager')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-colors ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition-colors ${
                     activePopup === 'blocks_manager'
                       ? 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
@@ -1989,7 +2066,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 <button
                   type="button"
                   onClick={() => setActivePopup('subjects_manager')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-colors ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition-colors ${
                     activePopup === 'subjects_manager'
                       ? 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
@@ -1999,7 +2076,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 </button>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -2013,9 +2090,9 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                       activePopup === 'blocks_manager' ? 'block' : 'subject'
                     );
                   }}
-                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1"
+                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1 whitespace-nowrap"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="w-3.5 h-3.5 shrink-0" />
                   <span>
                     {activePopup === 'blocks_manager' ? 'بلوك جديد' : 'مادة جديدة'}
                   </span>
@@ -2023,7 +2100,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 <button
                   type="button"
                   onClick={() => setActivePopup(null)}
-                  className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center"
+                  className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center shrink-0"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -2031,7 +2108,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
             </div>
 
             {activePopup === 'blocks_manager' ? (
-              <div className="space-y-2.5 max-h-[60dvh] overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-[60dvh] overflow-y-auto pr-1">
                 {blocks.length === 0 ? (
                   <div className="p-6 text-center text-xs text-slate-500">
                     لا توجد بلوكات حالياً. يمكنك إضافة بلوك جديد من الزر أعلاه.
@@ -2043,30 +2120,31 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     return (
                       <div
                         key={block.id}
-                        className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3"
+                        className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-col gap-3"
                       >
-                        <div className="min-w-0 flex-1 space-y-0.5">
+                        <div className="w-full space-y-1">
                           <div className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                            {block.code} · {blockSubjects.length} مادة · {blockTopics.length} موضوع
+                            <span dir="ltr">{block.code}</span> · {blockSubjects.length} مادة ·{' '}
+                            {blockTopics.length} موضوع
                           </div>
                           <div
                             dir="ltr"
-                            className="text-sm font-extrabold text-slate-900 dark:text-white text-left"
+                            className="text-sm font-extrabold text-slate-900 dark:text-white text-left break-words"
                           >
                             {block.titleEn}
                           </div>
-                          <div className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                          <div className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed break-words">
                             {block.titleAr}
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex flex-wrap items-center justify-end gap-2 pt-2.5 border-t border-slate-200/70 dark:border-slate-800/80">
                           <button
                             type="button"
                             onClick={() => openBlockDeleteSafetyModal(block)}
-                            className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-1"
+                            className="min-h-[36px] px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-1 whitespace-nowrap"
                             title="حذف البلوك مع نظام أمان"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-3.5 h-3.5 shrink-0" />
                             <span>حذف</span>
                           </button>
                           <button
@@ -2079,7 +2157,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                               setHDescAr(block.descriptionAr);
                               setHierarchyModalMode('block');
                             }}
-                            className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                            className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold whitespace-nowrap"
                           >
                             تعديل
                           </button>
@@ -2090,7 +2168,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                               setActiveSubjectFilter('ALL');
                               setActivePopup(null);
                             }}
-                            className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold"
+                            className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold whitespace-nowrap"
                           >
                             عرض
                           </button>
@@ -2101,35 +2179,38 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 )}
               </div>
             ) : (
-              <div className="space-y-2.5 max-h-[60dvh] overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-[60dvh] overflow-y-auto pr-1">
                 {subjects.map((subj) => {
                   const subjTopics = topics.filter((t) => t.subjectId === subj.id);
                   return (
                     <div
                       key={subj.id}
-                      className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3"
+                      className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-col gap-3"
                     >
-                      <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="w-full space-y-1">
                         <div className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                          {subj.code} · {subjTopics.length} موضوع
+                          <span dir="ltr" className="font-mono">
+                            {subj.code}
+                          </span>{' '}
+                          · {subjTopics.length} موضوع
                         </div>
                         <div
                           dir="ltr"
-                          className="text-sm font-extrabold text-slate-900 dark:text-white text-left"
+                          className="text-sm font-extrabold text-slate-900 dark:text-white text-left break-words"
                         >
                           {subj.titleEn}
                         </div>
-                        <div className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                        <div className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed break-words">
                           {subj.titleAr}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex flex-wrap items-center justify-end gap-2 pt-2.5 border-t border-slate-200/70 dark:border-slate-800/80">
                         <button
                           type="button"
                           onClick={() => handleDeleteSubjectSafely(subj)}
-                          className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-1"
+                          className="min-h-[36px] px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-1 whitespace-nowrap"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-3.5 h-3.5 shrink-0" />
                           <span>حذف</span>
                         </button>
                         <button
@@ -2143,7 +2224,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                             setHParentBlockId(subj.blockId || '');
                             setHierarchyModalMode('subject');
                           }}
-                          className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                          className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold whitespace-nowrap"
                         >
                           تعديل
                         </button>
@@ -2154,7 +2235,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                             setActiveSubjectFilter(subj.id);
                             setActivePopup(null);
                           }}
-                          className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold"
+                          className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold whitespace-nowrap"
                         >
                           عرض
                         </button>
@@ -3973,18 +4054,29 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 </div>
               ) : (
                 <form onSubmit={handleInstantSaveUnknownTerm} className="space-y-3.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 block">
+                  <div className="space-y-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
                         بطاقة الترجمة الفورية · تحليل وحفظ فوري
                       </span>
-                      <div className="flex items-center gap-2 flex-wrap mt-1">
-                        <h4
-                          dir="ltr"
-                          className="text-lg font-mono font-extrabold text-slate-900 dark:text-white break-words"
-                        >
-                          {selectionState.selectedText}
-                        </h4>
+                      <button
+                        type="button"
+                        onClick={() => setSelectionState(null)}
+                        className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center shrink-0"
+                        aria-label="إغلاق"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h4
+                        dir="ltr"
+                        className="text-lg sm:text-xl font-mono font-extrabold text-slate-900 dark:text-white break-words"
+                      >
+                        {selectionState.selectedText}
+                      </h4>
+                      <div className="flex items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() =>
@@ -3993,39 +4085,30 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                               `topic-unknown-tts-${selectionState.selectedText}`
                             )
                           }
-                          className="min-h-[34px] px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold inline-flex items-center gap-1"
+                          className="min-h-[34px] px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold inline-flex items-center gap-1 whitespace-nowrap"
                         >
                           <Volume2 className="w-3.5 h-3.5" />
                           <span>نطق</span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={handleRefineUnknownWordWithGemini}
+                          disabled={isRefiningWithAI}
+                          className="min-h-[34px] px-2.5 py-1 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold inline-flex items-center gap-1 whitespace-nowrap"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>
+                            {isRefiningWithAI ? 'جاري التحسين...' : 'تحسين الترجمة'}
+                          </span>
+                        </button>
                       </div>
-                      {selectionState.morphologySummary && (
-                        <span className="text-[11px] text-emerald-600 dark:text-emerald-400 block mt-1">
-                          تحليل الجذور التلقائي: {selectionState.morphologySummary}
-                        </span>
-                      )}
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={handleRefineUnknownWordWithGemini}
-                        disabled={isRefiningWithAI}
-                        className="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold flex items-center gap-1"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>
-                          {isRefiningWithAI ? 'جاري التحسين...' : 'تحسين الترجمة'}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectionState(null)}
-                        className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
+                    {selectionState.morphologySummary && (
+                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 block">
+                        تحليل الجذور التلقائي: {selectionState.morphologySummary}
+                      </span>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -4303,16 +4386,16 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   )}
                 </div>
 
-                {/* Bottom Action Footer: Clean Popup Card Triggers + Read CTA */}
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 text-xs">
+                {/* Bottom Action Footer: Clean Responsive Wrap (Zero Mobile Overflow) */}
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div
-                    className="flex items-center gap-1.5"
+                    className="flex flex-wrap items-center gap-1.5"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <button
                       type="button"
                       onClick={() => setTermsPopupTopicId(topic.id)}
-                      className="min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[11px] whitespace-nowrap"
+                      className="min-h-[34px] px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[11px] whitespace-nowrap"
                     >
                       المصطلحات ({detected.length})
                     </button>
@@ -4328,14 +4411,14 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                             tab: 'runner'
                           })
                         }
-                        className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold text-[11px] whitespace-nowrap"
+                        className="min-h-[34px] px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold text-[11px] whitespace-nowrap"
                       >
                         اختبار ({tQuestions.length})
                       </button>
                     )}
                   </div>
 
-                  <span className="text-emerald-600 dark:text-emerald-400 font-extrabold inline-flex items-center gap-1 shrink-0">
+                  <span className="text-emerald-600 dark:text-emerald-400 font-extrabold inline-flex items-center gap-1 whitespace-nowrap mr-auto">
                     <span>قراءة الموضوع</span>
                     <ArrowRight className="w-3.5 h-3.5 rotate-180" />
                   </span>

@@ -18,10 +18,8 @@ import {
   CheckCircle2,
   AlertCircle,
   FileSpreadsheet,
-  Archive,
   ChevronLeft,
-  Wand2,
-  Download
+  Wand2
 } from 'lucide-react';
 import {
   DictionaryTerm,
@@ -29,18 +27,20 @@ import {
   TopicArticle,
   SpacedRepetitionData,
   StudyStats,
-  VersionMetadata,
   LexiconCategory,
   TermExample,
   MorphologicalAffix,
   ClinicalAbbreviation
 } from '../types/lexicon';
-import { decomposeMedicalWord, runHybridGcNmtPipeline } from '../engine/hybridTranslator';
+import {
+  decomposeMedicalWord,
+  runHybridGcNmtPipeline,
+  lookupQuickWordOrPhraseAr
+} from '../engine/hybridTranslator';
 import { parseUploadedFile } from '../services/fileParserService';
 import {
   ConciseDataSummary,
-  buildConciseDataSummary,
-  createUnifiedBackupPackage
+  buildConciseDataSummary
 } from '../services/telegramBackupService';
 
 export interface StagedTermItem {
@@ -70,7 +70,6 @@ interface LibraryViewProps {
   sentences: LinkedSentence[];
   topics?: TopicArticle[];
   studyStats: StudyStats;
-  versionMetadata: VersionMetadata;
   activeCollection: string;
   initialMode?: LibrarySubMode;
   initialDraftTerm?: string;
@@ -158,7 +157,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   sentences,
   topics = [],
   studyStats,
-  versionMetadata,
   activeCollection,
   initialMode,
   initialDraftTerm,
@@ -327,15 +325,19 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     }
 
     const morph = decomposeMedicalWord(clean, terms);
+    const quick = lookupQuickWordOrPhraseAr(clean, terms);
     const gcNmt = runHybridGcNmtPipeline(clean, terms, sentences);
 
-    const hasMorph = Boolean(morph.prefix || morph.root || morph.suffix);
+    const hasMorph = Boolean(
+      morph.prefix || (morph.roots && morph.roots.length > 0) || morph.suffix
+    );
     const bestTranslation =
-      hasMorph && morph.synthesizedAr
+      quick?.translationAr ||
+      (hasMorph && morph.synthesizedAr && morph.synthesizedAr !== 'مصطلح أحادي الجذر'
         ? morph.synthesizedAr
         : gcNmt.layer4FinalOutputAr && gcNmt.layer4FinalOutputAr !== clean
         ? gcNmt.layer4FinalOutputAr
-        : '';
+        : '');
 
     if (!manualTranslation.trim() && bestTranslation) {
       setManualTranslation(bestTranslation);
@@ -458,30 +460,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     setManualSentenceAr('');
   };
 
-  const handleQuickExportOfflineBackup = () => {
-    const { jsonString, summary } = createUnifiedBackupPackage(
-      terms,
-      sentences,
-      topics,
-      'نسخة احتياطية شاملة أوفلاين',
-      studyStats,
-      versionMetadata
-    );
-    const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `UMEDT-Offline-Backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-
-    setLastDataSummary(summary);
-    setOfflineFeedback({
-      type: 'success',
-      message: 'تم تصدير النسخة الاحتياطية الشاملة أوفلاين بنجاح.'
-    });
-  };
-
   const parseRawTextToStaged = (text: string, sourceFileName = 'استيراد أوفلاين') => {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -600,10 +578,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             .map((item: Record<string, unknown>, idx: number) => {
               const tEn = String(item.term || item.en || item.word || '').trim();
               if (!tEn) return null;
+              const quickAr = lookupQuickWordOrPhraseAr(tEn, terms)?.translationAr;
+              const morphAr = decomposeMedicalWord(tEn, terms).synthesizedAr;
               const tAr =
                 String(item.translation || item.ar || item.meaning || '').trim() ||
-                decomposeMedicalWord(tEn, terms).synthesizedAr ||
-                runHybridGcNmtPipeline(tEn, terms, sentences).layer4FinalOutputAr ||
+                quickAr ||
+                (morphAr && morphAr !== 'مصطلح أحادي الجذر' ? morphAr : '') ||
                 'مصطلح طبي';
               const defAr =
                 String(item.definitionAr || item.definition || '').trim() ||
@@ -663,11 +643,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       const tEn = (parts[0] || '').trim().replace(/^["']|["']$/g, '');
       if (!tEn || tEn.toLowerCase() === 'term') return;
 
+      const quick = lookupQuickWordOrPhraseAr(tEn, terms);
       const morph = decomposeMedicalWord(tEn, terms);
-      const gcNmt = runHybridGcNmtPipeline(tEn, terms, sentences);
       const autoAr =
-        morph.synthesizedAr ||
-        (gcNmt.layer4FinalOutputAr !== tEn ? gcNmt.layer4FinalOutputAr : '') ||
+        quick?.translationAr ||
+        (morph.synthesizedAr && morph.synthesizedAr !== 'مصطلح أحادي الجذر'
+          ? morph.synthesizedAr
+          : '') ||
         'مصطلح طبي';
 
       const tAr = (parts[1] || '').trim().replace(/^["']|["']$/g, '') || autoAr;
@@ -851,7 +833,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     إضافة واستيراد أوفلاين
                   </h3>
                   <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                    مصطلحات · مواضيع · نسخ احتياطي
+                    مصطلحات · مواضيع طبية
                   </span>
                 </div>
               </div>
@@ -861,7 +843,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             </div>
 
             <div className="w-full pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
-              <span>JSON · ZIP · CSV · TXT</span>
+              <span>JSON · CSV · TXT</span>
               <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold">
                 <span>فتح</span>
                 <ChevronLeft className="w-4 h-4" />
@@ -1260,7 +1242,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   }`}
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  <span>استيراد ملفات ونسخ</span>
+                  <span>استيراد ملفات أوفلاين</span>
                 </button>
               </div>
             </div>
@@ -1493,10 +1475,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               </form>
             )}
 
-            {/* SUB-TAB 2: OFFLINE FILE & BATCH IMPORT + QUICK BACKUP */}
+            {/* SUB-TAB 2: OFFLINE FILE & BATCH IMPORT (TERMS & TOPICS) */}
             {offlineAddTab === 'file_batch' && (
               <div className="space-y-3.5 pt-1">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -1509,7 +1491,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     type="button"
                     disabled={isParsingFile}
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-3.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/30 text-right flex items-center gap-3 transition-all"
+                    className="w-full p-3.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/30 text-right flex items-center gap-3 transition-all"
                   >
                     <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
                       <FileSpreadsheet className="w-5 h-5" />
@@ -1518,28 +1500,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       <h4 className="text-xs font-extrabold text-emerald-900 dark:text-emerald-200">
                         {isParsingFile
                           ? 'جاري قراءة وتحليل الملف...'
-                          : 'استيراد ملف أوفلاين (JSON / ZIP / CSV / TXT)'}
+                          : 'استيراد ملف مصطلحات أو مواضيع أوفلاين (JSON / CSV / TXT)'}
                       </h4>
                       <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 truncate">
-                        مصطلحات · مواضيع · بلوكات · نسخ احتياطية كاملة
-                      </p>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleQuickExportOfflineBackup}
-                    className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 hover:border-emerald-500/50 border border-slate-200 dark:border-slate-800 text-right flex items-center gap-3 transition-all"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-slate-900 dark:bg-slate-800 text-emerald-400 flex items-center justify-center shrink-0">
-                      <Download className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="text-xs font-extrabold text-slate-900 dark:text-white">
-                        حفظ نسخة احتياطية شاملة أوفلاين
-                      </h4>
-                      <p className="text-[11px] text-slate-500 mt-0.5 truncate">
-                        {terms.length} مصطلح · {topics.length} موضوع · جميع المفضلة
+                        إضافة جماعية للمصطلحات والمواضيع والبلوكات بدون إنترنت
                       </p>
                     </div>
                   </button>

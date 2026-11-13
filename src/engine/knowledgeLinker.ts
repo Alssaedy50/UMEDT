@@ -335,6 +335,322 @@ export function extractDetailedTermMatchesFromText(
   return matches;
 }
 
+const topicCandidateCache = new WeakMap<
+  DictionaryTerm[],
+  {
+    sortedEntries: CandidateLookupEntry[];
+    singleTokenMap: Map<string, CandidateLookupEntry>;
+  }
+>();
+
+const TOPIC_DISCOVERY_NOISE_WORDS = new Set([
+  'there',
+  'here',
+  'where',
+  'when',
+  'what',
+  'which',
+  'while',
+  'with',
+  'from',
+  'that',
+  'this',
+  'these',
+  'those',
+  'they',
+  'their',
+  'them',
+  'have',
+  'has',
+  'had',
+  'been',
+  'were',
+  'will',
+  'would',
+  'could',
+  'should',
+  'can',
+  'cans',
+  'may',
+  'might',
+  'into',
+  'onto',
+  'upon',
+  'about',
+  'before',
+  'after',
+  'below',
+  'above',
+  'inside',
+  'outside',
+  'between',
+  'among',
+  'during',
+  'without',
+  'within',
+  'also',
+  'more',
+  'most',
+  'some',
+  'many',
+  'much',
+  'such',
+  'other',
+  'only',
+  'very',
+  'well',
+  'then',
+  'than',
+  'both',
+  'each',
+  'every',
+  'time',
+  'times',
+  'year',
+  'years',
+  'day',
+  'days',
+  'week',
+  'weeks',
+  'now',
+  'man',
+  'men',
+  'woman',
+  'women',
+  'canals',
+  'palaces',
+  'bitterness',
+  'loneliness'
+]);
+
+function generateTopicStemVariants(wordLower: string): string[] {
+  const variants = [wordLower];
+  if (wordLower.length > 3 && wordLower.endsWith('s') && !wordLower.endsWith('ss')) {
+    variants.push(wordLower.slice(0, -1));
+  }
+  if (wordLower.length > 4 && wordLower.endsWith('es')) {
+    variants.push(wordLower.slice(0, -2));
+  }
+  if (wordLower.length > 4 && wordLower.endsWith('ies')) {
+    variants.push(`${wordLower.slice(0, -3)}y`);
+  }
+  if (wordLower.length > 4 && wordLower.endsWith('ves')) {
+    variants.push(`${wordLower.slice(0, -3)}f`, `${wordLower.slice(0, -3)}fe`);
+  }
+  if (wordLower.length > 4 && wordLower.endsWith('ed')) {
+    variants.push(wordLower.slice(0, -2), wordLower.slice(0, -1));
+  }
+  if (wordLower.length > 5 && wordLower.endsWith('ied')) {
+    variants.push(`${wordLower.slice(0, -3)}y`);
+  }
+  if (wordLower.length > 5 && wordLower.endsWith('ing')) {
+    const base = wordLower.slice(0, -3);
+    variants.push(base, `${base}e`);
+  }
+  return variants;
+}
+
+function buildTopicCandidateIndex(terms: DictionaryTerm[]): {
+  sortedEntries: CandidateLookupEntry[];
+  singleTokenMap: Map<string, CandidateLookupEntry>;
+} {
+  const cached = topicCandidateCache.get(terms);
+  if (cached) return cached;
+
+  const entries: CandidateLookupEntry[] = [];
+  const singleTokenMap = new Map<string, CandidateLookupEntry>();
+  const seenKeys = new Set<string>();
+  const termById = new Map<string, DictionaryTerm>();
+
+  for (const t of terms) {
+    termById.set(t.id, t);
+  }
+
+  for (const t of terms) {
+    if (!t || !t.term) continue;
+    const cleanEn = t.term.trim();
+    const lowerEn = cleanEn.toLowerCase();
+    if (
+      cleanEn.length >= 2 &&
+      !TOPIC_DISCOVERY_NOISE_WORDS.has(lowerEn) &&
+      !seenKeys.has(`en:${lowerEn}`)
+    ) {
+      seenKeys.add(`en:${lowerEn}`);
+      const entry: CandidateLookupEntry = {
+        keyLower: lowerEn,
+        termId: t.id,
+        term: t.term,
+        translation: t.translation,
+        matchSource: 'term_en',
+        isArabic: false,
+        wordRegex: new RegExp(`(?<![a-z0-9_])${escapeRegExp(lowerEn)}(?![a-z0-9_])`, 'i')
+      };
+      entries.push(entry);
+      if (!lowerEn.includes(' ') && !singleTokenMap.has(lowerEn)) {
+        singleTokenMap.set(lowerEn, entry);
+      }
+    }
+
+    const synonyms = t.relations?.synonyms || [];
+    for (const syn of synonyms) {
+      const cleanSyn = syn.trim();
+      const lowerSyn = cleanSyn.toLowerCase();
+      if (
+        cleanSyn.length >= 2 &&
+        !TOPIC_DISCOVERY_NOISE_WORDS.has(lowerSyn) &&
+        !seenKeys.has(`en:${lowerSyn}`)
+      ) {
+        seenKeys.add(`en:${lowerSyn}`);
+        const isAr = /[\u0600-\u06FF]/.test(cleanSyn);
+        const entry: CandidateLookupEntry = {
+          keyLower: lowerSyn,
+          termId: t.id,
+          term: t.term,
+          translation: t.translation,
+          matchSource: 'synonym',
+          isArabic: isAr,
+          wordRegex: isAr
+            ? undefined
+            : new RegExp(`(?<![a-z0-9_])${escapeRegExp(lowerSyn)}(?![a-z0-9_])`, 'i')
+        };
+        entries.push(entry);
+        if (!isAr && !lowerSyn.includes(' ') && !singleTokenMap.has(lowerSyn)) {
+          singleTokenMap.set(lowerSyn, entry);
+        }
+      }
+    }
+
+    const rawAr = t.translation.trim();
+    const arSegments = rawAr
+      .split(/[/(،·-]/)
+      .map((s) => s.trim())
+      .filter((s) => s.length >= 4);
+
+    for (const seg of arSegments) {
+      if (!seenKeys.has(`ar:${seg}`)) {
+        seenKeys.add(`ar:${seg}`);
+        entries.push({
+          keyLower: seg,
+          termId: t.id,
+          term: t.term,
+          translation: t.translation,
+          matchSource: 'term_ar',
+          isArabic: true
+        });
+      }
+    }
+  }
+
+  for (const [alias, targetId] of Object.entries(EXTRA_LINKABLE_ALIASES)) {
+    const targetTerm = termById.get(targetId);
+    if (!targetTerm) continue;
+    const cleanAlias = alias.trim();
+    const lowerAlias = cleanAlias.toLowerCase();
+    if (cleanAlias.length >= 2 && !seenKeys.has(`en:${lowerAlias}`)) {
+      seenKeys.add(`en:${lowerAlias}`);
+      const isAr = /[\u0600-\u06FF]/.test(cleanAlias);
+      const entry: CandidateLookupEntry = {
+        keyLower: lowerAlias,
+        termId: targetTerm.id,
+        term: targetTerm.term,
+        translation: targetTerm.translation,
+        matchSource: 'alias',
+        isArabic: isAr,
+        wordRegex: isAr
+          ? undefined
+          : new RegExp(`(?<![a-z0-9_])${escapeRegExp(lowerAlias)}(?![a-z0-9_])`, 'i')
+      };
+      entries.push(entry);
+      if (!isAr && !lowerAlias.includes(' ') && !singleTokenMap.has(lowerAlias)) {
+        singleTokenMap.set(lowerAlias, entry);
+      }
+    }
+  }
+
+  const sortedEntries = entries.sort((a, b) => b.keyLower.length - a.keyLower.length);
+  const indexObj = { sortedEntries, singleTokenMap };
+  topicCandidateCache.set(terms, indexObj);
+  return indexObj;
+}
+
+/**
+ * Comprehensive term discovery specifically for Topic articles:
+ * Discovers ALL pre-translated dictionary terms (medical, specialized, general, synonyms,
+ * aliases, and inflected forms such as plurals/-ed/-ing) appearing anywhere inside topic content.
+ */
+export function extractAllTopicMatchesFromText(
+  text: string,
+  terms: DictionaryTerm[]
+): LinkedTermMatch[] {
+  if (!text || !text.trim() || terms.length === 0) {
+    return [];
+  }
+
+  const { sortedEntries, singleTokenMap } = buildTopicCandidateIndex(terms);
+  const matches: LinkedTermMatch[] = [];
+  const matchedTermIds = new Set<string>();
+  const lowerText = text.toLowerCase();
+
+  // 1. Fast token scan for single-word terms and inflections (e.g. erythrocytes -> erythrocyte)
+  const wordTokens = lowerText.match(/[a-z][a-z0-9'-]{1,}/g) || [];
+  for (let i = 0; i < wordTokens.length; i++) {
+    const tok = wordTokens[i];
+    if (TOPIC_DISCOVERY_NOISE_WORDS.has(tok)) continue;
+    const variants = generateTopicStemVariants(tok);
+    for (const v of variants) {
+      const cand = singleTokenMap.get(v);
+      if (cand && !matchedTermIds.has(cand.termId)) {
+        matchedTermIds.add(cand.termId);
+        matches.push({
+          termId: cand.termId,
+          term: cand.term,
+          translation: cand.translation,
+          matchedSurface: tok,
+          matchSource: cand.matchSource
+        });
+        break;
+      }
+    }
+  }
+
+  // 2. Multi-word English terms/aliases & Arabic translations
+  for (let i = 0; i < sortedEntries.length; i++) {
+    const cand = sortedEntries[i];
+    if (matchedTermIds.has(cand.termId)) continue;
+
+    if (cand.isArabic) {
+      if (text.includes(cand.keyLower)) {
+        matchedTermIds.add(cand.termId);
+        matches.push({
+          termId: cand.termId,
+          term: cand.term,
+          translation: cand.translation,
+          matchedSurface: cand.keyLower,
+          matchSource: cand.matchSource
+        });
+      }
+    } else if (cand.keyLower.includes(' ') || cand.keyLower.includes('-')) {
+      if (!lowerText.includes(cand.keyLower)) continue;
+      const regex =
+        cand.wordRegex ||
+        new RegExp(`(?<![a-z0-9_])${escapeRegExp(cand.keyLower)}(?![a-z0-9_])`, 'i');
+      const found = lowerText.match(regex);
+      if (found) {
+        matchedTermIds.add(cand.termId);
+        matches.push({
+          termId: cand.termId,
+          term: cand.term,
+          translation: cand.translation,
+          matchedSurface: found[0],
+          matchSource: cand.matchSource
+        });
+      }
+    }
+  }
+
+  return matches;
+}
+
 /**
  * Scans any English or Arabic text from longest term to shortest and returns
  * the list of linked term IDs (`termIds`) mentioned via primary terms, translations,

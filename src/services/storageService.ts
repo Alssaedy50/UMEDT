@@ -233,7 +233,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   isDark: true,
   conflictPolicy: 'merge',
   sharedStoragePath: '/storage/emulated/0/DictEngine/ingest/',
-  lastBackupTime: 'تخزين محلي تلقائي (LocalStorage)'
+  lastBackupTime: 'تخزين محلي تلقائي (LocalStorage)',
+  fontFamily: 'cairo',
+  fontSizeScale: 'md',
+  colorTheme: 'emerald'
 };
 
 export const DEFAULT_STUDY_STATS: StudyStats = {

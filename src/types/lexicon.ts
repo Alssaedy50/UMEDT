@@ -119,11 +119,18 @@ export interface StudyStats {
   lastStudiedAt?: string;
 }
 
+export type AppFontFamily = 'cairo' | 'tajawal' | 'ibm' | 'system';
+export type AppFontSizeScale = 'sm' | 'md' | 'lg' | 'xl';
+export type AppColorTheme = 'emerald' | 'blue' | 'indigo' | 'amber' | 'rose';
+
 export interface AppSettings {
   isDark: boolean;
   conflictPolicy: 'ignore' | 'overwrite' | 'merge';
   sharedStoragePath: string;
   lastBackupTime: string;
+  fontFamily?: AppFontFamily;
+  fontSizeScale?: AppFontSizeScale;
+  colorTheme?: AppColorTheme;
 }
 
 export type TopicCategory = 'Medical' | 'Technology' | 'AI' | 'History' | 'General';

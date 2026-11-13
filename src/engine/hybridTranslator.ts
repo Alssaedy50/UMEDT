@@ -579,10 +579,10 @@ export function decomposeMedicalWord(
     root: {
       affix: cleaned,
       meaningAr: 'لم يتم رصد سوابق أو لواحق قياسية منفصلة',
-      meaningEn: 'Base clinical lexeme'
+      meaningEn: 'Base lexeme'
     },
     roots: [],
-    synthesizedAr: existing ? existing.translation : 'مصطلح أحادي الجذر',
+    synthesizedAr: existing ? existing.translation : '',
     confidence: existing ? 'Lexicon Verified' : 'Partial Heuristic'
   };
 }
@@ -1784,5 +1784,416 @@ export function runHybridGcNmtPipeline(
     executionTimeMs,
     maskedEntities
   };
+}
+
+export const QUICK_CLINICAL_AND_GENERAL_GLOSSARY: Record<string, string> = {
+  small: 'صغير / صغير الحجم',
+  smaller: 'أصغر حجماً',
+  large: 'كبير / كبير الحجم',
+  larger: 'أكبر حجماً',
+  tiny: 'دقيق / ضئيل جداً',
+  normal: 'طبيعي / سويّ',
+  abnormal: 'غير طبيعي / شاذ',
+  low: 'منخفض / قليل',
+  lower: 'أقل / منخفض',
+  high: 'مرتفع / عالٍ',
+  higher: 'أعلى / مرتفع',
+  mild: 'خفيف / طفيف',
+  moderate: 'متوسط الشدة',
+  severe: 'شديد / حاد',
+  acute: 'حاد',
+  chronic: 'مزمن',
+  early: 'مبكر',
+  late: 'متأخر',
+  primary: 'أولي / أساسي',
+  secondary: 'ثانوي',
+  common: 'شائع',
+  rare: 'نادر',
+  blood: 'الدم',
+  cell: 'خلية',
+  cells: 'خلايا',
+  red: 'أحمر / حمراء',
+  white: 'أبيض / بيضاء',
+  bone: 'عظم',
+  marrow: 'نخاع العظم / النقي',
+  iron: 'الحديد',
+  oxygen: 'الأكسجين',
+  acid: 'حمض',
+  protein: 'بروتين',
+  proteins: 'بروتينات',
+  enzyme: 'إنزيم',
+  enzymes: 'إنزيمات',
+  gene: 'جين / مورثة',
+  genes: 'جينات / مورثات',
+  genetic: 'وراثي / جيني',
+  inherited: 'موروث / وراثي',
+  acquired: 'مكتسب',
+  congenital: 'خلقي',
+  deficiency: 'نقص / عوز',
+  deficient: 'ناقص / معوز',
+  excess: 'فرط / زيادة',
+  production: 'إنتاج / تصنيع',
+  destruction: 'تدمير / تحطم',
+  synthesis: 'تخليق / تصنيع',
+  absorption: 'امتصاص',
+  storage: 'تخزين / مخزون',
+  stores: 'مخازن / مخزون',
+  transport: 'نقل',
+  release: 'إفراز / إطلاق',
+  level: 'مستوى',
+  levels: 'مستويات',
+  count: 'تعداد / عدد',
+  size: 'حجم',
+  shape: 'شكل',
+  pale: 'شاحب / باهت',
+  pallor: 'شحوب',
+  fatigue: 'إرهاق / تعب',
+  weakness: 'ضعف / وهن',
+  pain: 'ألم',
+  fever: 'حمى',
+  swelling: 'تورم / انتفاخ',
+  bleeding: 'نزيف',
+  clot: 'جلطة / خثرة',
+  clotting: 'تخثر',
+  infection: 'عدوى',
+  infections: 'عدوى / إصابات',
+  infected: 'مصاب بعدوى',
+  inflammation: 'التهاب',
+  inflammatory: 'التهابي',
+  immune: 'مناعي',
+  disease: 'مرض',
+  diseases: 'أمراض',
+  disorder: 'اضطراب',
+  disorders: 'اضطرابات',
+  syndrome: 'متلازمة',
+  symptom: 'عرض',
+  symptoms: 'أعراض',
+  sign: 'علامة سريرية',
+  signs: 'علامات سريرية',
+  cause: 'سبب',
+  causes: 'أسباب',
+  caused: 'ناجم عن / مُسبَّب',
+  risk: 'خطر / اختطار',
+  factor: 'عامل',
+  factors: 'عوامل',
+  test: 'فحص / اختبار',
+  tests: 'فحوصات / اختبارات',
+  diagnosis: 'تشخيص',
+  diagnostic: 'تشخيصي',
+  treatment: 'علاج',
+  therapy: 'علاج / مداواة',
+  management: 'تدبير علاجي / إدارة',
+  dose: 'جرعة',
+  oral: 'فموي / عن طريق الفم',
+  intravenous: 'وريدي',
+  diet: 'نظام غذائي',
+  dietary: 'غذائي',
+  pregnancy: 'الحمل',
+  infant: 'رضيع',
+  infants: 'الرضّع',
+  child: 'طفل',
+  children: 'الأطفال',
+  adult: 'بالغ',
+  adults: 'البالغون',
+  patient: 'مريض',
+  patients: 'مرضى',
+  clinical: 'سريري',
+  laboratory: 'مخبري',
+  peripheral: 'محيطي / طرفي',
+  central: 'مركزي',
+  smear: 'لطاخة',
+  biopsy: 'خزعة',
+  serum: 'مصل الدم',
+  plasma: 'بلازما الدم',
+  urine: 'البول',
+  stool: 'البراز',
+  liver: 'الكبد',
+  spleen: 'الطحال',
+  kidney: 'الكلية',
+  heart: 'القلب',
+  lung: 'الرئة',
+  brain: 'الدماغ',
+  tissue: 'نسيج',
+  tissues: 'أنسجة',
+  organ: 'عضو',
+  vessel: 'وعاء دموي',
+  vessels: 'أوعية دموية',
+  membrane: 'غشاء',
+  nucleus: 'نواة',
+  nuclear: 'نووي',
+  cytoplasm: 'سيتوبلازم / هيولى',
+  cytoplasmic: 'هيولي / سيتوبلازمي',
+  folate: 'الفولات / حمض الفوليك',
+  vitamin: 'فيتامين',
+  ferritin: 'الفيريتين',
+  transferrin: 'الترانسفيرين',
+  hemoglobin: 'الهيموغلوبين',
+  heme: 'الهيم',
+  globin: 'الغلوبين',
+  chain: 'سلسلة',
+  chains: 'سلاسل',
+  mutation: 'طفرة',
+  mutations: 'طفرات',
+  sickle: 'منجلي',
+  crisis: 'أزمة',
+  crises: 'أزمات',
+  parasite: 'طفيلي',
+  parasites: 'طفيليات',
+  larva: 'يرقة',
+  larvae: 'يرقات',
+  egg: 'بيضة',
+  eggs: 'بيض',
+  cyst: 'كيسة',
+  cysts: 'كيسات',
+  host: 'عائل / مضيف',
+  vector: 'ناقل',
+  transmission: 'انتقال العدوى',
+  prevention: 'وقاية',
+  complication: 'مضاعفة',
+  complications: 'مضاعفات',
+  failure: 'فشل / قصور',
+  loss: 'فقدان',
+  lack: 'نقص / غياب',
+  reduced: 'منخفض / مختزل',
+  increased: 'مرتفع / متزايد',
+  decreased: 'منخفض / متناقص',
+  elevated: 'مرتفع',
+  absent: 'غائب / معدوم',
+  present: 'موجود / حاضر',
+  positive: 'إيجابي',
+  negative: 'سلبي',
+  mean: 'متوسط',
+  volume: 'حجم',
+  rate: 'معدل',
+  index: 'مؤشر',
+  ratio: 'نسبة',
+  range: 'نطاق / مدى',
+  stage: 'مرحلة',
+  phase: 'طور / مرحلة',
+  type: 'نوع / نمط',
+  types: 'أنواع / أنماط',
+  form: 'شكل / صيغة',
+  group: 'مجموعة',
+  system: 'جهاز / نظام',
+  pathway: 'مسار',
+  mechanism: 'آلية',
+  function: 'وظيفة',
+  response: 'استجابة',
+  outcome: 'نتيجة / مآل',
+  prognosis: 'إنذار المرض / مآل',
+  shortness: 'ضيق / قصر',
+  breath: 'نَفَس',
+  dizziness: 'دوخة / دوار',
+  jaundice: 'يرقان',
+  enlarged: 'متضخم',
+  enlargement: 'تضخم',
+  lesion: 'آفة',
+  mass: 'كتلة',
+  nodule: 'عقيدة',
+  ulcer: 'قرحة',
+  rash: 'طفح جلدي',
+  edema: 'وذمة',
+  shock: 'صدمة',
+  stroke: 'سكتة دماغية',
+  ischemia: 'نقص تروية',
+  infarction: 'احتشاء',
+  embolism: 'انصمام',
+  thrombosis: 'تخثر / خثار',
+  dyspnea: 'ضيق التنفس / زلة تنفسية',
+  tachypnea: 'تسرع التنفس',
+  tachycardia: 'تسرع القلب',
+  bradycardia: 'بطء القلب',
+  hypotension: 'انخفاض ضغط الدم',
+  hypertension: 'ارتفاع ضغط الدم',
+  malaria: 'الملاريا',
+  plasmodium: 'المتصورة',
+  giardia: 'الجيارديا',
+  amebiasis: 'داء الأميبات',
+  schistosomiasis: 'البلهارسيا / داء المنشقات',
+  leishmaniasis: 'داء الليشمانيات',
+  toxoplasmosis: 'داء المقوسات'
+};
+
+export function buildEnglishInflectionCandidates(rawWord: string): string[] {
+  const lower = rawWord.trim().toLowerCase();
+  if (!lower) return [];
+  const candidates = new Set<string>([lower]);
+
+  if (lower.includes('-')) {
+    candidates.add(lower.replace(/-/g, ' '));
+  }
+  if (lower.length > 3 && lower.endsWith('s') && !lower.endsWith('ss')) {
+    candidates.add(lower.slice(0, -1));
+  }
+  if (lower.length > 4 && lower.endsWith('es')) {
+    candidates.add(lower.slice(0, -2));
+  }
+  if (lower.length > 4 && lower.endsWith('ies')) {
+    candidates.add(`${lower.slice(0, -3)}y`);
+  }
+  if (lower.length > 4 && lower.endsWith('ves')) {
+    candidates.add(`${lower.slice(0, -3)}f`);
+    candidates.add(`${lower.slice(0, -3)}fe`);
+  }
+  if (lower.length > 4 && lower.endsWith('ed')) {
+    candidates.add(lower.slice(0, -2));
+    candidates.add(lower.slice(0, -1));
+  }
+  if (lower.length > 5 && lower.endsWith('ied')) {
+    candidates.add(`${lower.slice(0, -3)}y`);
+  }
+  if (lower.length > 5 && lower.endsWith('ing')) {
+    const base = lower.slice(0, -3);
+    candidates.add(base);
+    candidates.add(`${base}e`);
+  }
+  if (lower.length > 4 && lower.endsWith('ly')) {
+    candidates.add(lower.slice(0, -2));
+  }
+  return Array.from(candidates);
+}
+
+/**
+ * Extracts inline bilingual translations already present inside topic text, e.g.
+ * `Small bowel (الأمعاء الدقيقة)` or `Iron Deficiency — نقص الحديد`.
+ */
+export function extractInlineBilingualPairsFromText(
+  text: string
+): Record<string, string> {
+  const pairs: Record<string, string> = {};
+  if (!text) return pairs;
+
+  const parenRegex = /([A-Za-z][A-Za-z0-9\s/-]{1,48})\s*\(([^)]*[\u0600-\u06FF][^)]*)\)/g;
+  let match: RegExpExecArray | null;
+  while ((match = parenRegex.exec(text)) !== null) {
+    const en = match[1].trim().toLowerCase();
+    const ar = match[2].trim();
+    if (en.length >= 2 && ar.length >= 2 && !pairs[en]) {
+      pairs[en] = ar;
+    }
+  }
+  return pairs;
+}
+
+/**
+ * Fast, accurate offline lookup for any clicked/double-tapped English word or phrase.
+ * Never returns `'مصطلح أحادي الجذر'`.
+ */
+export function lookupQuickWordOrPhraseAr(
+  rawWord: string,
+  terms: DictionaryTerm[],
+  customAbbreviations: ClinicalAbbreviation[] = [],
+  contextClause = '',
+  inlineTopicPairs: Record<string, string> = {}
+): {
+  translationAr: string;
+  expansionEn?: string;
+  definitionAr?: string;
+  matchedTerm?: DictionaryTerm;
+} | null {
+  const cleaned = rawWord
+    .replace(/^[.,;:!?()[\]{}"'«»“”‘’—–-]+|[.,;:!?()[\]{}"'«»“”‘’—–-]+$/g, '')
+    .trim();
+  if (!cleaned) return null;
+
+  const candidates = buildEnglishInflectionCandidates(cleaned);
+
+  // 1. Dictionary terms + synonyms across inflection variants
+  for (const cand of candidates) {
+    const matched = terms.find(
+      (t) =>
+        t.term.toLowerCase() === cand ||
+        (t.relations?.synonyms || []).some((syn) => syn.toLowerCase() === cand)
+    );
+    if (matched) {
+      return {
+        translationAr: matched.translation,
+        definitionAr: matched.definitionAr,
+        matchedTerm: matched
+      };
+    }
+  }
+
+  // 2. Inline bilingual pairs from the active topic
+  for (const cand of candidates) {
+    if (inlineTopicPairs[cand]) {
+      return {
+        translationAr: inlineTopicPairs[cand],
+        definitionAr: `ترجمة مستخرجة مباشرة من سياق الموضوع لـ "${cleaned}".`
+      };
+    }
+  }
+
+  // 3. Clinical abbreviations (including plural abbreviations like RBCs -> RBC)
+  const abbrCandidates = [cleaned];
+  if (cleaned.length > 2 && cleaned.endsWith('s')) {
+    abbrCandidates.push(cleaned.slice(0, -1));
+  }
+  for (const abbrCand of abbrCandidates) {
+    const resolvedAbbr = resolveAbbreviationInContext(
+      abbrCand,
+      contextClause || cleaned,
+      customAbbreviations
+    );
+    if (resolvedAbbr) {
+      return {
+        translationAr: resolvedAbbr.translationAr,
+        expansionEn: resolvedAbbr.expansionEn,
+        definitionAr: `اختصار سريري (${resolvedAbbr.specialty}): ${resolvedAbbr.expansionEn}.`
+      };
+    }
+  }
+
+  // 4. Built-in clinical & general English glossary
+  for (const cand of candidates) {
+    const gloss = QUICK_CLINICAL_AND_GENERAL_GLOSSARY[cand];
+    if (gloss) {
+      return {
+        translationAr: gloss,
+        definitionAr: `معنى طبي/لغوي فوري للمصطلح "${cleaned}".`
+      };
+    }
+  }
+
+  // 5. Structural clinical phrasebook lookup
+  for (const cand of candidates) {
+    const phraseEntry = CLINICAL_PHRASEBOOK.find(
+      (p) => p.en.trim().toLowerCase() === cand
+    );
+    if (phraseEntry) {
+      return {
+        translationAr: phraseEntry.ar
+      };
+    }
+  }
+
+  // 6. Morphological decomposition (only if genuine prefix/roots/suffix detected)
+  const morph = decomposeMedicalWord(cleaned, terms);
+  const hasRealMorph = Boolean(
+    morph.prefix || (morph.roots && morph.roots.length > 0) || morph.suffix
+  );
+  if (
+    hasRealMorph &&
+    morph.synthesizedAr &&
+    morph.synthesizedAr !== 'مصطلح أحادي الجذر'
+  ) {
+    return {
+      translationAr: morph.synthesizedAr
+    };
+  }
+
+  // 7. Layer 3 structural pass if it actually translates to Arabic
+  const structural = applyLayer3PhrasebookAndStructuralNmt(cleaned, terms, [], []).trim();
+  if (
+    structural &&
+    structural.toLowerCase() !== cleaned.toLowerCase() &&
+    /[\u0600-\u06FF]/.test(structural)
+  ) {
+    return {
+      translationAr: structural
+    };
+  }
+
+  return null;
 }
 

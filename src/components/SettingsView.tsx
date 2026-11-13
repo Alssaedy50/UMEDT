@@ -18,13 +18,18 @@ import {
   Check,
   Layers,
   X,
-  Send
+  Send,
+  Type,
+  Palette
 } from 'lucide-react';
 import {
   DataBackupRecord,
   VersionMetadata,
   OnlineUpdateConfig,
-  OnlineUpdateStatus
+  OnlineUpdateStatus,
+  AppFontFamily,
+  AppFontSizeScale,
+  AppColorTheme
 } from '../types/lexicon';
 import { usePWAInstall, useOnlineStatus } from '../hooks/usePWAInstall';
 import {
@@ -38,6 +43,12 @@ import {
 interface SettingsViewProps {
   isDark: boolean;
   onToggleDark: (nextDark: boolean) => void;
+  fontFamily: AppFontFamily;
+  onChangeFontFamily: (next: AppFontFamily) => void;
+  fontSizeScale: AppFontSizeScale;
+  onChangeFontSizeScale: (next: AppFontSizeScale) => void;
+  colorTheme: AppColorTheme;
+  onChangeColorTheme: (next: AppColorTheme) => void;
   conflictPolicy: 'ignore' | 'overwrite' | 'merge';
   onChangeConflictPolicy: (nextPolicy: 'ignore' | 'overwrite' | 'merge') => void;
   simulatedOffline: boolean;
@@ -80,7 +91,70 @@ interface SettingsViewProps {
   lastImportedOrCopiedSummary?: ConciseDataSummary | null;
 }
 
-type SettingsModalType = null | 'conflict' | 'updates' | 'backup' | 'telegram' | 'reset';
+type SettingsModalType =
+  | null
+  | 'typography'
+  | 'theme'
+  | 'conflict'
+  | 'updates'
+  | 'backup'
+  | 'telegram'
+  | 'reset';
+
+const FONT_FAMILY_OPTIONS: Array<{
+  id: AppFontFamily;
+  label: string;
+  preview: string;
+  cssFamily: string;
+}> = [
+  {
+    id: 'cairo',
+    label: 'Cairo (افتراضي)',
+    preview: 'خط واضح ومتوازن للمصطلحات الطبية',
+    cssFamily: "'Cairo', 'Inter', system-ui, sans-serif"
+  },
+  {
+    id: 'tajawal',
+    label: 'Tajawal',
+    preview: 'خط عربي حديث وسلس للقراءة الطويلة',
+    cssFamily: "'Tajawal', 'Cairo', system-ui, sans-serif"
+  },
+  {
+    id: 'ibm',
+    label: 'IBM Plex Sans Arabic',
+    preview: 'خط أكاديمي دقيق للجداول والمواضيع',
+    cssFamily: "'IBM Plex Sans Arabic', 'Inter', system-ui, sans-serif"
+  },
+  {
+    id: 'system',
+    label: 'خط النظام',
+    preview: 'استخدام خط الجهاز الافتراضي للأداء الأقصى',
+    cssFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+  }
+];
+
+const FONT_SIZE_OPTIONS: Array<{
+  id: AppFontSizeScale;
+  label: string;
+  pxLabel: string;
+}> = [
+  { id: 'sm', label: 'صغير', pxLabel: '14px' },
+  { id: 'md', label: 'متوسط', pxLabel: '16px' },
+  { id: 'lg', label: 'كبير', pxLabel: '18px' },
+  { id: 'xl', label: 'كبير جداً', pxLabel: '20px' }
+];
+
+const COLOR_THEME_OPTIONS: Array<{
+  id: AppColorTheme;
+  label: string;
+  swatchClass: string;
+}> = [
+  { id: 'emerald', label: 'الزمردي الطبي', swatchClass: 'bg-emerald-500' },
+  { id: 'blue', label: 'الأزرق السريري', swatchClass: 'bg-blue-500' },
+  { id: 'indigo', label: 'النيلي الأكاديمي', swatchClass: 'bg-indigo-500' },
+  { id: 'amber', label: 'الكهرماني الدافئ', swatchClass: 'bg-amber-500' },
+  { id: 'rose', label: 'الوردي الجراحي', swatchClass: 'bg-rose-500' }
+];
 
 const CONFLICT_LABELS: Record<'merge' | 'overwrite' | 'ignore', string> = {
   merge: 'دمج',
@@ -91,6 +165,12 @@ const CONFLICT_LABELS: Record<'merge' | 'overwrite' | 'ignore', string> = {
 export const SettingsView: React.FC<SettingsViewProps> = ({
   isDark,
   onToggleDark,
+  fontFamily,
+  onChangeFontFamily,
+  fontSizeScale,
+  onChangeFontSizeScale,
+  colorTheme,
+  onChangeColorTheme,
   conflictPolicy,
   onChangeConflictPolicy,
   simulatedOffline,
@@ -226,7 +306,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       {/* Single Compact List Card */}
       <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/80 overflow-hidden">
-        {/* 1. Theme */}
+        {/* 1. Dark / Light Appearance */}
         <div className="px-4 py-3.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
             {isDark ? (
@@ -245,6 +325,50 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             {isDark ? 'ليلي' : 'نهاري'}
           </button>
         </div>
+
+        {/* 1b. Font Family & Font Size */}
+        <button
+          type="button"
+          onClick={() => setActiveModal('typography')}
+          className="w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-right"
+        >
+          <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
+            <Type className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span>الخط وحجم الخط</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400 min-w-0">
+            <span className="truncate">
+              {FONT_FAMILY_OPTIONS.find((f) => f.id === fontFamily)?.label.split(' ')[0] || 'Cairo'} ·{' '}
+              {FONT_SIZE_OPTIONS.find((s) => s.id === fontSizeScale)?.label || 'متوسط'}
+            </span>
+            <ChevronLeft className="w-4 h-4 shrink-0" />
+          </div>
+        </button>
+
+        {/* 1c. Color Theme */}
+        <button
+          type="button"
+          onClick={() => setActiveModal('theme')}
+          className="w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-right"
+        >
+          <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
+            <Palette className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span>ثيم التطبيق</span>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+            <span
+              className={`w-3 h-3 rounded-full shrink-0 ${
+                COLOR_THEME_OPTIONS.find((t) => t.id === colorTheme)?.swatchClass || 'bg-emerald-500'
+              }`}
+            />
+            <span>
+              {COLOR_THEME_OPTIONS.find((t) => t.id === colorTheme)?.label || 'الزمردي الطبي'}
+            </span>
+            <ChevronLeft className="w-4 h-4 shrink-0" />
+          </div>
+        </button>
 
         {/* 2. Connection Mode */}
         <div className="px-4 py-3.5 flex items-center justify-between gap-3">
@@ -434,6 +558,142 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl max-h-[86dvh] overflow-y-auto"
           >
+            {/* Modal A: Typography (Font Family & Font Size) */}
+            {activeModal === 'typography' && (
+              <>
+                <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Type className="w-4 h-4 text-emerald-500" />
+                    <span className="text-sm font-extrabold text-slate-900 dark:text-white">
+                      الخط وحجم الخط
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveModal(null)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-4 text-xs">
+                  <div className="space-y-2">
+                    <span className="font-extrabold text-slate-700 dark:text-slate-200 block">
+                      نوع الخط:
+                    </span>
+                    <div className="space-y-1.5">
+                      {FONT_FAMILY_OPTIONS.map((fontOpt) => {
+                        const active = fontFamily === fontOpt.id;
+                        return (
+                          <button
+                            key={fontOpt.id}
+                            type="button"
+                            onClick={() => onChangeFontFamily(fontOpt.id)}
+                            style={{ fontFamily: fontOpt.cssFamily }}
+                            className={`w-full px-3.5 py-2.5 rounded-xl border text-right flex items-center justify-between gap-2 transition-colors ${
+                              active
+                                ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300'
+                                : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200'
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <div className="font-extrabold text-sm">{fontOpt.label}</div>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                                {fontOpt.preview}
+                              </div>
+                            </div>
+                            {active && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <span className="font-extrabold text-slate-700 dark:text-slate-200 block">
+                      حجم الخط العام:
+                    </span>
+                    <div className="grid grid-cols-2 gap-2">
+                      {FONT_SIZE_OPTIONS.map((sizeOpt) => {
+                        const active = fontSizeScale === sizeOpt.id;
+                        return (
+                          <button
+                            key={sizeOpt.id}
+                            type="button"
+                            onClick={() => onChangeFontSizeScale(sizeOpt.id)}
+                            className={`min-h-[44px] px-3 py-2 rounded-xl border font-bold flex items-center justify-between transition-colors ${
+                              active
+                                ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300'
+                                : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            <span>{sizeOpt.label}</span>
+                            <span className="font-mono text-[11px] opacity-75">{sizeOpt.pxLabel}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                    <div className="text-[11px] font-bold text-slate-400">معاينة مباشرة:</div>
+                    <div className="text-sm font-bold text-slate-900 dark:text-white leading-relaxed">
+                      فقر الدم بعوز الحديد (Iron Deficiency Anemia) — فحص مخزون الفيريتين.
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Modal B: App Color Theme */}
+            {activeModal === 'theme' && (
+              <>
+                <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-emerald-500" />
+                    <span className="text-sm font-extrabold text-slate-900 dark:text-white">
+                      ثيمات التطبيق
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveModal(null)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  {COLOR_THEME_OPTIONS.map((themeOpt) => {
+                    const active = colorTheme === themeOpt.id;
+                    return (
+                      <button
+                        key={themeOpt.id}
+                        type="button"
+                        onClick={() => {
+                          onChangeColorTheme(themeOpt.id);
+                          setActiveModal(null);
+                        }}
+                        className={`w-full min-h-[48px] px-3.5 py-2.5 rounded-xl border font-bold flex items-center justify-between transition-colors ${
+                          active
+                            ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300'
+                            : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className={`w-4 h-4 rounded-full ${themeOpt.swatchClass} shadow-xs`} />
+                          <span>{themeOpt.label}</span>
+                        </div>
+                        {active && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
             {/* Modal 0: Telegram Backup & Periodic Schedule */}
             {activeModal === 'telegram' && telegramConfig && onUpdateTelegramConfig && (
               <>

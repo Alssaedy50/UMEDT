@@ -627,7 +627,7 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                     >
                       {topics.map((t) => (
                         <option key={t.id} value={t.id}>
-                          {t.titleAr || t.subtitle || t.title} — {t.titleEn || t.title}
+                          {t.titleAr || t.subtitle || t.titleEn || t.title}
                         </option>
                       ))}
                     </select>
@@ -647,7 +647,7 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                     >
                       {subjects.map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.titleAr} — {s.titleEn}
+                          {s.titleAr || s.titleEn}
                         </option>
                       ))}
                     </select>
@@ -667,7 +667,7 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                     >
                       {blocks.map((b) => (
                         <option key={b.id} value={b.id}>
-                          {b.titleAr} — {b.titleEn}
+                          {b.titleAr || b.titleEn}
                         </option>
                       ))}
                     </select>

@@ -22,6 +22,9 @@ import {
   LinkedSentence
 } from './data/medicalLexiconData';
 import {
+  AppColorTheme,
+  AppFontFamily,
+  AppFontSizeScale,
   ClinicalAbbreviation,
   DataBackupRecord,
   MorphologicalAffix,
@@ -82,14 +85,16 @@ import {
   saveTelegramBackupConfig,
   sendBackupToTelegram,
   isTelegramScheduledBackupDue,
-  buildConciseDataSummary
+  buildConciseDataSummary,
+  createUnifiedBackupPackage
 } from './services/telegramBackupService';
 import {
   saveMedicalBlocks,
   saveMedicalSubjects
 } from './services/learningHierarchyService';
-import { saveQuizQuestions } from './services/quizEngineService';
+import { saveQuizQuestions, saveQuizAttempts } from './services/quizEngineService';
 import { parseUploadedFile } from './services/fileParserService';
+import { lookupQuickWordOrPhraseAr } from './engine/hybridTranslator';
 
 type MainTab = 'home' | 'topics' | 'library' | 'settings';
 
@@ -165,6 +170,15 @@ export default function App() {
   const initialPersisted = useMemo(() => loadAppState(), []);
 
   const [isDark, setIsDark] = useState<boolean>(initialPersisted.settings.isDark);
+  const [fontFamily, setFontFamily] = useState<AppFontFamily>(
+    initialPersisted.settings.fontFamily || 'cairo'
+  );
+  const [fontSizeScale, setFontSizeScale] = useState<AppFontSizeScale>(
+    initialPersisted.settings.fontSizeScale || 'md'
+  );
+  const [colorTheme, setColorTheme] = useState<AppColorTheme>(
+    initialPersisted.settings.colorTheme || 'emerald'
+  );
   const [activeTab, setActiveTab] = useState<MainTab>(() => resolveInitialTabFromLocation());
   const [terms, setTerms] = useState<DictionaryTerm[]>(initialPersisted.terms);
   const [sentences, setSentences] = useState<LinkedSentence[]>(initialPersisted.sentences);
@@ -211,6 +225,29 @@ export default function App() {
       root.classList.remove('dark');
     }
   }, [isDark]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const fontMap: Record<AppFontFamily, string> = {
+      cairo: "'Cairo', 'Inter', system-ui, -apple-system, sans-serif",
+      tajawal: "'Tajawal', 'Inter', system-ui, -apple-system, sans-serif",
+      ibm: "'IBM Plex Sans Arabic', 'Inter', system-ui, -apple-system, sans-serif",
+      system: "system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif"
+    };
+    const sizeMap: Record<AppFontSizeScale, string> = {
+      sm: '14px',
+      md: '16px',
+      lg: '18px',
+      xl: '20px'
+    };
+    root.style.setProperty('--app-font-family', fontMap[fontFamily]);
+    root.style.fontSize = sizeMap[fontSizeScale];
+    if (colorTheme === 'emerald') {
+      root.removeAttribute('data-theme');
+    } else {
+      root.setAttribute('data-theme', colorTheme);
+    }
+  }, [fontFamily, fontSizeScale, colorTheme]);
 
   // Screen 1: Search & Home State
   const [searchQuery, setSearchQuery] = useState('');
@@ -296,9 +333,12 @@ export default function App() {
       isDark,
       conflictPolicy,
       sharedStoragePath,
-      lastBackupTime
+      lastBackupTime,
+      fontFamily,
+      fontSizeScale,
+      colorTheme
     });
-  }, [isDark, conflictPolicy, sharedStoragePath, lastBackupTime]);
+  }, [isDark, conflictPolicy, sharedStoragePath, lastBackupTime, fontFamily, fontSizeScale, colorTheme]);
 
   // Synchronize URL hash & history state for SPA route refresh and Android hardware Back navigation
   useEffect(() => {
@@ -1200,23 +1240,51 @@ export default function App() {
           const qArr = inner.quizQuestions || inner.questions;
           if (qArr.length > 0) saveQuizQuestions(qArr);
         }
+        if (Array.isArray(inner.quizAttempts) && inner.quizAttempts.length > 0) {
+          saveQuizAttempts(inner.quizAttempts);
+        }
+        if (inner.studyStats && typeof inner.studyStats === 'object') {
+          setStudyStats((prev) => ({
+            gotIt: Math.max(prev.gotIt, Number(inner.studyStats.gotIt) || 0),
+            needsReview: Math.max(prev.needsReview, Number(inner.studyStats.needsReview) || 0)
+          }));
+        }
         if (Array.isArray(inner.terms) && inner.terms.length > 0) {
           setTerms((prev) => {
             if (mode === 'replace') return inner.terms;
             const map = new Map(prev.map((t) => [t.term.toLowerCase(), t]));
             for (const t of inner.terms) {
-              if (t && t.term) map.set(t.term.toLowerCase(), t);
+              if (t && t.term) {
+                const key = t.term.toLowerCase();
+                if (mode === 'ignore' && map.has(key)) continue;
+                map.set(key, t);
+              }
             }
             return Array.from(map.values());
           });
         }
         if (Array.isArray(inner.sentences) && inner.sentences.length > 0) {
-          setSentences((prev) =>
-            mode === 'replace' ? inner.sentences : [...inner.sentences, ...prev]
-          );
+          setSentences((prev) => {
+            if (mode === 'replace') return inner.sentences;
+            const map = new Map(prev.map((s) => [s.en.trim().toLowerCase(), s]));
+            for (const s of inner.sentences) {
+              if (s && s.en) {
+                const key = s.en.trim().toLowerCase();
+                if (mode === 'ignore' && map.has(key)) continue;
+                map.set(key, s);
+              }
+            }
+            return Array.from(map.values());
+          });
         }
         if (Array.isArray(inner.topics) && inner.topics.length > 0) {
           handleImportTopicsBatch(inner.topics);
+        } else if (
+          (Array.isArray(inner.blocks) && inner.blocks.length > 0) ||
+          (Array.isArray(inner.subjects) && inner.subjects.length > 0)
+        ) {
+          // Trigger TopicsHub hierarchy sync from localStorage
+          setTopics((prev) => [...prev]);
         }
 
         const summary = buildConciseDataSummary({
@@ -1267,7 +1335,7 @@ export default function App() {
   const handleImportPackageFile = async (file: File) => {
     const lowerName = file.name.toLowerCase();
 
-    // If JSON / CSV / TXT / MD, first try unified/topics/terms parsing so any file works
+    // If JSON / CSV / TXT / MD, first try unified/topics/terms parsing so any offline file works
     if (
       lowerName.endsWith('.json') ||
       lowerName.endsWith('.csv') ||
@@ -1296,6 +1364,60 @@ export default function App() {
             });
             setLastImportedOrCopiedSummary(summary);
             showToast(`تم استيراد ${count} موضوع طبي من الملف (${file.name})`);
+            return;
+          }
+        } else if (lowerName.endsWith('.csv') || lowerName.endsWith('.txt') || lowerName.endsWith('.md')) {
+          const lines = text
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter((l) => l.length > 1);
+          const stagedFromText: StagedTermItem[] = [];
+          lines.forEach((line, idx) => {
+            const parts = line.includes('\t')
+              ? line.split('\t')
+              : line.includes(' - ')
+              ? line.split(' - ')
+              : line.includes(' : ')
+              ? line.split(' : ')
+              : line.split(',');
+            const tEn = (parts[0] || '').trim().replace(/^["']|["']$/g, '');
+            if (!tEn || tEn.toLowerCase() === 'term' || tEn.toLowerCase() === 'term_en') return;
+            const tAr =
+              (parts[1] || '').trim().replace(/^["']|["']$/g, '') ||
+              lookupQuickWordOrPhraseAr(tEn, terms)?.translationAr ||
+              'مصطلح طبي';
+            const defAr =
+              (parts[2] || '').trim().replace(/^["']|["']$/g, '') ||
+              `مصطلح طبي سريري يعني ${tAr}.`;
+            const defEn =
+              (parts[3] || '').trim().replace(/^["']|["']$/g, '') ||
+              `Clinical medical term: ${tEn}.`;
+            stagedFromText.push({
+              id: `stg-settings-${Date.now()}-${idx}`,
+              term: tEn,
+              translation: tAr,
+              phonetic: `/${tEn.toLowerCase()}/`,
+              pos: tEn.includes(' ') ? 'phrase' : 'noun',
+              category: 'Medical',
+              definitionAr: defAr,
+              definitionEn: defEn,
+              examples: [],
+              relations: { synonyms: [], broader: [], related: [] },
+              selected: true
+            });
+          });
+          if (stagedFromText.length > 0) {
+            handleCommitBatch({
+              stagedTerms: stagedFromText,
+              stagedSentences: [],
+              stayOnCurrentTab: true
+            });
+            const summary = buildConciseDataSummary({
+              terms: stagedFromText as unknown as DictionaryTerm[],
+              sourceLabel: file.name,
+              rawSizeBytes: file.size
+            });
+            setLastImportedOrCopiedSummary(summary);
             return;
           }
         }
@@ -1603,27 +1725,19 @@ export default function App() {
   };
 
   const handleExportFullBackup = () => {
-    const jsonStr = exportFullDatabaseJson({
+    const { jsonString, summary } = createUnifiedBackupPackage(
       terms,
       sentences,
       topics,
-      customAffixes,
-      customAbbreviations,
+      'نسخة احتياطية شاملة (JSON)',
       studyStats,
       versionMetadata
-    });
+    );
     downloadFile(
-      'dictengine-umd-full-data.json',
-      jsonStr,
+      `UMEDT-Backup-${new Date().toISOString().slice(0, 10)}.json`,
+      jsonString,
       'application/json;charset=utf-8'
     );
-    const summary = buildConciseDataSummary({
-      terms,
-      sentences,
-      topics,
-      sourceLabel: 'نسخة احتياطية مصدرة (JSON)',
-      rawSizeBytes: new Blob([jsonStr]).size
-    });
     setLastImportedOrCopiedSummary(summary);
     setLastBackupTime('الآن');
   };
@@ -1960,7 +2074,6 @@ export default function App() {
             sentences={sentences}
             topics={topics}
             studyStats={studyStats}
-            versionMetadata={versionMetadata}
             activeCollection={activeCollection}
             initialMode={libraryInitialMode}
             initialDraftTerm={libraryDraftTerm}
@@ -1993,6 +2106,21 @@ export default function App() {
           <SettingsView
             isDark={isDark}
             onToggleDark={setIsDark}
+            fontFamily={fontFamily}
+            onChangeFontFamily={(nextFont) => {
+              setFontFamily(nextFont);
+              showToast('تم تغيير نوع الخط بنجاح');
+            }}
+            fontSizeScale={fontSizeScale}
+            onChangeFontSizeScale={(nextScale) => {
+              setFontSizeScale(nextScale);
+              showToast('تم تحديث حجم الخط في التطبيق');
+            }}
+            colorTheme={colorTheme}
+            onChangeColorTheme={(nextTheme) => {
+              setColorTheme(nextTheme);
+              showToast('تم تطبيق الثيم المختار');
+            }}
             conflictPolicy={conflictPolicy}
             onChangeConflictPolicy={(nextPolicy) => {
               setConflictPolicy(nextPolicy);
