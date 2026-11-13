@@ -147,16 +147,16 @@ jobs:
             echo "ERROR: Debug APK was not found in android/app/build/outputs/apk/debug"
             exit 1
           fi
-          cp "$DEBUG_APK" artifacts/apk/UMED-2-v2.2.3-debug.apk
+          cp "$DEBUG_APK" artifacts/apk/UMED-2-v2.3.0-debug.apk
 
           if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk artifacts/apk/UMED-2-v2.2.3-release-signed.apk
+            cp android/app/build/outputs/apk/release/app-release.apk artifacts/apk/UMED-2-v2.3.0-release-signed.apk
           elif [ -f android/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release-unsigned.apk artifacts/apk/UMED-2-v2.2.3-release-unsigned.apk
+            cp android/app/build/outputs/apk/release/app-release-unsigned.apk artifacts/apk/UMED-2-v2.3.0-release-unsigned.apk
           else
             RELEASE_APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
             if [ -n "$RELEASE_APK" ]; then
-              cp "$RELEASE_APK" artifacts/apk/UMED-2-v2.2.3-release-unsigned.apk
+              cp "$RELEASE_APK" artifacts/apk/UMED-2-v2.3.0-release-unsigned.apk
             else
               echo "ERROR: Release APK was not found in android/app/build/outputs/apk/release"
               exit 1
@@ -165,8 +165,8 @@ jobs:
           ls -lh artifacts/apk/
           echo "### UMED-2 Android APK Artifacts Built Successfully" >> $GITHUB_STEP_SUMMARY
           echo "- **Application ID:** \`org.umed2.dictengine\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version:** \`2.2.3 (versionCode 20203)\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Installable Debug APK:** \`UMED-2-v2.2.3-debug.apk\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** \`2.3.0 (versionCode 20300)\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Installable Debug APK:** \`UMED-2-v2.3.0-debug.apk\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Release APK Signing Status:** \`signed=${{ steps.signing_check.outputs.signed }}\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Clean Up Temporary Keystore
@@ -176,16 +176,16 @@ jobs:
       - name: Upload Installable Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UMED-2-v2.2.3-debug-apk
-          path: artifacts/apk/UMED-2-v2.2.3-debug.apk
+          name: UMED-2-v2.3.0-debug-apk
+          path: artifacts/apk/UMED-2-v2.3.0-debug.apk
           if-no-files-found: error
           retention-days: 90
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UMED-2-v2.2.3-release-apk
-          path: artifacts/apk/UMED-2-v2.2.3-release-*.apk
+          name: UMED-2-v2.3.0-release-apk
+          path: artifacts/apk/UMED-2-v2.3.0-release-*.apk
           if-no-files-found: error
           retention-days: 90
 
@@ -193,15 +193,15 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.2.3
-          name: "UMEDT Android APK v2.2.3 (Latest)"
+          tag_name: v2.3.0
+          name: "UMEDT Android APK v2.3.0 (Latest)"
           body: |
-            ### UMEDT — محرك القاموس والمترجم الطبي الهجين (v2.2.3)
-            - **نسخة التثبيت النهائية الموقّعة (Release APK):** `UMED-2-v2.2.3-release-signed.apk`
-            - **نسخة الفحص (Debug APK):** `UMED-2-v2.2.3-debug.apk`
+            ### UMEDT — محرك القاموس والمترجم الطبي الهجين (v2.3.0)
+            - **نسخة التثبيت النهائية الموقّعة (Release APK):** `UMED-2-v2.3.0-release-signed.apk`
+            - **نسخة الفحص (Debug APK):** `UMED-2-v2.3.0-debug.apk`
           files: |
-            artifacts/apk/UMED-2-v2.2.3-release-signed.apk
-            artifacts/apk/UMED-2-v2.2.3-debug.apk
+            artifacts/apk/UMED-2-v2.3.0-release-signed.apk
+            artifacts/apk/UMED-2-v2.3.0-debug.apk
           prerelease: false
           make_latest: true
         env:

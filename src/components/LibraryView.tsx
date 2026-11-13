@@ -1,29 +1,74 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Star,
-  Brain,
+  Bookmark,
+  Layers,
+  RotateCcw,
+  Check,
+  X,
   Volume2,
-  ChevronDown,
+  Folder,
+  Sparkles,
   BookOpen,
   FileText,
+  PlusCircle,
+  Upload,
+  ArrowRight,
+  Search,
+  Trash2,
   CheckCircle2,
-  RotateCcw
+  AlertCircle,
+  FileSpreadsheet,
+  Archive,
+  ChevronLeft,
+  Wand2
 } from 'lucide-react';
 import {
   DictionaryTerm,
   LinkedSentence,
-  SpacedRepetitionData,
   TopicArticle,
-  VersionMetadata
+  SpacedRepetitionData,
+  StudyStats,
+  VersionMetadata,
+  LexiconCategory,
+  TermExample,
+  MorphologicalAffix,
+  ClinicalAbbreviation
 } from '../types/lexicon';
+import { decomposeMedicalWord, runHybridGcNmtPipeline } from '../engine/hybridTranslator';
+import { parseUploadedFile } from '../services/fileParserService';
+
+export interface StagedTermItem {
+  id: string;
+  term: string;
+  translation: string;
+  phonetic: string;
+  pos: string;
+  category: LexiconCategory;
+  umdCode?: string;
+  definitionAr: string;
+  definitionEn: string;
+  examples: TermExample[];
+  relations: {
+    synonyms: string[];
+    broader: string[];
+    related: string[];
+  };
+  selected?: boolean;
+  isDuplicate?: boolean;
+}
+
+export type LibrarySubMode = 'hub' | 'favorites' | 'add_offline' | 'flashcards';
 
 interface LibraryViewProps {
   terms: DictionaryTerm[];
   sentences: LinkedSentence[];
-  topics: TopicArticle[];
-  studyStats: { gotIt: number; needsReview: number };
+  topics?: TopicArticle[];
+  studyStats: StudyStats;
   versionMetadata: VersionMetadata;
   activeCollection: string;
+  initialMode?: LibrarySubMode;
+  initialDraftTerm?: string;
+  onInitialModeConsumed?: () => void;
   onOpenCollectionsMenu: () => void;
   onRecordSm2Review: (
     kind: 'term' | 'sentence',
@@ -34,450 +79,1533 @@ interface LibraryViewProps {
   onOpenTermDetail: (termId: string) => void;
   onToggleFavoriteTerm: (termId: string, e?: React.MouseEvent) => void;
   onToggleFavoriteSentence: (sentenceId: string, e?: React.MouseEvent) => void;
+  onToggleFavoriteTopic?: (topicId: string, e?: React.MouseEvent) => void;
+  onOpenTopicFromLibrary?: (topicId: string) => void;
   onTriggerTTS: (text: string, key: string, lang?: string) => void;
+  onSaveManualTerm: (
+    newTerm: DictionaryTerm,
+    newLinkedSentences: LinkedSentence[]
+  ) => void;
+  onCommitBatch: (payload: {
+    stagedTerms: StagedTermItem[];
+    stagedSentences: LinkedSentence[];
+    termExampleEnhancements?: Array<{
+      termId: string;
+      example: { en: string; ar: string };
+    }>;
+    incomingAffixes?: MorphologicalAffix[];
+    incomingAbbreviations?: ClinicalAbbreviation[];
+    stayOnCurrentTab?: boolean;
+  }) => void;
+  onImportFullBackupJson: (rawJson: string) => boolean;
+  onImportPackageFile: (file: File) => Promise<void>;
+}
+
+const CATEGORY_OPTIONS: { value: LexiconCategory; label: string }[] = [
+  { value: 'Medical', label: 'طبي سريري (Medical)' },
+  { value: 'AI', label: 'ذكاء اصطناعي طبي (AI)' },
+  { value: 'Programming', label: 'معلوماتية صحية (Informatics)' },
+  { value: 'General', label: 'مصطلح أكاديمي عام (General)' }
+];
+
+const POS_OPTIONS = [
+  { value: 'noun', label: 'اسم / مفهوم (Noun)' },
+  { value: 'adjective', label: 'صفة سريرية (Adjective)' },
+  { value: 'verb', label: 'فعل / إجراء (Verb)' },
+  { value: 'phrase', label: 'مصطلح مركب / متلازمة (Phrase)' },
+  { value: 'abbreviation', label: 'اختصار طبي (Abbreviation)' }
+];
+
+function computeNextSm2(
+  current: SpacedRepetitionData | undefined,
+  knewIt: boolean
+): SpacedRepetitionData {
+  const prevInterval = current?.interval ?? 1;
+  const prevEase = current?.easeFactor ?? 2.5;
+  const prevReps = current?.repetitions ?? 0;
+
+  if (!knewIt) {
+    return {
+      interval: 1,
+      easeFactor: Math.max(1.3, prevEase - 0.2),
+      repetitions: 0,
+      nextReviewAt: Date.now() + 10 * 60 * 1000
+    };
+  }
+
+  const nextReps = prevReps + 1;
+  const nextInterval =
+    nextReps === 1 ? 1 : nextReps === 2 ? 3 : Math.round(prevInterval * prevEase);
+  const nextEase = Math.min(3.0, prevEase + 0.1);
+
+  return {
+    interval: nextInterval,
+    easeFactor: Number(nextEase.toFixed(2)),
+    repetitions: nextReps,
+    nextReviewAt: Date.now() + nextInterval * 24 * 60 * 60 * 1000
+  };
 }
 
 export const LibraryView: React.FC<LibraryViewProps> = ({
   terms,
   sentences,
+  topics = [],
   studyStats,
-  versionMetadata,
   activeCollection,
+  initialMode,
+  initialDraftTerm,
+  onInitialModeConsumed,
   onOpenCollectionsMenu,
   onRecordSm2Review,
   onOpenTermDetail,
   onToggleFavoriteTerm,
   onToggleFavoriteSentence,
-  onTriggerTTS
+  onToggleFavoriteTopic,
+  onOpenTopicFromLibrary,
+  onTriggerTTS,
+  onSaveManualTerm,
+  onCommitBatch,
+  onImportFullBackupJson,
+  onImportPackageFile
 }) => {
-  const [favoritesTab, setFavoritesTab] = useState<'terms' | 'sentences'>('terms');
-  const [flashcardIdx, setFlashcardIdx] = useState<number>(0);
-  const [flashcardFlipped, setFlashcardFlipped] = useState<boolean>(false);
+  const [libraryMode, setLibraryMode] = useState<LibrarySubMode>(initialMode || 'hub');
+  const [favoritesTab, setFavoritesTab] = useState<'terms' | 'sentences' | 'topics' | 'custom'>('terms');
+  const [favSearchQuery, setFavSearchQuery] = useState('');
 
-  const favoriteTerms = useMemo(() => {
-    const allFavs = terms.filter((t) => t.favorite);
-    if (activeCollection === 'الكل') return allFavs;
-    return allFavs.filter((t) => (t.collections || []).includes(activeCollection));
-  }, [terms, activeCollection]);
+  // Flashcards state
+  const [currentCardIdx, setCurrentCardIdx] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
 
-  const favoriteSentences = useMemo(
-    () => sentences.filter((s) => s.favorite),
-    [sentences]
+  // Offline Add & Import state
+  const [offlineAddTab, setOfflineAddTab] = useState<'manual' | 'file_batch'>('manual');
+  const [manualTerm, setManualTerm] = useState('');
+  const [manualTranslation, setManualTranslation] = useState('');
+  const [manualPhonetic, setManualPhonetic] = useState('');
+  const [manualCategory, setManualCategory] = useState<LexiconCategory>('Medical');
+  const [manualPos, setManualPos] = useState('noun');
+  const [manualCollection, setManualCollection] = useState('مضاف يدوياً');
+  const [manualDefAr, setManualDefAr] = useState('');
+  const [manualDefEn, setManualDefEn] = useState('');
+  const [manualSynonyms, setManualSynonyms] = useState('');
+  const [manualSentenceEn, setManualSentenceEn] = useState('');
+  const [manualSentenceAr, setManualSentenceAr] = useState('');
+  const [addAlsoToFavorites, setAddAlsoToFavorites] = useState(true);
+  const [offlineFeedback, setOfflineFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+
+  // File & Batch Import state
+  const [rawBatchInput, setRawBatchInput] = useState('');
+  const [stagedItems, setStagedItems] = useState<StagedTermItem[]>([]);
+  const [isParsingFile, setIsParsingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (initialMode) {
+      setLibraryMode(initialMode);
+      if (initialDraftTerm && initialDraftTerm.trim()) {
+        setManualTerm(initialDraftTerm.trim());
+        setOfflineAddTab('manual');
+      }
+      onInitialModeConsumed?.();
+    }
+  }, [initialMode, initialDraftTerm, onInitialModeConsumed]);
+
+  const existingTermSet = useMemo(
+    () => new Set(terms.map((t) => t.term.toLowerCase().trim())),
+    [terms]
   );
 
-  const currentFlashcard = useMemo(() => {
-    if (favoriteTerms.length === 0) return undefined;
-    return favoriteTerms[flashcardIdx % favoriteTerms.length];
-  }, [favoriteTerms, flashcardIdx]);
+  const favoriteTerms = useMemo(() => {
+    let base = terms.filter((t) => t.favorite);
+    if (activeCollection && activeCollection !== 'الكل') {
+      base = base.filter((t) => (t.collections || []).includes(activeCollection));
+    }
+    if (favSearchQuery.trim()) {
+      const q = favSearchQuery.toLowerCase().trim();
+      base = base.filter(
+        (t) =>
+          t.term.toLowerCase().includes(q) ||
+          t.translation.toLowerCase().includes(q) ||
+          t.definitionAr.toLowerCase().includes(q)
+      );
+    }
+    return base;
+  }, [terms, activeCollection, favSearchQuery]);
 
-  const handleGradeFlashcard = (quality: number) => {
+  const favoriteSentences = useMemo(() => {
+    let base = sentences.filter((s) => s.favorite);
+    if (favSearchQuery.trim()) {
+      const q = favSearchQuery.toLowerCase().trim();
+      base = base.filter(
+        (s) =>
+          s.en.toLowerCase().includes(q) ||
+          s.ar.toLowerCase().includes(q)
+      );
+    }
+    return base;
+  }, [sentences, favSearchQuery]);
+
+  const favoriteTopics = useMemo(() => {
+    let base = topics.filter((t) => t.favorite);
+    if (favSearchQuery.trim()) {
+      const q = favSearchQuery.toLowerCase().trim();
+      base = base.filter(
+        (t) =>
+          t.title.toLowerCase().includes(q) ||
+          (t.titleEn && t.titleEn.toLowerCase().includes(q)) ||
+          (t.titleAr && t.titleAr.toLowerCase().includes(q)) ||
+          t.subtitle.toLowerCase().includes(q)
+      );
+    }
+    return base;
+  }, [topics, favSearchQuery]);
+
+  const customAddedTerms = useMemo(
+    () =>
+      terms.filter(
+        (t) =>
+          t.id.startsWith('u-') ||
+          t.id.startsWith('custom-') ||
+          t.id.startsWith('topic-term-')
+      ),
+    [terms]
+  );
+
+  const totalFavoritesCount =
+    terms.filter((t) => t.favorite).length +
+    sentences.filter((s) => s.favorite).length +
+    topics.filter((t) => t.favorite).length;
+
+  // Flashcards pool
+  const flashcardPool = useMemo(() => {
+    const favPool = terms.filter((t) => t.favorite);
+    const base = favPool.length > 0 ? [...favPool] : terms.slice(0, 35);
+    const now = Date.now();
+    return base.sort((a, b) => {
+      const dueA = a.srsData?.nextReviewAt ?? 0;
+      const dueB = b.srsData?.nextReviewAt ?? 0;
+      const isDueA = dueA <= now ? 0 : 1;
+      const isDueB = dueB <= now ? 0 : 1;
+      if (isDueA !== isDueB) return isDueA - isDueB;
+      return dueA - dueB;
+    });
+  }, [terms]);
+
+  const currentFlashcard =
+    flashcardPool.length > 0 ? flashcardPool[currentCardIdx % flashcardPool.length] : null;
+
+  const handleFlashcardDecision = (knewIt: boolean) => {
     if (!currentFlashcard) return;
-    const prevSrs = currentFlashcard.srsData || {
-      interval: 1,
-      easeFactor: 2.5,
-      repetitions: 0,
-      nextReviewAt: Date.now()
+    const nextSrs = computeNextSm2(currentFlashcard.srsData, knewIt);
+    onRecordSm2Review('term', currentFlashcard.id, nextSrs, knewIt);
+    setIsFlipped(false);
+    setTimeout(() => {
+      setCurrentCardIdx((prev) => (prev + 1) % Math.max(1, flashcardPool.length));
+    }, 140);
+  };
+
+  // Offline auto-assist using local morphology + GC-NMT engine
+  const handleAutoAssistOffline = () => {
+    const clean = manualTerm.trim();
+    if (!clean) {
+      setOfflineFeedback({
+        type: 'error',
+        message: 'أدخل المصطلح بالإنجليزية أولاً لتوليد الجذور والترجمة تلقائياً أوفلاين.'
+      });
+      return;
+    }
+
+    const morph = decomposeMedicalWord(clean, terms);
+    const gcNmt = runHybridGcNmtPipeline(clean, terms, sentences);
+
+    const hasMorph = Boolean(morph.prefix || morph.root || morph.suffix);
+    const bestTranslation =
+      hasMorph && morph.synthesizedAr
+        ? morph.synthesizedAr
+        : gcNmt.layer4FinalOutputAr && gcNmt.layer4FinalOutputAr !== clean
+        ? gcNmt.layer4FinalOutputAr
+        : '';
+
+    if (!manualTranslation.trim() && bestTranslation) {
+      setManualTranslation(bestTranslation);
+    }
+
+    if (!manualPhonetic.trim()) {
+      setManualPhonetic(`/${clean.toLowerCase()}/`);
+    }
+
+    const morphSummary = [
+      morph.prefix ? `بادئة ${morph.prefix.affix} (${morph.prefix.meaningAr})` : null,
+      ...(morph.roots || []).map((r) => `جذر ${r.affix} (${r.meaningAr})`),
+      morph.suffix ? `لاحقة ${morph.suffix.affix} (${morph.suffix.meaningAr})` : null
+    ]
+      .filter(Boolean)
+      .join(' + ');
+
+    if (!manualDefAr.trim()) {
+      if (morphSummary) {
+        setManualDefAr(
+          `مصطلح طبي سريري يعني "${bestTranslation || manualTranslation || clean}". التحليل الصرفي: ${morphSummary}.`
+        );
+      } else {
+        setManualDefAr(
+          `مفهوم أو مصطلح طبي سريري يشير إلى ${bestTranslation || manualTranslation || clean}.`
+        );
+      }
+    }
+
+    if (!manualDefEn.trim()) {
+      setManualDefEn(`Clinical medical term or concept referring to ${clean}.`);
+    }
+  };
+
+  const handleSaveManualEntry = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanEn = manualTerm.trim();
+    const cleanAr = manualTranslation.trim();
+    if (!cleanEn || !cleanAr) {
+      setOfflineFeedback({
+        type: 'error',
+        message: 'يرجى إدخال المصطلح بالإنجليزية وترجمته العربية على الأقل.'
+      });
+      return;
+    }
+
+    const newId = `u-manual-${Date.now()}`;
+    const examples: TermExample[] = [];
+    const linkedSentences: LinkedSentence[] = [];
+
+    if (manualSentenceEn.trim()) {
+      const sEn = manualSentenceEn.trim();
+      const sAr =
+        manualSentenceAr.trim() ||
+        runHybridGcNmtPipeline(sEn, terms, sentences).layer4FinalOutputAr ||
+        cleanAr;
+      examples.push({ en: sEn, ar: sAr });
+      linkedSentences.push({
+        id: `sen-manual-${Date.now()}`,
+        en: sEn,
+        ar: sAr,
+        category: manualCategory,
+        sourceType: 'manual',
+        linkedTermIds: [newId],
+        tags: [cleanEn],
+        favorite: addAlsoToFavorites,
+        createdAt: 'الآن · مكتبتي أوفلاين'
+      });
+    }
+
+    const synonymsList = manualSynonyms
+      .split(/[,،|]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const newTermObj: DictionaryTerm = {
+      id: newId,
+      term: cleanEn,
+      termNormalized: cleanEn.toLowerCase(),
+      translation: cleanAr,
+      phonetic: manualPhonetic.trim() || `/${cleanEn.toLowerCase()}/`,
+      pos: manualPos,
+      category: manualCategory,
+      keepEnglish: true,
+      favorite: addAlsoToFavorites,
+      collections: [manualCollection.trim() || 'مضاف يدوياً'],
+      ingestedAt: 'الآن · مكتبتي أوفلاين',
+      definitionAr:
+        manualDefAr.trim() || `مصطلح طبي سريري يشير إلى ${cleanAr} (${cleanEn}).`,
+      definitionEn:
+        manualDefEn.trim() || `Clinical medical term referring to ${cleanEn}.`,
+      examples,
+      relations: {
+        synonyms: synonymsList,
+        broader: [],
+        related: []
+      }
     };
 
-    const knewIt = quality >= 3;
-    const nextReps = knewIt ? prevSrs.repetitions + 1 : 0;
-    const nextInterval = !knewIt
-      ? 1
-      : nextReps === 1
-        ? 1
-        : nextReps === 2
-          ? 4
-          : Math.max(1, Math.round(prevSrs.interval * prevSrs.easeFactor));
-    const nextEase = Math.max(
-      1.3,
-      Number(
-        (
-          prevSrs.easeFactor +
-          (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-        ).toFixed(2)
-      )
-    );
+    onSaveManualTerm(newTermObj, linkedSentences);
 
-    const updatedSrs: SpacedRepetitionData = {
-      interval: nextInterval,
-      easeFactor: nextEase,
-      repetitions: nextReps,
-      nextReviewAt: Date.now() + nextInterval * 24 * 60 * 60 * 1000
-    };
+    setOfflineFeedback({
+      type: 'success',
+      message: `تم حفظ المصطلح "${cleanEn}" (${cleanAr}) أوفلاين في القاموس${
+        addAlsoToFavorites ? ' والمفضلة' : ''
+      } بنجاح!`
+    });
 
-    onRecordSm2Review('term', currentFlashcard.id, updatedSrs, knewIt);
-    setFlashcardFlipped(false);
-    setFlashcardIdx((prev) => prev + 1);
+    setManualTerm('');
+    setManualTranslation('');
+    setManualPhonetic('');
+    setManualDefAr('');
+    setManualDefEn('');
+    setManualSynonyms('');
+    setManualSentenceEn('');
+    setManualSentenceAr('');
+  };
+
+  const parseRawTextToStaged = (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    // Check if JSON backup or JSON array of terms
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && !Array.isArray(parsed) && (parsed.terms || parsed.topics || parsed.manifest)) {
+          const ok = onImportFullBackupJson(trimmed);
+          if (ok) {
+            setOfflineFeedback({
+              type: 'success',
+              message: 'تم استيراد ملف النسخة الاحتياطية الكاملة بنجاح!'
+            });
+            setRawBatchInput('');
+          }
+          return;
+        }
+
+        const arr = Array.isArray(parsed) ? parsed : parsed.terms || [];
+        if (Array.isArray(arr) && arr.length > 0) {
+          const staged: StagedTermItem[] = arr
+            .map((item: Record<string, unknown>, idx: number) => {
+              const tEn = String(item.term || item.en || item.word || '').trim();
+              if (!tEn) return null;
+              const tAr =
+                String(item.translation || item.ar || item.meaning || '').trim() ||
+                decomposeMedicalWord(tEn, terms).synthesizedAr ||
+                runHybridGcNmtPipeline(tEn, terms, sentences).layer4FinalOutputAr ||
+                'مصطلح طبي';
+              const defAr =
+                String(item.definitionAr || item.definition || '').trim() ||
+                `مصطلح طبي سريري يشير إلى ${tAr}.`;
+              const defEn =
+                String(item.definitionEn || '').trim() ||
+                `Medical concept referring to ${tEn}.`;
+
+              return {
+                id: `stg-json-${Date.now()}-${idx}`,
+                term: tEn,
+                translation: tAr,
+                phonetic: String(item.phonetic || `/${tEn.toLowerCase()}/`),
+                pos: String(item.pos || 'noun'),
+                category: (item.category as LexiconCategory) || 'Medical',
+                definitionAr: defAr,
+                definitionEn: defEn,
+                examples: Array.isArray(item.examples) ? (item.examples as TermExample[]) : [],
+                relations: {
+                  synonyms: [],
+                  broader: [],
+                  related: []
+                },
+                selected: true,
+                isDuplicate: existingTermSet.has(tEn.toLowerCase())
+              };
+            })
+            .filter(Boolean) as StagedTermItem[];
+
+          setStagedItems(staged);
+          setOfflineFeedback({
+            type: 'success',
+            message: `تم استخراج ${staged.length} مصطلح من ملف JSON للمراجعة والحفظ.`
+          });
+          return;
+        }
+      } catch {
+        // Fallback to line-by-line parsing
+      }
+    }
+
+    const lines = trimmed
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 1);
+
+    const nextStaged: StagedTermItem[] = [];
+    lines.forEach((line, idx) => {
+      const parts = line.includes('\t')
+        ? line.split('\t')
+        : line.includes(' - ')
+        ? line.split(' - ')
+        : line.includes(' : ')
+        ? line.split(' : ')
+        : line.split(',');
+
+      const tEn = (parts[0] || '').trim().replace(/^["']|["']$/g, '');
+      if (!tEn || tEn.toLowerCase() === 'term') return;
+
+      const morph = decomposeMedicalWord(tEn, terms);
+      const gcNmt = runHybridGcNmtPipeline(tEn, terms, sentences);
+      const autoAr =
+        morph.synthesizedAr ||
+        (gcNmt.layer4FinalOutputAr !== tEn ? gcNmt.layer4FinalOutputAr : '') ||
+        'مصطلح طبي';
+
+      const tAr = (parts[1] || '').trim().replace(/^["']|["']$/g, '') || autoAr;
+      const defAr =
+        (parts[2] || '').trim().replace(/^["']|["']$/g, '') ||
+        `مصطلح طبي سريري يعني ${tAr}.`;
+      const defEn =
+        (parts[3] || '').trim().replace(/^["']|["']$/g, '') ||
+        `Clinical medical term: ${tEn}.`;
+
+      nextStaged.push({
+        id: `stg-line-${Date.now()}-${idx}`,
+        term: tEn,
+        translation: tAr,
+        phonetic: `/${tEn.toLowerCase()}/`,
+        pos: tEn.includes(' ') ? 'phrase' : 'noun',
+        category: 'Medical',
+        definitionAr: defAr,
+        definitionEn: defEn,
+        examples: [],
+        relations: {
+          synonyms: [],
+          broader: [],
+          related: []
+        },
+        selected: true,
+        isDuplicate: existingTermSet.has(tEn.toLowerCase())
+      });
+    });
+
+    setStagedItems(nextStaged);
+    if (nextStaged.length === 0) {
+      setOfflineFeedback({
+        type: 'error',
+        message: 'لم يتم العثور على مصطلحات صالحة في النص المدخل.'
+      });
+    } else {
+      setOfflineFeedback({
+        type: 'success',
+        message: `تم تحليل ${nextStaged.length} مصطلح أوفلاين جاهز للحفظ في القاموس.`
+      });
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith('.zip') || lower.endsWith('.umedpack')) {
+      setIsParsingFile(true);
+      try {
+        await onImportPackageFile(file);
+        setOfflineFeedback({
+          type: 'success',
+          message: `تم استيراد حزمة البيانات (${file.name}) بنجاح!`
+        });
+      } catch (err) {
+        setOfflineFeedback({
+          type: 'error',
+          message: err instanceof Error ? err.message : 'تعذر استيراد الحزمة المضغوطة.'
+        });
+      } finally {
+        setIsParsingFile(false);
+      }
+      return;
+    }
+
+    setIsParsingFile(true);
+    try {
+      const parsed = await parseUploadedFile(file);
+      setRawBatchInput(parsed.extractedText);
+      parseRawTextToStaged(parsed.extractedText);
+    } catch (err) {
+      setOfflineFeedback({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'تعذر قراءة الملف المرفوع.'
+      });
+    } finally {
+      setIsParsingFile(false);
+    }
+  };
+
+  const handleCommitStagedBatch = () => {
+    const selected = stagedItems.filter((i) => i.selected !== false);
+    if (selected.length === 0) return;
+
+    onCommitBatch({
+      stagedTerms: selected,
+      stagedSentences: [],
+      stayOnCurrentTab: true
+    });
+
+    setStagedItems([]);
+    setRawBatchInput('');
+    setOfflineFeedback({
+      type: 'success',
+      message: `تم حفظ ${selected.length} مصطلح في القاموس أوفلاين بنجاح!`
+    });
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 w-full overflow-x-clip box-border pb-8">
+    <div className="space-y-5 pb-8">
       {/* ====================================================================
-          1. LIBRARY & STUDY SUMMARY METRICS
+          MODE 1: LIBRARY MAIN HUB (CARDS VIEW - FAVORITES HIDDEN UNTIL CLICKED)
          ==================================================================== */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between gap-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-              المصطلحات المفضلة
-            </span>
-            <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <span className="text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums">
-            {favoriteTerms.length.toLocaleString()}
-          </span>
-        </div>
+      {libraryMode === 'hub' && (
+        <>
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold mb-2">
+                  <Bookmark className="w-3.5 h-3.5" />
+                  <span>مكتبتي وإدارة المصطلحات أوفلاين</span>
+                </span>
+                <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white">
+                  مركز الحفظ الشخصي وإضافة المفاهيم الطبية
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                  انقر على بطاقة المفضلة لفتح صفحة الكلمات المفضلة، أو بطاقة الإضافة أوفلاين لإدخال واستيراد المصطلحات والمفاهيم.
+                </p>
+              </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between gap-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-              الجمل المفضلة
-            </span>
-            <FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <span className="text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums">
-            {favoriteSentences.length.toLocaleString()}
-          </span>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between gap-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-              إجمالي المصطلحات المحلية
-            </span>
-            <BookOpen className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-          </div>
-          <span className="text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums">
-            {terms.length.toLocaleString()}
-          </span>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between gap-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-              إجمالي الجمل المحلية
-            </span>
-            <FileText className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-          </div>
-          <span className="text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums">
-            {sentences.length.toLocaleString()}
-          </span>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between gap-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-              مراجعات متقنة
-            </span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <span className="text-xl sm:text-2xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400 tabular-nums">
-            {studyStats.gotIt.toLocaleString()}
-          </span>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between gap-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-              تحتاج مراجعة
-            </span>
-            <RotateCcw className="w-4 h-4 text-amber-500" />
-          </div>
-          <span className="text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums">
-            {studyStats.needsReview.toLocaleString()}
-          </span>
-        </div>
-      </div>
-
-      <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
-            حالة قاعدة البيانات المحلية
-          </span>
-          <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
-            الأعداد أعلاه مأخوذة من البيانات المحمّلة داخل التطبيق
-          </span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-          <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3">
-            <div className="text-slate-500 dark:text-slate-400 mb-1">الإصدار المحلي المسجّل</div>
-            <div dir="ltr" className="font-mono font-bold text-slate-900 dark:text-white break-all">
-              {versionMetadata.dataVersion || 'غير محدد'}
+              <button
+                type="button"
+                onClick={onOpenCollectionsMenu}
+                className="min-h-[42px] px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-2 transition-colors"
+              >
+                <Folder className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>المجلد النشط: {activeCollection}</span>
+              </button>
             </div>
           </div>
-          <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3">
-            <div className="text-slate-500 dark:text-slate-400 mb-1">مصدر البيانات المسجّل</div>
-            <div className="font-bold text-slate-900 dark:text-white">
-              {{
-                'bundled-seed': 'بيانات مدمجة مع التطبيق',
-                'local-json': 'استيراد ملف JSON محلي',
-                'local-zip': 'استيراد حزمة ZIP محلية',
-                'remote-cdn': 'تحديث سحابي',
-                'manual-mixed': 'بيانات محلية مختلطة'
-              }[versionMetadata.dataSource] || 'غير محدد'}
-            </div>
-          </div>
-          <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3">
-            <div className="text-slate-500 dark:text-slate-400 mb-1">آخر تحديث بيانات مسجّل</div>
-            <div className="font-bold text-slate-900 dark:text-white">
-              {Number.isNaN(Date.parse(versionMetadata.lastDataUpdateAt))
-                ? versionMetadata.lastDataUpdateAt || 'غير متوفر'
-                : new Date(versionMetadata.lastDataUpdateAt).toLocaleString('ar')}
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* ====================================================================
-          2. SPACED REPETITION (SM-2) FLASHCARDS
-         ==================================================================== */}
-      <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-5 sm:p-6 space-y-5 shadow-xs">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <Brain className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
-              بطاقات المراجعة والاستذكار المتباعد (SM-2)
-            </h2>
-          </div>
-
-          <button
-            type="button"
-            onClick={onOpenCollectionsMenu}
-            className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold flex items-center gap-1.5 text-slate-700 dark:text-slate-200"
-          >
-            <span>المجموعة: {activeCollection}</span>
-            <ChevronDown className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        {currentFlashcard ? (
-          <div className="max-w-xl mx-auto space-y-4">
-            <div
-              onClick={() => setFlashcardFlipped((f) => !f)}
-              className="min-h-[210px] p-6 rounded-3xl bg-slate-50 dark:bg-slate-950 border-2 border-slate-200 dark:border-slate-800 hover:border-emerald-500/60 transition-all cursor-pointer flex flex-col items-center justify-center text-center space-y-3 select-none"
+          {/* 3 Main Action Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* CARD 1: FAVORITES PAGE LAUNCHER */}
+            <button
+              type="button"
+              onClick={() => setLibraryMode('favorites')}
+              className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-5 sm:p-6 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4"
             >
-              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                {flashcardFlipped
-                  ? 'الوجه الخلفي · الترجمة والشرح السريري'
-                  : 'الوجه الأمامي · انقر لقلب البطاقة'}
-              </span>
-
-              {!flashcardFlipped ? (
-                <>
-                  <h3
-                    dir="ltr"
-                    className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white break-words"
-                  >
-                    {currentFlashcard.term}
-                  </h3>
-                  <span dir="ltr" className="text-xs font-mono text-slate-500">
-                    {currentFlashcard.phonetic}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onTriggerTTS(currentFlashcard.term, 'flash-tts');
-                    }}
-                    className="mt-1 min-h-[36px] px-3.5 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-1.5"
-                  >
-                    <Volume2 className="w-3.5 h-3.5" />
-                    <span>نطق المصطلح</span>
-                  </button>
-                </>
-              ) : (
-                <div className="space-y-2.5 max-w-md">
-                  <div className="text-lg sm:text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
-                    {currentFlashcard.translation}
+              <div className="space-y-3 w-full">
+                <div className="flex items-center justify-between">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                    <Bookmark className="w-6 h-6 fill-current" />
                   </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                    {currentFlashcard.definitionAr}
+                  <span className="px-3 py-1 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs font-extrabold font-mono tabular-nums">
+                    {totalFavoritesCount} محفوظ
+                  </span>
+                </div>
+
+                <div>
+                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                    صفحة الكلمات والمفضلة
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                    انقر هنا لفتح صفحة المفضلة الكاملة واستعراض الكلمات والجمل السريرية والمواضيع المحفوظة.
                   </p>
-                  {currentFlashcard.examples?.[0] && (
-                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] space-y-1 text-right">
-                      <p dir="ltr" className="text-slate-700 dark:text-slate-300 text-left">
-                        {currentFlashcard.examples[0].en}
-                      </p>
-                      <p className="text-emerald-700 dark:text-emerald-300">
-                        {currentFlashcard.examples[0].ar}
-                      </p>
+                </div>
+              </div>
+
+              <div className="w-full pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span>
+                  {terms.filter((t) => t.favorite).length} كلمة ·{' '}
+                  {sentences.filter((s) => s.favorite).length} جملة ·{' '}
+                  {topics.filter((t) => t.favorite).length} موضوع
+                </span>
+                <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold">
+                  <span>فتح المفضلة</span>
+                  <ChevronLeft className="w-4 h-4" />
+                </span>
+              </div>
+            </button>
+
+            {/* CARD 2: OFFLINE ADD & IMPORT TERMS/CONCEPTS */}
+            <button
+              type="button"
+              onClick={() => setLibraryMode('add_offline')}
+              className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-5 sm:p-6 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4"
+            >
+              <div className="space-y-3 w-full">
+                <div className="flex items-center justify-between">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                    <PlusCircle className="w-6 h-6" />
+                  </div>
+                  <span className="px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold font-mono tabular-nums">
+                    {customAddedTerms.length} مضاف محلياً
+                  </span>
+                </div>
+
+                <div>
+                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                    إضافة واستيراد المصطلحات أوفلاين
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                    إضافة يدوية للمصطلحات والمفاهيم الطبية أو استيراد ملفات أوفلاين (JSON / CSV / TXT / ZIP) مباشرة للقاموس.
+                  </p>
+                </div>
+              </div>
+
+              <div className="w-full pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span>يدوي + ملفات JSON/CSV/TXT</span>
+                <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold">
+                  <span>إضافة مصطلحات</span>
+                  <ChevronLeft className="w-4 h-4" />
+                </span>
+              </div>
+            </button>
+
+            {/* CARD 3: SM-2 SPACED REPETITION FLASHCARDS */}
+            <button
+              type="button"
+              onClick={() => setLibraryMode('flashcards')}
+              className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-5 sm:p-6 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4"
+            >
+              <div className="space-y-3 w-full">
+                <div className="flex items-center justify-between">
+                  <div className="w-12 h-12 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-600 dark:text-sky-400">
+                    <Layers className="w-6 h-6" />
+                  </div>
+                  <span className="px-3 py-1 rounded-xl bg-sky-500/10 text-sky-700 dark:text-sky-300 text-xs font-extrabold font-mono tabular-nums">
+                    {flashcardPool.length} بطاقة جاهزة
+                  </span>
+                </div>
+
+                <div>
+                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                    بطاقات الاستذكار الذكية (SM-2)
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                    مراجعة المصطلحات الطبية بنظام التكرار المتباعد لترسيخ النطق الصوتي والترجمة والجذور اللاتينية.
+                  </p>
+                </div>
+              </div>
+
+              <div className="w-full pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span>
+                  إتقان: {studyStats.gotIt} · للمراجعة: {studyStats.needsReview}
+                </span>
+                <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold">
+                  <span>بدء المراجعة</span>
+                  <ChevronLeft className="w-4 h-4" />
+                </span>
+              </div>
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ====================================================================
+          MODE 2: DEDICATED FAVORITES PAGE (OPENED ONLY AFTER CLICKING CARD)
+         ==================================================================== */}
+      {libraryMode === 'favorites' && (
+        <div className="space-y-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setLibraryMode('hub')}
+                  className="min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  <span>العودة لمكتبتي</span>
+                </button>
+                <div>
+                  <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white">
+                    صفحة الكلمات والمفضلة المحفوظة
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    تصفح وابحث في جميع الكلمات والجمل والمواضيع المحفوظة في مفضلتك
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={onOpenCollectionsMenu}
+                className="min-h-[40px] px-3.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 text-xs font-bold flex items-center gap-1.5"
+              >
+                <Folder className="w-4 h-4" />
+                <span>المجلد: {activeCollection}</span>
+              </button>
+            </div>
+
+            {/* Search inside favorites */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={favSearchQuery}
+                onChange={(e) => setFavSearchQuery(e.target.value)}
+                placeholder="ابحث داخل الكلمات أو الجمل أو المواضيع المفضلة..."
+                className="w-full min-h-[44px] pr-10 pl-4 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-medium focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            {/* Sub-tabs inside Favorites Page */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setFavoritesTab('terms')}
+                className={`min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+                  favoritesTab === 'terms'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                <span>الكلمات ({favoriteTerms.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFavoritesTab('sentences')}
+                className={`min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+                  favoritesTab === 'sentences'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5 shrink-0" />
+                <span>الجمل ({favoriteSentences.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFavoritesTab('topics')}
+                className={`min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+                  favoritesTab === 'topics'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                <span>المواضيع ({favoriteTopics.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFavoritesTab('custom')}
+                className={`min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+                  favoritesTab === 'custom'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                <PlusCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>مضاف محلياً ({customAddedTerms.length})</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Favorites Tab 1: Favorite Terms */}
+          {favoritesTab === 'terms' && (
+            <div className="space-y-2.5">
+              {favoriteTerms.length === 0 ? (
+                <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 text-center border border-slate-200/80 dark:border-slate-800 space-y-3">
+                  <Bookmark className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto" />
+                  <h3 className="text-base font-bold text-slate-700 dark:text-slate-200">
+                    لا توجد كلمات مفضلة حالياً
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                    يمكنك إضافة الكلمات إلى المفضلة من صفحة القاموس أو عبر النقر مرتين على أي كلمة داخل صفحة المواضيع.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {favoriteTerms.map((term) => (
+                    <div
+                      key={term.id}
+                      onClick={() => onOpenTermDetail(term.id)}
+                      className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-500/40 transition-all cursor-pointer flex items-start justify-between gap-3 shadow-2xs"
+                    >
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            dir="ltr"
+                            className="font-mono font-extrabold text-sm sm:text-base text-slate-900 dark:text-white break-words"
+                          >
+                            {term.term}
+                          </span>
+                          <span className="text-xs font-mono text-slate-400">
+                            {term.phonetic}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onTriggerTTS(term.term, `fav-tts-${term.id}`);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors"
+                            title="نطق المصطلح"
+                          >
+                            <Volume2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                          {term.translation}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                          {term.definitionAr}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => onToggleFavoriteTerm(term.id, e)}
+                        className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-500 hover:bg-rose-50 hover:text-rose-500 transition-colors shrink-0"
+                        title="إزالة من المفضلة"
+                      >
+                        <Bookmark className="w-4 h-4 fill-current" />
+                      </button>
                     </div>
-                  )}
+                  ))}
                 </div>
               )}
             </div>
+          )}
 
-            <div className="grid grid-cols-3 gap-2.5">
-              <button
-                type="button"
-                onClick={() => handleGradeFlashcard(1)}
-                className="min-h-[44px] py-2.5 px-3 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/30 text-xs font-bold"
-              >
-                صعب · قريباً
-              </button>
-              <button
-                type="button"
-                onClick={() => handleGradeFlashcard(3)}
-                className="min-h-[44px] py-2.5 px-3 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-xs font-bold"
-              >
-                جيد · مراجعة قياسية
-              </button>
-              <button
-                type="button"
-                onClick={() => handleGradeFlashcard(5)}
-                className="min-h-[44px] py-2.5 px-3 rounded-2xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-bold"
-              >
-                سهل · إتقان طويل
-              </button>
-            </div>
-          </div>
-        ) : (
-          <p className="text-xs text-slate-500 text-center py-6">
-            لا توجد مصطلحات مفضلة في هذه المجموعة حالياً. اضغط على نجمة المفضلة بجانب أي مصطلح لإضافته إلى بطاقات المراجعة.
-          </p>
-        )}
-      </div>
-
-      {/* ====================================================================
-          3. SAVED FAVORITES LIST (Readable English + Arabic Cards)
-         ==================================================================== */}
-      <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-5 sm:p-6 space-y-4 shadow-xs">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
-            <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-              قائمة المصطلحات والجمل المحفوظة في المفضلة
-            </h3>
-          </div>
-
-          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setFavoritesTab('terms')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                favoritesTab === 'terms'
-                  ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400'
-              }`}
-            >
-              المصطلحات ({favoriteTerms.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setFavoritesTab('sentences')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                favoritesTab === 'sentences'
-                  ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400'
-              }`}
-            >
-              الجمل السياقية ({favoriteSentences.length})
-            </button>
-          </div>
-        </div>
-
-        {favoritesTab === 'terms' ? (
-          favoriteTerms.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {favoriteTerms.map((fav) => (
-                <div
-                  key={fav.id}
-                  onClick={() => onOpenTermDetail(fav.id)}
-                  className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-500/60 transition-all cursor-pointer flex flex-col justify-between gap-2.5"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div
-                        dir="ltr"
-                        className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white text-left break-words"
-                      >
-                        {fav.term}
-                      </div>
-                      <div className="text-xs sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                        {fav.translation}
-                      </div>
-                    </div>
-
-                    <div
-                      className="flex items-center gap-1 shrink-0"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => onTriggerTTS(fav.term, `fav-tts-${fav.id}`)}
-                        className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400"
-                        title="نطق المصطلح"
-                      >
-                        <Volume2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => onToggleFavoriteTerm(fav.id, e)}
-                        className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-amber-500"
-                        title="إزالة من المفضلة"
-                      >
-                        <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed break-words">
-                    {fav.definitionAr}
+          {/* Favorites Tab 2: Favorite Sentences */}
+          {favoritesTab === 'sentences' && (
+            <div className="space-y-2.5">
+              {favoriteSentences.length === 0 ? (
+                <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 text-center border border-slate-200/80 dark:border-slate-800">
+                  <p className="text-xs font-bold text-slate-500">
+                    لا توجد جمل سريرية محفوظة في المفضلة حالياً.
                   </p>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-slate-500 py-6 text-center">
-              لا توجد مصطلحات محفوظة في المفضلة ضمن هذه المجموعة.
-            </p>
-          )
-        ) : favoriteSentences.length > 0 ? (
-          <div className="space-y-2.5">
-            {favoriteSentences.map((sent) => (
-              <div
-                key={sent.id}
-                className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                    {sent.specialty}
-                  </span>
-                  <div className="flex items-center gap-1">
+              ) : (
+                favoriteSentences.map((sen) => (
+                  <div
+                    key={sen.id}
+                    className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 flex items-start justify-between gap-3"
+                  >
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold">
+                          {sen.category}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onTriggerTTS(sen.en, `fav-sen-${sen.id}`)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-emerald-600"
+                        >
+                          <Volume2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <p
+                        dir="ltr"
+                        className="text-xs sm:text-sm font-medium text-slate-900 dark:text-slate-100 text-left leading-relaxed"
+                      >
+                        {sen.en}
+                      </p>
+                      <p className="text-xs sm:text-sm text-emerald-700 dark:text-emerald-300 leading-relaxed">
+                        {sen.ar}
+                      </p>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => onTriggerTTS(sent.en, `fav-sent-${sent.id}`)}
-                      className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500"
+                      onClick={(e) => onToggleFavoriteSentence(sen.id, e)}
+                      className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-500 shrink-0"
                     >
-                      <Volume2 className="w-3.5 h-3.5" />
+                      <Bookmark className="w-4 h-4 fill-current" />
                     </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Favorites Tab 3: Favorite Topics */}
+          {favoritesTab === 'topics' && (
+            <div className="space-y-2.5">
+              {favoriteTopics.length === 0 ? (
+                <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 text-center border border-slate-200/80 dark:border-slate-800">
+                  <p className="text-xs font-bold text-slate-500">
+                    لا توجد مواضيع محفوظة في المفضلة بعد.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {favoriteTopics.map((topic) => (
+                    <div
+                      key={topic.id}
+                      onClick={() => onOpenTopicFromLibrary?.(topic.id)}
+                      className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-500/40 cursor-pointer flex items-start justify-between gap-3"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                          {topic.category}
+                        </span>
+                        <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                          {topic.titleAr || topic.title}
+                        </h4>
+                        {topic.titleEn && (
+                          <p dir="ltr" className="text-xs font-mono text-slate-500 text-left">
+                            {topic.titleEn}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleFavoriteTopic?.(topic.id, e);
+                        }}
+                        className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-500 shrink-0"
+                      >
+                        <Bookmark className="w-4 h-4 fill-current" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Favorites Tab 4: Custom Locally Added Terms */}
+          {favoritesTab === 'custom' && (
+            <div className="space-y-2.5">
+              {customAddedTerms.length === 0 ? (
+                <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 text-center border border-slate-200/80 dark:border-slate-800 space-y-3">
+                  <p className="text-xs font-bold text-slate-500">
+                    لم تقم بإضافة مصطلحات مخصصة يدوياً بعد.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setLibraryMode('add_offline')}
+                    className="min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-extrabold inline-flex items-center gap-1.5"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span>إضافة مصطلح أوفلاين الآن</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {customAddedTerms.map((term) => (
+                    <div
+                      key={term.id}
+                      onClick={() => onOpenTermDetail(term.id)}
+                      className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-500/40 cursor-pointer flex items-start justify-between gap-3"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <span
+                          dir="ltr"
+                          className="font-mono font-extrabold text-sm text-slate-900 dark:text-white block"
+                        >
+                          {term.term}
+                        </span>
+                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                          {term.translation}
+                        </p>
+                        <p className="text-xs text-slate-500 line-clamp-2">{term.definitionAr}</p>
+                      </div>
+                      <span className="px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold shrink-0">
+                        محلي
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ====================================================================
+          MODE 3: OFFLINE ADD & FILE IMPORT (REPLACES OLD DATA/INGEST PAGE)
+         ==================================================================== */}
+      {libraryMode === 'add_offline' && (
+        <div className="space-y-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setLibraryMode('hub')}
+                  className="min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  <span>العودة لمكتبتي</span>
+                </button>
+                <div>
+                  <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white">
+                    إضافة المصطلحات والمفاهيم الطبية أوفلاين
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    أضف مصطلحاتك ومفاهيمك يدوياً أو استورد ملفاتك (JSON / CSV / TXT / ZIP) مباشرة بدون إنترنت
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => setOfflineAddTab('manual')}
+                  className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all ${
+                    offlineAddTab === 'manual'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>إضافة يدوية</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOfflineAddTab('file_batch')}
+                  className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all ${
+                    offlineAddTab === 'file_batch'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>استيراد ملفات (JSON/CSV/TXT)</span>
+                </button>
+              </div>
+            </div>
+
+            {offlineFeedback && (
+              <div
+                className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 text-xs font-bold ${
+                  offlineFeedback.type === 'success'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+                    : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {offlineFeedback.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                  )}
+                  <span>{offlineFeedback.message}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOfflineFeedback(null)}
+                  className="p-1 rounded-lg hover:bg-black/5"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* SUB-TAB 1: MANUAL OFFLINE ENTRY */}
+            {offlineAddTab === 'manual' && (
+              <form onSubmit={handleSaveManualEntry} className="space-y-4 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
+                        المصطلح أو المفهوم بالإنجليزية *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAutoAssistOffline}
+                        className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1 hover:underline"
+                      >
+                        <Wand2 className="w-3.5 h-3.5" />
+                        <span>تحليل الجذور والترجمة تلقائياً أوفلاين</span>
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      dir="ltr"
+                      required
+                      value={manualTerm}
+                      onChange={(e) => setManualTerm(e.target.value)}
+                      placeholder="e.g., Cardiomyopathy"
+                      className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-mono font-bold text-left focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 dark:text-slate-200 block">
+                      الترجمة الطبية بالعربية *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={manualTranslation}
+                      onChange={(e) => setManualTranslation(e.target.value)}
+                      placeholder="مثال: اعتلال عضلة القلب"
+                      className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-bold focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                      التخصص المعجمي
+                    </label>
+                    <select
+                      value={manualCategory}
+                      onChange={(e) => setManualCategory(e.target.value as LexiconCategory)}
+                      className="w-full min-h-[44px] px-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                    >
+                      {CATEGORY_OPTIONS.map((cat) => (
+                        <option key={cat.value} value={cat.value}>
+                          {cat.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                      النوع اللغوي
+                    </label>
+                    <select
+                      value={manualPos}
+                      onChange={(e) => setManualPos(e.target.value)}
+                      className="w-full min-h-[44px] px-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                    >
+                      {POS_OPTIONS.map((p) => (
+                        <option key={p.value} value={p.value}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                      النطق الصوتي / المجلد
+                    </label>
+                    <input
+                      type="text"
+                      value={manualCollection}
+                      onChange={(e) => setManualCollection(e.target.value)}
+                      placeholder="مثال: طوارئ القلب"
+                      className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                      الشرح والتعريف العلمي بالعربية
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={manualDefAr}
+                      onChange={(e) => setManualDefAr(e.target.value)}
+                      placeholder="اكتب تعريف المفهوم الطبي أو ملاحظاتك الدراسية بالعربية..."
+                      className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                      التعريف بالإنجليزية (اختياري)
+                    </label>
+                    <textarea
+                      rows={3}
+                      dir="ltr"
+                      value={manualDefEn}
+                      onChange={(e) => setManualDefEn(e.target.value)}
+                      placeholder="English clinical definition or study notes..."
+                      className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed text-left"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                      جملة سياقية بالإنجليزية (اختياري)
+                    </label>
+                    <input
+                      type="text"
+                      dir="ltr"
+                      value={manualSentenceEn}
+                      onChange={(e) => setManualSentenceEn(e.target.value)}
+                      placeholder="The patient was diagnosed with hypertrophic cardiomyopathy."
+                      className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-left"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                      ترجمة الجملة السياقية (اختياري)
+                    </label>
+                    <input
+                      type="text"
+                      value={manualSentenceAr}
+                      onChange={(e) => setManualSentenceAr(e.target.value)}
+                      placeholder="شُخِّص المريض باعتلال عضلة القلب الضخامي."
+                      className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={addAlsoToFavorites}
+                      onChange={(e) => setAddAlsoToFavorites(e.target.checked)}
+                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span>إضافة تلقائياً إلى صفحة المفضلة أيضاً</span>
+                  </label>
+
+                  <button
+                    type="submit"
+                    className="min-h-[46px] px-6 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-extrabold flex items-center gap-2 shadow-xs transition-all"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>حفظ المصطلح أوفلاين في القاموس</span>
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* SUB-TAB 2: OFFLINE FILE & BATCH IMPORT */}
+            {offlineAddTab === 'file_batch' && (
+              <div className="space-y-4 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json,.csv,.txt,.md,.zip,.umedpack"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+
+                  <button
+                    type="button"
+                    disabled={isParsingFile}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-4 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/30 text-right flex items-center gap-3.5 transition-all"
+                  >
+                    <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                      <FileSpreadsheet className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-extrabold text-emerald-900 dark:text-emerald-200">
+                        {isParsingFile
+                          ? 'جاري قراءة وتحليل الملف...'
+                          : 'استيراد ملف أوفلاين (JSON / CSV / TXT / ZIP)'}
+                      </h4>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                        يدعم ملفات القوائم الطبية وملفات النسخ الاحتياطي وحزم البيانات المضغوطة
+                      </p>
+                    </div>
+                  </button>
+
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center gap-3">
+                    <Archive className="w-5 h-5 text-slate-400 shrink-0" />
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                      أو الصق قائمة مصطلحات مباشرة في الصندوق أدناه بصيغة:{' '}
+                      <span dir="ltr" className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                        Term - الترجمة - التعريف
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <textarea
+                    rows={6}
+                    dir="auto"
+                    value={rawBatchInput}
+                    onChange={(e) => setRawBatchInput(e.target.value)}
+                    placeholder={`مثال للصق السريع:\nBradycardia - بطء القلب - انخفاض معدل ضربات القلب عن 60 نبضة في الدقيقة\nHepatomegaly - تضخم الكبد - زيادة غير طبيعية في حجم الكبد`}
+                    className="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono leading-relaxed"
+                  />
+
+                  <div className="flex justify-end">
                     <button
                       type="button"
-                      onClick={(e) => onToggleFavoriteSentence(sent.id, e)}
-                      className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-amber-400"
+                      onClick={() => parseRawTextToStaged(rawBatchInput)}
+                      className="min-h-[44px] px-5 py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-extrabold flex items-center gap-2"
                     >
-                      <Star className="w-3.5 h-3.5 fill-amber-400" />
+                      <Wand2 className="w-4 h-4" />
+                      <span>تحليل ومعاينة الدفعة أوفلاين</span>
                     </button>
                   </div>
                 </div>
-                <p
-                  dir="ltr"
-                  className="text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-200 text-left leading-relaxed"
-                >
-                  {sent.en}
-                </p>
-                <p className="text-xs sm:text-sm text-emerald-700 dark:text-emerald-300 leading-relaxed">
-                  {sent.ar}
-                </p>
+
+                {stagedItems.length > 0 && (
+                  <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
+                        معاينة المصطلحات المستخرجة ({stagedItems.filter((i) => i.selected !== false).length} محدد):
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setStagedItems([])}
+                          className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 inline-flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>مسح</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCommitStagedBatch}
+                          className="min-h-[40px] px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-extrabold inline-flex items-center gap-1.5"
+                        >
+                          <Check className="w-4 h-4" />
+                          <span>
+                            حفظ الكل في القاموس ({stagedItems.filter((i) => i.selected !== false).length})
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                      {stagedItems.map((item, idx) => (
+                        <div
+                          key={item.id}
+                          className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3"
+                        >
+                          <label className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={item.selected !== false}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setStagedItems((prev) =>
+                                  prev.map((it, i) =>
+                                    i === idx ? { ...it, selected: checked } : it
+                                  )
+                                );
+                              }}
+                              className="w-4 h-4 rounded text-emerald-600"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span
+                                  dir="ltr"
+                                  className="font-mono font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white"
+                                >
+                                  {item.term}
+                                </span>
+                                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                  {item.translation}
+                                </span>
+                                {item.isDuplicate && (
+                                  <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 text-[10px] font-bold">
+                                    موجود مسبقاً (سيتم التحديث)
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                                {item.definitionAr}
+                              </p>
+                            </div>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            ))}
+            )}
           </div>
-        ) : (
-          <p className="text-xs text-slate-500 py-6 text-center">
-            لا توجد جمل سريرية محفوظة في المفضلة حالياً.
-          </p>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          MODE 4: SM-2 SPACED REPETITION FLASHCARDS
+         ==================================================================== */}
+      {libraryMode === 'flashcards' && (
+        <div className="max-w-xl mx-auto space-y-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setLibraryMode('hub')}
+              className="min-h-[40px] px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5"
+            >
+              <ArrowRight className="w-4 h-4" />
+              <span>العودة لمكتبتي</span>
+            </button>
+            <div className="text-left">
+              <span className="text-xs font-extrabold text-slate-900 dark:text-white block">
+                بطاقات الاستذكار المتباعد (SM-2)
+              </span>
+              <span className="text-[11px] font-mono text-slate-500">
+                البطاقة {(currentCardIdx % Math.max(1, flashcardPool.length)) + 1} من{' '}
+                {flashcardPool.length}
+              </span>
+            </div>
+          </div>
+
+          {currentFlashcard ? (
+            <>
+              <div
+                onClick={() => setIsFlipped(!isFlipped)}
+                className="bg-white dark:bg-slate-900 rounded-3xl p-7 sm:p-10 border-2 border-slate-200/90 dark:border-slate-800 shadow-lg min-h-[280px] flex flex-col items-center justify-center text-center cursor-pointer select-none transition-all hover:border-emerald-500/40 relative overflow-hidden"
+              >
+                <div className="absolute top-4 left-4 right-4 flex items-center justify-between text-xs text-slate-400">
+                  <span className="font-mono">{currentFlashcard.category}</span>
+                  <span>{isFlipped ? 'الوجه الخلفي (الإجابة)' : 'انقر لقلب البطاقة'}</span>
+                </div>
+
+                {!isFlipped ? (
+                  <div className="space-y-3 my-4">
+                    <h3
+                      dir="ltr"
+                      className="text-2xl sm:text-3xl font-mono font-extrabold text-slate-900 dark:text-white tracking-tight break-words"
+                    >
+                      {currentFlashcard.term}
+                    </h3>
+                    <p className="text-sm font-mono text-slate-400">
+                      {currentFlashcard.phonetic}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onTriggerTTS(currentFlashcard.term, `fc-tts-${currentFlashcard.id}`);
+                      }}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:text-emerald-600"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                      <span>استمع للنطق</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3 my-4 max-w-md">
+                    <span className="inline-block px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-lg font-extrabold">
+                      {currentFlashcard.translation}
+                    </span>
+                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                      {currentFlashcard.definitionAr}
+                    </p>
+                  </div>
+                )}
+
+                <div className="absolute bottom-4 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-bold">
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>اضغط لقلب البطاقة</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleFlashcardDecision(false)}
+                  className="min-h-[48px] py-3 px-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 font-bold text-sm flex items-center justify-center gap-2 hover:bg-rose-100 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                  <span>أحتاج لمراجعتها</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleFlashcardDecision(true)}
+                  className="min-h-[48px] py-3 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-colors"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>أتقنتها</span>
+                </button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 };

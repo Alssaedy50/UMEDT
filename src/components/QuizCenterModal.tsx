@@ -514,63 +514,64 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 p-4 sm:p-6 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] sm:pb-6 space-y-5 shadow-2xl"
+        className="w-full max-w-4xl max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 p-4 sm:p-6 pb-[calc(4.5rem+env(safe-area-inset-bottom,16px))] sm:pb-6 space-y-4 sm:space-y-5 shadow-2xl"
       >
         <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto sm:hidden" />
 
         {/* Header */}
-        <div className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3.5">
-          <div>
-            <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white">
-              منظومة الاختبارات الطبية التفاعلية (Unified Assessment Engine)
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white leading-snug">
+              منظومة الاختبارات الطبية التفاعلية
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
               {questions.length} سؤال تفاعلي · {attempts.length} اختبار مكتمل · يدعم 7 أنماط أسئلة مع التصحيح والتفسير الفوري
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[44px] min-w-[44px] rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300"
+            className="min-h-[40px] min-w-[40px] rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-500/15 hover:text-rose-500 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0 transition-colors"
+            aria-label="إغلاق"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Segmented Control Tabs */}
-        <div className="grid grid-cols-3 gap-1.5 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+        {/* Segmented Control Tabs - Concise labels that never clip on mobile */}
+        <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
           <button
             type="button"
             onClick={() => setActiveTab('runner')}
-            className={`min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold transition-colors whitespace-nowrap truncate ${
+            className={`min-h-[42px] px-2 py-2 rounded-xl text-xs font-extrabold transition-all text-center ${
               activeTab === 'runner'
-                ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            بدء اختبار تفاعلي
+            بدء اختبار
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('builder')}
-            className={`min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold transition-colors whitespace-nowrap truncate ${
+            className={`min-h-[42px] px-2 py-2 rounded-xl text-xs font-extrabold transition-all text-center ${
               activeTab === 'builder'
-                ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            إضافة / استيراد أسئلة
+            إضافة أسئلة
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('history')}
-            className={`min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold transition-colors whitespace-nowrap truncate ${
+            className={`min-h-[42px] px-2 py-2 rounded-xl text-xs font-extrabold transition-all text-center ${
               activeTab === 'history'
-                ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            النتائج ومراجعة الأخطاء ({attempts.length})
+            النتائج ({attempts.length})
           </button>
         </div>
 
@@ -600,10 +601,10 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                         key={sc.key}
                         type="button"
                         onClick={() => setScopeType(sc.key)}
-                        className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-bold transition-colors ${
+                        className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-extrabold transition-colors ${
                           scopeType === sc.key
-                            ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
-                            : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                            : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
                         }`}
                       >
                         {sc.label}
@@ -619,13 +620,14 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                       الموضوع المحدد:
                     </label>
                     <select
+                      dir="auto"
                       value={selectedTopicId}
                       onChange={(e) => setSelectedTopicId(e.target.value)}
-                      className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                      className="w-full min-h-[46px] px-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                     >
                       {topics.map((t) => (
                         <option key={t.id} value={t.id}>
-                          {t.titleEn || t.title} — {t.titleAr || t.subtitle}
+                          {t.titleAr || t.subtitle || t.title} — {t.titleEn || t.title}
                         </option>
                       ))}
                     </select>
@@ -638,13 +640,14 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                       المادة الدراسية (Subject):
                     </label>
                     <select
+                      dir="auto"
                       value={selectedSubjectId}
                       onChange={(e) => setSelectedSubjectId(e.target.value)}
-                      className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                      className="w-full min-h-[46px] px-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                     >
                       {subjects.map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.titleEn} — {s.titleAr}
+                          {s.titleAr} — {s.titleEn}
                         </option>
                       ))}
                     </select>
@@ -657,13 +660,14 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                       البلوك الطبي (Block):
                     </label>
                     <select
+                      dir="auto"
                       value={selectedBlockId}
                       onChange={(e) => setSelectedBlockId(e.target.value)}
-                      className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                      className="w-full min-h-[46px] px-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                     >
                       {blocks.map((b) => (
                         <option key={b.id} value={b.id}>
-                          {b.titleEn} — {b.titleAr}
+                          {b.titleAr} — {b.titleEn}
                         </option>
                       ))}
                     </select>
@@ -706,14 +710,14 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                                   : [...prev, t.id]
                               )
                             }
-                            className={`w-full min-h-[42px] px-3 py-2 rounded-xl border text-right text-xs flex items-center justify-between ${
+                            className={`w-full min-h-[42px] px-3 py-2 rounded-xl border text-right text-xs flex items-center justify-between gap-2 ${
                               checked
                                 ? 'bg-emerald-500/10 border-emerald-500 font-bold'
                                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
                             }`}
                           >
-                            <span dir="ltr" className="truncate text-left">
-                              {t.titleEn || t.title}
+                            <span className="truncate">
+                              {t.titleAr || t.title} ({t.titleEn})
                             </span>
                             {checked && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
                           </button>
@@ -732,7 +736,7 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                     <select
                       value={desiredCount}
                       onChange={(e) => setDesiredCount(Number(e.target.value))}
-                      className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                      className="w-full min-h-[42px] px-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-bold text-slate-900 dark:text-white"
                     >
                       <option value={5}>5 أسئلة</option>
                       <option value={10}>10 أسئلة</option>
@@ -751,10 +755,10 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                       onChange={(e) =>
                         setGradingMode(e.target.value as 'instant' | 'exam')
                       }
-                      className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                      className="w-full min-h-[42px] px-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-bold text-slate-900 dark:text-white"
                     >
                       <option value="instant">تصحيح فوري بعد كل سؤال</option>
-                      <option value="exam">تصحيح في نهاية الاختبار (Exam Mode)</option>
+                      <option value="exam">تصحيح في نهاية الاختبار</option>
                     </select>
                   </div>
 
@@ -765,7 +769,7 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                     <select
                       value={timerMinutes}
                       onChange={(e) => setTimerMinutes(Number(e.target.value))}
-                      className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                      className="w-full min-h-[42px] px-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-bold text-slate-900 dark:text-white"
                     >
                       <option value={0}>بدون مؤقت (مفتوح)</option>
                       <option value={5}>5 دقائق</option>
@@ -805,7 +809,7 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                 <button
                   type="button"
                   onClick={() => startQuizSession()}
-                  className="w-full min-h-[48px] py-3 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-sm font-extrabold flex items-center justify-center gap-2 transition-colors"
+                  className="w-full min-h-[50px] py-3 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-extrabold flex items-center justify-center gap-2 shadow-sm transition-colors"
                 >
                   <Play className="w-4 h-4" />
                   <span>

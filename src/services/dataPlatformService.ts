@@ -38,7 +38,7 @@ import {
  * 2. DB_SCHEMA_VERSION: Structural storage contract version
  * 3. BUNDLED_DATA_VERSION: Default offline seed lexicon version shipped with the build
  */
-export const APP_VERSION = '2.2.3';
+export const APP_VERSION = '2.3.0';
 export const DB_SCHEMA_VERSION = 2;
 export const BUNDLED_DATA_VERSION = '2026.10.0-umd';
 

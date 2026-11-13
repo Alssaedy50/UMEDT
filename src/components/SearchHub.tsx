@@ -493,11 +493,11 @@ export const SearchHub: React.FC<SearchHubProps> = ({
                     <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-left">
                       <span
                         dir="ltr"
-                        className="text-sm sm:text-[15px] font-semibold text-slate-800 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors break-words"
+                        className="text-sm sm:text-[15px] font-bold text-slate-900 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors break-words"
                       >
                         {item.term}
                       </span>
-                      <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400/90 text-right sm:text-left truncate">
+                      <span className="text-xs sm:text-sm font-bold text-emerald-700 dark:text-emerald-400 text-right sm:text-left break-words">
                         {item.translation}
                       </span>
                     </div>
@@ -530,32 +530,28 @@ export const SearchHub: React.FC<SearchHubProps> = ({
             <button
               type="button"
               onClick={onResetFilters}
-              className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline"
+              className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline font-bold"
             >
               إعادة ضبط الفلاتر
             </button>
           </div>
 
           {filteredTerms.length === 0 ? (
-            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-2.5">
+            <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-3">
               <AlertCircle className="w-8 h-8 text-slate-400 mx-auto" />
-              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                لا توجد ترجمة محفوظة مطابقة لهذه الكلمة
+              <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
+                لا توجد ترجمة محفوظة مطابقة لكلمة «{searchQuery}»
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                يمكنك توليد ترجمتها الجذرية وإضافتها للقاموس أوفلاين من صفحة مكتبتي:
               </p>
               <div className="flex items-center justify-center gap-2 pt-1 flex-wrap">
                 <button
                   type="button"
-                  onClick={() => onInspectMorphologyForQuery(searchQuery)}
-                  className="px-3.5 py-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 text-xs font-semibold"
-                >
-                  ترجمة وتحليل الكلمة «{searchQuery}»
-                </button>
-                <button
-                  type="button"
                   onClick={() => onAddNewTermFromQuery(searchQuery)}
-                  className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-bold"
+                  className="min-h-[42px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-xs"
                 >
-                  إضافة مصطلح جديد
+                  إضافة «{searchQuery}» أوفلاين في مكتبتي
                 </button>
               </div>
             </div>
@@ -584,11 +580,11 @@ export const SearchHub: React.FC<SearchHubProps> = ({
                     <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-left">
                       <span
                         dir="ltr"
-                        className="text-sm sm:text-[15px] font-semibold text-slate-800 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors break-words"
+                        className="text-sm sm:text-[15px] font-bold text-slate-900 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors break-words"
                       >
                         {highlightMatch(item.term, searchQuery)}
                       </span>
-                      <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400/90 text-right sm:text-left truncate">
+                      <span className="text-xs sm:text-sm font-bold text-emerald-700 dark:text-emerald-400 text-right sm:text-left break-words">
                         {highlightMatch(item.translation, searchQuery)}
                       </span>
                     </div>

@@ -87,9 +87,12 @@ interface TopicsHubProps {
   topics: TopicArticle[];
   terms: DictionaryTerm[];
   sentences: LinkedSentence[];
+  initialTopicId?: string | null;
+  onInitialTopicConsumed?: () => void;
   onSaveTopic: (topic: TopicArticle, isEdit: boolean) => void;
   onDeleteTopic: (topicId: string) => void;
   onToggleFavoriteTopic: (topicId: string, e?: React.MouseEvent) => void;
+  onToggleFavoriteTerm?: (termId: string, e?: React.MouseEvent) => void;
   onOpenTermDetail: (termId: string) => void;
   onSaveNewTermFromTopic: (
     newTerm: DictionaryTerm,
@@ -173,9 +176,12 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   topics: rawTopics,
   terms,
   sentences,
+  initialTopicId,
+  onInitialTopicConsumed,
   onSaveTopic,
   onDeleteTopic,
   onToggleFavoriteTopic,
+  onToggleFavoriteTerm,
   onOpenTermDetail,
   onSaveNewTermFromTopic,
   onAddSentenceToExistingTerm,
@@ -322,6 +328,21 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   const imageFileInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentFileInputRef = useRef<HTMLInputElement | null>(null);
   const articleProseRef = useRef<HTMLDivElement | null>(null);
+  const lastTapRef = useRef<{ time: number; x: number; y: number }>({
+    time: 0,
+    x: 0,
+    y: 0
+  });
+  const [saveAlsoAsFavorite, setSaveAlsoAsFavorite] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (initialTopicId) {
+      setSelectedTopicId(initialTopicId);
+      setSelectionState(null);
+      setViewMode('reader');
+      onInitialTopicConsumed?.();
+    }
+  }, [initialTopicId, onInitialTopicConsumed]);
 
   const activeTopic = useMemo(
     () => topics.find((t) => t.id === selectedTopicId) || topics[0] || null,
@@ -687,6 +708,62 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     return null;
   };
 
+  const extractWordAtPoint = (clientX: number, clientY: number): string => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return '';
+
+    const sel = window.getSelection();
+    const selStr = sel ? sel.toString().trim() : '';
+    if (selStr && selStr.length >= 2) {
+      return selStr;
+    }
+
+    let textNode: Node | null = null;
+    let offset = 0;
+
+    const docWithCaret = document as Document & {
+      caretPositionFromPoint?: (
+        x: number,
+        y: number
+      ) => { offsetNode: Node; offset: number } | null;
+    };
+
+    if (typeof document.caretRangeFromPoint === 'function') {
+      const range = document.caretRangeFromPoint(clientX, clientY);
+      if (range) {
+        textNode = range.startContainer;
+        offset = range.startOffset;
+      }
+    } else if (typeof docWithCaret.caretPositionFromPoint === 'function') {
+      const pos = docWithCaret.caretPositionFromPoint(clientX, clientY);
+      if (pos) {
+        textNode = pos.offsetNode;
+        offset = pos.offset;
+      }
+    }
+
+    if (!textNode || textNode.nodeType !== Node.TEXT_NODE) return '';
+    const content = textNode.textContent || '';
+    if (!content) return '';
+
+    const wordCharRegex = /[a-zA-Z0-9\u0600-\u06FF'-]/;
+    let start = Math.min(offset, content.length - 1);
+    let end = start;
+
+    if (!wordCharRegex.test(content[start] || '') && start > 0 && wordCharRegex.test(content[start - 1] || '')) {
+      start -= 1;
+      end = start;
+    }
+
+    while (start > 0 && wordCharRegex.test(content[start - 1])) {
+      start -= 1;
+    }
+    while (end < content.length && wordCharRegex.test(content[end])) {
+      end += 1;
+    }
+
+    return content.slice(start, end).trim();
+  };
+
   const inspectUserSelection = (rawText?: string) => {
     if (!activeTopic) return;
 
@@ -882,7 +959,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           ? TOPIC_CATEGORY_META[activeTopic.category].labelAr
           : 'مواضيع ومقالات'),
       keepEnglish: true,
-      favorite: true,
+      favorite: saveAlsoAsFavorite,
       collections: [
         'مستخرج من المواضيع',
         ...(subjTitle ? [subjTitle] : [])
@@ -2307,10 +2384,30 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <article
             ref={articleProseRef}
+            onDoubleClick={(e) => {
+              const word = extractWordAtPoint(e.clientX, e.clientY);
+              inspectUserSelection(word || undefined);
+            }}
             onMouseUp={() => {
               setTimeout(() => inspectUserSelection(), 30);
             }}
-            onTouchEnd={() => {
+            onTouchEnd={(e) => {
+              const touch = e.changedTouches?.[0];
+              const now = Date.now();
+              if (touch) {
+                const dt = now - lastTapRef.current.time;
+                const dx = Math.abs(touch.clientX - lastTapRef.current.x);
+                const dy = Math.abs(touch.clientY - lastTapRef.current.y);
+                if (dt > 0 && dt < 360 && dx < 36 && dy < 36) {
+                  const tappedWord = extractWordAtPoint(touch.clientX, touch.clientY);
+                  if (tappedWord) {
+                    inspectUserSelection(tappedWord);
+                    lastTapRef.current = { time: 0, x: 0, y: 0 };
+                    return;
+                  }
+                }
+                lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
+              }
               setTimeout(() => inspectUserSelection(), 120);
             }}
             onCopy={() => {
@@ -2330,13 +2427,13 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
 
               <h1
                 dir="ltr"
-                className="text-xl sm:text-3xl font-extrabold text-slate-900 dark:text-white leading-snug tracking-tight text-left"
+                className="text-lg sm:text-2xl lg:text-3xl font-extrabold text-slate-900 dark:text-white leading-snug tracking-tight text-left break-words"
               >
                 {activeTopic.titleEn || activeTopic.title}
               </h1>
 
               {(activeTopic.titleAr || activeTopic.subtitle) && (
-                <div className="text-base sm:text-lg font-bold text-emerald-700 dark:text-emerald-300 leading-relaxed">
+                <div className="text-sm sm:text-lg font-bold text-emerald-700 dark:text-emerald-300 leading-relaxed">
                   {activeTopic.titleAr || activeTopic.subtitle}
                 </div>
               )}
@@ -2353,8 +2450,9 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   {activeTopic.publishedAt} · {activeTopic.readingTimeMinutes}{' '}
                   دقائق قراءة · {activeTopic.sections.length} أقسام
                 </span>
-                <span className="text-emerald-700 dark:text-emerald-300 font-medium">
-                  حدد أي كلمة إنجليزية أو عربية لعرض شرحها أو حفظها في القاموس
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>انقر مرتين على أي كلمة أو مصطلح لإظهار الترجمة الفورية والنطق والحفظ</span>
                 </span>
               </div>
             </header>
@@ -2659,230 +2757,334 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           </div>
         )}
 
-        {/* SMART SELECTION / LONG-PRESS / COPY POPOVER CARD */}
+        {/* QUICK POPUP MODAL FOR DOUBLE-CLICKED / SELECTED WORD TRANSLATION */}
         {selectionState && (
-          <div className="fixed bottom-20 lg:bottom-6 inset-x-4 max-w-2xl mx-auto z-40 rounded-3xl bg-white dark:bg-slate-900 border-2 border-emerald-500/60 shadow-2xl p-5 space-y-4">
-            {selectionState.matchedTerm ? (
-              <div className="space-y-3.5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 block">
-                      مصطلح مسجل في القاموس · {selectionState.matchedTerm.category}
-                      {selectionState.matchedTerm.umdCode
-                        ? ` · ${selectionState.matchedTerm.umdCode}`
-                        : ''}
-                    </span>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <h4
-                        dir="ltr"
-                        className="text-lg font-extrabold text-slate-900 dark:text-white"
-                      >
-                        {selectionState.matchedTerm.term}
-                      </h4>
-                      <span
-                        dir="ltr"
-                        className="text-xs font-mono text-slate-400"
-                      >
-                        {selectionState.matchedTerm.phonetic}
+          <div
+            onClick={() => setSelectionState(null)}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg max-h-[88dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border-2 border-emerald-500/60 shadow-2xl p-5 sm:p-6 space-y-4"
+            >
+              {selectionState.matchedTerm ? (
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 block">
+                        المترجم السريع · مصطلح مسجل في القاموس ({selectionState.matchedTerm.category})
                       </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onTriggerTTS(
-                            selectionState.matchedTerm!.term,
-                            `topic-sel-tts-${selectionState.matchedTerm!.id}`
-                          )
-                        }
-                        className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400"
-                      >
-                        <Volume2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-2 flex-wrap mt-1">
+                        <h4
+                          dir="ltr"
+                          className="text-lg sm:text-xl font-mono font-extrabold text-slate-900 dark:text-white break-words"
+                        >
+                          {selectionState.matchedTerm.term}
+                        </h4>
+                        <span
+                          dir="ltr"
+                          className="text-xs font-mono text-slate-400"
+                        >
+                          {selectionState.matchedTerm.phonetic}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onTriggerTTS(
+                              selectionState.matchedTerm!.term,
+                              `topic-sel-tts-${selectionState.matchedTerm!.id}`
+                            )
+                          }
+                          className="min-h-[36px] px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold inline-flex items-center gap-1"
+                        >
+                          <Volume2 className="w-4 h-4" />
+                          <span>نطق</span>
+                        </button>
+                      </div>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectionState(null)}
+                      className="min-h-[38px] min-w-[38px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center shrink-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setSelectionState(null)}
-                    className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+                  <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3">
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                      الترجمة الطبية:
+                    </span>
+                    <span className="text-base font-extrabold text-emerald-700 dark:text-emerald-300">
+                      {selectionState.matchedTerm.translation}
+                    </span>
+                  </div>
 
-                <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
-                    الترجمة المعتمدة:
-                  </span>
-                  <span className="text-sm font-extrabold text-emerald-700 dark:text-emerald-300">
-                    {selectionState.matchedTerm.translation}
-                  </span>
-                </div>
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                      الشرح والتعريف العلمي:
+                    </span>
+                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                      {selectionState.matchedTerm.definitionAr}
+                    </p>
+                  </div>
 
-                <div className="space-y-1">
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                    الشرح والتعريف العلمي:
-                  </span>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                    {selectionState.matchedTerm.definitionAr}
-                  </p>
-                </div>
+                  {selectionState.quotedSentenceEn && (
+                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-500">
+                          الجملة السياقية في الموضوع:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onTriggerTTS(
+                              selectionState.quotedSentenceEn,
+                              `topic-sent-tts-${selectionState.matchedTerm!.id}`
+                            )
+                          }
+                          className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1"
+                        >
+                          <Volume2 className="w-3.5 h-3.5" />
+                          <span>نطق الجملة</span>
+                        </button>
+                      </div>
+                      <p dir="ltr" className="text-xs text-slate-800 dark:text-slate-200 text-left leading-relaxed">
+                        {selectionState.quotedSentenceEn}
+                      </p>
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300 leading-relaxed">
+                        {selectionState.quotedSentenceAr}
+                      </p>
+                    </div>
+                  )}
 
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                  {selectionState.quotedSentenceEn &&
-                    !selectionState.matchedTerm.examples.some(
-                      (e) =>
-                        e.en.trim().toLowerCase() ===
-                        selectionState.quotedSentenceEn.trim().toLowerCase()
-                    ) && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    {onToggleFavoriteTerm && (
                       <button
                         type="button"
                         onClick={() => {
-                          onAddSentenceToExistingTerm(
-                            selectionState.matchedTerm!.id,
-                            {
-                              en: selectionState.quotedSentenceEn,
-                              ar: selectionState.quotedSentenceAr
-                            }
-                          );
+                          const targetId = selectionState.matchedTerm!.id;
+                          onToggleFavoriteTerm(targetId);
                           setSelectionState((prev) =>
                             prev && prev.matchedTerm
                               ? {
                                   ...prev,
                                   matchedTerm: {
                                     ...prev.matchedTerm,
-                                    examples: [
-                                      {
-                                        en: prev.quotedSentenceEn,
-                                        ar: prev.quotedSentenceAr
-                                      },
-                                      ...prev.matchedTerm.examples
-                                    ]
+                                    favorite: !prev.matchedTerm.favorite
                                   }
                                 }
                               : prev
                           );
                         }}
-                        className="min-h-[38px] px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-xs font-bold flex items-center gap-1.5"
+                        className={`min-h-[42px] px-3.5 py-2 rounded-xl border text-xs font-extrabold flex items-center gap-1.5 transition-all ${
+                          selectionState.matchedTerm.favorite
+                            ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300'
+                            : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                        }`}
                       >
-                        <Plus className="w-3.5 h-3.5 text-emerald-500" />
-                        <span>ربط جملة الموضوع بهذا المصطلح</span>
+                        <Star
+                          className={`w-4 h-4 ${
+                            selectionState.matchedTerm.favorite
+                              ? 'fill-amber-400 text-amber-400'
+                              : ''
+                          }`}
+                        />
+                        <span>
+                          {selectionState.matchedTerm.favorite
+                            ? 'محفوظ في المفضلة'
+                            : 'حفظ في المفضلة'}
+                        </span>
                       </button>
                     )}
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleOpenTermWithStudyLog(selectionState.matchedTerm!)
-                    }
-                    className="min-h-[38px] px-4 py-2 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5 mr-auto"
-                  >
-                    <span>فتح بطاقة المصطلح الكاملة</span>
-                    <ArrowRight className="w-3.5 h-3.5 rotate-180" />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleInstantSaveUnknownTerm} className="space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 block">
-                      مصطلح جديد · حفظ فوري وربطه بموضوع (
-                      {activeTopic.titleEn || activeTopic.title})
-                    </span>
-                    <h4
-                      dir="ltr"
-                      className="text-base font-extrabold text-slate-900 dark:text-white mt-0.5"
-                    >
-                      {selectionState.selectedText}
-                    </h4>
-                    {selectionState.morphologySummary && (
-                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 block mt-0.5">
-                        تحليل الجذور التلقائي: {selectionState.morphologySummary}
-                      </span>
-                    )}
-                  </div>
+                    {selectionState.quotedSentenceEn &&
+                      !selectionState.matchedTerm.examples.some(
+                        (e) =>
+                          e.en.trim().toLowerCase() ===
+                          selectionState.quotedSentenceEn.trim().toLowerCase()
+                      ) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onAddSentenceToExistingTerm(
+                              selectionState.matchedTerm!.id,
+                              {
+                                en: selectionState.quotedSentenceEn,
+                                ar: selectionState.quotedSentenceAr
+                              }
+                            );
+                            setSelectionState((prev) =>
+                              prev && prev.matchedTerm
+                                ? {
+                                    ...prev,
+                                    matchedTerm: {
+                                      ...prev.matchedTerm,
+                                      examples: [
+                                        {
+                                          en: prev.quotedSentenceEn,
+                                          ar: prev.quotedSentenceAr
+                                        },
+                                        ...prev.matchedTerm.examples
+                                      ]
+                                    }
+                                  }
+                                : prev
+                            );
+                          }}
+                          className="min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-xs font-bold flex items-center gap-1.5"
+                        >
+                          <Plus className="w-3.5 h-3.5 text-emerald-500" />
+                          <span>ربط الجملة</span>
+                        </button>
+                      )}
 
-                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={handleRefineUnknownWordWithGemini}
-                      disabled={isRefiningWithAI}
-                      className="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold flex items-center gap-1"
+                      onClick={() =>
+                        handleOpenTermWithStudyLog(selectionState.matchedTerm!)
+                      }
+                      className="min-h-[42px] px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-extrabold flex items-center gap-1.5 mr-auto"
                     >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>
-                        {isRefiningWithAI ? 'جاري التحسين...' : 'ترجمة ذكية'}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectionState(null)}
-                      className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500"
-                    >
-                      <X className="w-4 h-4" />
+                      <span>فتح بطاقة المصطلح</span>
+                      <ArrowRight className="w-3.5 h-3.5 rotate-180" />
                     </button>
                   </div>
                 </div>
+              ) : (
+                <form onSubmit={handleInstantSaveUnknownTerm} className="space-y-3.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 block">
+                        المترجم السريع للمواضيع · تحليل وترجمة وحفظ فوري
+                      </span>
+                      <div className="flex items-center gap-2 flex-wrap mt-1">
+                        <h4
+                          dir="ltr"
+                          className="text-lg font-mono font-extrabold text-slate-900 dark:text-white break-words"
+                        >
+                          {selectionState.selectedText}
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onTriggerTTS(
+                              selectionState.selectedText,
+                              `topic-unknown-tts-${selectionState.selectedText}`
+                            )
+                          }
+                          className="min-h-[34px] px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold inline-flex items-center gap-1"
+                        >
+                          <Volume2 className="w-3.5 h-3.5" />
+                          <span>نطق</span>
+                        </button>
+                      </div>
+                      {selectionState.morphologySummary && (
+                        <span className="text-[11px] text-emerald-600 dark:text-emerald-400 block mt-1">
+                          تحليل الجذور التلقائي: {selectionState.morphologySummary}
+                        </span>
+                      )}
+                    </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleRefineUnknownWordWithGemini}
+                        disabled={isRefiningWithAI}
+                        className="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold flex items-center gap-1"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>
+                          {isRefiningWithAI ? 'جاري التحسين...' : 'تحسين الترجمة'}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectionState(null)}
+                        className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">
+                        المصطلح الطبي (English Term):
+                      </label>
+                      <input
+                        type="text"
+                        dir="auto"
+                        required
+                        value={editableNewTerm}
+                        onChange={(e) => setEditableNewTerm(e.target.value)}
+                        className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">
+                        الترجمة العربية للمصطلح:
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editableTranslationAr}
+                        onChange={(e) => setEditableTranslationAr(e.target.value)}
+                        placeholder="اكتب أو عدّل الترجمة العربية..."
+                        className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-emerald-500/50 text-xs font-bold text-emerald-700 dark:text-emerald-300"
+                      />
+                    </div>
+                  </div>
+
                   <div>
                     <label className="text-[11px] font-bold text-slate-500 block mb-1">
-                      المصطلح الطبي (English Term):
+                      الشرح والتعريف المختصر:
                     </label>
                     <input
                       type="text"
-                      dir="auto"
-                      required
-                      value={editableNewTerm}
-                      onChange={(e) => setEditableNewTerm(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                      value={editableDefinitionAr}
+                      onChange={(e) => setEditableDefinitionAr(e.target.value)}
+                      className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                     />
                   </div>
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-500 block mb-1">
-                      الترجمة العربية للمصطلح:
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={saveAlsoAsFavorite}
+                        onChange={(e) => setSaveAlsoAsFavorite(e.target.checked)}
+                        className="w-4 h-4 rounded text-emerald-600"
+                      />
+                      <span>إضافة إلى المفضلة أيضاً ⭐</span>
                     </label>
-                    <input
-                      type="text"
-                      required
-                      value={editableTranslationAr}
-                      onChange={(e) => setEditableTranslationAr(e.target.value)}
-                      placeholder="اكتب أو عدّل الترجمة العربية..."
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-emerald-500/50 text-xs font-bold text-emerald-700 dark:text-emerald-300"
-                    />
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectionState(null)}
+                        className="min-h-[40px] px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold"
+                      >
+                        إغلاق
+                      </button>
+                      <button
+                        type="submit"
+                        className="min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center gap-1.5"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>
+                          {saveAlsoAsFavorite
+                            ? 'حفظ في القاموس والمفضلة'
+                            : 'حفظ في القاموس'}
+                        </span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-slate-500 block mb-1">
-                    الشرح والتعريف المختصر:
-                  </label>
-                  <input
-                    type="text"
-                    value={editableDefinitionAr}
-                    onChange={(e) => setEditableDefinitionAr(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setSelectionState(null)}
-                    className="min-h-[38px] px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold"
-                  >
-                    إغلاق
-                  </button>
-                  <button
-                    type="submit"
-                    className="min-h-[38px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>حفظ المصطلح وربطه بالموضوع</span>
-                  </button>
-                </div>
-              </form>
-            )}
+                </form>
+              )}
+            </div>
           </div>
         )}
       </div>

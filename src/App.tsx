@@ -5,7 +5,6 @@ import {
   Volume2,
   Check,
   ArrowRight,
-  Upload,
   Layers,
   Cpu,
   Stethoscope,
@@ -13,14 +12,12 @@ import {
   Globe,
   X,
   CheckCircle2,
-  Activity,
   BookOpen,
   Menu,
   Settings
 } from 'lucide-react';
 import {
   EXTRA_LINKABLE_ALIASES,
-  CLINICAL_BENCHMARK_CASES,
   DictionaryTerm,
   LinkedSentence
 } from './data/medicalLexiconData';
@@ -35,7 +32,6 @@ import {
   TopicArticle,
   VersionMetadata
 } from './types/lexicon';
-import { runHybridGcNmtPipeline } from './engine/hybridTranslator';
 import {
   syncBidirectionalLinks,
   autoEnrichTermRelations,
@@ -74,25 +70,23 @@ import {
 import { SearchHub } from './components/SearchHub';
 import { TopicsHub } from './components/TopicsHub';
 import { TermDetailSheet } from './components/TermDetailSheet';
-import { ClinicalTranslatorView } from './components/ClinicalTranslatorView';
-import { IngestionPortal, StagedTermItem } from './components/IngestionPortal';
-import { LibraryView } from './components/LibraryView';
+import { LibraryView, LibrarySubMode, StagedTermItem } from './components/LibraryView';
 import { SettingsView } from './components/SettingsView';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { prepareAndDownloadFile } from './utils/downloadHelper';
 import { runSafeIndexedDbMigration, putAllInStore, IDB_STORES } from './services/indexedDbService';
 
-type MainTab = 'home' | 'topics' | 'translator' | 'datacenter' | 'ingest' | 'library' | 'settings';
+type MainTab = 'home' | 'topics' | 'library' | 'settings';
 
 const ROUTE_TO_TAB: Record<string, MainTab> = {
   '/': 'home',
   '/home': 'home',
   '/search': 'home',
   '/topics': 'topics',
-  '/translator': 'translator',
-  '/datacenter': 'datacenter',
-  '/medical-data-center': 'datacenter',
-  '/ingest': 'ingest',
+  '/translator': 'topics',
+  '/datacenter': 'library',
+  '/medical-data-center': 'library',
+  '/ingest': 'library',
   '/library': 'library',
   '/settings': 'settings'
 };
@@ -100,9 +94,6 @@ const ROUTE_TO_TAB: Record<string, MainTab> = {
 const TAB_TO_HASH: Record<MainTab, string> = {
   home: '#home',
   topics: '#topics',
-  translator: '#translator',
-  datacenter: '#datacenter',
-  ingest: '#ingest',
   library: '#library',
   settings: '#settings'
 };
@@ -110,9 +101,6 @@ const TAB_TO_HASH: Record<MainTab, string> = {
 const PAGE_LABELS: Record<MainTab, string> = {
   home: 'القاموس',
   topics: 'المواضيع',
-  translator: 'المترجم',
-  datacenter: 'البيانات',
-  ingest: 'البيانات',
   library: 'مكتبتي',
   settings: 'الإعدادات'
 };
@@ -120,17 +108,20 @@ const PAGE_LABELS: Record<MainTab, string> = {
 function resolveInitialTabFromLocation(): MainTab {
   if (typeof window === 'undefined') return 'home';
   const hashClean = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+  if (hashClean === 'translator') return 'topics';
+  if (
+    hashClean === 'datacenter' ||
+    hashClean === 'medical-data-center' ||
+    hashClean === 'ingest'
+  ) {
+    return 'library';
+  }
   if (
     hashClean === 'home' ||
     hashClean === 'topics' ||
-    hashClean === 'translator' ||
-    hashClean === 'datacenter' ||
-    hashClean === 'medical-data-center' ||
-    hashClean === 'ingest' ||
     hashClean === 'library' ||
     hashClean === 'settings'
   ) {
-    if (hashClean === 'medical-data-center') return 'datacenter';
     return hashClean as MainTab;
   }
   const pathClean = window.location.pathname.replace(/\/+$/, '') || '/';
@@ -231,12 +222,14 @@ export default function App() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [previewTerm, setPreviewTerm] = useState<(DictionaryTerm & { aliasName?: string }) | null>(null);
 
-  // Screen 2: Clinical Translator State
-  const [clinicalInput, setClinicalInput] = useState<string>(
-    CLINICAL_BENCHMARK_CASES[0].sourceEn
+  // Navigation handoff states for Library & Topics
+  const [libraryInitialMode, setLibraryInitialMode] = useState<LibrarySubMode | undefined>(
+    undefined
   );
+  const [libraryDraftTerm, setLibraryDraftTerm] = useState<string>('');
+  const [topicsInitialTopicId, setTopicsInitialTopicId] = useState<string | null>(null);
 
-  // Screen 3: Smart Ingestion Portal State
+  // Conflict Policy State
   const [conflictPolicy, setConflictPolicy] = useState<'ignore' | 'overwrite' | 'merge'>(
     initialPersisted.settings.conflictPolicy
   );
@@ -1021,18 +1014,6 @@ export default function App() {
     showToast('تمت إضافة الجملة السياقية للمصطلح وربطها بقاعدة الجمل');
   };
 
-  const hybridTranslationOutput = useMemo(
-    () =>
-      runHybridGcNmtPipeline(
-        clinicalInput,
-        terms,
-        sentences,
-        customAffixes,
-        customAbbreviations
-      ),
-    [clinicalInput, terms, sentences, customAffixes, customAbbreviations]
-  );
-
   const handleSaveManualTerm = (
     newTerm: DictionaryTerm,
     newLinkedSentences: LinkedSentence[]
@@ -1476,10 +1457,10 @@ export default function App() {
       )}
 
       {/* ====================================================================
-          TOP HEADER BAR (Clean: Side Menu Trigger + Current Page — Brand)
+          TOP HEADER BAR (Clean: Side Menu Trigger + Desktop Tabs + Brand)
          ==================================================================== */}
-      <header className="sticky top-0 z-30 h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-3 w-full box-border">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <header className="sticky top-0 z-30 h-14 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-3 w-full box-border">
+        <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
             onClick={() => setIsSidebarOpen(true)}
@@ -1489,6 +1470,37 @@ export default function App() {
             <Menu className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>{PAGE_LABELS[activeTab]}</span>
           </button>
+
+          {/* Desktop Quick Navigation Pills */}
+          <nav className="hidden md:flex items-center gap-1 mr-2">
+            {[
+              { id: 'home' as MainTab, label: 'القاموس', icon: Search },
+              { id: 'topics' as MainTab, label: 'المواضيع', icon: BookOpen },
+              { id: 'library' as MainTab, label: 'مكتبتي', icon: Star },
+              { id: 'settings' as MainTab, label: 'الإعدادات', icon: Settings }
+            ].map((tabItem) => {
+              const IconComp = tabItem.icon;
+              const isActive = activeTab === tabItem.id;
+              return (
+                <button
+                  key={tabItem.id}
+                  type="button"
+                  onClick={() => {
+                    setDetailTermId(null);
+                    setActiveTab(tabItem.id);
+                  }}
+                  className={`min-h-[36px] px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all ${
+                    isActive
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <IconComp className="w-3.5 h-3.5" />
+                  <span>{tabItem.label}</span>
+                </button>
+              );
+            })}
+          </nav>
         </div>
 
         <a
@@ -1517,7 +1529,7 @@ export default function App() {
           >
             <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 dark:border-slate-800">
               <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                القائمة
+                القائمة الرئيسية
               </span>
               <button
                 type="button"
@@ -1529,19 +1541,15 @@ export default function App() {
               </button>
             </div>
 
-            <nav className="space-y-1">
+            <nav className="space-y-1.5">
               {[
-                { id: 'home' as MainTab, label: 'القاموس', icon: Search },
-                { id: 'topics' as MainTab, label: 'المواضيع', icon: BookOpen },
-                { id: 'translator' as MainTab, label: 'المترجم', icon: Activity },
-                { id: 'datacenter' as MainTab, label: 'البيانات', icon: Upload },
-                { id: 'library' as MainTab, label: 'مكتبتي', icon: Star },
-                { id: 'settings' as MainTab, label: 'الإعدادات', icon: Settings }
+                { id: 'home' as MainTab, label: 'القاموس الطبي', icon: Search },
+                { id: 'topics' as MainTab, label: 'المواضيع والمترجم الفوري', icon: BookOpen },
+                { id: 'library' as MainTab, label: 'مكتبتي (المفضلة والإضافة أوفلاين)', icon: Star },
+                { id: 'settings' as MainTab, label: 'الإعدادات والنسخ الاحتياطي', icon: Settings }
               ].map((item) => {
                 const IconComp = item.icon;
-                const isActive =
-                  activeTab === item.id ||
-                  (item.id === 'datacenter' && activeTab === 'ingest');
+                const isActive = activeTab === item.id;
                 return (
                   <button
                     key={item.id}
@@ -1551,16 +1559,16 @@ export default function App() {
                       setActiveTab(item.id);
                       setIsSidebarOpen(false);
                     }}
-                    className={`w-full min-h-[44px] px-3.5 py-2 rounded-xl text-right flex items-center gap-3 text-sm transition-colors ${
+                    className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-xl text-right flex items-center gap-3 text-xs sm:text-sm transition-colors ${
                       isActive
-                        ? 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-extrabold'
+                        ? 'bg-emerald-600 text-white font-extrabold shadow-xs'
                         : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold'
                     }`}
                   >
                     <IconComp
                       className={`w-4 h-4 shrink-0 ${
                         isActive
-                          ? 'text-white dark:text-slate-950'
+                          ? 'text-white'
                           : 'text-emerald-600 dark:text-emerald-400'
                       }`}
                     />
@@ -1588,7 +1596,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => void handleCheckForUpdates({ forceInstall: true })}
-                className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold"
+                className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold"
               >
                 تنزيل وتثبيت التحديث الآن
               </button>
@@ -1637,11 +1645,14 @@ export default function App() {
             renderAutoLinkedText={renderAutoLinkedText}
             onGraphChipClick={handleGraphChipClick}
             onInspectMorphologyForQuery={(word) => {
-              setClinicalInput(word);
-              setActiveTab('translator');
+              setLibraryDraftTerm(word);
+              setLibraryInitialMode('add_offline');
+              setActiveTab('library');
             }}
             onAddNewTermFromQuery={() => {
-              setActiveTab('ingest');
+              setLibraryDraftTerm(searchQuery);
+              setLibraryInitialMode('add_offline');
+              setActiveTab('library');
             }}
             showToast={showToast}
           />
@@ -1652,48 +1663,16 @@ export default function App() {
             topics={topics}
             terms={terms}
             sentences={sentences}
+            initialTopicId={topicsInitialTopicId}
+            onInitialTopicConsumed={() => setTopicsInitialTopicId(null)}
             onSaveTopic={handleSaveTopic}
             onDeleteTopic={handleDeleteTopic}
             onToggleFavoriteTopic={toggleFavoriteTopic}
+            onToggleFavoriteTerm={toggleFavoriteTerm}
             onOpenTermDetail={openTermDetail}
             onSaveNewTermFromTopic={handleSaveManualTerm}
             onAddSentenceToExistingTerm={handleAddSentenceToTerm}
             onTriggerTTS={triggerTTS}
-            showToast={showToast}
-          />
-        )}
-
-        {activeTab === 'translator' && (
-          <ClinicalTranslatorView
-            terms={terms}
-            sentences={sentences}
-            customAffixes={customAffixes}
-            customAbbreviations={customAbbreviations}
-            clinicalInput={clinicalInput}
-            onClinicalInputChange={setClinicalInput}
-            hybridTranslationOutput={hybridTranslationOutput}
-            copiedId={copiedId}
-            onCopyToClipboard={copyToClipboard}
-            onOpenTermDetail={openTermDetail}
-            onSaveDecomposedTermToDictionary={(newTerm) =>
-              handleSaveManualTerm(newTerm, [])
-            }
-            onTriggerTTS={triggerTTS}
-            onToggleFavoriteTerm={toggleFavoriteTerm}
-            showToast={showToast}
-          />
-        )}
-
-        {(activeTab === 'datacenter' || activeTab === 'ingest') && (
-          <IngestionPortal
-            terms={terms}
-            copiedId={copiedId}
-            onCopyToClipboard={copyToClipboard}
-            onSaveManualTerm={handleSaveManualTerm}
-            onCommitBatch={handleCommitBatch}
-            onImportFullBackupJson={handleImportFullBackupJson}
-            onImportPackageFile={handleImportPackageFile}
-            onOpenTermDetail={openTermDetail}
             showToast={showToast}
           />
         )}
@@ -1706,6 +1685,12 @@ export default function App() {
             studyStats={studyStats}
             versionMetadata={versionMetadata}
             activeCollection={activeCollection}
+            initialMode={libraryInitialMode}
+            initialDraftTerm={libraryDraftTerm}
+            onInitialModeConsumed={() => {
+              setLibraryInitialMode(undefined);
+              setLibraryDraftTerm('');
+            }}
             onOpenCollectionsMenu={() =>
               setOpenMenu(openMenu === 'collections' ? null : 'collections')
             }
@@ -1713,7 +1698,16 @@ export default function App() {
             onOpenTermDetail={openTermDetail}
             onToggleFavoriteTerm={toggleFavoriteTerm}
             onToggleFavoriteSentence={toggleFavoriteSentence}
+            onToggleFavoriteTopic={toggleFavoriteTopic}
+            onOpenTopicFromLibrary={(topicId) => {
+              setTopicsInitialTopicId(topicId);
+              setActiveTab('topics');
+            }}
             onTriggerTTS={triggerTTS}
+            onSaveManualTerm={handleSaveManualTerm}
+            onCommitBatch={handleCommitBatch}
+            onImportFullBackupJson={handleImportFullBackupJson}
+            onImportPackageFile={handleImportPackageFile}
           />
         )}
 
@@ -1762,6 +1756,39 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* ====================================================================
+          MOBILE BOTTOM NAVIGATION BAR (4 CLEAR PAGES)
+         ==================================================================== */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-2 pb-[env(safe-area-inset-bottom,4px)] pt-1.5 grid grid-cols-4 gap-1">
+        {[
+          { id: 'home' as MainTab, label: 'القاموس', icon: Search },
+          { id: 'topics' as MainTab, label: 'المواضيع', icon: BookOpen },
+          { id: 'library' as MainTab, label: 'مكتبتي', icon: Star },
+          { id: 'settings' as MainTab, label: 'الإعدادات', icon: Settings }
+        ].map((item) => {
+          const IconComp = item.icon;
+          const isActive = activeTab === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                setDetailTermId(null);
+                setActiveTab(item.id);
+              }}
+              className={`min-h-[48px] rounded-2xl flex flex-col items-center justify-center gap-0.5 text-[11px] font-extrabold transition-colors ${
+                isActive
+                  ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
+                  : 'text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              <IconComp className="w-4 h-4" />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
 
       {/* ====================================================================
           CONTEXTUAL FULL TERM DETAIL SHEET
