@@ -27,8 +27,9 @@ import {
   GraduationCap,
   History,
   BookmarkCheck,
-  ChevronLeft,
-  ListFilter
+  ListFilter,
+  SlidersHorizontal,
+  MoreHorizontal
 } from 'lucide-react';
 import {
   DictionaryTerm,
@@ -115,13 +116,14 @@ interface SelectionInspectionState {
   morphologySummary?: string;
 }
 
-type HubSectionTab =
-  | 'blocks'
-  | 'subjects'
-  | 'topics'
-  | 'recent'
+type HubPopupModal =
+  | null
+  | 'filter_hierarchy'
+  | 'tools_hub'
+  | 'blocks_manager'
+  | 'subjects_manager'
   | 'saved_terms'
-  | 'tests';
+  | 'recent_activity';
 
 const CATEGORY_ICON_MAP: Record<
   TopicCategory | 'All',
@@ -188,7 +190,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   onTriggerTTS,
   showToast
 }) => {
-  // 1. Hierarchical Platform State (Blocks, Subjects, Enriched Topics, Quiz Bank, Recent Learning, Studied Terms)
+  // 1. Hierarchical Platform State
   const [blocks, setBlocks] = useState<MedicalBlock[]>(() => loadMedicalBlocks());
   const [subjects, setSubjects] = useState<MedicalSubject[]>(() =>
     loadMedicalSubjects()
@@ -221,9 +223,9 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     });
   }, [rawTopics, terms]);
 
-  // 2. Navigation & View Mode State
+  // 2. Navigation & Clean Popup Card States
   const [viewMode, setViewMode] = useState<'list' | 'reader' | 'editor'>('list');
-  const [hubTab, setHubTab] = useState<HubSectionTab>('topics');
+  const [activePopup, setActivePopup] = useState<HubPopupModal>(null);
 
   const [activeBlockFilter, setActiveBlockFilter] = useState<string>('ALL');
   const [activeSubjectFilter, setActiveSubjectFilter] = useState<string>('ALL');
@@ -237,7 +239,16 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     'All'
   );
 
-  // Modals & Bottom Sheets State
+  // Popup Cards for Specific Topic (Terms Preview & Quick Actions Menu)
+  const [termsPopupTopicId, setTermsPopupTopicId] = useState<string | null>(null);
+  const [actionMenuTopicId, setActionMenuTopicId] = useState<string | null>(null);
+
+  // Reader Popup Cards
+  const [isTocSheetOpen, setIsTocSheetOpen] = useState<boolean>(false);
+  const [isReaderTermsPopupOpen, setIsReaderTermsPopupOpen] = useState<boolean>(false);
+  const [isReaderOptionsPopupOpen, setIsReaderOptionsPopupOpen] = useState<boolean>(false);
+
+  // Modals (Quiz Center & Granular Export)
   const [isQuizModalOpen, setIsQuizModalOpen] = useState<boolean>(false);
   const [quizInitialBlockId, setQuizInitialBlockId] = useState<string | null>(null);
   const [quizInitialSubjectId, setQuizInitialSubjectId] = useState<string | null>(
@@ -259,9 +270,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     null
   );
 
-  const [isTocSheetOpen, setIsTocSheetOpen] = useState<boolean>(false);
-
-  // Create/Edit Block or Subject Bottom Sheet
+  // Create/Edit Block or Subject Popup Card
   const [hierarchyModalMode, setHierarchyModalMode] = useState<
     null | 'block' | 'subject'
   >(null);
@@ -272,7 +281,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   const [hCode, setHCode] = useState<string>('');
   const [hParentBlockId, setHParentBlockId] = useState<string>('');
 
-  // Smart Selection / Long-Press / Copy Popover State inside the Reader
+  // Double-Click / Selection Quick Translation Popup Card State
   const [selectionState, setSelectionState] =
     useState<SelectionInspectionState | null>(null);
   const [editableNewTerm, setEditableNewTerm] = useState<string>('');
@@ -428,7 +437,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     return counts;
   }, [topics]);
 
-  // Filtered Topics for the Browse Hub
+  // Filtered Topics
   const filteredTopics = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return topics.filter((topic) => {
@@ -473,7 +482,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     detectedTermsByTopicId
   ]);
 
-  // Saved & Topic-Linked Terms for the "Saved Terms" tab
+  // Saved & Topic-Linked Terms
   const topicLinkedAndStudiedTerms = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     const seen = new Set<string>();
@@ -544,10 +553,18 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     searchQuery
   ]);
 
+  const activeFiltersCount =
+    (activeBlockFilter !== 'ALL' ? 1 : 0) +
+    (activeSubjectFilter !== 'ALL' ? 1 : 0) +
+    (selectedCategory !== 'All' ? 1 : 0);
+
   // Open a Topic in Reader and Record in Recent Learning
   const handleOpenTopicInReader = (topic: TopicArticle) => {
     setSelectedTopicId(topic.id);
     setSelectionState(null);
+    setActionMenuTopicId(null);
+    setTermsPopupTopicId(null);
+    setActivePopup(null);
     setViewMode('reader');
     const updatedRecent = recordRecentLearningItem({
       entityType: 'topic',
@@ -583,6 +600,9 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     topicId?: string;
     tab?: 'runner' | 'builder' | 'history';
   }) => {
+    setActivePopup(null);
+    setActionMenuTopicId(null);
+    setIsReaderOptionsPopupOpen(false);
     setQuizInitialBlockId(opts?.blockId || null);
     setQuizInitialSubjectId(opts?.subjectId || null);
     setQuizInitialTopicId(opts?.topicId || null);
@@ -596,6 +616,9 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     subjectId?: string;
     topicId?: string;
   }) => {
+    setActivePopup(null);
+    setActionMenuTopicId(null);
+    setIsReaderOptionsPopupOpen(false);
     setExportInitialBlockId(opts?.blockId || null);
     setExportInitialSubjectId(opts?.subjectId || null);
     setExportInitialTopicId(opts?.topicId || null);
@@ -749,7 +772,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     let start = Math.min(offset, content.length - 1);
     let end = start;
 
-    if (!wordCharRegex.test(content[start] || '') && start > 0 && wordCharRegex.test(content[start - 1] || '')) {
+    if (
+      !wordCharRegex.test(content[start] || '') &&
+      start > 0 &&
+      wordCharRegex.test(content[start - 1] || '')
+    ) {
       start -= 1;
       end = start;
     }
@@ -1031,6 +1058,8 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     blockId?: string;
     subjectId?: string;
   }) => {
+    setActivePopup(null);
+    setActionMenuTopicId(null);
     setEditingTopicId(null);
     setDraftTitleEn('');
     setDraftTitleAr('');
@@ -1077,6 +1106,9 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   // Start Editing an Existing Topic
   const openEditTopicEditor = (topic: TopicArticle, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    setActivePopup(null);
+    setActionMenuTopicId(null);
+    setIsReaderOptionsPopupOpen(false);
     setEditingTopicId(topic.id);
     setDraftTitleEn(topic.titleEn || topic.title);
     setDraftTitleAr(topic.titleAr || topic.subtitle || '');
@@ -1369,8 +1401,15 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   };
 
   // ============================================================================
-  // SHARED MODALS (Quiz Center, Granular Export, Create/Edit Block or Subject)
+  // SHARED POPUP CARDS & MODALS (Clean Centered Popup Cards — Zero Overlap)
   // ============================================================================
+  const popupTargetTopic = useMemo(
+    () =>
+      topics.find((t) => t.id === (termsPopupTopicId || actionMenuTopicId)) ||
+      null,
+    [topics, termsPopupTopicId, actionMenuTopicId]
+  );
+
   const renderSharedModals = () => (
     <>
       <QuizCenterModal
@@ -1435,29 +1474,30 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         showToast={showToast}
       />
 
+      {/* POPUP CARD: Create / Edit Medical Block or Subject */}
       {hierarchyModalMode && (
         <div
           onClick={() => setHierarchyModalMode(null)}
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 p-5 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] sm:pb-6 space-y-4 shadow-2xl"
+            className="w-full max-w-lg max-h-[86dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-4 shadow-2xl"
           >
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
                 {hierarchyModalMode === 'block'
                   ? editingHierarchyId
-                    ? 'تعديل البلوك الطبي (Medical Block)'
-                    : 'إنشاء بلوك طبي جديد (New Medical Block)'
+                    ? 'تعديل البلوك الطبي'
+                    : 'إنشاء بلوك طبي جديد'
                   : editingHierarchyId
-                  ? 'تعديل المادة العلمية (Medical Subject)'
-                  : 'إنشاء مادة علمية جديدة (New Medical Subject)'}
+                  ? 'تعديل المادة العلمية'
+                  : 'إنشاء مادة علمية جديدة'}
               </h3>
               <button
                 type="button"
                 onClick={() => setHierarchyModalMode(null)}
-                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500"
+                className="min-h-[38px] min-w-[38px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1467,7 +1507,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <div className="sm:col-span-2">
                   <label className="text-[11px] font-bold text-slate-500 block mb-1">
-                    الاسم الأكاديمي الإنجليزي (Primary English Title):
+                    الاسم الأكاديمي الإنجليزي:
                   </label>
                   <input
                     type="text"
@@ -1480,7 +1520,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                         ? 'e.g., Hematology Block'
                         : 'e.g., Medical Parasitology'
                     }
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold text-left"
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold text-left"
                   />
                 </div>
                 <div>
@@ -1493,14 +1533,14 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     value={hCode}
                     onChange={(e) => setHCode(e.target.value)}
                     placeholder="HEME-BLK"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono text-left"
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono text-left"
                   />
                 </div>
               </div>
 
               <div>
                 <label className="text-[11px] font-bold text-slate-500 block mb-1">
-                  الترجمة العربية الدقيقة (Arabic Translation):
+                  الترجمة العربية الدقيقة:
                 </label>
                 <input
                   type="text"
@@ -1512,24 +1552,25 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                       ? 'مثال: بلوك أمراض الدم واللمفاويات'
                       : 'مثال: علم الطفيليات الطبية السريرية'
                   }
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                  className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                 />
               </div>
 
               {hierarchyModalMode === 'subject' && (
                 <div>
                   <label className="text-[11px] font-bold text-slate-500 block mb-1">
-                    البلوك التابع له (أو اتركه فارغاً لمادة مستقلة):
+                    البلوك التابع له:
                   </label>
                   <select
+                    dir="auto"
                     value={hParentBlockId}
                     onChange={(e) => setHParentBlockId(e.target.value)}
-                    className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                   >
-                    <option value="">مادة مستقلة (Standalone Subject)</option>
+                    <option value="">مادة مستقلة</option>
                     {blocks.map((b) => (
                       <option key={b.id} value={b.id}>
-                        {b.titleEn} — {b.titleAr}
+                        {b.titleAr} — {b.titleEn}
                       </option>
                     ))}
                   </select>
@@ -1538,14 +1579,14 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
 
               <div>
                 <label className="text-[11px] font-bold text-slate-500 block mb-1">
-                  وصف مختصر للمنهج أو المادة (اختياري):
+                  وصف مختصر للمنهج أو المادة:
                 </label>
                 <input
                   type="text"
                   value={hDescAr}
                   onChange={(e) => setHDescAr(e.target.value)}
                   placeholder="وصف مختصر للمواضيع المشمولة..."
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                  className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                 />
               </div>
 
@@ -1565,6 +1606,853 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP CARD 1: Filter by Block, Subject & Category */}
+      {activePopup === 'filter_hierarchy' && (
+        <div
+          onClick={() => setActivePopup(null)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl max-h-[86dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-5 shadow-2xl"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3.5">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                  تصفية المواضيع والبلوكات والمواد
+                </h3>
+                <p className="text-xs text-slate-500">
+                  اختر التخصص أو البلوك الطبي أو المادة لعرض مواضيعها بدقة
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActivePopup(null)}
+                className="min-h-[38px] min-w-[38px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Category Filter */}
+            <div className="space-y-2">
+              <div className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                1. التصنيف العام:
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory('All')}
+                  className={`min-h-[40px] px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                    selectedCategory === 'All'
+                      ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
+                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  الكل ({topics.length})
+                </button>
+                {(
+                  ['Medical', 'Technology', 'AI', 'History', 'General'] as const
+                ).map((catKey) => {
+                  const IconComp = CATEGORY_ICON_MAP[catKey];
+                  const isActive = selectedCategory === catKey;
+                  return (
+                    <button
+                      key={catKey}
+                      type="button"
+                      onClick={() => setSelectedCategory(isActive ? 'All' : catKey)}
+                      className={`min-h-[40px] px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-colors ${
+                        isActive
+                          ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
+                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <IconComp className="w-3.5 h-3.5 shrink-0" />
+                      <span>{TOPIC_CATEGORY_META[catKey].labelAr}</span>
+                      <span className="font-mono text-[11px]">
+                        ({categoryCounts[catKey]})
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Medical Blocks Filter */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                  2. البلوك الطبي (Medical Block):
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActivePopup('blocks_manager')}
+                  className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                >
+                  إدارة البلوكات ({blocks.length})
+                </button>
+              </div>
+              <select
+                dir="auto"
+                value={activeBlockFilter}
+                onChange={(e) => {
+                  setActiveBlockFilter(e.target.value);
+                  setActiveSubjectFilter('ALL');
+                }}
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+              >
+                <option value="ALL">جميع البلوكات الطبية ({blocks.length})</option>
+                {blocks.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.titleAr} — {b.titleEn}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Medical Subjects Filter */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                  3. المادة العلمية (Subject):
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActivePopup('subjects_manager')}
+                  className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                >
+                  إدارة المواد ({subjects.length})
+                </button>
+              </div>
+              <select
+                dir="auto"
+                value={activeSubjectFilter}
+                onChange={(e) => setActiveSubjectFilter(e.target.value)}
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+              >
+                <option value="ALL">جميع المواد العلمية ({subjects.length})</option>
+                {subjects
+                  .filter(
+                    (s) =>
+                      activeBlockFilter === 'ALL' ||
+                      s.blockId === activeBlockFilter
+                  )
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.titleAr} — {s.titleEn}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveBlockFilter('ALL');
+                  setActiveSubjectFilter('ALL');
+                  setSelectedCategory('All');
+                }}
+                className="min-h-[42px] px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300"
+              >
+                إعادة ضبط الكل
+              </button>
+              <button
+                type="button"
+                onClick={() => setActivePopup(null)}
+                className="min-h-[42px] px-6 py-2 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold"
+              >
+                عرض النتائج ({filteredTopics.length} موضوع)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP CARD 2: Tools, Assessments, Saved Terms & Recent Activity Hub */}
+      {activePopup === 'tools_hub' && (
+        <div
+          onClick={() => setActivePopup(null)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl max-h-[86dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3.5">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                  البطاقات والأدوات التعليمية للمواضيع
+                </h3>
+                <p className="text-xs text-slate-500">
+                  اختر أي بطاقة لفتحها كنافذة مستقلة دون ازدحام الصفحة الرئيسية
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActivePopup(null)}
+                className="min-h-[38px] min-w-[38px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Card 1: Quiz Center */}
+              <button
+                type="button"
+                onClick={() => openQuizForScope({ tab: 'runner' })}
+                className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 text-right space-y-2 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <div className="text-sm font-extrabold text-slate-900 dark:text-white">
+                  منظومة الاختبارات ({quizQuestions.length})
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  اختبارات تفاعلية شاملة حسب الموضوع أو المادة مع التصحيح الفوري.
+                </p>
+              </button>
+
+              {/* Card 2: Topic-Linked Terms */}
+              <button
+                type="button"
+                onClick={() => setActivePopup('saved_terms')}
+                className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 text-right space-y-2 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <BookmarkCheck className="w-5 h-5" />
+                </div>
+                <div className="text-sm font-extrabold text-slate-900 dark:text-white">
+                  مصطلحات المواضيع ({topicLinkedAndStudiedTerms.length})
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  استعراض جميع المصطلحات الطبية المستخرجة والمحفوظة من المواضيع.
+                </p>
+              </button>
+
+              {/* Card 3: Blocks & Subjects Manager */}
+              <button
+                type="button"
+                onClick={() => setActivePopup('blocks_manager')}
+                className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 text-right space-y-2 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <FolderKanban className="w-5 h-5" />
+                </div>
+                <div className="text-sm font-extrabold text-slate-900 dark:text-white">
+                  البلوكات والمواد ({blocks.length} بلوك · {subjects.length} مادة)
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  تنظيم الهيكل الأكاديمي وإضافة بلوكات أو مواد دراسية جديدة.
+                </p>
+              </button>
+
+              {/* Card 4: Recent Learning & Export */}
+              <button
+                type="button"
+                onClick={() => setActivePopup('recent_activity')}
+                className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 text-right space-y-2 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <History className="w-5 h-5" />
+                </div>
+                <div className="text-sm font-extrabold text-slate-900 dark:text-white">
+                  سجل التعلم الأخير ({recentLearning.length})
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  المواضيع المقروءة مؤخراً ونتائج الاختبارات وتنزيل الحزم المستقلة.
+                </p>
+              </button>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => openExportForScope()}
+                className="min-h-[40px] px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold flex items-center gap-1.5"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-500" />
+                <span>مركز التنزيل والتصدير المستقل</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActivePopup(null)}
+                className="min-h-[40px] px-4 py-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 text-xs font-bold"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP CARD 3: Blocks & Subjects Manager */}
+      {(activePopup === 'blocks_manager' || activePopup === 'subjects_manager') && (
+        <div
+          onClick={() => setActivePopup(null)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl max-h-[86dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActivePopup('blocks_manager')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-colors ${
+                    activePopup === 'blocks_manager'
+                      ? 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  البلوكات ({blocks.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivePopup('subjects_manager')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-colors ${
+                    activePopup === 'subjects_manager'
+                      ? 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  المواد ({subjects.length})
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingHierarchyId(null);
+                    setHTitleEn('');
+                    setHTitleAr('');
+                    setHCode('');
+                    setHDescAr('');
+                    setHParentBlockId(blocks[0]?.id || '');
+                    setHierarchyModalMode(
+                      activePopup === 'blocks_manager' ? 'block' : 'subject'
+                    );
+                  }}
+                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>
+                    {activePopup === 'blocks_manager' ? 'بلوك جديد' : 'مادة جديدة'}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivePopup(null)}
+                  className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {activePopup === 'blocks_manager' ? (
+              <div className="space-y-2.5 max-h-[60dvh] overflow-y-auto pr-1">
+                {blocks.map((block) => {
+                  const blockTopics = topics.filter((t) => t.blockId === block.id);
+                  return (
+                    <div
+                      key={block.id}
+                      className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <div className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                          {block.code} · {blockTopics.length} موضوع
+                        </div>
+                        <div
+                          dir="ltr"
+                          className="text-sm font-extrabold text-slate-900 dark:text-white text-left"
+                        >
+                          {block.titleEn}
+                        </div>
+                        <div className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                          {block.titleAr}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingHierarchyId(block.id);
+                            setHTitleEn(block.titleEn);
+                            setHTitleAr(block.titleAr);
+                            setHCode(block.code);
+                            setHDescAr(block.descriptionAr);
+                            setHierarchyModalMode('block');
+                          }}
+                          className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                        >
+                          تعديل
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveBlockFilter(block.id);
+                            setActiveSubjectFilter('ALL');
+                            setActivePopup(null);
+                          }}
+                          className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold"
+                        >
+                          عرض المواضيع
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="space-y-2.5 max-h-[60dvh] overflow-y-auto pr-1">
+                {subjects.map((subj) => {
+                  const subjTopics = topics.filter((t) => t.subjectId === subj.id);
+                  return (
+                    <div
+                      key={subj.id}
+                      className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <div className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                          {subj.code} · {subjTopics.length} موضوع
+                        </div>
+                        <div
+                          dir="ltr"
+                          className="text-sm font-extrabold text-slate-900 dark:text-white text-left"
+                        >
+                          {subj.titleEn}
+                        </div>
+                        <div className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                          {subj.titleAr}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingHierarchyId(subj.id);
+                            setHTitleEn(subj.titleEn);
+                            setHTitleAr(subj.titleAr);
+                            setHCode(subj.code);
+                            setHDescAr(subj.descriptionAr);
+                            setHParentBlockId(subj.blockId || '');
+                            setHierarchyModalMode('subject');
+                          }}
+                          className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                        >
+                          تعديل
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveBlockFilter(subj.blockId || 'ALL');
+                            setActiveSubjectFilter(subj.id);
+                            setActivePopup(null);
+                          }}
+                          className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold"
+                        >
+                          عرض المواضيع
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* POPUP CARD 4: Topic-Linked & Studied Terms */}
+      {activePopup === 'saved_terms' && (
+        <div
+          onClick={() => setActivePopup(null)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl max-h-[86dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                  المصطلحات المرتبطة بالمواضيع ({topicLinkedAndStudiedTerms.length})
+                </h3>
+                <p className="text-xs text-slate-500">
+                  انقر على أي مصطلح لفتح بطاقته الكاملة أو الاستماع لنطقه
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActivePopup(null)}
+                className="min-h-[38px] min-w-[38px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSavedTermsFilterScope('ALL')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border ${
+                  savedTermsFilterScope === 'ALL'
+                    ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
+                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
+                }`}
+              >
+                كل مصطلحات المواضيع
+              </button>
+              <button
+                type="button"
+                onClick={() => setSavedTermsFilterScope('SAVED_ONLY')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border ${
+                  savedTermsFilterScope === 'SAVED_ONLY'
+                    ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
+                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
+                }`}
+              >
+                المحفوظة والمدروسة فقط
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[56dvh] overflow-y-auto pr-1">
+              {topicLinkedAndStudiedTerms.slice(0, 100).map((item) => (
+                <div
+                  key={item.term.id}
+                  onClick={() => {
+                    setActivePopup(null);
+                    handleOpenTermWithStudyLog(item.term);
+                  }}
+                  className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-500 cursor-pointer flex items-center justify-between gap-3 transition-colors"
+                >
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="text-xs font-extrabold text-emerald-700 dark:text-emerald-300 break-words">
+                      {item.term.translation}
+                    </div>
+                    <div className="text-[11px] text-slate-500 line-clamp-1">
+                      {item.term.definitionAr}
+                    </div>
+                  </div>
+                  <div className="text-left shrink-0">
+                    <div
+                      dir="ltr"
+                      className="text-xs font-mono font-extrabold text-slate-900 dark:text-white"
+                    >
+                      {item.term.term}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onTriggerTTS(item.term.term, `saved-tts-${item.term.id}`);
+                      }}
+                      className="mt-1 p-1.5 rounded-lg bg-slate-200/70 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP CARD 5: Recent Learning Activity */}
+      {activePopup === 'recent_activity' && (
+        <div
+          onClick={() => setActivePopup(null)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl max-h-[84dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                سجل التعلم الأخير ({recentLearning.length})
+              </h3>
+              <button
+                type="button"
+                onClick={() => setActivePopup(null)}
+                className="min-h-[38px] min-w-[38px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {recentLearning.length > 0 ? (
+              <div className="space-y-2.5 max-h-[60dvh] overflow-y-auto pr-1">
+                {recentLearning.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0 space-y-0.5">
+                      <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
+                        {item.entityType === 'topic'
+                          ? 'موضوع أكاديمي'
+                          : item.entityType === 'quiz'
+                          ? 'محاولة اختبار'
+                          : 'مادة علمية'}{' '}
+                        · {new Date(item.accessedAt).toLocaleString('ar-EG')}
+                      </div>
+                      <div
+                        dir="ltr"
+                        className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white text-left truncate"
+                      >
+                        {item.titleEn}
+                      </div>
+                      <div className="text-xs text-slate-600 dark:text-slate-300 truncate">
+                        {item.titleAr}
+                      </div>
+                    </div>
+
+                    {item.entityType === 'topic' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const found = topics.find((t) => t.id === item.entityId);
+                          if (found) handleOpenTopicInReader(found);
+                        }}
+                        className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold shrink-0"
+                      >
+                        قراءة
+                      </button>
+                    )}
+                    {item.entityType === 'quiz' && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openQuizForScope({
+                            blockId: item.blockId,
+                            subjectId: item.subjectId,
+                            tab: 'history'
+                          })
+                        }
+                        className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-xs font-bold shrink-0"
+                      >
+                        النتيجة
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 text-center text-xs text-slate-500">
+                افتح أي موضوع أو قم بإجراء اختبار ليظهر سجل نشاطك التعليمي هنا تلقائياً.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* POPUP CARD 6: Topic Terms Quick Preview Popup (From Topic Card) */}
+      {termsPopupTopicId && popupTargetTopic && (
+        <div
+          onClick={() => setTermsPopupTopicId(null)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl max-h-[84dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="min-w-0">
+                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 block">
+                  بطاقة مصطلحات الموضوع المنبثقة
+                </span>
+                <h3
+                  dir="ltr"
+                  className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white text-left break-words mt-0.5"
+                >
+                  {popupTargetTopic.titleEn || popupTargetTopic.title}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {popupTargetTopic.titleAr || popupTargetTopic.subtitle}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTermsPopupTopicId(null)}
+                className="min-h-[38px] min-w-[38px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {(detectedTermsByTopicId[popupTargetTopic.id] || []).length > 0 ? (
+              <div className="space-y-2 max-h-[55dvh] overflow-y-auto pr-1">
+                {(detectedTermsByTopicId[popupTargetTopic.id] || []).map((dt) => (
+                  <div
+                    key={dt.id}
+                    onClick={() => {
+                      setTermsPopupTopicId(null);
+                      handleOpenTermWithStudyLog(dt);
+                    }}
+                    className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-500 cursor-pointer flex items-center justify-between gap-3 transition-colors"
+                  >
+                    <div className="min-w-0 space-y-0.5">
+                      <div className="text-xs font-extrabold text-emerald-700 dark:text-emerald-300 break-words">
+                        {dt.translation}
+                      </div>
+                      <div className="text-[11px] text-slate-500 line-clamp-2">
+                        {dt.definitionAr}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        dir="ltr"
+                        className="text-xs font-mono font-extrabold text-slate-900 dark:text-white"
+                      >
+                        {dt.term}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onTriggerTTS(dt.term, `popup-term-tts-${dt.id}`);
+                        }}
+                        className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      >
+                        <Volume2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-6 text-center text-xs text-slate-500">
+                افتح الموضوع وانقر مرتين على أي كلمة لترجمتها وإضافتها فوراً.
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setTermsPopupTopicId(null)}
+                className="min-h-[40px] px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold"
+              >
+                إغلاق
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenTopicInReader(popupTargetTopic)}
+                className="min-h-[40px] px-5 py-2 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5"
+              >
+                <span>قراءة الموضوع كاملاً</span>
+                <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP CARD 7: Topic Options / Actions Card (From Topic Card '•••' button) */}
+      {actionMenuTopicId && popupTargetTopic && (
+        <div
+          onClick={() => setActionMenuTopicId(null)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="min-w-0">
+                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 block">
+                  خيارات وإجراءات الموضوع
+                </span>
+                <h3
+                  dir="ltr"
+                  className="text-sm font-extrabold text-slate-900 dark:text-white text-left break-words mt-0.5"
+                >
+                  {popupTargetTopic.titleEn || popupTargetTopic.title}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActionMenuTopicId(null)}
+                className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenTopicInReader(popupTargetTopic)}
+                className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center justify-between"
+              >
+                <span>فتح وقراءة الموضوع</span>
+                <Eye className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  openQuizForScope({
+                    blockId: popupTargetTopic.blockId,
+                    subjectId: popupTargetTopic.subjectId,
+                    topicId: popupTargetTopic.id,
+                    tab: 'runner'
+                  })
+                }
+                className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center justify-between"
+              >
+                <span>بدء اختبار في هذا الموضوع</span>
+                <GraduationCap className="w-4 h-4 text-emerald-500" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => openEditTopicEditor(popupTargetTopic)}
+                className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center justify-between"
+              >
+                <span>تعديل الموضوع وإضافة محتوى</span>
+                <Edit3 className="w-4 h-4 text-emerald-500" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  openExportForScope({
+                    blockId: popupTargetTopic.blockId,
+                    subjectId: popupTargetTopic.subjectId,
+                    topicId: popupTargetTopic.id
+                  })
+                }
+                className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center justify-between"
+              >
+                <span>تنزيل وتصدير الموضوع مستقلاً</span>
+                <Download className="w-4 h-4 text-emerald-500" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const idToDelete = popupTargetTopic.id;
+                  setActionMenuTopicId(null);
+                  onDeleteTopic(idToDelete);
+                }}
+                className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center justify-between"
+              >
+                <span>حذف الموضوع</span>
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1591,13 +2479,13 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
               <span>العودة للمواضيع</span>
             </button>
             <div>
-              <h1 className="text-lg font-extrabold text-slate-900 dark:text-white">
+              <h1 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white">
                 {editingTopicId
-                  ? 'تطوير وتعديل الموضوع الأكاديمي'
-                  : 'إنشاء موضوع طبي وتعليمي تفاعلي جديد'}
+                  ? 'تعديل الموضوع الأكاديمي'
+                  : 'إنشاء موضوع طبي وتعليمي جديد'}
               </h1>
               <p className="text-xs text-slate-500">
-                يدعم الهيكل الأكاديمي (Block → Subject → Topic → Sections → Content Blocks) مع الصور والجداول والتسجيلات الصوتية والأسئلة بمواضعها الدقيقة
+                أضف الأقسام والفقرات والجداول والصور والأسئلة المدمجة بسهولة
               </p>
             </div>
           </div>
@@ -1648,15 +2536,15 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
 
         <form onSubmit={handlePublishTopic} className="space-y-6">
           {/* 1. Academic Hierarchy & Bilingual Titles Card */}
-          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-4">
+          <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-4">
             <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">
-              1. العنوان الأكاديمي الإنجليزي، الترجمة العربية، والتصنيف الهيكلي (Block & Subject)
+              1. العنوان الأكاديمي، الترجمة العربية، والتصنيف الهيكلي
             </h2>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                  العنوان الأكاديمي الإنجليزي الأساسي (Primary Academic English Title) *
+                  العنوان الأكاديمي الإنجليزي (English Title) *
                 </label>
                 <input
                   type="text"
@@ -1671,13 +2559,13 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                  الترجمة العربية الدقيقة للعنوان (Accurate Arabic Title)
+                  الترجمة العربية للعنوان (Arabic Title)
                 </label>
                 <input
                   type="text"
                   value={draftTitleAr}
                   onChange={(e) => setDraftTitleAr(e.target.value)}
-                  placeholder="مثال: فقر الدم بعوز الحديد والتشخيص التفريقي لفقر الدم صغير الكريات"
+                  placeholder="مثال: فقر الدم بعوز الحديد والتشخيص التفريقي"
                   className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm font-bold focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -1687,7 +2575,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    البلوك الطبي (Block)
+                    البلوك الطبي
                   </label>
                   <button
                     type="button"
@@ -1705,13 +2593,14 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   </button>
                 </div>
                 <select
+                  dir="auto"
                   value={draftBlockId}
                   onChange={(e) => setDraftBlockId(e.target.value)}
                   className="w-full min-h-[44px] px-3 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                 >
                   {blocks.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.titleEn} — {b.titleAr}
+                      {b.titleAr} — {b.titleEn}
                     </option>
                   ))}
                 </select>
@@ -1720,7 +2609,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    المادة العلمية (Subject)
+                    المادة العلمية
                   </label>
                   <button
                     type="button"
@@ -1739,13 +2628,14 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   </button>
                 </div>
                 <select
+                  dir="auto"
                   value={draftSubjectId}
                   onChange={(e) => setDraftSubjectId(e.target.value)}
                   className="w-full min-h-[44px] px-3 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                 >
                   {subjects.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.titleEn} — {s.titleAr}
+                      {s.titleAr} — {s.titleEn}
                     </option>
                   ))}
                 </select>
@@ -1774,7 +2664,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="lg:col-span-2 space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                  الملخص التمهيدي للموضوع (Subtitle / Clinical Summary)
+                  الملخص التمهيدي للموضوع
                 </label>
                 <input
                   type="text"
@@ -1801,14 +2691,14 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           </div>
 
           {/* 2. Interactive Sections & Content Blocks Builder */}
-          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-4">
+          <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-4">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div>
                 <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                  2. أقسام الموضوع ووحدات المحتوى المتنوعة (Sections & Content Blocks)
+                  2. أقسام الموضوع ووحدات المحتوى
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  أضف داخل كل قسم فقرات، جداول، صوراً، تسجيلات صوتية بالميكروفون، ملفات، ملاحظات سريرية، وأسئلة تفاعلية في موضعها الدقيق
+                  أضف فقرات، جداول، صوراً، تسجيلات صوتية، وأسئلة تفاعلية في موضعها الدقيق
                 </p>
               </div>
               <button
@@ -1936,41 +2826,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
             </div>
           </div>
 
-          {/* 3. Related Topics Linker */}
-          <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-3">
-            <h3 className="text-xs font-extrabold text-slate-900 dark:text-white">
-              3. دمج وربط مواضيع مترابطة (Related Topics)
-            </h3>
-            <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-1">
-              {topics
-                .filter((t) => t.id !== editingTopicId)
-                .map((tp) => {
-                  const selected = draftRelatedTopicIds.includes(tp.id);
-                  return (
-                    <button
-                      key={tp.id}
-                      type="button"
-                      onClick={() =>
-                        setDraftRelatedTopicIds((prev) =>
-                          selected
-                            ? prev.filter((id) => id !== tp.id)
-                            : [...prev, tp.id]
-                        )
-                      }
-                      className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-colors ${
-                        selected
-                          ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'
-                      }`}
-                    >
-                      {tp.titleEn || tp.title}
-                    </button>
-                  );
-                })}
-            </div>
-          </div>
-
-          {/* 4. Additional Topic-Level Gallery / Links / Attachments */}
+          {/* 3. Additional Topic-Level Gallery / Links / Attachments */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Images Panel */}
             <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-4">
@@ -2213,7 +3069,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   }
 
   // ============================================================================
-  // VIEW 2: FULL-PAGE WEB ARTICLE READER + SMART SELECTION POPOVER
+  // VIEW 2: FOCUSED ARTICLE READER + POPUP CARDS (ZERO SIDEBAR CLUTTER)
   // ============================================================================
   if (viewMode === 'reader' && activeTopic) {
     const detectedTerms = detectedTermsByTopicId[activeTopic.id] || [];
@@ -2236,91 +3092,42 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     );
 
     return (
-      <div className="space-y-5 pb-16">
+      <div className="max-w-4xl mx-auto space-y-4 pb-16">
         {renderSharedModals()}
 
-        {/* 1. Interactive Breadcrumbs Bar */}
-        <nav
-          aria-label="Breadcrumb"
-          className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 overflow-x-auto whitespace-nowrap no-scrollbar py-1"
-        >
+        {/* Clean Single-Row Reader Toolbar (Popup Card Triggers) */}
+        <div className="p-3 sm:p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => {
               setSelectionState(null);
-              setHubTab('blocks');
               setViewMode('list');
             }}
-            className="hover:text-emerald-600 dark:hover:text-emerald-400 font-bold"
+            className="min-h-[40px] px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-extrabold flex items-center gap-1.5 shrink-0 transition-colors"
           >
-            البلوكات الطبية
+            <ArrowRight className="w-4 h-4" />
+            <span>المواضيع</span>
           </button>
-          {activeBlock && (
-            <>
-              <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveBlockFilter(activeBlock.id);
-                  setActiveSubjectFilter('ALL');
-                  setHubTab('subjects');
-                  setViewMode('list');
-                }}
-                className="hover:text-emerald-600 dark:hover:text-emerald-400 font-bold"
-              >
-                {activeBlock.titleEn}
-              </button>
-            </>
-          )}
-          {activeSubject && (
-            <>
-              <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveBlockFilter(activeBlock?.id || 'ALL');
-                  setActiveSubjectFilter(activeSubject.id);
-                  setHubTab('topics');
-                  setViewMode('list');
-                }}
-                className="hover:text-emerald-600 dark:hover:text-emerald-400 font-bold"
-              >
-                {activeSubject.titleEn}
-              </button>
-            </>
-          )}
-          <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
-          <span className="text-slate-900 dark:text-white font-extrabold truncate max-w-[240px]">
-            {activeTopic.titleEn || activeTopic.title}
-          </span>
-        </nav>
 
-        {/* 2. Reader Action Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectionState(null);
-                setViewMode('list');
-              }}
-              className="min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors"
-            >
-              <ArrowRight className="w-4 h-4" />
-              <span>المواضيع</span>
-            </button>
-
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={() => setIsTocSheetOpen(true)}
-              className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold flex items-center gap-1.5"
+              className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
             >
-              <ListFilter className="w-3.5 h-3.5 text-emerald-500" />
-              <span>فهرس الأقسام والمواضيع</span>
+              <ListFilter className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span>الأقسام ({activeTopic.sections.length})</span>
             </button>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setIsReaderTermsPopupOpen(true)}
+              className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span>المصطلحات ({detectedTerms.length})</span>
+            </button>
+
             <button
               type="button"
               onClick={() =>
@@ -2331,300 +3138,260 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   tab: 'runner'
                 })
               }
-              className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5"
+              className="min-h-[40px] px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5 whitespace-nowrap"
             >
-              <GraduationCap className="w-4 h-4" />
-              <span>اختبر نفسك ({topicQuizQuestions.length})</span>
+              <GraduationCap className="w-4 h-4 shrink-0" />
+              <span>اختبار ({topicQuizQuestions.length})</span>
             </button>
 
             <button
               type="button"
-              onClick={() =>
-                openExportForScope({
-                  blockId: activeTopic.blockId,
-                  subjectId: activeTopic.subjectId,
-                  topicId: activeTopic.id
-                })
-              }
-              className="min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold flex items-center gap-1.5"
-              title="تنزيل هذا الموضوع مستقلاً"
+              onClick={() => setIsReaderOptionsPopupOpen(true)}
+              className="min-h-[40px] min-w-[40px] px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0"
+              title="خيارات ومرفقات الموضوع"
             >
-              <Download className="w-3.5 h-3.5 text-emerald-500" />
-              <span>تنزيل</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => onToggleFavoriteTopic(activeTopic.id, e)}
-              className={`min-h-[40px] px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1 transition-colors ${
-                activeTopic.favorite
-                  ? 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-300'
-                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'
-              }`}
-            >
-              <Star
-                className={`w-3.5 h-3.5 ${
-                  activeTopic.favorite ? 'fill-amber-400 text-amber-400' : ''
-                }`}
-              />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => openEditTopicEditor(activeTopic)}
-              className="min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-xs font-bold flex items-center gap-1"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              <span>تعديل</span>
+              <MoreHorizontal className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* 3. Main Reader Grid: 8 Cols Article + 4 Cols Sidebar */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <article
-            ref={articleProseRef}
-            onDoubleClick={(e) => {
-              const word = extractWordAtPoint(e.clientX, e.clientY);
-              inspectUserSelection(word || undefined);
-            }}
-            onMouseUp={() => {
-              setTimeout(() => inspectUserSelection(), 30);
-            }}
-            onTouchEnd={(e) => {
-              const touch = e.changedTouches?.[0];
-              const now = Date.now();
-              if (touch) {
-                const dt = now - lastTapRef.current.time;
-                const dx = Math.abs(touch.clientX - lastTapRef.current.x);
-                const dy = Math.abs(touch.clientY - lastTapRef.current.y);
-                if (dt > 0 && dt < 360 && dx < 36 && dy < 36) {
-                  const tappedWord = extractWordAtPoint(touch.clientX, touch.clientY);
-                  if (tappedWord) {
-                    inspectUserSelection(tappedWord);
-                    lastTapRef.current = { time: 0, x: 0, y: 0 };
-                    return;
-                  }
+        {/* Focused Reading Canvas (Full Width, Zero Clutter) */}
+        <article
+          ref={articleProseRef}
+          onDoubleClick={(e) => {
+            const word = extractWordAtPoint(e.clientX, e.clientY);
+            inspectUserSelection(word || undefined);
+          }}
+          onMouseUp={() => {
+            setTimeout(() => inspectUserSelection(), 30);
+          }}
+          onTouchEnd={(e) => {
+            const touch = e.changedTouches?.[0];
+            const now = Date.now();
+            if (touch) {
+              const dt = now - lastTapRef.current.time;
+              const dx = Math.abs(touch.clientX - lastTapRef.current.x);
+              const dy = Math.abs(touch.clientY - lastTapRef.current.y);
+              if (dt > 0 && dt < 360 && dx < 36 && dy < 36) {
+                const tappedWord = extractWordAtPoint(touch.clientX, touch.clientY);
+                if (tappedWord) {
+                  inspectUserSelection(tappedWord);
+                  lastTapRef.current = { time: 0, x: 0, y: 0 };
+                  return;
                 }
-                lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
               }
-              setTimeout(() => inspectUserSelection(), 120);
-            }}
-            onCopy={() => {
-              setTimeout(() => inspectUserSelection(), 60);
-            }}
-            className="lg:col-span-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 p-5 sm:p-9 space-y-8 shadow-xs"
-          >
-            {/* Academic Masthead: Primary English Title + Separate Accurate Arabic Translation */}
-            <header className="space-y-3 border-b border-slate-200/80 dark:border-slate-800 pb-6">
-              <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                {activeBlock ? `${activeBlock.titleEn} · ` : ''}
-                {activeSubject
-                  ? `${activeSubject.titleEn} (${activeSubject.titleAr})`
-                  : TOPIC_CATEGORY_META[activeTopic.category].labelAr}{' '}
-                · {activeTopic.author}
-              </div>
+              lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
+            }
+            setTimeout(() => inspectUserSelection(), 120);
+          }}
+          onCopy={() => {
+            setTimeout(() => inspectUserSelection(), 60);
+          }}
+          className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 p-5 sm:p-8 space-y-7 shadow-xs"
+        >
+          {/* Clean Article Header */}
+          <header className="space-y-2.5 border-b border-slate-200/80 dark:border-slate-800 pb-5">
+            <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <span>
+                <strong className="text-emerald-600 dark:text-emerald-400">
+                  {activeSubject
+                    ? activeSubject.titleAr || activeSubject.titleEn
+                    : TOPIC_CATEGORY_META[activeTopic.category].labelAr}
+                </strong>
+                {activeBlock ? ` · ${activeBlock.code}` : ''} ·{' '}
+                {activeTopic.readingTimeMinutes} د قراءة
+              </span>
 
-              <h1
-                dir="ltr"
-                className="text-lg sm:text-2xl lg:text-3xl font-extrabold text-slate-900 dark:text-white leading-snug tracking-tight text-left break-words"
+              <button
+                type="button"
+                onClick={(e) => onToggleFavoriteTopic(activeTopic.id, e)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-amber-400"
+                title="حفظ في المفضلة"
               >
-                {activeTopic.titleEn || activeTopic.title}
-              </h1>
-
-              {(activeTopic.titleAr || activeTopic.subtitle) && (
-                <div className="text-sm sm:text-lg font-bold text-emerald-700 dark:text-emerald-300 leading-relaxed">
-                  {activeTopic.titleAr || activeTopic.subtitle}
-                </div>
-              )}
-
-              {activeTopic.subtitle &&
-                activeTopic.subtitle !== activeTopic.titleAr && (
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                    {activeTopic.subtitle}
-                  </p>
-                )}
-
-              <div className="pt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <span>
-                  {activeTopic.publishedAt} · {activeTopic.readingTimeMinutes}{' '}
-                  دقائق قراءة · {activeTopic.sections.length} أقسام
-                </span>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>انقر مرتين على أي كلمة أو مصطلح لإظهار الترجمة الفورية والنطق والحفظ</span>
-                </span>
-              </div>
-            </header>
-
-            {/* Structured Sections with Contextual Inline ContentBlocks */}
-            <div className="space-y-9">
-              {activeTopic.sections.map((section, idx) => (
-                <section
-                  key={section.id}
-                  id={`topic-sec-${section.id}`}
-                  className="space-y-4 scroll-mt-24"
-                >
-                  {(section.headingEn || section.heading) && (
-                    <div className="pb-2 border-b border-slate-100 dark:border-slate-800/80 space-y-0.5">
-                      <h2
-                        dir="auto"
-                        className="text-base sm:text-xl font-extrabold text-slate-900 dark:text-white"
-                      >
-                        {idx + 1}. {section.headingEn || section.heading}
-                      </h2>
-                      {section.headingAr &&
-                        section.headingAr !== section.headingEn && (
-                          <div className="text-xs sm:text-sm font-bold text-emerald-700 dark:text-emerald-400">
-                            {section.headingAr}
-                          </div>
-                        )}
-                    </div>
-                  )}
-
-                  <SectionContentBlocksRenderer
-                    topicId={activeTopic.id}
-                    sectionId={section.id}
-                    blocks={
-                      section.contentBlocks ||
-                      (section.paragraphs || []).map((p, pIdx) => ({
-                        id: `cb-fallback-${section.id}-${pIdx}`,
-                        type: 'paragraph',
-                        order: pIdx + 1,
-                        text: p
-                      }))
-                    }
-                    showToast={showToast}
-                  />
-                </section>
-              ))}
+                <Star
+                  className={`w-4 h-4 ${
+                    activeTopic.favorite ? 'fill-amber-400 text-amber-400' : ''
+                  }`}
+                />
+              </button>
             </div>
 
-            {/* Downloadable Topic-Level Attachments if any */}
-            {activeTopic.attachments.length > 0 && (
-              <section className="pt-6 border-t border-slate-200/80 dark:border-slate-800 space-y-3">
-                <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                  ملفات ومستندات الموضوع المرفقة ({activeTopic.attachments.length})
-                </h3>
-                <div className="space-y-2">
-                  {activeTopic.attachments.map((att) => (
-                    <div
-                      key={att.id}
-                      className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0">
-                        <div
-                          dir="ltr"
-                          className="text-xs font-extrabold text-slate-900 dark:text-white truncate text-left"
-                        >
-                          {att.fileName}
-                        </div>
-                        <div className="text-[11px] text-slate-500">
-                          {att.fileSizeLabel} · {att.fileType}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDownloadAttachment(att)}
-                        className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5 shrink-0"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>تنزيل</span>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </section>
+            <h1
+              dir="ltr"
+              className="text-lg sm:text-2xl font-extrabold text-slate-900 dark:text-white leading-snug tracking-tight text-left break-words"
+            >
+              {activeTopic.titleEn || activeTopic.title}
+            </h1>
+
+            {(activeTopic.titleAr || activeTopic.subtitle) && (
+              <div className="text-sm sm:text-base font-bold text-emerald-700 dark:text-emerald-300 leading-relaxed">
+                {activeTopic.titleAr || activeTopic.subtitle}
+              </div>
             )}
 
-            {/* Related Topics Section inside Reader */}
-            {relatedTopicsList.length > 0 && (
-              <section className="pt-6 border-t border-slate-200/80 dark:border-slate-800 space-y-3">
-                <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                  مواضيع مترابطة ضمن نفس المادة ({relatedTopicsList.length})
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {relatedTopicsList.slice(0, 6).map((rel) => (
-                    <button
-                      key={rel.id}
-                      type="button"
-                      onClick={() => handleOpenTopicInReader(rel)}
-                      className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-500 text-right transition-colors space-y-1"
-                    >
-                      <div
-                        dir="ltr"
-                        className="text-xs font-extrabold text-slate-900 dark:text-white text-left truncate"
-                      >
-                        {rel.titleEn || rel.title}
-                      </div>
-                      <div className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 truncate">
-                        {rel.titleAr || rel.subtitle}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-          </article>
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 pt-1">
+              ملاحظة: انقر مرتين على أي كلمة إنجليزية أو عربية في النص لفتح بطاقة الترجمة الفورية والنطق والحفظ.
+            </p>
+          </header>
 
-          {/* QUIET MARGIN SIDEBAR (4 COLS) */}
-          <aside className="lg:col-span-4 space-y-5 lg:sticky lg:top-20">
-            {/* 1. Table of Contents */}
-            <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-3">
-              <h3 className="text-xs font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
-                فهرس أقسام الموضوع ({activeTopic.sections.length})
-              </h3>
-              <div className="space-y-1.5">
-                {activeTopic.sections.map((sec, idx) => (
+          {/* Structured Sections */}
+          <div className="space-y-8">
+            {activeTopic.sections.map((section, idx) => (
+              <section
+                key={section.id}
+                id={`topic-sec-${section.id}`}
+                className="space-y-3.5 scroll-mt-24"
+              >
+                {(section.headingEn || section.heading) && (
+                  <div className="pb-2 border-b border-slate-100 dark:border-slate-800/80 space-y-0.5">
+                    <h2
+                      dir="auto"
+                      className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white"
+                    >
+                      {idx + 1}. {section.headingEn || section.heading}
+                    </h2>
+                    {section.headingAr &&
+                      section.headingAr !== section.headingEn && (
+                        <div className="text-xs sm:text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                          {section.headingAr}
+                        </div>
+                      )}
+                  </div>
+                )}
+
+                <SectionContentBlocksRenderer
+                  topicId={activeTopic.id}
+                  sectionId={section.id}
+                  blocks={
+                    section.contentBlocks ||
+                    (section.paragraphs || []).map((p, pIdx) => ({
+                      id: `cb-fallback-${section.id}-${pIdx}`,
+                      type: 'paragraph',
+                      order: pIdx + 1,
+                      text: p
+                    }))
+                  }
+                  showToast={showToast}
+                />
+              </section>
+            ))}
+          </div>
+        </article>
+
+        {/* READER POPUP CARD 1: Table of Contents & Related Topics */}
+        {isTocSheetOpen && (
+          <div
+            onClick={() => setIsTocSheetOpen(false)}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg max-h-[84dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-4 shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                  فهرس أقسام الموضوع والمواضيع المرتبطة
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsTocSheetOpen(false)}
+                  className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs font-bold text-slate-500">
+                  أقسام هذا الموضوع ({activeTopic.sections.length}):
+                </div>
+                {activeTopic.sections.map((sec, i) => (
                   <a
                     key={sec.id}
                     href={`#topic-sec-${sec.id}`}
-                    className="block px-3 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                    onClick={() => setIsTocSheetOpen(false)}
+                    className="block p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-500 text-xs font-bold transition-colors"
                   >
-                    <span dir="auto" className="block font-bold">
-                      {idx + 1}. {sec.headingEn || sec.heading || `Section ${idx + 1}`}
-                    </span>
+                    <div dir="auto" className="text-slate-900 dark:text-white">
+                      {i + 1}. {sec.headingEn || sec.heading}
+                    </div>
                     {sec.headingAr && sec.headingAr !== sec.headingEn && (
-                      <span className="block text-[11px] text-slate-400">
+                      <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">
                         {sec.headingAr}
-                      </span>
+                      </div>
                     )}
                   </a>
                 ))}
               </div>
-            </div>
 
-            {/* 2. Detected & Linked Dictionary Terms in this Topic */}
-            <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-extrabold text-slate-900 dark:text-white">
-                  المصطلحات المرتبطة بالموضوع ({detectedTerms.length})
-                </h3>
+              {relatedTopicsList.length > 0 && (
+                <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <div className="text-xs font-bold text-slate-500">
+                    مواضيع مترابطة في نفس المادة ({relatedTopicsList.length}):
+                  </div>
+                  {relatedTopicsList.map((tp) => (
+                    <button
+                      key={tp.id}
+                      type="button"
+                      onClick={() => {
+                        setIsTocSheetOpen(false);
+                        handleOpenTopicInReader(tp);
+                      }}
+                      className="w-full p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-500 text-right space-y-0.5 transition-colors"
+                    >
+                      <div
+                        dir="ltr"
+                        className="text-xs font-extrabold text-slate-900 dark:text-white text-left"
+                      >
+                        {tp.titleEn || tp.title}
+                      </div>
+                      <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
+                        {tp.titleAr || tp.subtitle}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* READER POPUP CARD 2: Detected Dictionary Terms in Topic */}
+        {isReaderTermsPopupOpen && (
+          <div
+            onClick={() => setIsReaderTermsPopupOpen(false)}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-xl max-h-[84dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-4 shadow-2xl"
+            >
+              <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                    المصطلحات المرتبطة بهذا الموضوع ({detectedTerms.length})
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    انقر على أي مصطلح لمعاينة ترجمته السياقية أو فتح بطاقته
+                  </p>
+                </div>
                 <button
                   type="button"
-                  onClick={() =>
-                    openExportForScope({
-                      blockId: activeTopic.blockId,
-                      subjectId: activeTopic.subjectId,
-                      topicId: activeTopic.id
-                    })
-                  }
-                  className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold hover:underline"
+                  onClick={() => setIsReaderTermsPopupOpen(false)}
+                  className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center"
                 >
-                  تصدير المصطلحات
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                انقر على أي مصطلح لعرض ترجمته وشرحه وتسجيله في سجل المصطلحات المدروسة:
-              </p>
 
               {detectedTerms.length > 0 ? (
-                <div className="max-h-[380px] overflow-y-auto space-y-2 pr-1">
+                <div className="space-y-2 max-h-[58dvh] overflow-y-auto pr-1">
                   {detectedTerms.map((dt) => (
                     <button
                       key={dt.id}
                       type="button"
                       onClick={() => {
+                        setIsReaderTermsPopupOpen(false);
                         const updatedLog = recordStudiedTermEvent({
                           termId: dt.id,
                           term: dt.term,
@@ -2655,10 +3422,10 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                           suggestedPos: dt.pos
                         });
                       }}
-                      className="w-full p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 hover:border-emerald-500 border border-slate-200/80 dark:border-slate-800 text-right transition-colors flex items-center justify-between gap-2"
+                      className="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 hover:border-emerald-500 border border-slate-200/80 dark:border-slate-800 text-right transition-colors flex items-center justify-between gap-3"
                     >
                       <div className="min-w-0">
-                        <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 break-words">
+                        <div className="text-xs font-extrabold text-emerald-700 dark:text-emerald-300 break-words">
                           {dt.translation}
                         </div>
                         <div className="text-[11px] text-slate-500 break-words line-clamp-1">
@@ -2675,81 +3442,112 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   ))}
                 </div>
               ) : (
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 text-xs text-slate-500 text-center">
-                  حدد أي كلمة في النص لإضافتها فوراً إلى القاموس.
+                <div className="p-6 text-center text-xs text-slate-500">
+                  انقر مرتين على أي كلمة في نص الموضوع لترجمتها وإضافتها للقاموس.
                 </div>
               )}
             </div>
-          </aside>
-        </div>
+          </div>
+        )}
 
-        {/* Mobile Bottom Sheet for Quick TOC & Topic Switcher */}
-        {isTocSheetOpen && (
+        {/* READER POPUP CARD 3: Topic Options, Attachments & Export */}
+        {isReaderOptionsPopupOpen && (
           <div
-            onClick={() => setIsTocSheetOpen(false)}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => setIsReaderOptionsPopupOpen(false)}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-lg max-h-[82vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 p-5 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] sm:pb-6 space-y-4 shadow-2xl"
+              className="w-full max-w-md max-h-[84dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl"
             >
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                  التنقل السريع بين أقسام الموضوع ومواضيع المادة
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                  إجراءات ومرفقات الموضوع
                 </h3>
                 <button
                   type="button"
-                  onClick={() => setIsTocSheetOpen(false)}
-                  className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500"
+                  onClick={() => setIsReaderOptionsPopupOpen(false)}
+                  className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="space-y-1.5">
-                <div className="text-[11px] font-bold text-slate-400">
-                  أقسام هذا الموضوع ({activeTopic.sections.length}):
-                </div>
-                {activeTopic.sections.map((sec, i) => (
-                  <a
-                    key={sec.id}
-                    href={`#topic-sec-${sec.id}`}
-                    onClick={() => setIsTocSheetOpen(false)}
-                    className="block p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 text-xs font-bold"
-                  >
-                    {i + 1}. {sec.headingEn || sec.heading}
-                    {sec.headingAr && sec.headingAr !== sec.headingEn
-                      ? ` — ${sec.headingAr}`
-                      : ''}
-                  </a>
-                ))}
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    onToggleFavoriteTopic(activeTopic.id, e);
+                    setIsReaderOptionsPopupOpen(false);
+                  }}
+                  className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center justify-between"
+                >
+                  <span>
+                    {activeTopic.favorite
+                      ? 'إزالة الموضوع من المفضلة'
+                      : 'إضافة الموضوع إلى المفضلة'}
+                  </span>
+                  <Star
+                    className={`w-4 h-4 ${
+                      activeTopic.favorite ? 'fill-amber-400 text-amber-400' : ''
+                    }`}
+                  />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openEditTopicEditor(activeTopic)}
+                  className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center justify-between"
+                >
+                  <span>تعديل الموضوع وإضافة أقسام</span>
+                  <Edit3 className="w-4 h-4 text-emerald-500" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    openExportForScope({
+                      blockId: activeTopic.blockId,
+                      subjectId: activeTopic.subjectId,
+                      topicId: activeTopic.id
+                    })
+                  }
+                  className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center justify-between"
+                >
+                  <span>تنزيل وتصدير الموضوع مستقلاً</span>
+                  <Download className="w-4 h-4 text-emerald-500" />
+                </button>
               </div>
 
-              {relatedTopicsList.length > 0 && (
-                <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <div className="text-[11px] font-bold text-slate-400">
-                    الانتقال المباشر لموضوع آخر في نفس المادة:
+              {activeTopic.attachments.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="text-xs font-bold text-slate-500">
+                    المرفقات القابلة للتنزيل ({activeTopic.attachments.length}):
                   </div>
-                  {relatedTopicsList.map((tp) => (
-                    <button
-                      key={tp.id}
-                      type="button"
-                      onClick={() => {
-                        setIsTocSheetOpen(false);
-                        handleOpenTopicInReader(tp);
-                      }}
-                      className="w-full p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 text-right space-y-0.5"
+                  {activeTopic.attachments.map((att) => (
+                    <div
+                      key={att.id}
+                      className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2"
                     >
-                      <div
-                        dir="ltr"
-                        className="text-xs font-extrabold text-slate-900 dark:text-white text-left"
+                      <div className="min-w-0">
+                        <div
+                          dir="ltr"
+                          className="text-xs font-bold truncate text-left"
+                        >
+                          {att.fileName}
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          {att.fileSizeLabel}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadAttachment(att)}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold shrink-0"
                       >
-                        {tp.titleEn || tp.title}
-                      </div>
-                      <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
-                        {tp.titleAr || tp.subtitle}
-                      </div>
-                    </button>
+                        تنزيل
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -2757,7 +3555,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           </div>
         )}
 
-        {/* QUICK POPUP MODAL FOR DOUBLE-CLICKED / SELECTED WORD TRANSLATION */}
+        {/* READER POPUP CARD 4: QUICK WORD TRANSLATION MODAL ON DOUBLE-CLICK / DOUBLE-TAP */}
         {selectionState && (
           <div
             onClick={() => setSelectionState(null)}
@@ -2765,14 +3563,14 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-lg max-h-[88dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border-2 border-emerald-500/60 shadow-2xl p-5 sm:p-6 space-y-4"
+              className="w-full max-w-lg max-h-[86dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border-2 border-emerald-500/60 shadow-2xl p-5 sm:p-6 space-y-4"
             >
               {selectionState.matchedTerm ? (
                 <div className="space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 block">
-                        المترجم السريع · مصطلح مسجل في القاموس ({selectionState.matchedTerm.category})
+                        بطاقة الترجمة الفورية · مصطلح مسجل ({selectionState.matchedTerm.category})
                       </span>
                       <div className="flex items-center gap-2 flex-wrap mt-1">
                         <h4
@@ -2850,7 +3648,10 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                           <span>نطق الجملة</span>
                         </button>
                       </div>
-                      <p dir="ltr" className="text-xs text-slate-800 dark:text-slate-200 text-left leading-relaxed">
+                      <p
+                        dir="ltr"
+                        className="text-xs text-slate-800 dark:text-slate-200 text-left leading-relaxed"
+                      >
                         {selectionState.quotedSentenceEn}
                       </p>
                       <p className="text-xs text-emerald-700 dark:text-emerald-300 leading-relaxed">
@@ -2957,7 +3758,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 block">
-                        المترجم السريع للمواضيع · تحليل وترجمة وحفظ فوري
+                        بطاقة الترجمة الفورية · تحليل وحفظ فوري
                       </span>
                       <div className="flex items-center gap-2 flex-wrap mt-1">
                         <h4
@@ -3058,7 +3859,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                         onChange={(e) => setSaveAlsoAsFavorite(e.target.checked)}
                         className="w-4 h-4 rounded text-emerald-600"
                       />
-                      <span>إضافة إلى المفضلة أيضاً ⭐</span>
+                      <span>إضافة إلى المفضلة أيضاً</span>
                     </label>
 
                     <div className="flex items-center gap-2">
@@ -3092,498 +3893,103 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   }
 
   // ============================================================================
-  // VIEW 1: INTERACTIVE EDUCATIONAL PLATFORM HUB (6 CLEAR NAVIGATION TABS)
+  // VIEW 1: CLEAN, UNCLUTTERED TOPICS HUB WITH POPUP CARDS
   // ============================================================================
   return (
-    <div className="space-y-5 pb-12">
+    <div className="space-y-4 pb-12">
       {renderSharedModals()}
 
-      {/* Top Platform Header + Global Search + Primary Actions */}
-      <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-3.5">
-        <div className="flex flex-wrap justify-between items-center gap-2">
+      {/* Clean Header Card: Search + 3 Popup Card Triggers (Zero Overlap) */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 space-y-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">
-              المنصة التعليمية الطبية التفاعلية (UMEDT Learning Hub)
+              المواضيع الطبية والمحاضرات التفاعلية
             </h1>
-            <p className="text-[11px] text-slate-500">
-              {blocks.length} بلوكات طبية · {subjects.length} مواد · {topics.length}{' '}
-              موضوعاً أكاديمياً · {quizQuestions.length} سؤال تفاعلي
+            <p className="text-xs text-slate-500 mt-0.5">
+              {topics.length} موضوعاً · {subjects.length} مواد · انقر مرتين داخل أي موضوع للترجمة الفورية
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
-              onClick={() => openQuizForScope({ tab: 'runner' })}
-              className="min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center gap-1.5"
+              onClick={() => setActivePopup('filter_hierarchy')}
+              className={`min-h-[40px] px-3.5 py-2 rounded-xl border text-xs font-extrabold flex items-center gap-1.5 whitespace-nowrap transition-colors ${
+                activeFiltersCount > 0
+                  ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-emerald-500/50'
+              }`}
             >
-              <GraduationCap className="w-4 h-4" />
-              <span>بنك الاختبارات ({quizQuestions.length})</span>
+              <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span>
+                التصفية والمواد
+                {activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ''}
+              </span>
             </button>
 
             <button
               type="button"
-              onClick={() => openExportForScope()}
-              className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5"
+              onClick={() => setActivePopup('tools_hub')}
+              className="min-h-[40px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 hover:border-emerald-500/50 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-extrabold flex items-center gap-1.5 whitespace-nowrap transition-colors"
             >
-              <Download className="w-3.5 h-3.5 text-emerald-500" />
-              <span>مركز التنزيل المستقل</span>
+              <GraduationCap className="w-4 h-4 text-emerald-500 shrink-0" />
+              <span>الاختبارات والأدوات</span>
             </button>
 
             <button
               type="button"
               onClick={() => openCreateTopicEditor()}
-              className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5 shadow-sm shadow-emerald-600/20"
+              className="min-h-[40px] px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5 whitespace-nowrap shadow-xs"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 shrink-0" />
               <span>موضوع جديد</span>
             </button>
           </div>
         </div>
 
-        {/* 6 Clear Navigation Sections Bar */}
-        <div className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap no-scrollbar pb-0.5">
-          {[
-            {
-              id: 'blocks' as HubSectionTab,
-              label: `البلوكات (${blocks.length})`,
-              icon: FolderKanban
-            },
-            {
-              id: 'subjects' as HubSectionTab,
-              label: `المواد (${subjects.length})`,
-              icon: Layers
-            },
-            {
-              id: 'topics' as HubSectionTab,
-              label: `المواضيع (${topics.length})`,
-              icon: BookOpen
-            },
-            {
-              id: 'recent' as HubSectionTab,
-              label: `التعلم الأخير (${recentLearning.length})`,
-              icon: History
-            },
-            {
-              id: 'saved_terms' as HubSectionTab,
-              label: `المصطلحات المحفوظة`,
-              icon: BookmarkCheck
-            },
-            {
-              id: 'tests' as HubSectionTab,
-              label: `الاختبارات (${quizQuestions.length})`,
-              icon: GraduationCap
-            }
-          ].map((tabItem) => {
-            const IconComp = tabItem.icon;
-            const active = hubTab === tabItem.id;
-            return (
-              <button
-                key={tabItem.id}
-                type="button"
-                onClick={() => setHubTab(tabItem.id)}
-                className={`min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shrink-0 border transition-colors ${
-                  active
-                    ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
-                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-emerald-500/50'
-                }`}
-              >
-                <IconComp className="w-3.5 h-3.5 shrink-0" />
-                <span>{tabItem.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Global Search Input */}
+        {/* Clean Search Input */}
         <div className="relative">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="بحث شامل في البلوكات، المواد، المواضيع الأكاديمية (English & Arabic)، المصطلحات، والأسئلة..."
-            className="w-full pr-9 pl-8 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs focus:outline-none focus:border-emerald-500"
+            placeholder="ابحث في المواضيع أو المصطلحات الطبية..."
+            className="w-full min-h-[44px] pr-10 pl-9 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm focus:outline-none focus:border-emerald-500"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+              className="absolute left-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </button>
           )}
         </div>
 
-        {/* Active Hierarchy Breadcrumb Filter Strip */}
-        {(activeBlockFilter !== 'ALL' || activeSubjectFilter !== 'ALL') && (
+        {/* Active Filter Indicator Strip (Only visible when filters are active) */}
+        {activeFiltersCount > 0 && (
           <div className="flex items-center justify-between gap-2 pt-1 text-xs">
             <div className="flex items-center gap-1.5 flex-wrap text-slate-500">
-              <span>تصفية نشطة:</span>
+              <span>التصفية النشطة:</span>
+              {selectedCategory !== 'All' && (
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  {TOPIC_CATEGORY_META[selectedCategory].labelAr}
+                </span>
+              )}
               {activeBlockFilter !== 'ALL' && (
                 <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                  {blockMap.get(activeBlockFilter)?.titleEn}
+                  · {blockMap.get(activeBlockFilter)?.titleAr}
                 </span>
               )}
               {activeSubjectFilter !== 'ALL' && (
-                <>
-                  <span>/</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                    {subjectMap.get(activeSubjectFilter)?.titleEn}
-                  </span>
-                </>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  · {subjectMap.get(activeSubjectFilter)?.titleAr}
+                </span>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveBlockFilter('ALL');
-                setActiveSubjectFilter('ALL');
-              }}
-              className="text-xs font-bold text-rose-500 hover:underline"
-            >
-              إلغاء التصفية (عرض الكل)
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* ======================================================================
-          SECTION 1: BLOCKS VIEW (البلوكات الطبية)
-         ====================================================================== */}
-      {hubTab === 'blocks' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">
-              البلوكات الطبية المعتمدة (Medical Blocks)
-            </h2>
-            <button
-              type="button"
-              onClick={() => {
-                setEditingHierarchyId(null);
-                setHTitleEn('');
-                setHTitleAr('');
-                setHCode('');
-                setHDescAr('');
-                setHierarchyModalMode('block');
-              }}
-              className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>إنشاء بلوك جديد</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {blocks
-              .filter(
-                (b) =>
-                  !searchQuery.trim() ||
-                  b.titleEn.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                  b.titleAr.toLowerCase().includes(searchQuery.toLowerCase())
-              )
-              .map((block) => {
-                const blockSubjects = subjects.filter(
-                  (s) => s.blockId === block.id
-                );
-                const blockTopics = topics.filter((t) => t.blockId === block.id);
-                const blockQuestions = quizQuestions.filter(
-                  (q) => q.blockId === block.id
-                );
-
-                return (
-                  <div
-                    key={block.id}
-                    className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/70 transition-all flex flex-col justify-between gap-4"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
-                        <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                          {block.code} · {blockSubjects.length} مواد ·{' '}
-                          {blockTopics.length} موضوعاً · {blockQuestions.length} سؤال
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingHierarchyId(block.id);
-                              setHTitleEn(block.titleEn);
-                              setHTitleAr(block.titleAr);
-                              setHCode(block.code);
-                              setHDescAr(block.descriptionAr);
-                              setHierarchyModalMode('block');
-                            }}
-                            className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-emerald-500"
-                            title="تعديل البلوك"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openExportForScope({ blockId: block.id })
-                            }
-                            className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-emerald-500"
-                            title="تنزيل البلوك الكامل"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <h3
-                        dir="ltr"
-                        className="text-lg font-extrabold text-slate-900 dark:text-white text-left"
-                      >
-                        {block.titleEn}
-                      </h3>
-                      <div className="text-xs sm:text-sm font-bold text-emerald-700 dark:text-emerald-300">
-                        {block.titleAr}
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                        {block.descriptionAr}
-                      </p>
-                    </div>
-
-                    {blockSubjects.length > 0 && (
-                      <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-                        <div className="text-[11px] font-bold text-slate-400">
-                          المواد داخل هذا البلوك:
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {blockSubjects.map((s) => (
-                            <button
-                              key={s.id}
-                              type="button"
-                              onClick={() => {
-                                setActiveBlockFilter(block.id);
-                                setActiveSubjectFilter(s.id);
-                                setHubTab('topics');
-                              }}
-                              className="px-2.5 py-1 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 text-[11px] font-bold"
-                            >
-                              {s.titleEn}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openQuizForScope({ blockId: block.id, tab: 'runner' })
-                        }
-                        className="min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center gap-1.5"
-                      >
-                        <GraduationCap className="w-3.5 h-3.5" />
-                        <span>اختبار البلوك ({blockQuestions.length})</span>
-                      </button>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveBlockFilter(block.id);
-                            setActiveSubjectFilter('ALL');
-                            setHubTab('subjects');
-                          }}
-                          className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold"
-                        >
-                          عرض المواد ({blockSubjects.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveBlockFilter(block.id);
-                            setActiveSubjectFilter('ALL');
-                            setHubTab('topics');
-                          }}
-                          className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1"
-                        >
-                          <span>المواضيع ({blockTopics.length})</span>
-                          <ArrowRight className="w-3.5 h-3.5 rotate-180" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-      )}
-
-      {/* ======================================================================
-          SECTION 2: SUBJECTS VIEW (المواد العلمية)
-         ====================================================================== */}
-      {hubTab === 'subjects' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">
-              المواد العلمية والأكاديمية (Subjects)
-            </h2>
-            <button
-              type="button"
-              onClick={() => {
-                setEditingHierarchyId(null);
-                setHTitleEn('');
-                setHTitleAr('');
-                setHCode('');
-                setHDescAr('');
-                setHParentBlockId(
-                  activeBlockFilter !== 'ALL'
-                    ? activeBlockFilter
-                    : 'block-hematology'
-                );
-                setHierarchyModalMode('subject');
-              }}
-              className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>إنشاء مادة جديدة</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {subjects
-              .filter((s) =>
-                activeBlockFilter === 'ALL'
-                  ? true
-                  : s.blockId === activeBlockFilter
-              )
-              .filter(
-                (s) =>
-                  !searchQuery.trim() ||
-                  s.titleEn.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                  s.titleAr.toLowerCase().includes(searchQuery.toLowerCase())
-              )
-              .map((subj) => {
-                const parentBlock = subj.blockId
-                  ? blockMap.get(subj.blockId)
-                  : undefined;
-                const subjTopics = topics.filter((t) => t.subjectId === subj.id);
-                const subjQuestions = quizQuestions.filter(
-                  (q) => q.subjectId === subj.id
-                );
-
-                return (
-                  <div
-                    key={subj.id}
-                    className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/70 transition-all flex flex-col justify-between gap-4"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
-                        <span>
-                          <strong className="text-emerald-600 dark:text-emerald-400">
-                            {parentBlock ? parentBlock.titleEn : 'Standalone Subject'}
-                          </strong>{' '}
-                          · {subjTopics.length} موضوعاً · {subjQuestions.length} سؤال
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingHierarchyId(subj.id);
-                              setHTitleEn(subj.titleEn);
-                              setHTitleAr(subj.titleAr);
-                              setHCode(subj.code);
-                              setHDescAr(subj.descriptionAr);
-                              setHParentBlockId(subj.blockId || '');
-                              setHierarchyModalMode('subject');
-                            }}
-                            className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-emerald-500"
-                            title="تعديل المادة"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openExportForScope({
-                                blockId: subj.blockId,
-                                subjectId: subj.id
-                              })
-                            }
-                            className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-emerald-500"
-                            title="تنزيل المادة الكاملة"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <h3
-                        dir="ltr"
-                        className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white text-left"
-                      >
-                        {subj.titleEn}
-                      </h3>
-                      <div className="text-xs sm:text-sm font-bold text-emerald-700 dark:text-emerald-300">
-                        {subj.titleAr}
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                        {subj.descriptionAr}
-                      </p>
-                    </div>
-
-                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openQuizForScope({
-                            blockId: subj.blockId,
-                            subjectId: subj.id,
-                            tab: 'runner'
-                          })
-                        }
-                        className="min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center gap-1.5"
-                      >
-                        <GraduationCap className="w-3.5 h-3.5" />
-                        <span>اختبار المادة ({subjQuestions.length})</span>
-                      </button>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openCreateTopicEditor({
-                              blockId: subj.blockId,
-                              subjectId: subj.id
-                            })
-                          }
-                          className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold"
-                        >
-                          + إضافة موضوع
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveBlockFilter(subj.blockId || 'ALL');
-                            setActiveSubjectFilter(subj.id);
-                            setHubTab('topics');
-                          }}
-                          className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1"
-                        >
-                          <span>فتح المواضيع ({subjTopics.length})</span>
-                          <ArrowRight className="w-3.5 h-3.5 rotate-180" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-      )}
-
-      {/* ======================================================================
-          SECTION 3: TOPICS VIEW (المواضيع والمحاضرات الأكاديمية)
-         ====================================================================== */}
-      {hubTab === 'topics' && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap no-scrollbar pb-1">
             <button
               type="button"
               onClick={() => {
@@ -3591,491 +3997,149 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 setActiveSubjectFilter('ALL');
                 setSelectedCategory('All');
               }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold border shrink-0 ${
-                activeSubjectFilter === 'ALL' &&
-                activeBlockFilter === 'ALL' &&
-                selectedCategory === 'All'
-                  ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
-                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'
-              }`}
+              className="text-xs font-bold text-rose-500 hover:underline shrink-0"
             >
-              كل المواضيع ({topics.length})
+              إلغاء التصفية
             </button>
-
-            {subjects.map((s) => {
-              const count = topics.filter((t) => t.subjectId === s.id).length;
-              const active = activeSubjectFilter === s.id;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => {
-                    setActiveSubjectFilter(active ? 'ALL' : s.id);
-                    setActiveBlockFilter('ALL');
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border shrink-0 transition-colors ${
-                    active
-                      ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
-                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-emerald-500/50'
-                  }`}
-                >
-                  <span dir="ltr">{s.titleEn}</span> ({count})
-                </button>
-              );
-            })}
-
-            {(
-              ['Medical', 'Technology', 'AI', 'History', 'General'] as const
-            ).map((catKey) => {
-              const IconComp = CATEGORY_ICON_MAP[catKey];
-              const isActive = selectedCategory === catKey;
-              return (
-                <button
-                  key={catKey}
-                  type="button"
-                  onClick={() =>
-                    setSelectedCategory(isActive ? 'All' : catKey)
-                  }
-                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 border transition-colors ${
-                    isActive
-                      ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
-                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  <IconComp className="w-3 h-3 shrink-0" />
-                  <span>{TOPIC_CATEGORY_META[catKey].labelAr}</span>
-                  <span className="font-mono text-[10px]">
-                    ({categoryCounts[catKey]})
-                  </span>
-                </button>
-              );
-            })}
           </div>
+        )}
+      </div>
 
-          {filteredTopics.length > 0 ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {filteredTopics.map((topic) => {
-                const detected = detectedTermsByTopicId[topic.id] || [];
-                const tSubject = topic.subjectId
-                  ? subjectMap.get(topic.subjectId)
-                  : undefined;
-                const tBlock = topic.blockId
-                  ? blockMap.get(topic.blockId)
-                  : undefined;
-                const tQuestions = quizQuestions.filter(
-                  (q) => q.topicId === topic.id
-                );
+      {/* Clean Topics Cards Grid (No Overlapping Icons or Clutter) */}
+      {filteredTopics.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filteredTopics.map((topic) => {
+            const detected = detectedTermsByTopicId[topic.id] || [];
+            const tSubject = topic.subjectId
+              ? subjectMap.get(topic.subjectId)
+              : undefined;
+            const tQuestions = quizQuestions.filter(
+              (q) => q.topicId === topic.id
+            );
 
-                return (
-                  <article
-                    key={topic.id}
-                    onClick={() => handleOpenTopicInReader(topic)}
-                    className="group w-full overflow-hidden rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/70 transition-all p-5 flex flex-col justify-between gap-3.5 cursor-pointer shadow-xs"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
-                        <span>
-                          <strong className="text-emerald-600 dark:text-emerald-400 font-bold">
-                            {tSubject
-                              ? tSubject.titleEn
-                              : TOPIC_CATEGORY_META[topic.category].labelAr}
-                          </strong>
-                          {tBlock ? ` · ${tBlock.code}` : ''} ·{' '}
-                          <Clock className="w-3 h-3 inline mb-0.5" />{' '}
-                          {topic.readingTimeMinutes} د
-                        </span>
+            return (
+              <article
+                key={topic.id}
+                onClick={() => handleOpenTopicInReader(topic)}
+                className="group w-full rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/70 transition-all p-5 flex flex-col justify-between gap-4 cursor-pointer shadow-xs"
+              >
+                <div className="space-y-2">
+                  {/* Top Row: Subject/Category Metadata + Favorite & Popup Menu Button */}
+                  <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+                    <span className="truncate">
+                      <strong className="text-emerald-600 dark:text-emerald-400 font-bold">
+                        {tSubject
+                          ? tSubject.titleAr || tSubject.titleEn
+                          : TOPIC_CATEGORY_META[topic.category].labelAr}
+                      </strong>{' '}
+                      · <Clock className="w-3 h-3 inline mb-0.5" />{' '}
+                      {topic.readingTimeMinutes} د
+                    </span>
 
-                        <div
-                          className="flex items-center gap-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openExportForScope({
-                                blockId: topic.blockId,
-                                subjectId: topic.subjectId,
-                                topicId: topic.id
-                              })
-                            }
-                            className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-emerald-500"
-                            title="تنزيل الموضوع"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => onToggleFavoriteTopic(topic.id, e)}
-                            className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-amber-400"
-                            title="حفظ في المفضلة"
-                          >
-                            <Star
-                              className={`w-4 h-4 ${
-                                topic.favorite
-                                  ? 'fill-amber-400 text-amber-400'
-                                  : ''
-                              }`}
-                            />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => openEditTopicEditor(topic, e)}
-                            className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-emerald-500"
-                            title="تعديل الموضوع"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onDeleteTopic(topic.id)}
-                            className="p-1.5 rounded-xl hover:bg-rose-500/10 text-slate-400 hover:text-rose-500"
-                            title="حذف الموضوع"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <h2
-                        dir="ltr"
-                        className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-snug text-left break-words"
-                      >
-                        {topic.titleEn || topic.title}
-                      </h2>
-
-                      {(topic.titleAr || topic.subtitle) && (
-                        <div className="text-xs sm:text-sm font-bold text-emerald-700 dark:text-emerald-300 leading-relaxed break-words">
-                          {topic.titleAr || topic.subtitle}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <div className="text-slate-500 dark:text-slate-400">
-                        {topic.sections.length} أقسام · {detected.length} مصطلح
-                        {tQuestions.length > 0
-                          ? ` · ${tQuestions.length} أسئلة`
-                          : ''}
-                      </div>
-
-                      <div
-                        className="flex items-center gap-2"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {tQuestions.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openQuizForScope({
-                                blockId: topic.blockId,
-                                subjectId: topic.subjectId,
-                                topicId: topic.id,
-                                tab: 'runner'
-                              })
-                            }
-                            className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold text-[11px]"
-                          >
-                            اختبار ({tQuestions.length})
-                          </button>
-                        )}
-                        <span
-                          onClick={() => handleOpenTopicInReader(topic)}
-                          className="text-emerald-600 dark:text-emerald-400 font-extrabold flex items-center gap-1"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>قراءة</span>
-                          <ArrowRight className="w-3.5 h-3.5 rotate-180" />
-                        </span>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="p-10 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-2">
-              <BookOpen className="w-7 h-7 text-slate-400 mx-auto" />
-              <h3 className="text-sm font-extrabold">
-                لا توجد مواضيع مطابقة للتصفية الحالية
-              </h3>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ======================================================================
-          SECTION 4: RECENT LEARNING VIEW (التعلم الأخير)
-         ====================================================================== */}
-      {hubTab === 'recent' && (
-        <div className="space-y-4">
-          <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-3">
-            <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">
-              سجل التعلم الأخير والمواضيع المفتوحة حديثاً (Recent Learning)
-            </h2>
-
-            {recentLearning.length > 0 ? (
-              <div className="space-y-2">
-                {recentLearning.map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3"
-                  >
-                    <div className="min-w-0 space-y-0.5">
-                      <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
-                        {item.entityType === 'topic'
-                          ? 'موضوع أكاديمي'
-                          : item.entityType === 'quiz'
-                          ? 'محاولة اختبار'
-                          : 'مادة علمية'}{' '}
-                        · {new Date(item.accessedAt).toLocaleString('ar-EG')}
-                      </div>
-                      <div
-                        dir="ltr"
-                        className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white text-left truncate"
-                      >
-                        {item.titleEn}
-                      </div>
-                      <div className="text-xs text-slate-600 dark:text-slate-300 truncate">
-                        {item.titleAr}
-                      </div>
-                    </div>
-
-                    {item.entityType === 'topic' && (
+                    <div
+                      className="flex items-center gap-1 shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button
                         type="button"
-                        onClick={() => {
-                          const found = topics.find((t) => t.id === item.entityId);
-                          if (found) handleOpenTopicInReader(found);
-                        }}
-                        className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold shrink-0"
+                        onClick={(e) => onToggleFavoriteTopic(topic.id, e)}
+                        className="min-h-[36px] min-w-[36px] rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-amber-400 flex items-center justify-center"
+                        title="حفظ في المفضلة"
                       >
-                        متابعة القراءة
+                        <Star
+                          className={`w-4 h-4 ${
+                            topic.favorite
+                              ? 'fill-amber-400 text-amber-400'
+                              : ''
+                          }`}
+                        />
                       </button>
-                    )}
-                    {item.entityType === 'quiz' && (
+
+                      <button
+                        type="button"
+                        onClick={() => setActionMenuTopicId(topic.id)}
+                        className="min-h-[36px] min-w-[36px] rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white flex items-center justify-center"
+                        title="خيارات الموضوع"
+                      >
+                        <MoreHorizontal className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Topic Titles */}
+                  <h2
+                    dir="ltr"
+                    className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-snug text-left break-words"
+                  >
+                    {topic.titleEn || topic.title}
+                  </h2>
+
+                  {(topic.titleAr || topic.subtitle) && (
+                    <div className="text-xs sm:text-sm font-bold text-emerald-700 dark:text-emerald-300 leading-relaxed break-words">
+                      {topic.titleAr || topic.subtitle}
+                    </div>
+                  )}
+                </div>
+
+                {/* Bottom Action Footer: Clean Popup Card Triggers + Read CTA */}
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 text-xs">
+                  <div
+                    className="flex items-center gap-1.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setTermsPopupTopicId(topic.id)}
+                      className="min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[11px] whitespace-nowrap"
+                    >
+                      المصطلحات ({detected.length})
+                    </button>
+
+                    {tQuestions.length > 0 && (
                       <button
                         type="button"
                         onClick={() =>
                           openQuizForScope({
-                            blockId: item.blockId,
-                            subjectId: item.subjectId,
-                            tab: 'history'
+                            blockId: topic.blockId,
+                            subjectId: topic.subjectId,
+                            topicId: topic.id,
+                            tab: 'runner'
                           })
                         }
-                        className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-xs font-bold shrink-0"
+                        className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold text-[11px] whitespace-nowrap"
                       >
-                        عرض النتيجة
+                        اختبار ({tQuestions.length})
                       </button>
                     )}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-8 text-center text-xs text-slate-500">
-                افتح أي موضوع أو قم بإجراء اختبار ليظهر سجل نشاطك التعليمي هنا تلقائياً.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* ======================================================================
-          SECTION 5: SAVED & STUDIED TERMS VIEW (المصطلحات المحفوظة والمرتبطة بالمواضيع)
-         ====================================================================== */}
-      {hubTab === 'saved_terms' && (
-        <div className="space-y-4">
-          <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                  المصطلحات المحفوظة والمرتبطة بالمواضيع والمواد ({topicLinkedAndStudiedTerms.length})
-                </h2>
-                <p className="text-[11px] text-slate-500">
-                  فلتر المصطلحات حسب المادة أو البلوك أو اعرض سجل المصطلحات التي درستها مؤخراً ({studiedTermsLog.length} عملية دراسة)
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => openExportForScope()}
-                className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>تصدير مصطلحات المادة (JSON / CSV)</span>
-              </button>
-            </div>
-
-            <div className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap no-scrollbar pb-1">
-              <button
-                type="button"
-                onClick={() => setSavedTermsFilterScope('ALL')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold border shrink-0 ${
-                  savedTermsFilterScope === 'ALL'
-                    ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
-                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
-                }`}
-              >
-                كل مصطلحات المواضيع
-              </button>
-              <button
-                type="button"
-                onClick={() => setSavedTermsFilterScope('SAVED_ONLY')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold border shrink-0 ${
-                  savedTermsFilterScope === 'SAVED_ONLY'
-                    ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
-                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
-                }`}
-              >
-                المحفوظة والمدروسة فقط
-              </button>
-              {subjects.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setSavedTermsFilterScope(s.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border shrink-0 ${
-                    savedTermsFilterScope === s.id
-                      ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
-                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
-                  }`}
-                >
-                  {s.titleEn}
-                </button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[540px] overflow-y-auto pr-1">
-              {topicLinkedAndStudiedTerms.slice(0, 120).map((item) => (
-                <div
-                  key={item.term.id}
-                  onClick={() => handleOpenTermWithStudyLog(item.term)}
-                  className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-500 cursor-pointer flex items-center justify-between gap-3 transition-colors"
-                >
-                  <div className="min-w-0 space-y-0.5">
-                    <div className="text-xs font-extrabold text-emerald-700 dark:text-emerald-300">
-                      {item.term.translation}
-                    </div>
-                    <div className="text-[11px] text-slate-500 line-clamp-1">
-                      {item.term.definitionAr}
-                    </div>
-                    <div
-                      dir="ltr"
-                      className="text-[10px] text-slate-400 truncate text-left"
-                    >
-                      Topics: {item.topicTitles.slice(0, 2).join(' · ')}
-                    </div>
-                  </div>
-                  <div className="text-left shrink-0">
-                    <div
-                      dir="ltr"
-                      className="text-xs font-mono font-extrabold text-slate-900 dark:text-white"
-                    >
-                      {item.term.term}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onTriggerTTS(item.term.term, `saved-tts-${item.term.id}`);
-                      }}
-                      className="mt-1 p-1 rounded-lg bg-slate-200/70 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400"
-                    >
-                      <Volume2 className="w-3 h-3" />
-                    </button>
-                  </div>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-extrabold inline-flex items-center gap-1 shrink-0">
+                    <span>قراءة الموضوع</span>
+                    <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+                  </span>
                 </div>
-              ))}
-            </div>
-          </div>
+              </article>
+            );
+          })}
         </div>
-      )}
-
-      {/* ======================================================================
-          SECTION 6: TESTS & RESULTS VIEW (الاختبارات التفاعلية والنتائج)
-         ====================================================================== */}
-      {hubTab === 'tests' && (
-        <div className="space-y-4">
-          <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                  محرك الاختبارات والتقييم الطبي الموحد (Unified Assessment Engine)
-                </h2>
-                <p className="text-xs text-slate-500">
-                  يضم {quizQuestions.length} سؤال تفاعلي (Single Choice, Multiple Select, True/False, Matching, Fill in the Blank, Short Answer, Image-Based)
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => openQuizForScope({ tab: 'builder' })}
-                  className="min-h-[40px] px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-extrabold flex items-center gap-1.5"
-                >
-                  <Plus className="w-4 h-4 text-emerald-500" />
-                  <span>إضافة أو استيراد أسئلة (نص / JSON / CSV)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openExportForScope()}
-                  className="min-h-[40px] px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold flex items-center gap-1.5"
-                >
-                  <Download className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>تنزيل بنك الأسئلة والنتائج</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openQuizForScope({ tab: 'runner' })}
-                  className="min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5"
-                >
-                  <GraduationCap className="w-4 h-4" />
-                  <span>بدء اختبار مخصص الآن</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {subjects.map((subj) => {
-                const count = quizQuestions.filter(
-                  (q) => q.subjectId === subj.id
-                ).length;
-                return (
-                  <div
-                    key={subj.id}
-                    className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3"
-                  >
-                    <div className="min-w-0">
-                      <div
-                        dir="ltr"
-                        className="text-xs font-extrabold text-slate-900 dark:text-white text-left"
-                      >
-                        {subj.titleEn}
-                      </div>
-                      <div className="text-xs text-emerald-700 dark:text-emerald-300 font-bold">
-                        {subj.titleAr}
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        {count} سؤال متاح للاختبار الفوري أو الامتحان المؤقت
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openQuizForScope({
-                          blockId: subj.blockId,
-                          subjectId: subj.id,
-                          tab: 'runner'
-                        })
-                      }
-                      className="min-h-[38px] px-3.5 py-2 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold shrink-0"
-                    >
-                      ابدأ ({count})
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+      ) : (
+        <div className="p-10 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-3">
+          <BookOpen className="w-7 h-7 text-slate-400 mx-auto" />
+          <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+            لا توجد مواضيع مطابقة للتصفية الحالية
+          </h3>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveBlockFilter('ALL');
+              setActiveSubjectFilter('ALL');
+              setSelectedCategory('All');
+              setSearchQuery('');
+            }}
+            className="min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-extrabold"
+          >
+            إظهار كل المواضيع
+          </button>
         </div>
       )}
     </div>
