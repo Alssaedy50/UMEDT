@@ -75,6 +75,21 @@ import { SettingsView } from './components/SettingsView';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { prepareAndDownloadFile } from './utils/downloadHelper';
 import { runSafeIndexedDbMigration, putAllInStore, IDB_STORES } from './services/indexedDbService';
+import {
+  TelegramBackupConfig,
+  ConciseDataSummary,
+  loadTelegramBackupConfig,
+  saveTelegramBackupConfig,
+  sendBackupToTelegram,
+  isTelegramScheduledBackupDue,
+  buildConciseDataSummary
+} from './services/telegramBackupService';
+import {
+  saveMedicalBlocks,
+  saveMedicalSubjects
+} from './services/learningHierarchyService';
+import { saveQuizQuestions } from './services/quizEngineService';
+import { parseUploadedFile } from './services/fileParserService';
 
 type MainTab = 'home' | 'topics' | 'library' | 'settings';
 
@@ -245,6 +260,11 @@ export default function App() {
   const [lastBackupTime, setLastBackupTime] = useState<string>(
     initialPersisted.settings.lastBackupTime
   );
+  const [telegramConfig, setTelegramConfig] = useState<TelegramBackupConfig>(() =>
+    loadTelegramBackupConfig()
+  );
+  const [lastImportedOrCopiedSummary, setLastImportedOrCopiedSummary] =
+    useState<ConciseDataSummary | null>(null);
 
   // Automatic Hybrid Persistence Hooks (localStorage)
   useEffect(() => {
@@ -625,6 +645,66 @@ export default function App() {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Periodic Telegram Auto-Backup Check (Runs on startup and every 5 minutes)
+  useEffect(() => {
+    const checkScheduledBackup = async () => {
+      const cfg = loadTelegramBackupConfig();
+      if (!simulatedOffline && isTelegramScheduledBackupDue(cfg)) {
+        const res = await sendBackupToTelegram(
+          cfg,
+          terms,
+          sentences,
+          topics,
+          `نسخ دوري تلقائي (${cfg.schedule})`,
+          studyStats,
+          versionMetadata
+        );
+        if (res.ok && res.summary) {
+          setTelegramConfig(loadTelegramBackupConfig());
+          setLastImportedOrCopiedSummary(res.summary);
+          setLastBackupTime('تلقائي إلى تليجرام');
+        }
+      }
+    };
+    const initTimer = setTimeout(() => {
+      void checkScheduledBackup();
+    }, 4000);
+    const interval = setInterval(() => {
+      void checkScheduledBackup();
+    }, 5 * 60 * 1000);
+    return () => {
+      clearTimeout(initTimer);
+      clearInterval(interval);
+    };
+  }, [simulatedOffline, terms, sentences, topics, studyStats, versionMetadata]);
+
+  // Auto-backup on data change when schedule === 'on_change'
+  useEffect(() => {
+    const cfg = loadTelegramBackupConfig();
+    if (!cfg.enabled || cfg.schedule !== 'on_change' || simulatedOffline) return;
+    if (!cfg.botToken.trim() || !cfg.chatId.trim()) return;
+
+    const timer = setTimeout(async () => {
+      const res = await sendBackupToTelegram(
+        cfg,
+        terms,
+        sentences,
+        topics,
+        'نسخ تلقائي عند تعديل البيانات',
+        studyStats,
+        versionMetadata
+      );
+      if (res.ok && res.summary) {
+        setTelegramConfig(loadTelegramBackupConfig());
+        setLastImportedOrCopiedSummary(res.summary);
+        setLastBackupTime('تلقائي إلى تليجرام');
+      }
+    }, 6000);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [terms.length, topics.length, sentences.length]);
 
   const triggerTTS = (text: string, key: string, lang = 'en-US') => {
     setSpeakingKey(key);
@@ -1060,6 +1140,33 @@ export default function App() {
     showToast(`تم حفظ المصطلح "${newTerm.term}" وربطه بشبكة المعرفة`);
   };
 
+  const handleImportTopicsBatch = (incomingTopics: TopicArticle[]): number => {
+    if (!Array.isArray(incomingTopics) || incomingTopics.length === 0) return 0;
+    let importedCount = 0;
+    setTopics((prev) => {
+      const next = [...prev];
+      for (const tp of incomingTopics) {
+        if (!tp || !tp.title) continue;
+        const idx = next.findIndex(
+          (existing) =>
+            existing.id === tp.id ||
+            existing.title.toLowerCase() === tp.title.toLowerCase()
+        );
+        if (idx !== -1) {
+          if (conflictPolicy !== 'ignore') {
+            next[idx] = { ...next[idx], ...tp };
+            importedCount += 1;
+          }
+        } else {
+          next.unshift(tp);
+          importedCount += 1;
+        }
+      }
+      return next;
+    });
+    return importedCount;
+  };
+
   const handleImportFullBackupJson = (rawJson: string): boolean => {
     const mode =
       conflictPolicy === 'overwrite'
@@ -1067,6 +1174,69 @@ export default function App() {
         : conflictPolicy === 'ignore'
         ? 'ignore'
         : 'merge';
+
+    // Support Unified Backup v2.3 & Granular Export v1
+    try {
+      const parsed = JSON.parse(rawJson);
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        (parsed.format === 'umed-unified-backup-v2.3' ||
+          parsed.format === 'umed-granular-export-v1')
+      ) {
+        const inner = parsed.data || {};
+        createDataBackupSnapshot({
+          trigger: 'manual',
+          label: 'نسخ تلقائي قبل الاستيراد أوفلاين'
+        });
+
+        if (Array.isArray(inner.blocks) && inner.blocks.length > 0) {
+          saveMedicalBlocks(inner.blocks);
+        }
+        if (Array.isArray(inner.subjects) && inner.subjects.length > 0) {
+          saveMedicalSubjects(inner.subjects);
+        }
+        if (Array.isArray(inner.quizQuestions || inner.questions)) {
+          const qArr = inner.quizQuestions || inner.questions;
+          if (qArr.length > 0) saveQuizQuestions(qArr);
+        }
+        if (Array.isArray(inner.terms) && inner.terms.length > 0) {
+          setTerms((prev) => {
+            if (mode === 'replace') return inner.terms;
+            const map = new Map(prev.map((t) => [t.term.toLowerCase(), t]));
+            for (const t of inner.terms) {
+              if (t && t.term) map.set(t.term.toLowerCase(), t);
+            }
+            return Array.from(map.values());
+          });
+        }
+        if (Array.isArray(inner.sentences) && inner.sentences.length > 0) {
+          setSentences((prev) =>
+            mode === 'replace' ? inner.sentences : [...inner.sentences, ...prev]
+          );
+        }
+        if (Array.isArray(inner.topics) && inner.topics.length > 0) {
+          handleImportTopicsBatch(inner.topics);
+        }
+
+        const summary = buildConciseDataSummary({
+          terms: Array.isArray(inner.terms) ? inner.terms : terms,
+          sentences: Array.isArray(inner.sentences) ? inner.sentences : sentences,
+          topics: Array.isArray(inner.topics) ? inner.topics : topics,
+          blocks: Array.isArray(inner.blocks) ? inner.blocks : undefined,
+          subjects: Array.isArray(inner.subjects) ? inner.subjects : undefined,
+          sourceLabel: 'استيراد نسخة احتياطية أوفلاين',
+          rawSizeBytes: new Blob([rawJson]).size
+        });
+        setLastImportedOrCopiedSummary(summary);
+        setBackupHistory(loadBackupHistory());
+        showToast(`تم استيراد النسخة أوفلاين بنجاح (${summary.shortText})`);
+        return true;
+      }
+    } catch {
+      // Continue to standard importFullDatabaseJson
+    }
+
     const importResult = importFullDatabaseJson(rawJson, mode);
     if (importResult.success && importResult.state) {
       setTerms(importResult.state.terms);
@@ -1076,19 +1246,64 @@ export default function App() {
       setCustomAbbreviations(importResult.state.customAbbreviations);
       setStudyStats(importResult.state.studyStats);
       setVersionMetadata(importResult.state.versionMetadata);
-      setActiveTab('home');
-      showToast(
-        `تم الاستيراد الذري بنجاح (${importResult.termsCount} مصطلح و ${importResult.sentencesCount} جملة · إصدار الداتا ${importResult.state.versionMetadata.dataVersion})`
-      );
+      const summary = buildConciseDataSummary({
+        terms: importResult.state.terms,
+        sentences: importResult.state.sentences,
+        topics: importResult.state.topics,
+        sourceLabel: 'استيراد قاعدة بيانات كاملة',
+        rawSizeBytes: new Blob([rawJson]).size
+      });
+      setLastImportedOrCopiedSummary(summary);
+      setBackupHistory(loadBackupHistory());
+      showToast(`تم استيراد البيانات بنجاح (${summary.shortText})`);
       return true;
     }
     if (importResult.error) {
-      showToast(`فشل الاستيراد الذري (لم يتم تغيير أي بيانات): ${importResult.error}`, 'info');
+      showToast(`تعذر الاستيراد: ${importResult.error}`, 'info');
     }
     return false;
   };
 
   const handleImportPackageFile = async (file: File) => {
+    const lowerName = file.name.toLowerCase();
+
+    // If JSON / CSV / TXT / MD, first try unified/topics/terms parsing so any file works
+    if (
+      lowerName.endsWith('.json') ||
+      lowerName.endsWith('.csv') ||
+      lowerName.endsWith('.txt') ||
+      lowerName.endsWith('.md') ||
+      lowerName.endsWith('.umedpack')
+    ) {
+      try {
+        const parsedFile = await parseUploadedFile(file);
+        const text = parsedFile.extractedText.trim();
+        if (text.startsWith('{') || text.startsWith('[')) {
+          const ok = handleImportFullBackupJson(text);
+          if (ok) return;
+
+          const parsedJson = JSON.parse(text);
+          const rawArr = Array.isArray(parsedJson) ? parsedJson : [parsedJson];
+          if (
+            rawArr.length > 0 &&
+            rawArr.every((it) => it && typeof it === 'object' && (it.sections || it.titleEn))
+          ) {
+            const count = handleImportTopicsBatch(rawArr as TopicArticle[]);
+            const summary = buildConciseDataSummary({
+              topics: rawArr as TopicArticle[],
+              sourceLabel: file.name,
+              rawSizeBytes: file.size
+            });
+            setLastImportedOrCopiedSummary(summary);
+            showToast(`تم استيراد ${count} موضوع طبي من الملف (${file.name})`);
+            return;
+          }
+        }
+      } catch {
+        // Fallback to executeAtomicPackageImport below
+      }
+    }
+
     const mode =
       conflictPolicy === 'overwrite'
         ? 'replace'
@@ -1102,7 +1317,7 @@ export default function App() {
 
     if (!result.success) {
       const firstErr = result.errors[0] || 'حزمة البيانات غير صالحة.';
-      showToast(`تم رفض الحزمة (All-or-Nothing): ${firstErr}`, 'info');
+      showToast(`تعذر استيراد الحزمة: ${firstErr}`, 'info');
       return;
     }
 
@@ -1114,10 +1329,18 @@ export default function App() {
     setStudyStats(state.studyStats);
     setVersionMetadata(state.versionMetadata);
     setBackupHistory(loadBackupHistory());
-    setLastBackupTime('نسخ تلقائي قبل استيراد الحزمة');
-    showToast(
-      `تم تحديث البيانات ذرياً من حزمة ${result.sourceFormat.toUpperCase()} (${result.summary.termsImported} مصطلح، ${result.summary.sentencesImported} جملة · الإصدار ${result.versionMetadata.dataVersion})`
-    );
+    setLastBackupTime('نسخ تلقائي قبل الاستيراد');
+
+    const summary = buildConciseDataSummary({
+      terms: state.terms,
+      sentences: state.sentences,
+      topics: state.topics,
+      sourceLabel: `مستورد من ${file.name}`,
+      rawSizeBytes: file.size
+    });
+    setLastImportedOrCopiedSummary(summary);
+
+    showToast(`تم استيراد الحزمة بنجاح (${summary.shortText})`);
   };
 
   const handleCommitBatch = ({
@@ -1328,10 +1551,47 @@ export default function App() {
       totalTerms: terms.length,
       localLoadedTerms: terms.length,
       totalSentences: sentences.length,
+      totalTopics: topics.length,
       totalGraphEdges: termGraphEdges + sentenceTermLinks,
       actualSizeKb
     };
   }, [terms, sentences, customAbbreviations, topics]);
+
+  const currentDataSummary = useMemo(
+    () =>
+      buildConciseDataSummary({
+        terms,
+        sentences,
+        topics,
+        sourceLabel: 'بيانات التطبيق الحالية',
+        rawSizeBytes: dbMetrics.actualSizeKb * 1024
+      }),
+    [terms, sentences, topics, dbMetrics.actualSizeKb]
+  );
+
+  const handleUpdateTelegramConfig = (nextConfig: TelegramBackupConfig) => {
+    setTelegramConfig(nextConfig);
+    saveTelegramBackupConfig(nextConfig);
+  };
+
+  const handleTriggerTelegramBackupNow = async () => {
+    const res = await sendBackupToTelegram(
+      telegramConfig,
+      terms,
+      sentences,
+      topics,
+      'نسخة احتياطية فورية',
+      studyStats,
+      versionMetadata
+    );
+    if (res.ok && res.summary) {
+      setTelegramConfig(loadTelegramBackupConfig());
+      setLastImportedOrCopiedSummary(res.summary);
+      setLastBackupTime('إلى تليجرام الآن');
+      showToast(`تم النسخ الاحتياطي إلى تليجرام (${res.summary.shortText})`);
+    }
+    return res;
+  };
 
   const downloadFile = (filename: string, content: string, mime = 'application/json') => {
     void prepareAndDownloadFile({
@@ -1343,19 +1603,28 @@ export default function App() {
   };
 
   const handleExportFullBackup = () => {
+    const jsonStr = exportFullDatabaseJson({
+      terms,
+      sentences,
+      topics,
+      customAffixes,
+      customAbbreviations,
+      studyStats,
+      versionMetadata
+    });
     downloadFile(
       'dictengine-umd-full-data.json',
-      exportFullDatabaseJson({
-        terms,
-        sentences,
-        topics,
-        customAffixes,
-        customAbbreviations,
-        studyStats,
-        versionMetadata
-      }),
+      jsonStr,
       'application/json;charset=utf-8'
     );
+    const summary = buildConciseDataSummary({
+      terms,
+      sentences,
+      topics,
+      sourceLabel: 'نسخة احتياطية مصدرة (JSON)',
+      rawSizeBytes: new Blob([jsonStr]).size
+    });
+    setLastImportedOrCopiedSummary(summary);
     setLastBackupTime('الآن');
   };
 
@@ -1375,8 +1644,16 @@ export default function App() {
       content: zipBytes,
       mime: 'application/zip'
     });
+    const summary = buildConciseDataSummary({
+      terms,
+      sentences,
+      topics,
+      sourceLabel: 'حزمة احتياطية مضغوطة (ZIP)',
+      rawSizeBytes: zipBytes.byteLength
+    });
+    setLastImportedOrCopiedSummary(summary);
     setLastBackupTime('الآن');
-    showToast(`جاري تنزيل حزمة البيانات الموحدة (.ZIP): ${filename}`);
+    showToast(`تم تصدير حزمة ZIP (${summary.shortText})`);
   };
 
   const handleShareDataFile = async () => {
@@ -1708,6 +1985,7 @@ export default function App() {
             onCommitBatch={handleCommitBatch}
             onImportFullBackupJson={handleImportFullBackupJson}
             onImportPackageFile={handleImportPackageFile}
+            onImportTopicsBatch={handleImportTopicsBatch}
           />
         )}
 
@@ -1740,6 +2018,11 @@ export default function App() {
             onExportZipPackage={handleExportZipPackage}
             onImportPackageFile={handleImportPackageFile}
             onShareDataFile={handleShareDataFile}
+            telegramConfig={telegramConfig}
+            onUpdateTelegramConfig={handleUpdateTelegramConfig}
+            onTriggerTelegramBackupNow={handleTriggerTelegramBackupNow}
+            currentDataSummary={currentDataSummary}
+            lastImportedOrCopiedSummary={lastImportedOrCopiedSummary}
             onResetDefaults={() => {
               const defaults = resetToDefaults();
               setTerms(defaults.terms);

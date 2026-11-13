@@ -281,6 +281,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   const [hCode, setHCode] = useState<string>('');
   const [hParentBlockId, setHParentBlockId] = useState<string>('');
 
+  // Block Deletion Safety System State
+  const [blockDeleteTarget, setBlockDeleteTarget] = useState<MedicalBlock | null>(null);
+  const [blockDeleteMode, setBlockDeleteMode] = useState<'unlink_keep' | 'cascade_all'>('unlink_keep');
+  const [blockDeleteConfirmed, setBlockDeleteConfirmed] = useState<boolean>(false);
+
   // Double-Click / Selection Quick Translation Popup Card State
   const [selectionState, setSelectionState] =
     useState<SelectionInspectionState | null>(null);
@@ -688,6 +693,72 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
 
     setHierarchyModalMode(null);
     setEditingHierarchyId(null);
+  };
+
+  const openBlockDeleteSafetyModal = (block: MedicalBlock) => {
+    setBlockDeleteTarget(block);
+    setBlockDeleteMode('unlink_keep');
+    setBlockDeleteConfirmed(false);
+  };
+
+  const handleExecuteSafeBlockDelete = () => {
+    if (!blockDeleteTarget || !blockDeleteConfirmed) return;
+    const targetId = blockDeleteTarget.id;
+    const linkedSubjects = subjects.filter((s) => s.blockId === targetId);
+    const linkedTopics = topics.filter((t) => t.blockId === targetId);
+
+    // 1. Remove block from blocks list and persist
+    const nextBlocks = blocks.filter((b) => b.id !== targetId);
+    setBlocks(nextBlocks);
+    saveMedicalBlocks(nextBlocks);
+
+    if (blockDeleteMode === 'unlink_keep') {
+      // Unlink subjects so they remain standalone
+      const nextSubjects = subjects.map((s) =>
+        s.blockId === targetId ? { ...s, blockId: undefined, isStandalone: true } : s
+      );
+      setSubjects(nextSubjects);
+      saveMedicalSubjects(nextSubjects);
+
+      // Unlink topics so they remain intact
+      for (const tp of linkedTopics) {
+        onSaveTopic({ ...tp, blockId: '' }, true);
+      }
+
+      showToast(
+        `تم حذف البلوك "${blockDeleteTarget.titleAr}" بأمان مع الاحتفاظ بـ ${linkedSubjects.length} مادة و ${linkedTopics.length} موضوع.`
+      );
+    } else {
+      // Cascade delete linked subjects and topics
+      const nextSubjects = subjects.filter((s) => s.blockId !== targetId);
+      setSubjects(nextSubjects);
+      saveMedicalSubjects(nextSubjects);
+
+      for (const tp of linkedTopics) {
+        onDeleteTopic(tp.id);
+      }
+
+      showToast(
+        `تم حذف البلوك "${blockDeleteTarget.titleAr}" مع ${linkedSubjects.length} مادة و ${linkedTopics.length} موضوع مرتبط.`
+      );
+    }
+
+    if (activeBlockFilter === targetId) {
+      setActiveBlockFilter('ALL');
+      setActiveSubjectFilter('ALL');
+    }
+    setBlockDeleteTarget(null);
+    setBlockDeleteConfirmed(false);
+  };
+
+  const handleDeleteSubjectSafely = (subj: MedicalSubject) => {
+    const nextSubjects = subjects.filter((s) => s.id !== subj.id);
+    setSubjects(nextSubjects);
+    saveMedicalSubjects(nextSubjects);
+    if (activeSubjectFilter === subj.id) {
+      setActiveSubjectFilter('ALL');
+    }
+    showToast(`تم حذف المادة "${subj.titleAr}" مع الاحتفاظ بالمواضيع.`);
   };
 
   // Lookup helper for matching a selected word/phrase to an existing DictionaryTerm
@@ -1961,57 +2032,73 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
 
             {activePopup === 'blocks_manager' ? (
               <div className="space-y-2.5 max-h-[60dvh] overflow-y-auto pr-1">
-                {blocks.map((block) => {
-                  const blockTopics = topics.filter((t) => t.blockId === block.id);
-                  return (
-                    <div
-                      key={block.id}
-                      className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0 flex-1 space-y-0.5">
-                        <div className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                          {block.code} · {blockTopics.length} موضوع
+                {blocks.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-500">
+                    لا توجد بلوكات حالياً. يمكنك إضافة بلوك جديد من الزر أعلاه.
+                  </div>
+                ) : (
+                  blocks.map((block) => {
+                    const blockTopics = topics.filter((t) => t.blockId === block.id);
+                    const blockSubjects = subjects.filter((s) => s.blockId === block.id);
+                    return (
+                      <div
+                        key={block.id}
+                        className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                            {block.code} · {blockSubjects.length} مادة · {blockTopics.length} موضوع
+                          </div>
+                          <div
+                            dir="ltr"
+                            className="text-sm font-extrabold text-slate-900 dark:text-white text-left"
+                          >
+                            {block.titleEn}
+                          </div>
+                          <div className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                            {block.titleAr}
+                          </div>
                         </div>
-                        <div
-                          dir="ltr"
-                          className="text-sm font-extrabold text-slate-900 dark:text-white text-left"
-                        >
-                          {block.titleEn}
-                        </div>
-                        <div className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                          {block.titleAr}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => openBlockDeleteSafetyModal(block)}
+                            className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-1"
+                            title="حذف البلوك مع نظام أمان"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>حذف</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingHierarchyId(block.id);
+                              setHTitleEn(block.titleEn);
+                              setHTitleAr(block.titleAr);
+                              setHCode(block.code);
+                              setHDescAr(block.descriptionAr);
+                              setHierarchyModalMode('block');
+                            }}
+                            className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                          >
+                            تعديل
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveBlockFilter(block.id);
+                              setActiveSubjectFilter('ALL');
+                              setActivePopup(null);
+                            }}
+                            className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold"
+                          >
+                            عرض
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingHierarchyId(block.id);
-                            setHTitleEn(block.titleEn);
-                            setHTitleAr(block.titleAr);
-                            setHCode(block.code);
-                            setHDescAr(block.descriptionAr);
-                            setHierarchyModalMode('block');
-                          }}
-                          className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold"
-                        >
-                          تعديل
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveBlockFilter(block.id);
-                            setActiveSubjectFilter('ALL');
-                            setActivePopup(null);
-                          }}
-                          className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold"
-                        >
-                          عرض المواضيع
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             ) : (
               <div className="space-y-2.5 max-h-[60dvh] overflow-y-auto pr-1">
@@ -2039,6 +2126,14 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           type="button"
+                          onClick={() => handleDeleteSubjectSafely(subj)}
+                          className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>حذف</span>
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => {
                             setEditingHierarchyId(subj.id);
                             setHTitleEn(subj.titleEn);
@@ -2061,7 +2156,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                           }}
                           className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold"
                         >
-                          عرض المواضيع
+                          عرض
                         </button>
                       </div>
                     </div>
@@ -2069,6 +2164,133 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* BLOCK DELETION SAFETY SYSTEM POPUP CARD (نظام أمان حذف البلوك) */}
+      {blockDeleteTarget && (
+        <div
+          onClick={() => setBlockDeleteTarget(null)}
+          className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border-2 border-rose-500/50 p-5 sm:p-6 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <span className="text-[11px] font-extrabold text-rose-600 dark:text-rose-400 block">
+                  نظام الأمان لحذف البلوك الطبي
+                </span>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white mt-0.5">
+                  {blockDeleteTarget.titleAr}
+                </h3>
+                <p dir="ltr" className="text-xs font-mono text-slate-500 text-left">
+                  {blockDeleteTarget.titleEn} ({blockDeleteTarget.code})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBlockDeleteTarget(null)}
+                className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+              <span>البيانات المرتبطة بهذا البلوك:</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">
+                {subjects.filter((s) => s.blockId === blockDeleteTarget.id).length} مادة ·{' '}
+                {topics.filter((t) => t.blockId === blockDeleteTarget.id).length} موضوع
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <label
+                onClick={() => setBlockDeleteMode('unlink_keep')}
+                className={`block p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                  blockDeleteMode === 'unlink_keep'
+                    ? 'bg-emerald-500/10 border-emerald-500 text-slate-900 dark:text-white'
+                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                <div className="flex items-center gap-2 text-xs font-extrabold">
+                  <input
+                    type="radio"
+                    name="blockDeleteMode"
+                    checked={blockDeleteMode === 'unlink_keep'}
+                    onChange={() => setBlockDeleteMode('unlink_keep')}
+                    className="text-emerald-600"
+                  />
+                  <span>حذف البلوك فقط والاحتفاظ بالمواد والمواضيع (آمن)</span>
+                </div>
+              </label>
+
+              <label
+                onClick={() => setBlockDeleteMode('cascade_all')}
+                className={`block p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                  blockDeleteMode === 'cascade_all'
+                    ? 'bg-rose-500/10 border-rose-500 text-rose-900 dark:text-rose-200'
+                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                <div className="flex items-center gap-2 text-xs font-extrabold">
+                  <input
+                    type="radio"
+                    name="blockDeleteMode"
+                    checked={blockDeleteMode === 'cascade_all'}
+                    onChange={() => setBlockDeleteMode('cascade_all')}
+                    className="text-rose-600"
+                  />
+                  <span>حذف البلوك مع جميع مواده ومواضيعه نهائياً</span>
+                </div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-800 dark:text-slate-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={blockDeleteConfirmed}
+                  onChange={(e) => setBlockDeleteConfirmed(e.target.checked)}
+                  className="w-4 h-4 rounded text-rose-600"
+                />
+                <span>تأكيد الأمان للمتابعة بالحذف</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const bId = blockDeleteTarget.id;
+                  setBlockDeleteTarget(null);
+                  openExportForScope({ blockId: bId });
+                }}
+                className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+              >
+                نسخ احتياطي للبلوك أولاً
+              </button>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setBlockDeleteTarget(null)}
+                className="min-h-[40px] px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                disabled={!blockDeleteConfirmed}
+                onClick={handleExecuteSafeBlockDelete}
+                className="min-h-[40px] px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white text-xs font-extrabold flex items-center gap-1.5 transition-all"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>تأكيد حذف البلوك</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -3228,10 +3450,6 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 {activeTopic.titleAr || activeTopic.subtitle}
               </div>
             )}
-
-            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 pt-1">
-              ملاحظة: انقر مرتين على أي كلمة إنجليزية أو عربية في النص لفتح بطاقة الترجمة الفورية والنطق والحفظ.
-            </p>
           </header>
 
           {/* Structured Sections */}
@@ -3902,13 +4120,17 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
       {/* Clean Header Card: Search + 3 Popup Card Triggers (Zero Overlap) */}
       <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 space-y-3.5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
+          <div className="flex items-center gap-2">
             <h1 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">
-              المواضيع الطبية والمحاضرات التفاعلية
+              المواضيع ({filteredTopics.length})
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {topics.length} موضوعاً · {subjects.length} مواد · انقر مرتين داخل أي موضوع للترجمة الفورية
-            </p>
+            <button
+              type="button"
+              onClick={() => setActivePopup('blocks_manager')}
+              className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-emerald-500/15 text-slate-600 dark:text-slate-300 hover:text-emerald-600 text-[11px] font-bold transition-colors"
+            >
+              البلوكات ({blocks.length})
+            </button>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">

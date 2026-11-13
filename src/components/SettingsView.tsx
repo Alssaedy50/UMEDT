@@ -17,7 +17,8 @@ import {
   Copy,
   Check,
   Layers,
-  X
+  X,
+  Send
 } from 'lucide-react';
 import {
   DataBackupRecord,
@@ -26,6 +27,13 @@ import {
   OnlineUpdateStatus
 } from '../types/lexicon';
 import { usePWAInstall, useOnlineStatus } from '../hooks/usePWAInstall';
+import {
+  TelegramBackupConfig,
+  TelegramBackupSchedule,
+  ConciseDataSummary,
+  SCHEDULE_LABELS_AR,
+  testTelegramConnection
+} from '../services/telegramBackupService';
 
 interface SettingsViewProps {
   isDark: boolean;
@@ -61,9 +69,18 @@ interface SettingsViewProps {
   onShareDataFile: () => void;
   onResetDefaults: () => void;
   lastBackupTime: string;
+  telegramConfig?: TelegramBackupConfig;
+  onUpdateTelegramConfig?: (nextConfig: TelegramBackupConfig) => void;
+  onTriggerTelegramBackupNow?: () => Promise<{
+    ok: boolean;
+    message: string;
+    summary?: ConciseDataSummary;
+  }>;
+  currentDataSummary?: ConciseDataSummary;
+  lastImportedOrCopiedSummary?: ConciseDataSummary | null;
 }
 
-type SettingsModalType = null | 'conflict' | 'updates' | 'backup' | 'reset';
+type SettingsModalType = null | 'conflict' | 'updates' | 'backup' | 'telegram' | 'reset';
 
 const CONFLICT_LABELS: Record<'merge' | 'overwrite' | 'ignore', string> = {
   merge: 'دمج',
@@ -80,6 +97,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onToggleSimulatedOffline,
   recentTermsCount,
   onClearRecentTerms,
+  dbMetrics,
   versionMetadata,
   onlineUpdateConfig,
   onlineUpdateStatus,
@@ -94,11 +112,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onExportZipPackage,
   onImportPackageFile,
   onShareDataFile,
-  onResetDefaults
+  onResetDefaults,
+  telegramConfig,
+  onUpdateTelegramConfig,
+  onTriggerTelegramBackupNow,
+  currentDataSummary,
+  lastImportedOrCopiedSummary
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeModal, setActiveModal] = useState<SettingsModalType>(null);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
+  const [isSendingTelegram, setIsSendingTelegram] = useState<boolean>(false);
+  const [isTestingTelegram, setIsTestingTelegram] = useState<boolean>(false);
+  const [telegramFeedback, setTelegramFeedback] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
 
   const { isInstallable, isCapacitorNative, install } = usePWAInstall();
   const browserOnline = useOnlineStatus();
@@ -136,21 +165,64 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setActiveModal(null);
   };
 
+  const handleTestTelegram = async () => {
+    if (!telegramConfig) return;
+    setIsTestingTelegram(true);
+    setTelegramFeedback(null);
+    const res = await testTelegramConnection(
+      telegramConfig.botToken,
+      telegramConfig.chatId
+    );
+    setTelegramFeedback(res);
+    setIsTestingTelegram(false);
+  };
+
+  const handleSendTelegramNow = async () => {
+    if (!onTriggerTelegramBackupNow) return;
+    setIsSendingTelegram(true);
+    setTelegramFeedback(null);
+    const res = await onTriggerTelegramBackupNow();
+    setTelegramFeedback({ ok: res.ok, message: res.message });
+    setIsSendingTelegram(false);
+  };
+
   const isBusyUpdating =
     onlineUpdateStatus.phase === 'checking' ||
     onlineUpdateStatus.phase === 'downloading' ||
     onlineUpdateStatus.phase === 'verifying' ||
     onlineUpdateStatus.phase === 'installing';
 
+  const summaryToShow =
+    lastImportedOrCopiedSummary ||
+    telegramConfig?.lastBackupSummary ||
+    currentDataSummary;
+
   return (
-    <div className="max-w-lg mx-auto w-full pb-6">
+    <div className="max-w-lg mx-auto w-full pb-6 space-y-3">
       <input
         ref={fileInputRef}
         type="file"
-        accept=".zip,.json"
+        accept=".zip,.json,.umedpack,.csv,.txt"
         onChange={handleFileChange}
         className="hidden"
       />
+
+      {/* Concise Data Definition Strip (تعريف البيانات الحالية أو المستوردة باختصار) */}
+      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">
+            {summaryToShow?.sourceLabel || 'تعريف بيانات التطبيق الحالية'}
+          </div>
+          <div className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5 truncate">
+            {summaryToShow
+              ? summaryToShow.shortText
+              : `${dbMetrics.totalTerms} مصطلح · ${dbMetrics.totalTopics || 0} موضوع · ${dbMetrics.totalSentences} جملة`}
+          </div>
+        </div>
+        <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-[11px] font-mono font-bold text-slate-600 dark:text-slate-300 shrink-0">
+          {summaryToShow ? `${summaryToShow.sizeKB} KB` : `${dbMetrics.actualSizeKb} KB`}
+        </span>
+      </div>
 
       {/* Single Compact List Card */}
       <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/80 overflow-hidden">
@@ -198,7 +270,54 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </button>
         </div>
 
-        {/* 3. Duplicate Policy (Opens Modal) */}
+        {/* 3. Telegram Backup & Periodic Schedule (Opens Modal) */}
+        <button
+          type="button"
+          onClick={() => {
+            setTelegramFeedback(null);
+            setActiveModal('telegram');
+          }}
+          className="w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-right"
+        >
+          <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
+            <Send className="w-4 h-4 text-sky-500 shrink-0" />
+            <span>النسخ الاحتياطي إلى تليجرام</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
+            <span
+              className={
+                telegramConfig?.enabled && telegramConfig?.botToken
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : ''
+              }
+            >
+              {telegramConfig?.enabled && telegramConfig?.botToken
+                ? SCHEDULE_LABELS_AR[telegramConfig.schedule]
+                : 'إعداد'}
+            </span>
+            <ChevronLeft className="w-4 h-4" />
+          </div>
+        </button>
+
+        {/* 4. Backup & Restore Offline (Opens Modal) */}
+        <button
+          type="button"
+          onClick={() => setActiveModal('backup')}
+          className="w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-right"
+        >
+          <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
+            <FolderSync className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span>النسخ الاحتياطي والاستعادة أوفلاين</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
+            <span>{backupHistory.length} نقطة</span>
+            <ChevronLeft className="w-4 h-4" />
+          </div>
+        </button>
+
+        {/* 5. Duplicate Policy (Opens Modal) */}
         <button
           type="button"
           onClick={() => setActiveModal('conflict')}
@@ -215,7 +334,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </button>
 
-        {/* 4. Cloud Updates (Opens Modal) */}
+        {/* 6. Cloud Updates (Opens Modal) */}
         <button
           type="button"
           onClick={() => setActiveModal('updates')}
@@ -232,24 +351,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </button>
 
-        {/* 5. Backup & Restore (Opens Modal) */}
-        <button
-          type="button"
-          onClick={() => setActiveModal('backup')}
-          className="w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-right"
-        >
-          <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
-            <FolderSync className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span>النسخ الاحتياطي</span>
-          </div>
-
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
-            <span>إدارة</span>
-            <ChevronLeft className="w-4 h-4" />
-          </div>
-        </button>
-
-        {/* 6. Search History */}
+        {/* 7. Search History */}
         <div className="px-4 py-3.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
             <Trash2 className="w-4 h-4 text-slate-400 shrink-0" />
@@ -266,7 +368,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </button>
         </div>
 
-        {/* 7. App Install / Link */}
+        {/* 8. App Install / Link */}
         {!isCapacitorNative && (
           <div className="px-4 py-3.5 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
@@ -305,7 +407,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         )}
 
-        {/* 8. Factory Reset (Opens Modal) */}
+        {/* 9. Factory Reset (Opens Modal) */}
         <button
           type="button"
           onClick={() => setActiveModal('reset')}
@@ -326,18 +428,193 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {activeModal && (
         <div
           onClick={() => setActiveModal(null)}
-          className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-t-3xl sm:rounded-2xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 p-4 pb-[calc(3.75rem+env(safe-area-inset-bottom,0px))] sm:pb-5 space-y-3 shadow-2xl max-h-[85vh] overflow-y-auto"
+            className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl max-h-[86dvh] overflow-y-auto"
           >
+            {/* Modal 0: Telegram Backup & Periodic Schedule */}
+            {activeModal === 'telegram' && telegramConfig && onUpdateTelegramConfig && (
+              <>
+                <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Send className="w-4 h-4 text-sky-500" />
+                    <span className="text-sm font-extrabold text-slate-900 dark:text-white">
+                      النسخ الاحتياطي إلى تليجرام
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveModal(null)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Concise Data Summary Box */}
+                {currentDataSummary && (
+                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1 text-xs">
+                    <div className="flex items-center justify-between font-bold text-emerald-600 dark:text-emerald-400">
+                      <span>تعريف البيانات المشمولة بالنسخ:</span>
+                      <span className="font-mono">{currentDataSummary.sizeKB} KB</span>
+                    </div>
+                    <div className="text-slate-700 dark:text-slate-300 font-bold">
+                      {currentDataSummary.shortText} · المفضلة: {currentDataSummary.favoritesCount}
+                    </div>
+                    {telegramConfig.lastBackupAt && (
+                      <div className="text-[11px] text-slate-400">
+                        آخر نسخ لتليجرام: {new Date(telegramConfig.lastBackupAt).toLocaleString('ar-SA')}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-3 text-xs">
+                  <div className="space-y-1">
+                    <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
+                      رمز البوت (Telegram Bot Token) *
+                    </label>
+                    <input
+                      type="text"
+                      dir="ltr"
+                      value={telegramConfig.botToken}
+                      onChange={(e) =>
+                        onUpdateTelegramConfig({
+                          ...telegramConfig,
+                          botToken: e.target.value
+                        })
+                      }
+                      placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                      className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-left focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
+                      معرف المحادثة أو القناة (Chat ID) *
+                    </label>
+                    <input
+                      type="text"
+                      dir="ltr"
+                      value={telegramConfig.chatId}
+                      onChange={(e) =>
+                        onUpdateTelegramConfig({
+                          ...telegramConfig,
+                          chatId: e.target.value
+                        })
+                      }
+                      placeholder="e.g., 987654321 or -100123456789"
+                      className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-left focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  {/* Periodic Schedule Selector */}
+                  <div className="space-y-1.5">
+                    <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
+                      جدولة النسخ الاحتياطي الدوري:
+                    </label>
+                    <select
+                      value={telegramConfig.schedule}
+                      onChange={(e) => {
+                        const nextSched = e.target.value as TelegramBackupSchedule;
+                        onUpdateTelegramConfig({
+                          ...telegramConfig,
+                          schedule: nextSched,
+                          enabled: nextSched !== 'off'
+                        });
+                      }}
+                      className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold"
+                    >
+                      {(Object.keys(SCHEDULE_LABELS_AR) as TelegramBackupSchedule[]).map(
+                        (schedKey) => (
+                          <option key={schedKey} value={schedKey}>
+                            {SCHEDULE_LABELS_AR[schedKey]}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </div>
+
+                  {/* Scope Checkboxes */}
+                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+                    <label className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={telegramConfig.includeDictionaryAndTerms}
+                        onChange={(e) =>
+                          onUpdateTelegramConfig({
+                            ...telegramConfig,
+                            includeDictionaryAndTerms: e.target.checked
+                          })
+                        }
+                        className="w-4 h-4 rounded text-emerald-600"
+                      />
+                      <span>تضمين المصطلحات والجمل والمفضلة</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={telegramConfig.includeTopicsAndHierarchy}
+                        onChange={(e) =>
+                          onUpdateTelegramConfig({
+                            ...telegramConfig,
+                            includeTopicsAndHierarchy: e.target.checked
+                          })
+                        }
+                        className="w-4 h-4 rounded text-emerald-600"
+                      />
+                      <span>تضمين المواضيع والبلوكات والمواد والاختبارات</span>
+                    </label>
+                  </div>
+
+                  {telegramFeedback && (
+                    <div
+                      className={`p-3 rounded-xl border font-bold ${
+                        telegramFeedback.ok
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                          : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'
+                      }`}
+                    >
+                      {telegramFeedback.message}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      disabled={isTestingTelegram || isSendingTelegram}
+                      onClick={() => void handleTestTelegram()}
+                      className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      <RefreshCw
+                        className={`w-3.5 h-3.5 ${isTestingTelegram ? 'animate-spin' : ''}`}
+                      />
+                      <span>فحص الاتصال</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isSendingTelegram || isTestingTelegram}
+                      onClick={() => void handleSendTelegramNow()}
+                      className="min-h-[42px] px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>{isSendingTelegram ? 'جاري الإرسال...' : 'نسخ الآن لتليجرام'}</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
             {/* Modal 1: Conflict Policy */}
             {activeModal === 'conflict' && (
               <>
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                   <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                    تكرار المصطلحات
+                    تكرار المصطلحات عند الاستيراد
                   </span>
                   <button
                     type="button"
@@ -428,7 +705,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </button>
                   </div>
 
-                  {/* Live Status Feedback & Progress inside Modal */}
                   {onlineUpdateStatus.message && (
                     <div
                       className={`p-3 rounded-2xl border text-xs space-y-2 transition-all ${
@@ -460,20 +736,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           </span>
                         )}
                       </div>
-
-                      {isBusyUpdating && onlineUpdateStatus.progressPercent !== null && (
-                        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className="bg-emerald-500 h-1.5 rounded-full transition-all duration-300"
-                            style={{
-                              width: `${Math.max(
-                                5,
-                                Math.min(100, onlineUpdateStatus.progressPercent)
-                              )}%`
-                            }}
-                          />
-                        </div>
-                      )}
                     </div>
                   )}
 
@@ -496,17 +758,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       onClick={() => void onCheckForUpdates({ forceInstall: true })}
                       className="min-h-[42px] px-3 py-2 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-extrabold flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
-                      {isBusyUpdating ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>جاري التثبيت...</span>
-                        </>
-                      ) : (
-                        <>
-                          <CloudDownload className="w-3.5 h-3.5" />
-                          <span>تثبيت التحديث</span>
-                        </>
-                      )}
+                      <CloudDownload className="w-3.5 h-3.5" />
+                      <span>تثبيت التحديث</span>
                     </button>
                   </div>
 
@@ -524,12 +777,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </>
             )}
 
-            {/* Modal 3: Backup & Restore */}
+            {/* Modal 3: Backup & Restore Offline */}
             {activeModal === 'backup' && (
               <>
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                   <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                    النسخ الاحتياطي
+                    النسخ الاحتياطي والاستعادة أوفلاين
                   </span>
                   <button
                     type="button"
@@ -539,6 +792,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <X className="w-4 h-4" />
                   </button>
                 </div>
+
+                {/* Concise Data Summary inside Backup Modal */}
+                {currentDataSummary && (
+                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1 text-xs">
+                    <div className="flex items-center justify-between font-bold text-emerald-600 dark:text-emerald-400">
+                      <span>تعريف البيانات الحالية:</span>
+                      <span className="font-mono">{currentDataSummary.sizeKB} KB</span>
+                    </div>
+                    <div className="text-slate-700 dark:text-slate-300 font-bold">
+                      {currentDataSummary.shortText}
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <button
@@ -571,7 +837,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5"
                   >
                     <Upload className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>استيراد ملف</span>
+                    <span>استيراد بيانات أوفلاين</span>
                   </button>
 
                   <button
@@ -583,21 +849,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5"
                   >
                     <Share2 className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>مشاركة</span>
+                    <span>مشاركة النسخة</span>
                   </button>
                 </div>
 
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-500">
-                      نقاط الاستعادة ({backupHistory.length})
+                      نقاط الاستعادة المحفوظة محلياً ({backupHistory.length})
                     </span>
                     <button
                       type="button"
                       onClick={onCreateManualBackup}
                       className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs font-bold"
                     >
-                      + حفظ نقطة
+                      + حفظ نقطة الآن
                     </button>
                   </div>
 
@@ -616,9 +882,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             return '';
                           }
                         })();
-                        const termCount = item.manifest?.counts?.terms ?? item.payload?.terms?.length ?? 0;
+                        const termCount =
+                          item.manifest?.counts?.terms ?? item.payload?.terms?.length ?? 0;
+                        const topicCount =
+                          item.manifest?.counts?.topics ?? item.payload?.topics?.length ?? 0;
+                        const sentCount =
+                          item.manifest?.counts?.sentences ??
+                          item.payload?.sentences?.length ??
+                          0;
                         const triggerBadge =
-                          item.trigger === 'manual' ? 'نقطة يدوية' : 'نسخ تلقائي';
+                          item.trigger === 'manual' ? 'يدوي' : 'تلقائي';
 
                         return (
                           <div
@@ -637,8 +910,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                   {triggerBadge}
                                 </span>
                               </div>
-                              <div className="text-[10px] text-slate-400 flex items-center gap-1.5 truncate">
-                                <span>{termCount} مصطلح</span>
+                              <div className="text-[10px] text-slate-500 flex items-center gap-1.5 truncate">
+                                <span>
+                                  {termCount} مصطلح · {topicCount} موضوع · {sentCount} جملة
+                                </span>
                                 {formattedDate && (
                                   <>
                                     <span>·</span>
@@ -681,7 +956,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <>
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                   <span className="text-sm font-extrabold text-rose-600 dark:text-rose-400">
-                    إعادة الضبط
+                    إعادة الضبط للمصنع
                   </span>
                   <button
                     type="button"

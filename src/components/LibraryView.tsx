@@ -20,7 +20,8 @@ import {
   FileSpreadsheet,
   Archive,
   ChevronLeft,
-  Wand2
+  Wand2,
+  Download
 } from 'lucide-react';
 import {
   DictionaryTerm,
@@ -36,6 +37,11 @@ import {
 } from '../types/lexicon';
 import { decomposeMedicalWord, runHybridGcNmtPipeline } from '../engine/hybridTranslator';
 import { parseUploadedFile } from '../services/fileParserService';
+import {
+  ConciseDataSummary,
+  buildConciseDataSummary,
+  createUnifiedBackupPackage
+} from '../services/telegramBackupService';
 
 export interface StagedTermItem {
   id: string;
@@ -99,6 +105,7 @@ interface LibraryViewProps {
   }) => void;
   onImportFullBackupJson: (rawJson: string) => boolean;
   onImportPackageFile: (file: File) => Promise<void>;
+  onImportTopicsBatch?: (incomingTopics: TopicArticle[]) => number;
 }
 
 const CATEGORY_OPTIONS: { value: LexiconCategory; label: string }[] = [
@@ -151,6 +158,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   sentences,
   topics = [],
   studyStats,
+  versionMetadata,
   activeCollection,
   initialMode,
   initialDraftTerm,
@@ -166,7 +174,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   onSaveManualTerm,
   onCommitBatch,
   onImportFullBackupJson,
-  onImportPackageFile
+  onImportPackageFile,
+  onImportTopicsBatch
 }) => {
   const [libraryMode, setLibraryMode] = useState<LibrarySubMode>(initialMode || 'hub');
   const [favoritesTab, setFavoritesTab] = useState<'terms' | 'sentences' | 'topics' | 'custom'>('terms');
@@ -186,7 +195,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [manualCollection, setManualCollection] = useState('مضاف يدوياً');
   const [manualDefAr, setManualDefAr] = useState('');
   const [manualDefEn, setManualDefEn] = useState('');
-  const [manualSynonyms, setManualSynonyms] = useState('');
   const [manualSentenceEn, setManualSentenceEn] = useState('');
   const [manualSentenceAr, setManualSentenceAr] = useState('');
   const [addAlsoToFavorites, setAddAlsoToFavorites] = useState(true);
@@ -194,6 +202,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     type: 'success' | 'error';
     message: string;
   } | null>(null);
+  const [lastDataSummary, setLastDataSummary] = useState<ConciseDataSummary | null>(null);
 
   // File & Batch Import state
   const [rawBatchInput, setRawBatchInput] = useState('');
@@ -312,7 +321,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     if (!clean) {
       setOfflineFeedback({
         type: 'error',
-        message: 'أدخل المصطلح بالإنجليزية أولاً لتوليد الجذور والترجمة تلقائياً أوفلاين.'
+        message: 'أدخل المصطلح بالإنجليزية أولاً.'
       });
       return;
     }
@@ -351,13 +360,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         );
       } else {
         setManualDefAr(
-          `مفهوم أو مصطلح طبي سريري يشير إلى ${bestTranslation || manualTranslation || clean}.`
+          `مفهوم طبي سريري يشير إلى ${bestTranslation || manualTranslation || clean}.`
         );
       }
     }
 
     if (!manualDefEn.trim()) {
-      setManualDefEn(`Clinical medical term or concept referring to ${clean}.`);
+      setManualDefEn(`Clinical medical term referring to ${clean}.`);
     }
   };
 
@@ -368,7 +377,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     if (!cleanEn || !cleanAr) {
       setOfflineFeedback({
         type: 'error',
-        message: 'يرجى إدخال المصطلح بالإنجليزية وترجمته العربية على الأقل.'
+        message: 'يرجى إدخال المصطلح بالإنجليزية وترجمته العربية.'
       });
       return;
     }
@@ -397,11 +406,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       });
     }
 
-    const synonymsList = manualSynonyms
-      .split(/[,،|]/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-
     const newTermObj: DictionaryTerm = {
       id: newId,
       term: cleanEn,
@@ -420,7 +424,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         manualDefEn.trim() || `Clinical medical term referring to ${cleanEn}.`,
       examples,
       relations: {
-        synonyms: synonymsList,
+        synonyms: [],
         broader: [],
         related: []
       }
@@ -428,11 +432,21 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
     onSaveManualTerm(newTermObj, linkedSentences);
 
+    setLastDataSummary(
+      buildConciseDataSummary({
+        terms: [newTermObj],
+        sentences: linkedSentences,
+        topics: [],
+        blocks: [],
+        subjects: [],
+        questions: [],
+        sourceLabel: 'إضافة يدوية أوفلاين'
+      })
+    );
+
     setOfflineFeedback({
       type: 'success',
-      message: `تم حفظ المصطلح "${cleanEn}" (${cleanAr}) أوفلاين في القاموس${
-        addAlsoToFavorites ? ' والمفضلة' : ''
-      } بنجاح!`
+      message: `تم حفظ "${cleanEn}" (${cleanAr}) بنجاح.`
     });
 
     setManualTerm('');
@@ -440,31 +454,146 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     setManualPhonetic('');
     setManualDefAr('');
     setManualDefEn('');
-    setManualSynonyms('');
     setManualSentenceEn('');
     setManualSentenceAr('');
   };
 
-  const parseRawTextToStaged = (text: string) => {
+  const handleQuickExportOfflineBackup = () => {
+    const { jsonString, summary } = createUnifiedBackupPackage(
+      terms,
+      sentences,
+      topics,
+      'نسخة احتياطية شاملة أوفلاين',
+      studyStats,
+      versionMetadata
+    );
+    const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `UMEDT-Offline-Backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    setLastDataSummary(summary);
+    setOfflineFeedback({
+      type: 'success',
+      message: 'تم تصدير النسخة الاحتياطية الشاملة أوفلاين بنجاح.'
+    });
+  };
+
+  const parseRawTextToStaged = (text: string, sourceFileName = 'استيراد أوفلاين') => {
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    // Check if JSON backup or JSON array of terms
+    // 1. Check if JSON (Full Backup, Unified Backup, Granular Export, Topics array, or Terms array)
     if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
       try {
         const parsed = JSON.parse(trimmed);
-        if (parsed && !Array.isArray(parsed) && (parsed.terms || parsed.topics || parsed.manifest)) {
+
+        // Case A: Full Backup, Unified Backup, or Granular Export object
+        if (
+          parsed &&
+          !Array.isArray(parsed) &&
+          (parsed.format === 'umed-unified-backup-v2.3' ||
+            parsed.format === 'umed-granular-export-v1' ||
+            parsed.manifest ||
+            parsed.payload ||
+            parsed.data ||
+            parsed.terms ||
+            parsed.topics)
+        ) {
           const ok = onImportFullBackupJson(trimmed);
           if (ok) {
+            const inner = parsed.data || parsed.payload || parsed;
+            const summary = buildConciseDataSummary({
+              terms: Array.isArray(inner.terms) ? inner.terms : [],
+              sentences: Array.isArray(inner.sentences) ? inner.sentences : [],
+              topics: Array.isArray(inner.topics) ? inner.topics : [],
+              blocks: Array.isArray(inner.blocks) ? inner.blocks : [],
+              subjects: Array.isArray(inner.subjects) ? inner.subjects : [],
+              questions: Array.isArray(inner.quizQuestions || inner.questions)
+                ? inner.quizQuestions || inner.questions
+                : [],
+              sourceLabel: sourceFileName,
+              rawSizeBytes: new Blob([trimmed]).size
+            });
+            setLastDataSummary(summary);
             setOfflineFeedback({
               type: 'success',
-              message: 'تم استيراد ملف النسخة الاحتياطية الكاملة بنجاح!'
+              message: `تم استيراد البيانات أوفلاين بنجاح (${summary.shortText}).`
             });
             setRawBatchInput('');
+            return;
           }
+        }
+
+        // Case B: Standalone Topic object or Array of Topics
+        const rawArr = Array.isArray(parsed) ? parsed : [parsed];
+        const looksLikeTopics =
+          rawArr.length > 0 &&
+          rawArr.every(
+            (it: Record<string, unknown>) =>
+              it &&
+              typeof it === 'object' &&
+              (Array.isArray(it.sections) ||
+                Boolean(it.titleEn && it.titleAr) ||
+                Boolean(it.title && it.sections))
+          );
+
+        if (looksLikeTopics && onImportTopicsBatch) {
+          const importedTopics: TopicArticle[] = rawArr.map(
+            (it: Record<string, unknown>, idx: number) => ({
+              id: String(it.id || `topic-imp-${Date.now()}-${idx}`),
+              title: String(it.title || it.titleAr || it.titleEn || 'موضوع طبي مستورد'),
+              titleEn: String(it.titleEn || it.title || 'Imported Medical Topic'),
+              titleAr: String(it.titleAr || it.subtitle || it.title || 'موضوع طبي مستورد'),
+              subtitle: String(it.subtitle || it.titleAr || ''),
+              category: (it.category as TopicArticle['category']) || 'Medical',
+              blockId: typeof it.blockId === 'string' ? it.blockId : undefined,
+              subjectId: typeof it.subjectId === 'string' ? it.subjectId : undefined,
+              author: String(it.author || 'استيراد أوفلاين'),
+              publishedAt: String(it.publishedAt || 'الآن'),
+              readingTimeMinutes: Number(it.readingTimeMinutes) || 5,
+              favorite: Boolean(it.favorite),
+              sections: Array.isArray(it.sections)
+                ? (it.sections as TopicArticle['sections'])
+                : [
+                    {
+                      id: `sec-imp-${Date.now()}`,
+                      heading: 'المحتوى الرئيسي',
+                      paragraphs: [String(it.content || it.body || '')]
+                    }
+                  ],
+              images: Array.isArray(it.images) ? (it.images as TopicArticle['images']) : [],
+              links: Array.isArray(it.links) ? (it.links as TopicArticle['links']) : [],
+              attachments: Array.isArray(it.attachments)
+                ? (it.attachments as TopicArticle['attachments'])
+                : []
+            })
+          );
+
+          const count = onImportTopicsBatch(importedTopics);
+          const summary = buildConciseDataSummary({
+            terms: [],
+            sentences: [],
+            topics: importedTopics,
+            blocks: [],
+            subjects: [],
+            questions: [],
+            sourceLabel: sourceFileName,
+            rawSizeBytes: new Blob([trimmed]).size
+          });
+          setLastDataSummary(summary);
+          setOfflineFeedback({
+            type: 'success',
+            message: `تم استيراد ${count} موضوع طبي أوفلاين بنجاح.`
+          });
+          setRawBatchInput('');
           return;
         }
 
+        // Case C: Array of Terms
         const arr = Array.isArray(parsed) ? parsed : parsed.terms || [];
         if (Array.isArray(arr) && arr.length > 0) {
           const staged: StagedTermItem[] = arr
@@ -507,12 +636,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           setStagedItems(staged);
           setOfflineFeedback({
             type: 'success',
-            message: `تم استخراج ${staged.length} مصطلح من ملف JSON للمراجعة والحفظ.`
+            message: `تم استخراج ${staged.length} مصطلح جاهز للحفظ.`
           });
           return;
         }
       } catch {
-        // Fallback to line-by-line parsing
+        // Fallback to text parsing
       }
     }
 
@@ -573,12 +702,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     if (nextStaged.length === 0) {
       setOfflineFeedback({
         type: 'error',
-        message: 'لم يتم العثور على مصطلحات صالحة في النص المدخل.'
+        message: 'لم يتم العثور على سجلات صالحة في الملف أو النص.'
       });
     } else {
       setOfflineFeedback({
         type: 'success',
-        message: `تم تحليل ${nextStaged.length} مصطلح أوفلاين جاهز للحفظ في القاموس.`
+        message: `تم تحليل ${nextStaged.length} مصطلح أوفلاين جاهز للحفظ.`
       });
     }
   };
@@ -593,9 +722,17 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       setIsParsingFile(true);
       try {
         await onImportPackageFile(file);
+        const summary = buildConciseDataSummary({
+          terms,
+          sentences,
+          topics,
+          sourceLabel: file.name,
+          rawSizeBytes: file.size
+        });
+        setLastDataSummary(summary);
         setOfflineFeedback({
           type: 'success',
-          message: `تم استيراد حزمة البيانات (${file.name}) بنجاح!`
+          message: `تم استيراد حزمة البيانات (${file.name}) بنجاح.`
         });
       } catch (err) {
         setOfflineFeedback({
@@ -612,7 +749,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     try {
       const parsed = await parseUploadedFile(file);
       setRawBatchInput(parsed.extractedText);
-      parseRawTextToStaged(parsed.extractedText);
+      parseRawTextToStaged(parsed.extractedText, file.name);
     } catch (err) {
       setOfflineFeedback({
         type: 'error',
@@ -633,161 +770,141 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       stayOnCurrentTab: true
     });
 
+    setLastDataSummary(
+      buildConciseDataSummary({
+        terms: selected as unknown as DictionaryTerm[],
+        sentences: [],
+        topics: [],
+        blocks: [],
+        subjects: [],
+        questions: [],
+        sourceLabel: 'دفعة مصطلحات مستوردة أوفلاين'
+      })
+    );
+
     setStagedItems([]);
     setRawBatchInput('');
     setOfflineFeedback({
       type: 'success',
-      message: `تم حفظ ${selected.length} مصطلح في القاموس أوفلاين بنجاح!`
+      message: `تم حفظ ${selected.length} مصطلح في القاموس أوفلاين بنجاح.`
     });
   };
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="space-y-4 pb-8">
       {/* ====================================================================
-          MODE 1: LIBRARY MAIN HUB (CARDS VIEW - FAVORITES HIDDEN UNTIL CLICKED)
+          MODE 1: LIBRARY MAIN HUB (COMPACT CARDS - NO FILLER BANNER CARD)
          ==================================================================== */}
       {libraryMode === 'hub' && (
-        <>
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold mb-2">
-                  <Bookmark className="w-3.5 h-3.5" />
-                  <span>مكتبتي وإدارة المصطلحات أوفلاين</span>
-                </span>
-                <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white">
-                  مركز الحفظ الشخصي وإضافة المفاهيم الطبية
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                  انقر على بطاقة المفضلة لفتح صفحة الكلمات المفضلة، أو بطاقة الإضافة أوفلاين لإدخال واستيراد المصطلحات والمفاهيم.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={onOpenCollectionsMenu}
-                className="min-h-[42px] px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-2 transition-colors"
-              >
-                <Folder className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>المجلد النشط: {activeCollection}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* 3 Main Action Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* CARD 1: FAVORITES PAGE LAUNCHER */}
-            <button
-              type="button"
-              onClick={() => setLibraryMode('favorites')}
-              className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-5 sm:p-6 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4"
-            >
-              <div className="space-y-3 w-full">
-                <div className="flex items-center justify-between">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                    <Bookmark className="w-6 h-6 fill-current" />
-                  </div>
-                  <span className="px-3 py-1 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs font-extrabold font-mono tabular-nums">
-                    {totalFavoritesCount} محفوظ
-                  </span>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {/* CARD 1: FAVORITES PAGE LAUNCHER */}
+          <button
+            type="button"
+            onClick={() => setLibraryMode('favorites')}
+            className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-5 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4"
+          >
+            <div className="flex items-center justify-between gap-3 w-full">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                  <Bookmark className="w-5 h-5 fill-current" />
                 </div>
-
-                <div>
-                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                <div className="min-w-0">
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
                     صفحة الكلمات والمفضلة
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                    انقر هنا لفتح صفحة المفضلة الكاملة واستعراض الكلمات والجمل السريرية والمواضيع المحفوظة.
-                  </p>
-                </div>
-              </div>
-
-              <div className="w-full pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
-                <span>
-                  {terms.filter((t) => t.favorite).length} كلمة ·{' '}
-                  {sentences.filter((s) => s.favorite).length} جملة ·{' '}
-                  {topics.filter((t) => t.favorite).length} موضوع
-                </span>
-                <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold">
-                  <span>فتح المفضلة</span>
-                  <ChevronLeft className="w-4 h-4" />
-                </span>
-              </div>
-            </button>
-
-            {/* CARD 2: OFFLINE ADD & IMPORT TERMS/CONCEPTS */}
-            <button
-              type="button"
-              onClick={() => setLibraryMode('add_offline')}
-              className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-5 sm:p-6 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4"
-            >
-              <div className="space-y-3 w-full">
-                <div className="flex items-center justify-between">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                    <PlusCircle className="w-6 h-6" />
-                  </div>
-                  <span className="px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold font-mono tabular-nums">
-                    {customAddedTerms.length} مضاف محلياً
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                    المجلد: {activeCollection}
                   </span>
                 </div>
+              </div>
+              <span className="px-3 py-1 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs font-extrabold font-mono tabular-nums shrink-0">
+                {totalFavoritesCount} محفوظ
+              </span>
+            </div>
 
-                <div>
-                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                    إضافة واستيراد المصطلحات أوفلاين
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                    إضافة يدوية للمصطلحات والمفاهيم الطبية أو استيراد ملفات أوفلاين (JSON / CSV / TXT / ZIP) مباشرة للقاموس.
-                  </p>
+            <div className="w-full pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
+              <span>
+                {terms.filter((t) => t.favorite).length} كلمة ·{' '}
+                {sentences.filter((s) => s.favorite).length} جملة ·{' '}
+                {topics.filter((t) => t.favorite).length} موضوع
+              </span>
+              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold">
+                <span>فتح</span>
+                <ChevronLeft className="w-4 h-4" />
+              </span>
+            </div>
+          </button>
+
+          {/* CARD 2: OFFLINE ADD & IMPORT TERMS/TOPICS/BACKUPS */}
+          <button
+            type="button"
+            onClick={() => setLibraryMode('add_offline')}
+            className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-5 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4"
+          >
+            <div className="flex items-center justify-between gap-3 w-full">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                  <PlusCircle className="w-5 h-5" />
                 </div>
-              </div>
-
-              <div className="w-full pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
-                <span>يدوي + ملفات JSON/CSV/TXT</span>
-                <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold">
-                  <span>إضافة مصطلحات</span>
-                  <ChevronLeft className="w-4 h-4" />
-                </span>
-              </div>
-            </button>
-
-            {/* CARD 3: SM-2 SPACED REPETITION FLASHCARDS */}
-            <button
-              type="button"
-              onClick={() => setLibraryMode('flashcards')}
-              className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-5 sm:p-6 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4"
-            >
-              <div className="space-y-3 w-full">
-                <div className="flex items-center justify-between">
-                  <div className="w-12 h-12 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-600 dark:text-sky-400">
-                    <Layers className="w-6 h-6" />
-                  </div>
-                  <span className="px-3 py-1 rounded-xl bg-sky-500/10 text-sky-700 dark:text-sky-300 text-xs font-extrabold font-mono tabular-nums">
-                    {flashcardPool.length} بطاقة جاهزة
+                <div className="min-w-0">
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
+                    إضافة واستيراد أوفلاين
+                  </h3>
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                    مصطلحات · مواضيع · نسخ احتياطي
                   </span>
                 </div>
+              </div>
+              <span className="px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold font-mono tabular-nums shrink-0">
+                {customAddedTerms.length} محلي
+              </span>
+            </div>
 
-                <div>
-                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                    بطاقات الاستذكار الذكية (SM-2)
+            <div className="w-full pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
+              <span>JSON · ZIP · CSV · TXT</span>
+              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold">
+                <span>فتح</span>
+                <ChevronLeft className="w-4 h-4" />
+              </span>
+            </div>
+          </button>
+
+          {/* CARD 3: SM-2 SPACED REPETITION FLASHCARDS */}
+          <button
+            type="button"
+            onClick={() => setLibraryMode('flashcards')}
+            className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-5 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4"
+          >
+            <div className="flex items-center justify-between gap-3 w-full">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
+                    بطاقات الاستذكار (SM-2)
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                    مراجعة المصطلحات الطبية بنظام التكرار المتباعد لترسيخ النطق الصوتي والترجمة والجذور اللاتينية.
-                  </p>
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                    التكرار المتباعد للمصطلحات
+                  </span>
                 </div>
               </div>
+              <span className="px-3 py-1 rounded-xl bg-sky-500/10 text-sky-700 dark:text-sky-300 text-xs font-extrabold font-mono tabular-nums shrink-0">
+                {flashcardPool.length} بطاقة
+              </span>
+            </div>
 
-              <div className="w-full pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
-                <span>
-                  إتقان: {studyStats.gotIt} · للمراجعة: {studyStats.needsReview}
-                </span>
-                <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold">
-                  <span>بدء المراجعة</span>
-                  <ChevronLeft className="w-4 h-4" />
-                </span>
-              </div>
-            </button>
-          </div>
-        </>
+            <div className="w-full pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
+              <span>
+                إتقان: {studyStats.gotIt} · مراجعة: {studyStats.needsReview}
+              </span>
+              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold">
+                <span>مراجعة</span>
+                <ChevronLeft className="w-4 h-4" />
+              </span>
+            </div>
+          </button>
+        </div>
       )}
 
       {/* ====================================================================
@@ -795,25 +912,20 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
          ==================================================================== */}
       {libraryMode === 'favorites' && (
         <div className="space-y-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3.5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => setLibraryMode('hub')}
-                  className="min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors"
+                  className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors"
                 >
                   <ArrowRight className="w-4 h-4" />
-                  <span>العودة لمكتبتي</span>
+                  <span>رجوع</span>
                 </button>
-                <div>
-                  <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white">
-                    صفحة الكلمات والمفضلة المحفوظة
-                  </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    تصفح وابحث في جميع الكلمات والجمل والمواضيع المحفوظة في مفضلتك
-                  </p>
-                </div>
+                <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+                  الكلمات والمفضلة ({totalFavoritesCount})
+                </h2>
               </div>
 
               <button
@@ -833,17 +945,17 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 type="text"
                 value={favSearchQuery}
                 onChange={(e) => setFavSearchQuery(e.target.value)}
-                placeholder="ابحث داخل الكلمات أو الجمل أو المواضيع المفضلة..."
-                className="w-full min-h-[44px] pr-10 pl-4 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-medium focus:outline-none focus:border-emerald-500"
+                placeholder="ابحث في المفضلة..."
+                className="w-full min-h-[42px] pr-10 pl-4 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-medium focus:outline-none focus:border-emerald-500"
               />
             </div>
 
             {/* Sub-tabs inside Favorites Page */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <button
                 type="button"
                 onClick={() => setFavoritesTab('terms')}
-                className={`min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+                className={`min-h-[40px] px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
                   favoritesTab === 'terms'
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
@@ -856,7 +968,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               <button
                 type="button"
                 onClick={() => setFavoritesTab('sentences')}
-                className={`min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+                className={`min-h-[40px] px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
                   favoritesTab === 'sentences'
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
@@ -869,7 +981,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               <button
                 type="button"
                 onClick={() => setFavoritesTab('topics')}
-                className={`min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+                className={`min-h-[40px] px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
                   favoritesTab === 'topics'
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
@@ -882,7 +994,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               <button
                 type="button"
                 onClick={() => setFavoritesTab('custom')}
-                className={`min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+                className={`min-h-[40px] px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
                   favoritesTab === 'custom'
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
@@ -898,13 +1010,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           {favoritesTab === 'terms' && (
             <div className="space-y-2.5">
               {favoriteTerms.length === 0 ? (
-                <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 text-center border border-slate-200/80 dark:border-slate-800 space-y-3">
-                  <Bookmark className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto" />
-                  <h3 className="text-base font-bold text-slate-700 dark:text-slate-200">
-                    لا توجد كلمات مفضلة حالياً
-                  </h3>
-                  <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-                    يمكنك إضافة الكلمات إلى المفضلة من صفحة القاموس أو عبر النقر مرتين على أي كلمة داخل صفحة المواضيع.
+                <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 text-center border border-slate-200/80 dark:border-slate-800">
+                  <p className="text-xs font-bold text-slate-500">
+                    لا توجد كلمات مفضلة حالياً.
                   </p>
                 </div>
               ) : (
@@ -1073,7 +1181,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     className="min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-extrabold inline-flex items-center gap-1.5"
                   >
                     <PlusCircle className="w-4 h-4" />
-                    <span>إضافة مصطلح أوفلاين الآن</span>
+                    <span>إضافة مصطلح أوفلاين</span>
                   </button>
                 </div>
               ) : (
@@ -1109,62 +1217,57 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       )}
 
       {/* ====================================================================
-          MODE 3: OFFLINE ADD & FILE IMPORT (REPLACES OLD DATA/INGEST PAGE)
+          MODE 3: OFFLINE ADD & FILE IMPORT (TERMS, TOPICS & BACKUPS)
          ==================================================================== */}
       {libraryMode === 'add_offline' && (
         <div className="space-y-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => setLibraryMode('hub')}
-                  className="min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5"
+                  className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5"
                 >
                   <ArrowRight className="w-4 h-4" />
-                  <span>العودة لمكتبتي</span>
+                  <span>رجوع</span>
                 </button>
-                <div>
-                  <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white">
-                    إضافة المصطلحات والمفاهيم الطبية أوفلاين
-                  </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    أضف مصطلحاتك ومفاهيمك يدوياً أو استورد ملفاتك (JSON / CSV / TXT / ZIP) مباشرة بدون إنترنت
-                  </p>
-                </div>
+                <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+                  إضافة واستيراد البيانات أوفلاين
+                </h2>
               </div>
 
               <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
                 <button
                   type="button"
                   onClick={() => setOfflineAddTab('manual')}
-                  className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all ${
+                  className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all ${
                     offlineAddTab === 'manual'
                       ? 'bg-emerald-600 text-white shadow-2xs'
                       : 'text-slate-600 dark:text-slate-300'
                   }`}
                 >
                   <PlusCircle className="w-3.5 h-3.5" />
-                  <span>إضافة يدوية</span>
+                  <span>إضافة مصطلح</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setOfflineAddTab('file_batch')}
-                  className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all ${
+                  className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all ${
                     offlineAddTab === 'file_batch'
                       ? 'bg-emerald-600 text-white shadow-2xs'
                       : 'text-slate-600 dark:text-slate-300'
                   }`}
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  <span>استيراد ملفات (JSON/CSV/TXT)</span>
+                  <span>استيراد ملفات ونسخ</span>
                 </button>
               </div>
             </div>
 
             {offlineFeedback && (
               <div
-                className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 text-xs font-bold ${
+                className={`p-3 rounded-2xl border flex items-center justify-between gap-3 text-xs font-bold ${
                   offlineFeedback.type === 'success'
                     ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
                     : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
@@ -1188,14 +1291,70 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               </div>
             )}
 
+            {/* CONCISE DATA SUMMARY CARD (تعريف مختصر بالبيانات المنسوخة أو المستوردة) */}
+            {lastDataSummary && (
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-emerald-500/40 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-extrabold text-emerald-700 dark:text-emerald-400">
+                    تعريف البيانات ({lastDataSummary.sourceLabel})
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-400">
+                    {lastDataSummary.sizeKB} KB ·{' '}
+                    {new Date(lastDataSummary.timestamp).toLocaleTimeString('ar-SA', {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
+                  <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
+                    <div className="text-xs font-extrabold font-mono text-slate-900 dark:text-white">
+                      {lastDataSummary.termsCount}
+                    </div>
+                    <div className="text-[10px] text-slate-500">مصطلح</div>
+                  </div>
+                  <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
+                    <div className="text-xs font-extrabold font-mono text-slate-900 dark:text-white">
+                      {lastDataSummary.topicsCount}
+                    </div>
+                    <div className="text-[10px] text-slate-500">موضوع</div>
+                  </div>
+                  <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
+                    <div className="text-xs font-extrabold font-mono text-slate-900 dark:text-white">
+                      {lastDataSummary.blocksCount}
+                    </div>
+                    <div className="text-[10px] text-slate-500">بلوك</div>
+                  </div>
+                  <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
+                    <div className="text-xs font-extrabold font-mono text-slate-900 dark:text-white">
+                      {lastDataSummary.subjectsCount}
+                    </div>
+                    <div className="text-[10px] text-slate-500">مادة</div>
+                  </div>
+                  <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
+                    <div className="text-xs font-extrabold font-mono text-slate-900 dark:text-white">
+                      {lastDataSummary.sentencesCount}
+                    </div>
+                    <div className="text-[10px] text-slate-500">جملة</div>
+                  </div>
+                  <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
+                    <div className="text-xs font-extrabold font-mono text-slate-900 dark:text-white">
+                      {lastDataSummary.favoritesCount}
+                    </div>
+                    <div className="text-[10px] text-slate-500">مفضلة</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* SUB-TAB 1: MANUAL OFFLINE ENTRY */}
             {offlineAddTab === 'manual' && (
-              <form onSubmit={handleSaveManualEntry} className="space-y-4 pt-1">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div className="space-y-1.5">
+              <form onSubmit={handleSaveManualEntry} className="space-y-3.5 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
                     <div className="flex items-center justify-between gap-2">
                       <label className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
-                        المصطلح أو المفهوم بالإنجليزية *
+                        المصطلح بالإنجليزية *
                       </label>
                       <button
                         type="button"
@@ -1203,7 +1362,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                         className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1 hover:underline"
                       >
                         <Wand2 className="w-3.5 h-3.5" />
-                        <span>تحليل الجذور والترجمة تلقائياً أوفلاين</span>
+                        <span>ترجمة تلقائية</span>
                       </button>
                     </div>
                     <input
@@ -1213,34 +1372,34 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       value={manualTerm}
                       onChange={(e) => setManualTerm(e.target.value)}
                       placeholder="e.g., Cardiomyopathy"
-                      className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-mono font-bold text-left focus:outline-none focus:border-emerald-500"
+                      className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-mono font-bold text-left focus:outline-none focus:border-emerald-500"
                     />
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <label className="text-xs font-extrabold text-slate-700 dark:text-slate-200 block">
-                      الترجمة الطبية بالعربية *
+                      الترجمة بالعربية *
                     </label>
                     <input
                       type="text"
                       required
                       value={manualTranslation}
                       onChange={(e) => setManualTranslation(e.target.value)}
-                      placeholder="مثال: اعتلال عضلة القلب"
-                      className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-bold focus:outline-none focus:border-emerald-500"
+                      placeholder="اعتلال عضلة القلب"
+                      className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-bold focus:outline-none focus:border-emerald-500"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                  <div className="space-y-1.5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                      التخصص المعجمي
+                      التخصص
                     </label>
                     <select
                       value={manualCategory}
                       onChange={(e) => setManualCategory(e.target.value as LexiconCategory)}
-                      className="w-full min-h-[44px] px-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                      className="w-full min-h-[42px] px-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                     >
                       {CATEGORY_OPTIONS.map((cat) => (
                         <option key={cat.value} value={cat.value}>
@@ -1250,14 +1409,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     </select>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
                       النوع اللغوي
                     </label>
                     <select
                       value={manualPos}
                       onChange={(e) => setManualPos(e.target.value)}
-                      className="w-full min-h-[44px] px-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                      className="w-full min-h-[42px] px-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                     >
                       {POS_OPTIONS.map((p) => (
                         <option key={p.value} value={p.value}>
@@ -1267,76 +1426,49 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     </select>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                      النطق الصوتي / المجلد
+                      المجلد
                     </label>
                     <input
                       type="text"
                       value={manualCollection}
                       onChange={(e) => setManualCollection(e.target.value)}
-                      placeholder="مثال: طوارئ القلب"
-                      className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                      placeholder="طوارئ القلب"
+                      className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                      الشرح والتعريف العلمي بالعربية
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={manualDefAr}
-                      onChange={(e) => setManualDefAr(e.target.value)}
-                      placeholder="اكتب تعريف المفهوم الطبي أو ملاحظاتك الدراسية بالعربية..."
-                      className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                      التعريف بالإنجليزية (اختياري)
-                    </label>
-                    <textarea
-                      rows={3}
-                      dir="ltr"
-                      value={manualDefEn}
-                      onChange={(e) => setManualDefEn(e.target.value)}
-                      placeholder="English clinical definition or study notes..."
-                      className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed text-left"
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                    التعريف العلمي بالعربية
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={manualDefAr}
+                    onChange={(e) => setManualDefAr(e.target.value)}
+                    placeholder="تعريف مختصر للمفهوم الطبي..."
+                    className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed"
+                  />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                      جملة سياقية بالإنجليزية (اختياري)
-                    </label>
-                    <input
-                      type="text"
-                      dir="ltr"
-                      value={manualSentenceEn}
-                      onChange={(e) => setManualSentenceEn(e.target.value)}
-                      placeholder="The patient was diagnosed with hypertrophic cardiomyopathy."
-                      className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-left"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                      ترجمة الجملة السياقية (اختياري)
-                    </label>
-                    <input
-                      type="text"
-                      value={manualSentenceAr}
-                      onChange={(e) => setManualSentenceAr(e.target.value)}
-                      placeholder="شُخِّص المريض باعتلال عضلة القلب الضخامي."
-                      className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
-                    />
-                  </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={manualSentenceEn}
+                    onChange={(e) => setManualSentenceEn(e.target.value)}
+                    placeholder="Example sentence (optional)..."
+                    className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-left"
+                  />
+                  <input
+                    type="text"
+                    value={manualSentenceAr}
+                    onChange={(e) => setManualSentenceAr(e.target.value)}
+                    placeholder="ترجمة الجملة (اختياري)..."
+                    className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                  />
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -1347,23 +1479,23 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       onChange={(e) => setAddAlsoToFavorites(e.target.checked)}
                       className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
                     />
-                    <span>إضافة تلقائياً إلى صفحة المفضلة أيضاً</span>
+                    <span>إضافة للمفضلة</span>
                   </label>
 
                   <button
                     type="submit"
-                    className="min-h-[46px] px-6 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-extrabold flex items-center gap-2 shadow-xs transition-all"
+                    className="min-h-[42px] px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-xs transition-all"
                   >
                     <Check className="w-4 h-4" />
-                    <span>حفظ المصطلح أوفلاين في القاموس</span>
+                    <span>حفظ المصطلح أوفلاين</span>
                   </button>
                 </div>
               </form>
             )}
 
-            {/* SUB-TAB 2: OFFLINE FILE & BATCH IMPORT */}
+            {/* SUB-TAB 2: OFFLINE FILE & BATCH IMPORT + QUICK BACKUP */}
             {offlineAddTab === 'file_batch' && (
-              <div className="space-y-4 pt-1">
+              <div className="space-y-3.5 pt-1">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <input
                     ref={fileInputRef}
@@ -1377,52 +1509,60 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     type="button"
                     disabled={isParsingFile}
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-4 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/30 text-right flex items-center gap-3.5 transition-all"
+                    className="p-3.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/30 text-right flex items-center gap-3 transition-all"
                   >
-                    <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
                       <FileSpreadsheet className="w-5 h-5" />
                     </div>
-                    <div>
-                      <h4 className="text-xs sm:text-sm font-extrabold text-emerald-900 dark:text-emerald-200">
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-extrabold text-emerald-900 dark:text-emerald-200">
                         {isParsingFile
                           ? 'جاري قراءة وتحليل الملف...'
-                          : 'استيراد ملف أوفلاين (JSON / CSV / TXT / ZIP)'}
+                          : 'استيراد ملف أوفلاين (JSON / ZIP / CSV / TXT)'}
                       </h4>
-                      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
-                        يدعم ملفات القوائم الطبية وملفات النسخ الاحتياطي وحزم البيانات المضغوطة
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 truncate">
+                        مصطلحات · مواضيع · بلوكات · نسخ احتياطية كاملة
                       </p>
                     </div>
                   </button>
 
-                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center gap-3">
-                    <Archive className="w-5 h-5 text-slate-400 shrink-0" />
-                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                      أو الصق قائمة مصطلحات مباشرة في الصندوق أدناه بصيغة:{' '}
-                      <span dir="ltr" className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                        Term - الترجمة - التعريف
-                      </span>
-                    </p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={handleQuickExportOfflineBackup}
+                    className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 hover:border-emerald-500/50 border border-slate-200 dark:border-slate-800 text-right flex items-center gap-3 transition-all"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-slate-900 dark:bg-slate-800 text-emerald-400 flex items-center justify-center shrink-0">
+                      <Download className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-extrabold text-slate-900 dark:text-white">
+                        حفظ نسخة احتياطية شاملة أوفلاين
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                        {terms.length} مصطلح · {topics.length} موضوع · جميع المفضلة
+                      </p>
+                    </div>
+                  </button>
                 </div>
 
                 <div className="space-y-2">
                   <textarea
-                    rows={6}
+                    rows={4}
                     dir="auto"
                     value={rawBatchInput}
                     onChange={(e) => setRawBatchInput(e.target.value)}
-                    placeholder={`مثال للصق السريع:\nBradycardia - بطء القلب - انخفاض معدل ضربات القلب عن 60 نبضة في الدقيقة\nHepatomegaly - تضخم الكبد - زيادة غير طبيعية في حجم الكبد`}
-                    className="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono leading-relaxed"
+                    placeholder={`الصق قائمة مصطلحات (Term - الترجمة - التعريف) أو كود JSON لمصطلحات أو مواضيع أو نسخة احتياطية...`}
+                    className="w-full p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono leading-relaxed"
                   />
 
                   <div className="flex justify-end">
                     <button
                       type="button"
-                      onClick={() => parseRawTextToStaged(rawBatchInput)}
-                      className="min-h-[44px] px-5 py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-extrabold flex items-center gap-2"
+                      onClick={() => parseRawTextToStaged(rawBatchInput, 'نص ملصق أوفلاين')}
+                      className="min-h-[40px] px-4 py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-extrabold flex items-center gap-1.5"
                     >
-                      <Wand2 className="w-4 h-4" />
-                      <span>تحليل ومعاينة الدفعة أوفلاين</span>
+                      <Wand2 className="w-3.5 h-3.5" />
+                      <span>تحليل واستيراد أوفلاين</span>
                     </button>
                   </div>
                 </div>
@@ -1431,13 +1571,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
-                        معاينة المصطلحات المستخرجة ({stagedItems.filter((i) => i.selected !== false).length} محدد):
+                        المصطلحات الجاهزة للحفظ ({stagedItems.filter((i) => i.selected !== false).length}):
                       </span>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => setStagedItems([])}
-                          className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 inline-flex items-center gap-1"
+                          className="min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 inline-flex items-center gap-1"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                           <span>مسح</span>
@@ -1445,17 +1585,17 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                         <button
                           type="button"
                           onClick={handleCommitStagedBatch}
-                          className="min-h-[40px] px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-extrabold inline-flex items-center gap-1.5"
+                          className="min-h-[38px] px-4 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-extrabold inline-flex items-center gap-1.5"
                         >
                           <Check className="w-4 h-4" />
                           <span>
-                            حفظ الكل في القاموس ({stagedItems.filter((i) => i.selected !== false).length})
+                            حفظ الكل ({stagedItems.filter((i) => i.selected !== false).length})
                           </span>
                         </button>
                       </div>
                     </div>
 
-                    <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                    <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
                       {stagedItems.map((item, idx) => (
                         <div
                           key={item.id}
@@ -1488,7 +1628,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                 </span>
                                 {item.isDuplicate && (
                                   <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 text-[10px] font-bold">
-                                    موجود مسبقاً (سيتم التحديث)
+                                    تحديث موجود
                                   </span>
                                 )}
                               </div>
@@ -1517,18 +1657,17 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             <button
               type="button"
               onClick={() => setLibraryMode('hub')}
-              className="min-h-[40px] px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5"
+              className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5"
             >
               <ArrowRight className="w-4 h-4" />
-              <span>العودة لمكتبتي</span>
+              <span>رجوع</span>
             </button>
             <div className="text-left">
               <span className="text-xs font-extrabold text-slate-900 dark:text-white block">
-                بطاقات الاستذكار المتباعد (SM-2)
+                بطاقات الاستذكار (SM-2)
               </span>
               <span className="text-[11px] font-mono text-slate-500">
-                البطاقة {(currentCardIdx % Math.max(1, flashcardPool.length)) + 1} من{' '}
-                {flashcardPool.length}
+                {(currentCardIdx % Math.max(1, flashcardPool.length)) + 1} / {flashcardPool.length}
               </span>
             </div>
           </div>
@@ -1537,11 +1676,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             <>
               <div
                 onClick={() => setIsFlipped(!isFlipped)}
-                className="bg-white dark:bg-slate-900 rounded-3xl p-7 sm:p-10 border-2 border-slate-200/90 dark:border-slate-800 shadow-lg min-h-[280px] flex flex-col items-center justify-center text-center cursor-pointer select-none transition-all hover:border-emerald-500/40 relative overflow-hidden"
+                className="bg-white dark:bg-slate-900 rounded-3xl p-7 sm:p-10 border-2 border-slate-200/90 dark:border-slate-800 shadow-lg min-h-[260px] flex flex-col items-center justify-center text-center cursor-pointer select-none transition-all hover:border-emerald-500/40 relative overflow-hidden"
               >
                 <div className="absolute top-4 left-4 right-4 flex items-center justify-between text-xs text-slate-400">
                   <span className="font-mono">{currentFlashcard.category}</span>
-                  <span>{isFlipped ? 'الوجه الخلفي (الإجابة)' : 'انقر لقلب البطاقة'}</span>
+                  <span>{isFlipped ? 'الإجابة' : 'انقر للقلب'}</span>
                 </div>
 
                 {!isFlipped ? (
@@ -1564,7 +1703,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:text-emerald-600"
                     >
                       <Volume2 className="w-3.5 h-3.5" />
-                      <span>استمع للنطق</span>
+                      <span>نطق</span>
                     </button>
                   </div>
                 ) : (
@@ -1580,7 +1719,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
                 <div className="absolute bottom-4 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-bold">
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>اضغط لقلب البطاقة</span>
+                  <span>قلب البطاقة</span>
                 </div>
               </div>
 
@@ -1588,7 +1727,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleFlashcardDecision(false)}
-                  className="min-h-[48px] py-3 px-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 font-bold text-sm flex items-center justify-center gap-2 hover:bg-rose-100 transition-colors"
+                  className="min-h-[46px] py-2.5 px-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 hover:bg-rose-100 transition-colors"
                 >
                   <X className="w-4 h-4" />
                   <span>أحتاج لمراجعتها</span>
@@ -1596,7 +1735,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleFlashcardDecision(true)}
-                  className="min-h-[48px] py-3 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-colors"
+                  className="min-h-[46px] py-2.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition-colors"
                 >
                   <Check className="w-4 h-4" />
                   <span>أتقنتها</span>

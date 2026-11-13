@@ -249,22 +249,35 @@ function inferBlockAndSubjectForTopic(topic: TopicArticle): {
   blockId: string;
   subjectId: string;
 } {
-  if (topic.blockId && topic.subjectId) {
-    return { blockId: topic.blockId, subjectId: topic.subjectId };
+  const activeBlockIds = new Set(loadMedicalBlocks().map((b) => b.id));
+
+  if (topic.blockId !== undefined && topic.subjectId !== undefined) {
+    return {
+      blockId: activeBlockIds.has(topic.blockId) ? topic.blockId : '',
+      subjectId: topic.subjectId
+    };
   }
   const idLower = topic.id.toLowerCase();
   const titleCombined = `${topic.title} ${topic.subtitle || ''} ${topic.author || ''}`.toLowerCase();
 
+  let inferredBlock = 'block-informatics';
+  let inferredSubj = 'subj-medical-ai';
+
   if (idLower.startsWith('topic-heme') || titleCombined.includes('hematology') || titleCombined.includes('anemia') || titleCombined.includes('leukemia')) {
-    return { blockId: 'block-hematology', subjectId: 'subj-hematology' };
+    inferredBlock = 'block-hematology';
+    inferredSubj = 'subj-hematology';
+  } else if (idLower.startsWith('pt-parasito') || titleCombined.includes('parasitol') || titleCombined.includes('helminth') || titleCombined.includes('nematode') || titleCombined.includes('cestode') || titleCombined.includes('trematode')) {
+    inferredBlock = 'block-infectious';
+    inferredSubj = 'subj-parasitology';
+  } else if (topic.category === 'Medical') {
+    inferredBlock = 'block-clinical-medicine';
+    inferredSubj = 'subj-cardiology';
   }
-  if (idLower.startsWith('pt-parasito') || titleCombined.includes('parasitol') || titleCombined.includes('helminth') || titleCombined.includes('nematode') || titleCombined.includes('cestode') || titleCombined.includes('trematode')) {
-    return { blockId: 'block-infectious', subjectId: 'subj-parasitology' };
-  }
-  if (topic.category === 'Medical') {
-    return { blockId: 'block-clinical-medicine', subjectId: 'subj-cardiology' };
-  }
-  return { blockId: 'block-informatics', subjectId: 'subj-medical-ai' };
+
+  return {
+    blockId: activeBlockIds.has(inferredBlock) ? inferredBlock : (topic.blockId || ''),
+    subjectId: topic.subjectId || inferredSubj
+  };
 }
 
 function splitBilingualHeading(rawHeading?: string): { headingEn: string; headingAr: string } {
@@ -638,14 +651,12 @@ export function loadMedicalBlocks(): MedicalBlock[] {
       return [...INITIAL_MEDICAL_BLOCKS];
     }
     const raw = window.localStorage.getItem(LEARNING_STORAGE_KEYS.BLOCKS);
-    if (!raw) return [...INITIAL_MEDICAL_BLOCKS];
+    if (raw === null) return [...INITIAL_MEDICAL_BLOCKS];
     const parsed = JSON.parse(raw) as MedicalBlock[];
-    if (!Array.isArray(parsed) || parsed.length === 0) {
+    if (!Array.isArray(parsed)) {
       return [...INITIAL_MEDICAL_BLOCKS];
     }
-    const existingIds = new Set(parsed.map((b) => b.id));
-    const missingSeeds = INITIAL_MEDICAL_BLOCKS.filter((b) => !existingIds.has(b.id));
-    return [...parsed, ...missingSeeds].sort((a, b) => a.order - b.order);
+    return [...parsed].sort((a, b) => a.order - b.order);
   } catch {
     return [...INITIAL_MEDICAL_BLOCKS];
   }
@@ -667,14 +678,12 @@ export function loadMedicalSubjects(): MedicalSubject[] {
       return [...INITIAL_MEDICAL_SUBJECTS];
     }
     const raw = window.localStorage.getItem(LEARNING_STORAGE_KEYS.SUBJECTS);
-    if (!raw) return [...INITIAL_MEDICAL_SUBJECTS];
+    if (raw === null) return [...INITIAL_MEDICAL_SUBJECTS];
     const parsed = JSON.parse(raw) as MedicalSubject[];
-    if (!Array.isArray(parsed) || parsed.length === 0) {
+    if (!Array.isArray(parsed)) {
       return [...INITIAL_MEDICAL_SUBJECTS];
     }
-    const existingIds = new Set(parsed.map((s) => s.id));
-    const missingSeeds = INITIAL_MEDICAL_SUBJECTS.filter((s) => !existingIds.has(s.id));
-    return [...parsed, ...missingSeeds].sort((a, b) => a.order - b.order);
+    return [...parsed].sort((a, b) => a.order - b.order);
   } catch {
     return [...INITIAL_MEDICAL_SUBJECTS];
   }
