@@ -46,24 +46,44 @@ export function usePWAInstall() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    // Register Service Worker safely in browser environments (skip inside native Capacitor APK where assets are bundled locally)
-    if (!isNative && 'serviceWorker' in navigator) {
-      import('virtual:pwa-register')
-        .then(({ registerSW }) => {
-          const updateSW = registerSW({
-            immediate: true,
-            onNeedRefresh() {
-              setSwNeedRefresh(true);
-            },
-            onOfflineReady() {
-              setSwOfflineReady(true);
+    // In AI Studio preview domains (*.run.app / localhost), unregister any active Service Workers
+    // so the browser does not keep downloading precache bundles in the background after leaving the tab.
+    const hostname = window.location.hostname;
+    const isAiStudioPreview =
+      hostname.endsWith('.run.app') ||
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1';
+
+    if ('serviceWorker' in navigator) {
+      if (isNative || isAiStudioPreview) {
+        navigator.serviceWorker
+          .getRegistrations()
+          .then((registrations) => {
+            for (const reg of registrations) {
+              void reg.unregister();
             }
+          })
+          .catch(() => {
+            // ignore
           });
-          updateSwFnRef.current = updateSW;
-        })
-        .catch(() => {
-          // Service worker registration skipped in non-PWA dev mode
-        });
+      } else {
+        import('virtual:pwa-register')
+          .then(({ registerSW }) => {
+            const updateSW = registerSW({
+              immediate: false,
+              onNeedRefresh() {
+                setSwNeedRefresh(true);
+              },
+              onOfflineReady() {
+                setSwOfflineReady(true);
+              }
+            });
+            updateSwFnRef.current = updateSW;
+          })
+          .catch(() => {
+            // Service worker registration skipped in non-PWA dev mode
+          });
+      }
     }
 
     return () => {

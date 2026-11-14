@@ -868,17 +868,52 @@ async function main() {
     '[PASS] 13. UMED Medical Package (.umedpack), Universal File Import Engine, Zero-Local-LLM Guard & Rollback Verified'
   );
 
-  // 14. Verify Local Storage Persistence, Download Helper Integrity & Block Title Sanitization
+  // 14. Verify Download/UMEDT System, Native Android Bridge, Storage Persistence & Full Arabic Block/Subject Titles
+  const mainActivityPath = path.join(
+    ROOT_DIR,
+    'android',
+    'app',
+    'src',
+    'main',
+    'java',
+    'org',
+    'umed2',
+    'dictengine',
+    'MainActivity.java'
+  );
+  assertCondition(fs.existsSync(mainActivityPath), 'MainActivity.java must exist');
+  const mainActivityJava = fs.readFileSync(mainActivityPath, 'utf8');
+  assertCondition(
+    mainActivityJava.includes('UMEDNativeDownloader') &&
+      mainActivityJava.includes('saveBase64FileToDownloads') &&
+      mainActivityJava.includes('openDownloadedFile') &&
+      mainActivityJava.includes('shareDownloadedFile') &&
+      mainActivityJava.includes('Download/UMEDT'),
+    'MainActivity.java must implement UMEDNativeDownloader saving to Download/UMEDT with Open & Share methods'
+  );
+
+  const emptyDownloadAttempt = await prepareAndDownloadFile({
+    content: '',
+    filename: 'empty.json',
+    mime: 'application/json'
+  });
+  assertCondition(
+    emptyDownloadAttempt.verified === false,
+    'Empty file download must return verified === false so no false success message is shown'
+  );
+
   const jsonDownloadRecord = await prepareAndDownloadFile({
     content: exportedJson,
     filename: 'umed2-test-backup.json',
     mime: 'application/json'
   });
   assertCondition(
-    jsonDownloadRecord.filename === 'umed2-test-backup.json' &&
+    jsonDownloadRecord.verified === true &&
+      jsonDownloadRecord.savedPath === 'Download/UMEDT/umed2-test-backup.json' &&
+      jsonDownloadRecord.filename === 'umed2-test-backup.json' &&
       jsonDownloadRecord.sizeBytes > 1000 &&
       jsonDownloadRecord.sizeKB > 1,
-    'prepareAndDownloadFile must accurately compute byte and KB size for JSON backup'
+    'prepareAndDownloadFile must verify and record Download/UMEDT/umed2-test-backup.json'
   );
 
   const zipDownloadRecord = await prepareAndDownloadFile({
@@ -887,10 +922,12 @@ async function main() {
     mime: 'application/zip'
   });
   assertCondition(
-    zipDownloadRecord.filename === 'umed2-test-package.zip' &&
+    zipDownloadRecord.verified === true &&
+      zipDownloadRecord.savedPath === 'Download/UMEDT/umed2-test-package.zip' &&
+      zipDownloadRecord.filename === 'umed2-test-package.zip' &&
       zipDownloadRecord.sizeBytes === exportedZipBytes.byteLength &&
       zipDownloadRecord.sizeKB > 1,
-    'prepareAndDownloadFile must accurately compute byte and KB size for binary ZIP package'
+    'prepareAndDownloadFile must verify and record Download/UMEDT/umed2-test-package.zip'
   );
 
   const storageCheck = verifyLocalStoragePersistence();
@@ -910,6 +947,18 @@ async function main() {
       descriptionEn: '',
       descriptionAr: '',
       colorAccent: 'rose',
+      order: 98,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    },
+    {
+      id: 'block-test-full-ar',
+      code: 'BLK-NEURO',
+      titleEn: 'Neurology & Neurosurgery Block',
+      titleAr: 'بلوك طب وجراحة الأعصاب والعمود الفقري المتقدم',
+      descriptionEn: '',
+      descriptionAr: '',
+      colorAccent: 'emerald',
       order: 99,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -917,16 +966,21 @@ async function main() {
   ]);
   const sanitizedBlocks = loadMedicalBlocks();
   const bldBlock = sanitizedBlocks.find((b) => b.id === 'block-test-dot');
+  const neuroBlock = sanitizedBlocks.find((b) => b.id === 'block-test-full-ar');
   assertCondition(
-    Boolean(bldBlock && bldBlock.titleAr !== '.' && bldBlock.titleAr === 'أمراض الدم'),
-    `Expected block with lone dot '.' in titleAr to be sanitized to 'أمراض الدم', got '${bldBlock?.titleAr}'`
+    Boolean(
+      bldBlock &&
+        bldBlock.titleAr === 'بلوك أمراض الدم والجهاز اللمفاوي' &&
+        neuroBlock &&
+        neuroBlock.titleAr === 'بلوك طب وجراحة الأعصاب والعمود الفقري المتقدم'
+    ),
+    `Expected full Arabic titles to be restored and preserved without truncation, got '${bldBlock?.titleAr}' and '${neuroBlock?.titleAr}'`
   );
   saveMedicalBlocks(initialBlocksSnapshot);
-  // Restore last download record state
   void getLastLocalDownloadRecord();
 
   console.log(
-    `[PASS] 14. Local Download & Storage Integrity Verified (JSON: ${jsonDownloadRecord.sizeKB} KB, ZIP: ${zipDownloadRecord.sizeKB} KB) & Hierarchy Title Sanitization`
+    `[PASS] 14. Download/UMEDT Native Bridge, File Verification (JSON: ${jsonDownloadRecord.sizeKB} KB, ZIP: ${zipDownloadRecord.sizeKB} KB) & Full Arabic Block/Subject Names Verified`
   );
   console.log('================================================================');
   console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (14/14 — 100%)');

@@ -645,16 +645,57 @@ export function enrichAllTopicsWithHierarchy(topics: TopicArticle[]): TopicArtic
   return topics.map((t) => enrichTopicWithHierarchyAndContentBlocks(t, topics));
 }
 
-function sanitizeEntityTitleAr(titleAr: string | undefined, titleEn: string | undefined, code: string | undefined): string {
-  const cleaned = (titleAr || '').replace(/^[.\-_\s،,;:]+|[.\-_\s،,;:]+$/g, '').trim();
+function sanitizeEntityTitleAr(
+  titleAr: string | undefined,
+  titleEn: string | undefined,
+  code: string | undefined,
+  entityId?: string
+): string {
+  const cleaned = (titleAr || '')
+    .replace(/^[.\-_\s،,;:]+|[.\-_\s،,;:]+$/g, '')
+    .trim();
+
+  // Check if this matches a built-in block or subject whose titleAr was accidentally shortened
+  if (entityId) {
+    const builtInBlock = INITIAL_MEDICAL_BLOCKS.find((b) => b.id === entityId);
+    if (builtInBlock && (!cleaned || cleaned.length <= 10)) {
+      return builtInBlock.titleAr;
+    }
+    const builtInSubj = INITIAL_MEDICAL_SUBJECTS.find((s) => s.id === entityId);
+    if (builtInSubj && (!cleaned || cleaned.length <= 10)) {
+      return builtInSubj.titleAr;
+    }
+  }
+
+  // Repair common incomplete Arabic titles that were previously cut off
+  if (cleaned === 'القلب والاوعيه' || cleaned === 'القلب والأوعية') {
+    return 'بلوك القلب والأوعية الدموية';
+  }
+  if (cleaned === 'وضائف الاعضاء' || cleaned === 'وظائف الاعضاء') {
+    return 'علم وظائف الأعضاء وأمراض الدم';
+  }
+  if (cleaned === 'طفيليات') {
+    return 'بلوك الأمراض المعدية والأحياء الدقيقة والطفيليات';
+  }
+  if (cleaned === 'الطفيليات') {
+    return 'علم الطفيليات الطبية التشخيصي والعملي';
+  }
+
   if (cleaned && /[\p{L}\p{N}]/u.test(cleaned)) {
     return cleaned;
   }
+
   const upperCode = (code || '').toUpperCase();
   if (upperCode === 'BLD' || upperCode.includes('HEME')) {
-    return 'أمراض الدم';
+    return 'بلوك أمراض الدم والجهاز اللمفاوي';
   }
-  return (titleEn || code || 'عام').trim();
+  if (upperCode.includes('CVS') || upperCode.includes('CARD')) {
+    return 'بلوك القلب والأوعية الدموية';
+  }
+  if (upperCode.includes('PARA') || upperCode.includes('INF')) {
+    return 'بلوك الأمراض المعدية والأحياء الدقيقة والطفيليات';
+  }
+  return (titleEn || code || 'مقرر طبي عام').trim();
 }
 
 const hierarchyMemoryStore = new Map<string, string>();
@@ -663,14 +704,14 @@ function getHierarchyStorage() {
   if (typeof window !== 'undefined' && window.localStorage) {
     return {
       getItem: (k: string) => window.localStorage.getItem(k),
-      setItem: (k: string, v: string) => window.localStorage.setItem(k, v),
+      setItem: (k: string, v: string) => window.localStorage.setItem(k, v)
     };
   }
   return {
     getItem: (k: string) => hierarchyMemoryStore.get(k) ?? null,
     setItem: (k: string, v: string) => {
       hierarchyMemoryStore.set(k, v);
-    },
+    }
   };
 }
 
@@ -685,7 +726,7 @@ export function loadMedicalBlocks(): MedicalBlock[] {
     return parsed
       .map((b) => ({
         ...b,
-        titleAr: sanitizeEntityTitleAr(b.titleAr, b.titleEn, b.code),
+        titleAr: sanitizeEntityTitleAr(b.titleAr, b.titleEn, b.code, b.id)
       }))
       .sort((a, b) => a.order - b.order);
   } catch {
@@ -695,7 +736,14 @@ export function loadMedicalBlocks(): MedicalBlock[] {
 
 export function saveMedicalBlocks(blocks: MedicalBlock[]): void {
   try {
-    getHierarchyStorage().setItem(LEARNING_STORAGE_KEYS.BLOCKS, JSON.stringify(blocks));
+    const normalized = blocks.map((b) => ({
+      ...b,
+      titleAr: sanitizeEntityTitleAr(b.titleAr, b.titleEn, b.code, b.id)
+    }));
+    getHierarchyStorage().setItem(
+      LEARNING_STORAGE_KEYS.BLOCKS,
+      JSON.stringify(normalized)
+    );
   } catch {
     // ignore storage quota errors
   }
@@ -712,7 +760,7 @@ export function loadMedicalSubjects(): MedicalSubject[] {
     return parsed
       .map((s) => ({
         ...s,
-        titleAr: sanitizeEntityTitleAr(s.titleAr, s.titleEn, s.code),
+        titleAr: sanitizeEntityTitleAr(s.titleAr, s.titleEn, s.code, s.id)
       }))
       .sort((a, b) => a.order - b.order);
   } catch {

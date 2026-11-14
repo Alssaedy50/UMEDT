@@ -717,6 +717,7 @@ export default function App() {
       void checkScheduledBackup();
     }, 4000);
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       void checkScheduledBackup();
     }, 5 * 60 * 1000);
     return () => {
@@ -1749,7 +1750,12 @@ export default function App() {
       content,
       mime
     });
-    showToast(`تم تنزيل وحفظ الملف محلياً: ${res.filename} (${res.sizeKB} KB)`);
+    if (res.verified) {
+      showToast(`تم حفظ الملف بنجاح في ${res.savedPath} (${res.sizeKB} KB)`);
+    } else {
+      showToast(res.error || 'تعذر التحقق من حفظ الملف', 'info');
+    }
+    return res;
   };
 
   const handleExportFullBackup = () => {
@@ -1765,9 +1771,12 @@ export default function App() {
       `UMEDT-Backup-${new Date().toISOString().slice(0, 10)}.json`,
       jsonString,
       'application/json;charset=utf-8'
-    );
-    setLastImportedOrCopiedSummary(summary);
-    setLastBackupTime('الآن');
+    ).then((res) => {
+      if (res.verified) {
+        setLastImportedOrCopiedSummary(summary);
+        setLastBackupTime(`الآن (${res.savedPath})`);
+      }
+    });
   };
 
   const handleExportZipPackage = () => {
@@ -1788,14 +1797,18 @@ export default function App() {
       sourceLabel: 'حزمة احتياطية مضغوطة (ZIP)',
       rawSizeBytes: zipBytes.byteLength
     });
-    setLastImportedOrCopiedSummary(summary);
-    setLastBackupTime('الآن');
     void prepareAndDownloadFile({
       filename,
       content: zipBytes,
       mime: 'application/zip'
     }).then((res) => {
-      showToast(`تم تنزيل حزمة ZIP محلياً: ${res.filename} (${res.sizeKB} KB)`);
+      if (res.verified) {
+        setLastImportedOrCopiedSummary(summary);
+        setLastBackupTime(`الآن (${res.savedPath})`);
+        showToast(`تم حفظ حزمة ZIP بنجاح في ${res.savedPath} (${res.sizeKB} KB)`);
+      } else {
+        showToast(res.error || 'تعذر حفظ حزمة ZIP', 'info');
+      }
     });
   };
 

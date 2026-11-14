@@ -28,6 +28,12 @@ import {
   buildBlockExportBundle,
   executeVerifiedExportDownload
 } from '../services/exportDownloadService';
+import {
+  LocalDownloadRecord,
+  getDownloadedFilesHistory,
+  openSavedDownloadFile,
+  shareSavedDownloadFile
+} from '../utils/downloadHelper';
 
 interface GranularExportModalProps {
   isOpen: boolean;
@@ -82,6 +88,12 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
   const [termFilterTarget, setTermFilterTarget] = useState<'subject' | 'block'>('subject');
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [lastExportResult, setLastExportResult] = useState<VerifiedExportResult | null>(
+    null
+  );
+  const [downloadedHistory, setDownloadedHistory] = useState<LocalDownloadRecord[]>(
+    () => getDownloadedFilesHistory()
+  );
+  const [previewRecord, setPreviewRecord] = useState<LocalDownloadRecord | null>(
     null
   );
 
@@ -241,6 +253,7 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
       });
 
       setLastExportResult(result);
+      setDownloadedHistory(getDownloadedFilesHistory());
       showToast(result.messageAr, result.success ? 'success' : 'info');
     } finally {
       setIsExporting(false);
@@ -509,29 +522,151 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
           </button>
         </div>
 
-        {/* Verified Export Status Banner */}
+        {/* Verified Export Status Banner with Open & Share Actions */}
         {lastExportResult && (
           <div
-            className={`p-3.5 rounded-2xl border flex items-start gap-2.5 text-xs ${
+            className={`p-3.5 rounded-2xl border space-y-2.5 text-xs ${
               lastExportResult.success
                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-200'
                 : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'
             }`}
           >
-            {lastExportResult.success ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-            ) : (
-              <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-            )}
-            <div className="space-y-0.5">
-              <p className="font-bold">{lastExportResult.messageAr}</p>
-              {lastExportResult.success && (
-                <p className="text-[11px] opacity-80 font-mono tabular-nums" dir="ltr">
-                  {lastExportResult.fileName} · {lastExportResult.recordsCount} records ·{' '}
-                  {Math.max(1, Math.round(lastExportResult.byteSize / 1024))} KB
-                </p>
+            <div className="flex items-start gap-2.5">
+              {lastExportResult.success ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
               )}
+              <div className="space-y-0.5 min-w-0 flex-1">
+                <p className="font-bold leading-relaxed break-words">
+                  {lastExportResult.messageAr}
+                </p>
+                {lastExportResult.success && (
+                  <p className="text-[11px] opacity-85 font-mono break-all" dir="ltr">
+                    {lastExportResult.savedPath || `Download/UMEDT/${lastExportResult.fileName}`} ·{' '}
+                    {lastExportResult.recordsCount} records ·{' '}
+                    {Math.max(1, Math.round(lastExportResult.byteSize / 1024))} KB
+                  </p>
+                )}
+              </div>
             </div>
+
+            {lastExportResult.success && lastExportResult.record && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rec = lastExportResult.record!;
+                    const openRes = openSavedDownloadFile(rec);
+                    if (!openRes.openedNatively) {
+                      setPreviewRecord(rec);
+                    }
+                    showToast(openRes.messageAr);
+                  }}
+                  className="min-h-[34px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-extrabold flex items-center gap-1.5"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>فتح / معاينة الملف</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rec = lastExportResult.record!;
+                    void shareSavedDownloadFile(rec).then((sh) => {
+                      showToast(sh.messageAr);
+                    });
+                  }}
+                  className="min-h-[34px] px-3 py-1.5 rounded-xl bg-slate-900 text-white dark:bg-slate-800 font-bold flex items-center gap-1.5"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>مشاركة الملف</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Saved Files in Download/UMEDT List */}
+        {downloadedHistory.length > 0 && (
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-extrabold text-slate-800 dark:text-slate-200">
+                الملفات المحفوظة في الهاتف (Download/UMEDT)
+              </span>
+              <span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">
+                {downloadedHistory.length} ملف
+              </span>
+            </div>
+            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
+              {downloadedHistory.slice(0, 5).map((item) => (
+                <div
+                  key={item.id || item.filename}
+                  className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs"
+                >
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <div
+                      dir="ltr"
+                      className="font-mono font-extrabold text-slate-900 dark:text-white text-left break-all text-[11px]"
+                    >
+                      {item.savedPath || `Download/UMEDT/${item.filename}`}
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      الحجم: {item.sizeKB} KB · تم الحفظ والتحقق
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const openRes = openSavedDownloadFile(item);
+                        if (!openRes.openedNatively) {
+                          setPreviewRecord(item);
+                        }
+                        showToast(openRes.messageAr);
+                      }}
+                      className="min-h-[30px] px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold text-[11px]"
+                    >
+                      فتح
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void shareSavedDownloadFile(item).then((sh) => {
+                          showToast(sh.messageAr);
+                        });
+                      }}
+                      className="min-h-[30px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-[11px]"
+                    >
+                      مشاركة
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* In-App File Preview Popup when opened on Web/Browser */}
+        {previewRecord && (
+          <div className="p-3.5 rounded-2xl bg-slate-900 text-slate-100 border border-slate-700 space-y-2 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span dir="ltr" className="font-mono font-bold text-emerald-400 break-all">
+                {previewRecord.savedPath} ({previewRecord.sizeKB} KB)
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewRecord(null)}
+                className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-bold"
+              >
+                إغلاق المعاينة
+              </button>
+            </div>
+            <pre
+              dir="ltr"
+              className="max-h-40 overflow-auto text-[11px] font-mono leading-relaxed whitespace-pre-wrap text-slate-200"
+            >
+              {previewRecord.previewText || 'تم حفظ الملف بنجاح.'}
+            </pre>
           </div>
         )}
 

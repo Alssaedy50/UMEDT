@@ -8,7 +8,8 @@ import {
 } from '../types/lexicon';
 import {
   prepareAndDownloadFile,
-  shareFileOnAndroidOrDownload
+  shareFileOnAndroidOrDownload,
+  LocalDownloadRecord
 } from '../utils/downloadHelper';
 import { extractDetailedTermMatchesFromText } from '../engine/knowledgeLinker';
 
@@ -27,11 +28,13 @@ export const GITHUB_DIRECT_RELEASE_LINKS = {
 export interface VerifiedExportResult {
   success: boolean;
   fileName: string;
+  savedPath?: string;
   format: 'json' | 'csv';
   byteSize: number;
   recordsCount: number;
   sharedViaNativeSheet: boolean;
   messageAr: string;
+  record?: LocalDownloadRecord;
 }
 
 function escapeCsvCell(value: unknown): string {
@@ -251,15 +254,16 @@ export async function executeVerifiedExportDownload(params: {
         text: `${params.titleAr} (${params.recordsCount} سجل · ${sizeKb} KB)`
       });
       return {
-        success: true,
+        success: shared,
         fileName: params.fileName,
+        savedPath: `Download/UMEDT/${params.fileName}`,
         format: params.format,
         byteSize,
         recordsCount: params.recordsCount,
         sharedViaNativeSheet: shared,
         messageAr: shared
-          ? `تم فتح نافذة مشاركة وحفظ الملف "${params.fileName}" (${sizeKb} KB) بنجاح.`
-          : `تم تجهيز وتنزيل الملف "${params.fileName}" (${sizeKb} KB · ${params.recordsCount} سجل) مباشرة إلى الجهاز.`
+          ? `تم حفظ الملف في Download/UMEDT/${params.fileName} (${sizeKb} KB) وفتح نافذة المشاركة بنجاح.`
+          : 'تعذر إكمال مشاركة أو حفظ الملف.'
       };
     }
 
@@ -269,36 +273,42 @@ export async function executeVerifiedExportDownload(params: {
       mime
     });
 
-    if (!res || !res.downloadUrl) {
+    if (!res || !res.verified || !res.downloadUrl) {
       return {
         success: false,
         fileName: params.fileName,
+        savedPath: res?.savedPath || `Download/UMEDT/${params.fileName}`,
         format: params.format,
         byteSize,
         recordsCount: params.recordsCount,
         sharedViaNativeSheet: false,
-        messageAr: 'تعذر بدء عملية التنزيل على المتصفح الحالي. جرب خيار مشاركة الملف.'
+        messageAr:
+          res?.error ||
+          'تعذر التأكد من حفظ الملف على الجهاز. جرب خيار مشاركة الملف.'
       };
     }
 
     return {
       success: true,
       fileName: res.filename || params.fileName,
+      savedPath: res.savedPath,
       format: params.format,
       byteSize,
       recordsCount: params.recordsCount,
       sharedViaNativeSheet: false,
-      messageAr: `تم التحقق وتنزيل الملف "${params.fileName}" (${sizeKb} KB · ${params.recordsCount} سجل) بنجاح.`
+      record: res.record,
+      messageAr: `تم التحقق وحفظ الملف فعلياً في "${res.savedPath}" (${sizeKb} KB · ${params.recordsCount} سجل) بنجاح.`
     };
   } catch (err) {
     return {
       success: false,
       fileName: params.fileName,
+      savedPath: `Download/UMEDT/${params.fileName}`,
       format: params.format,
       byteSize,
       recordsCount: params.recordsCount,
       sharedViaNativeSheet: false,
-      messageAr: `حدث خطأ أثناء التنزيل: ${err instanceof Error ? err.message : 'Unknown error'}`
+      messageAr: `حدث خطأ أثناء حفظ الملف: ${err instanceof Error ? err.message : 'Unknown error'}`
     };
   }
 }

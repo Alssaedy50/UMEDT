@@ -30,6 +30,10 @@ import {
   formatBytesLabel
 } from '../services/mediaStorageService';
 import { executeVerifiedExportDownload } from '../services/exportDownloadService';
+import {
+  prepareAndDownloadFile,
+  base64ToUint8Array
+} from '../utils/downloadHelper';
 
 const CONTENT_BLOCK_TYPE_META: Record<
   ContentBlockType,
@@ -115,17 +119,27 @@ export const SectionContentBlocksRenderer: React.FC<
     }
 
     if (contentOrUrl.startsWith('data:')) {
-      const a = document.createElement('a');
-      a.href = contentOrUrl;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      showToast(`تم تنزيل الملف المرفق "${fileName}" بنجاح`);
+      const commaIdx = contentOrUrl.indexOf(',');
+      const header = commaIdx !== -1 ? contentOrUrl.slice(5, commaIdx) : '';
+      const dataPart = commaIdx !== -1 ? contentOrUrl.slice(commaIdx + 1) : '';
+      const mime = header.split(';')[0] || blk.mediaMimeType || 'application/octet-stream';
+      const payload = header.includes('base64')
+        ? base64ToUint8Array(dataPart)
+        : decodeURIComponent(dataPart);
+      const res = await prepareAndDownloadFile({
+        filename: fileName,
+        content: payload,
+        mime
+      });
+      if (res.verified) {
+        showToast(`تم حفظ المرفق في ${res.savedPath} (${res.sizeKB} KB)`);
+      } else {
+        showToast(res.error || 'تعذر حفظ الملف المرفق', 'info');
+      }
       return;
     }
 
-    await executeVerifiedExportDownload({
+    const res = await executeVerifiedExportDownload({
       fileName,
       content: contentOrUrl,
       format: 'json',
@@ -133,7 +147,11 @@ export const SectionContentBlocksRenderer: React.FC<
       deliveryMode: 'download',
       titleAr: fileName
     });
-    showToast(`تم تنزيل المرفق "${fileName}"`);
+    if (res.success) {
+      showToast(`تم حفظ المرفق في ${res.savedPath || `Download/UMEDT/${fileName}`}`);
+    } else {
+      showToast(res.messageAr, 'info');
+    }
   };
 
   return (

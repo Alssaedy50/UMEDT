@@ -91,7 +91,10 @@ import {
 } from './TopicContentBlockEditor';
 import { QuizCenterModal } from './QuizCenterModal';
 import { GranularExportModal } from './GranularExportModal';
-import { prepareAndDownloadFile } from '../utils/downloadHelper';
+import {
+  prepareAndDownloadFile,
+  base64ToUint8Array
+} from '../utils/downloadHelper';
 
 interface TopicsHubProps {
   topics: TopicArticle[];
@@ -622,29 +625,23 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
       .replace(/^(?:\d+|[\u0660-\u0669]+)[.)\-:]\s*/, '')
       .trim();
 
-  // Helpers to abbreviate Arabic Block and Subject names (strip prefix words, strip lone punctuation, & keep first 2 words)
+  // Return complete, clean Arabic Block and Subject names without cutting words
   const getShortBlockNameAr = (block?: MedicalBlock): string => {
     if (!block) return '';
     const rawAr = String(block.titleAr || '')
       .replace(/^[.\-_,،؛:\s]+|[.\-_,،؛:\s]+$/g, '')
-      .replace(/^(?:بلوك|وحدة|قسم|مقرر|منهج)\s+/i, '')
       .trim();
     const validAr = /[\p{L}\p{N}]/u.test(rawAr) ? rawAr : '';
-    const source = validAr || String(block.titleEn || '').trim();
-    const words = source.split(/\s+/).filter(Boolean);
-    return words.slice(0, 2).join(' ') || block.code;
+    return validAr || String(block.titleEn || '').trim() || block.code;
   };
 
   const getShortSubjectNameAr = (subj?: MedicalSubject): string => {
     if (!subj) return '';
     const rawAr = String(subj.titleAr || '')
       .replace(/^[.\-_,،؛:\s]+|[.\-_,،؛:\s]+$/g, '')
-      .replace(/^(?:علم|مادة|مقرر|قسم)\s+/i, '')
       .trim();
     const validAr = /[\p{L}\p{N}]/u.test(rawAr) ? rawAr : '';
-    const source = validAr || String(subj.titleEn || '').trim();
-    const words = source.split(/\s+/).filter(Boolean);
-    return words.slice(0, 2).join(' ') || subj.code;
+    return validAr || String(subj.titleEn || '').trim() || subj.code;
   };
 
   const lastReadTopic = useMemo(() => {
@@ -1619,19 +1616,30 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
 
   const handleDownloadAttachment = async (att: TopicAttachmentItem) => {
     try {
+      let payload: string | Uint8Array = att.contentDataUrlOrText;
+      let mime = att.fileType || 'text/plain;charset=utf-8';
       if (att.contentDataUrlOrText.startsWith('data:')) {
-        const a = document.createElement('a');
-        a.href = att.contentDataUrlOrText;
-        a.download = att.fileName;
-        a.click();
-        showToast(`تم تنزيل الملف المرفق محلياً: ${att.fileName}`);
+        const commaIdx = att.contentDataUrlOrText.indexOf(',');
+        const header =
+          commaIdx !== -1 ? att.contentDataUrlOrText.slice(5, commaIdx) : '';
+        const dataPart =
+          commaIdx !== -1 ? att.contentDataUrlOrText.slice(commaIdx + 1) : '';
+        mime = header.split(';')[0] || mime;
+        payload = header.includes('base64')
+          ? base64ToUint8Array(dataPart)
+          : decodeURIComponent(dataPart);
+      }
+      const res = await prepareAndDownloadFile({
+        filename: att.fileName,
+        content: payload,
+        mime
+      });
+      if (res.verified) {
+        showToast(
+          `تم حفظ الملف المرفق في ${res.savedPath} (${res.sizeKB} KB)`
+        );
       } else {
-        const res = await prepareAndDownloadFile({
-          filename: att.fileName,
-          content: att.contentDataUrlOrText,
-          mime: att.fileType || 'text/plain;charset=utf-8'
-        });
-        showToast(`تم تنزيل الملف المرفق محلياً: ${res.filename} (${res.sizeKB} KB)`);
+        showToast(res.error || 'تعذر حفظ الملف المرفق', 'info');
       }
     } catch {
       showToast('تعذر تنزيل الملف المرفق', 'info');
@@ -1886,11 +1894,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     >
                       <div
                         dir="ltr"
-                        className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-left truncate"
+                        className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-left break-words"
                       >
                         {b.code}
                       </div>
-                      <div className="text-xs font-extrabold truncate mt-0.5">
+                      <div className="text-xs font-extrabold leading-snug break-words mt-1">
                         {getShortBlockNameAr(b)}
                       </div>
                     </button>
@@ -1921,7 +1929,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 2. المادة العلمية
               </span>
 
-              <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-0.5">
+              <div className="grid grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-0.5">
                 {subjects
                   .filter((s) => !setupBlockId || s.blockId === setupBlockId || s.isStandalone)
                   .map((s) => {
@@ -1939,11 +1947,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                       >
                         <div
                           dir="ltr"
-                          className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-left truncate"
+                          className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-left break-words"
                         >
                           {s.code}
                         </div>
-                        <div className="text-xs font-extrabold truncate mt-0.5">
+                        <div className="text-xs font-extrabold leading-snug break-words mt-1">
                           {getShortSubjectNameAr(s)}
                         </div>
                       </button>
@@ -2061,11 +2069,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   >
                     <div
                       dir="ltr"
-                      className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-left truncate"
+                      className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-left break-words"
                     >
                       {block.code} ({bCount})
                     </div>
-                    <div className="text-xs font-extrabold truncate mt-0.5">
+                    <div className="text-xs font-extrabold leading-snug break-words mt-1">
                       {getShortBlockNameAr(block)}
                     </div>
                   </button>
@@ -2155,11 +2163,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   >
                     <div
                       dir="ltr"
-                      className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-left truncate"
+                      className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-left break-words"
                     >
                       {sub.code} ({sCount})
                     </div>
-                    <div className="text-xs font-extrabold truncate mt-0.5">
+                    <div className="text-xs font-extrabold leading-snug break-words mt-1">
                       {getShortSubjectNameAr(sub)}
                     </div>
                   </button>
@@ -3468,16 +3476,19 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         >
           {/* Clean Article Header */}
           <header className="space-y-2.5 border-b border-slate-200/80 dark:border-slate-800 pb-5">
-            <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
-              <span>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <span className="leading-relaxed break-words">
                 {activeBlock ? (
-                  <strong className="text-slate-700 dark:text-slate-300 font-mono">
-                    {activeBlock.code} ·{' '}
+                  <strong className="text-slate-700 dark:text-slate-300">
+                    <span dir="ltr" className="font-mono">
+                      {activeBlock.code}
+                    </span>{' '}
+                    ({getShortBlockNameAr(activeBlock)}) ·{' '}
                   </strong>
                 ) : null}
                 <strong className="text-emerald-600 dark:text-emerald-400">
                   {activeSubject
-                    ? activeSubject.titleAr || activeSubject.titleEn
+                    ? `${activeSubject.code} · ${getShortSubjectNameAr(activeSubject)}`
                     : TOPIC_CATEGORY_META[activeTopic.category].labelAr}
                 </strong>
                 {' · '}
@@ -4350,18 +4361,18 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           </button>
         </div>
 
-        {/* Popup Card Filter Triggers (Replaces Horizontal Side-Scrolling Strips) */}
-        <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
+        {/* Popup Card Filter Triggers (Full Arabic Names Without Truncation) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
           <button
             type="button"
             onClick={() => setActivePopup('block_picker')}
-            className={`min-h-[38px] px-3 py-1.5 rounded-xl border text-xs font-extrabold flex items-center justify-between gap-1.5 transition-colors ${
+            className={`min-h-[40px] px-3 py-2 rounded-xl border text-xs font-extrabold flex items-center justify-between gap-2 text-right transition-colors ${
               activeBlockFilter !== 'ALL'
                 ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-800 dark:text-emerald-200'
                 : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
             }`}
           >
-            <span className="truncate">
+            <span className="leading-snug break-words">
               {activeBlockFilter === 'ALL'
                 ? `البلوك: الكل (${blocks.length})`
                 : (() => {
@@ -4377,13 +4388,13 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           <button
             type="button"
             onClick={() => setActivePopup('subject_picker')}
-            className={`min-h-[38px] px-3 py-1.5 rounded-xl border text-xs font-extrabold flex items-center justify-between gap-1.5 transition-colors ${
+            className={`min-h-[40px] px-3 py-2 rounded-xl border text-xs font-extrabold flex items-center justify-between gap-2 text-right transition-colors ${
               activeSubjectFilter !== 'ALL'
                 ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-800 dark:text-emerald-200'
                 : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
             }`}
           >
-            <span className="truncate">
+            <span className="leading-snug break-words">
               {activeSubjectFilter === 'ALL'
                 ? `المادة: الكل (${visibleSubjects.length})`
                 : (() => {
@@ -4410,7 +4421,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
             <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 shrink-0">
               متابعة:
             </span>
-            <span className="font-extrabold text-slate-900 dark:text-white truncate">
+            <span className="font-extrabold text-slate-900 dark:text-white leading-snug break-words text-right">
               {lastReadTopic.titleAr || lastReadTopic.titleEn || lastReadTopic.title}
             </span>
           </div>
@@ -4418,7 +4429,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         </button>
       )}
 
-      {/* Compact Hierarchical Topics Cards Grid (No Long Sentences) */}
+      {/* Hierarchical Topics Cards Grid (Full Block & Subject Arabic Names) */}
       {filteredTopics.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {filteredTopics.map((topic) => {
@@ -4447,20 +4458,23 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 className="group w-full rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/70 transition-all p-4 flex flex-col justify-between gap-3 cursor-pointer shadow-xs"
               >
                 <div className="space-y-1.5">
-                  {/* Top Row: Short Block Code + Short Subject Name + Favorite & Menu */}
-                  <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                    <div className="flex items-center gap-1.5 min-w-0 truncate">
+                  {/* Top Row: Full Block Name + Full Subject Name + Favorite & Menu */}
+                  <div className="flex items-start justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                       {tBlock && (
-                        <span
-                          dir="ltr"
-                          className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-mono font-extrabold text-[10px] text-slate-700 dark:text-slate-300 shrink-0"
-                        >
-                          {tBlock.code}
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-extrabold text-[10px] text-slate-700 dark:text-slate-300 leading-snug break-words">
+                          <span dir="ltr" className="font-mono">
+                            {tBlock.code}
+                          </span>{' '}
+                          · {getShortBlockNameAr(tBlock)}
                         </span>
                       )}
                       {tSubject && (
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px] truncate">
-                          {tSubject.code} · {getShortSubjectNameAr(tSubject)}
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px] leading-snug break-words">
+                          <span dir="ltr" className="font-mono">
+                            {tSubject.code}
+                          </span>{' '}
+                          · {getShortSubjectNameAr(tSubject)}
                         </span>
                       )}
                       <span className="text-[10px] text-slate-400 shrink-0">
