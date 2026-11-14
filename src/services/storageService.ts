@@ -1205,7 +1205,29 @@ export function saveSentences(sentences: LinkedSentence[]): boolean {
 }
 
 export function saveTopics(topics: TopicArticle[]): boolean {
-  return safeWriteJson(STORAGE_KEYS.TOPICS, topics);
+  const compactedForLocalStorage = topics.map((tp) => ({
+    ...tp,
+    sections: (tp.sections || []).map((sec) => ({
+      ...sec,
+      contentBlocks: sec.contentBlocks
+        ? sec.contentBlocks.map((blk) => {
+            if (
+              blk.mediaIdbKey &&
+              blk.mediaUrl &&
+              blk.mediaUrl.startsWith('data:') &&
+              blk.mediaUrl.length > 32768
+            ) {
+              return {
+                ...blk,
+                mediaUrl: `idb://${blk.mediaIdbKey}`
+              };
+            }
+            return blk;
+          })
+        : undefined
+    }))
+  }));
+  return safeWriteJson(STORAGE_KEYS.TOPICS, compactedForLocalStorage);
 }
 
 export function saveCustomAffixes(affixes: MorphologicalAffix[]): boolean {

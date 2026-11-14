@@ -1634,10 +1634,8 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         content: payload,
         mime
       });
-      if (res.verified) {
-        showToast(
-          `تم حفظ الملف المرفق في ${res.savedPath} (${res.sizeKB} KB)`
-        );
+      if (res.initiated) {
+        showToast(res.messageAr);
       } else {
         showToast(res.error || 'تعذر حفظ الملف المرفق', 'info');
       }
@@ -3891,9 +3889,9 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   {activeTopic.attachments.map((att) => (
                     <div
                       key={att.id}
-                      className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2"
+                      className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2"
                     >
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div
                           dir="ltr"
                           className="text-xs font-bold truncate text-left"
@@ -3907,7 +3905,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                       <button
                         type="button"
                         onClick={() => handleDownloadAttachment(att)}
-                        className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold shrink-0"
+                        className="min-h-[40px] px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold shrink-0"
                       >
                         تنزيل
                       </button>
@@ -4262,7 +4260,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   // VIEW 1: COMPACT HIERARCHICAL TOPICS HUB (SHORT CODES, ZERO LONG SENTENCES)
   // ============================================================================
   return (
-    <div className="space-y-3.5 pb-24 relative">
+    <div className="space-y-3.5 pb-24 relative w-full max-w-full overflow-x-clip">
       {renderSharedModals()}
 
       {/* Floating Action Button (+) Safely Above Mobile Bottom Nav Bar */}
@@ -4322,20 +4320,20 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
 
         {/* Search Input + Compact Favorites Toggle */}
         <div className="flex items-center gap-2">
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-0">
             <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="بحث في المواضيع أو المصطلحات..."
-              className="w-full min-h-[40px] pr-9 pl-8 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs focus:outline-none focus:border-emerald-500"
+              className="w-full min-h-[40px] pr-9 pl-9 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs focus:outline-none focus:border-emerald-500"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                className="min-h-[34px] min-w-[34px] flex items-center justify-center absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white"
               >
                 <X className="w-3.5 h-3.5" />
               </button>

@@ -76,7 +76,11 @@ import { TermDetailSheet } from './components/TermDetailSheet';
 import { LibraryView, LibrarySubMode, StagedTermItem } from './components/LibraryView';
 import { SettingsView } from './components/SettingsView';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
-import { prepareAndDownloadFile } from './utils/downloadHelper';
+import { prepareAndDownloadFile, shareFileWithVerification } from './utils/downloadHelper';
+import {
+  deleteLocalMediaRecordsByTopicId,
+  deleteLocalMediaRecordsByKeys
+} from './services/mediaStorageService';
 import { runSafeIndexedDbMigration, putAllInStore, IDB_STORES } from './services/indexedDbService';
 import {
   TelegramBackupConfig,
@@ -894,6 +898,29 @@ export default function App() {
   };
 
   const handleSaveTopic = (topic: TopicArticle, isEdit: boolean) => {
+    if (isEdit) {
+      const previousTopic = topics.find((t) => t.id === topic.id);
+      if (previousTopic) {
+        const nextMediaKeys = new Set<string>();
+        for (const sec of topic.sections) {
+          for (const blk of sec.contentBlocks || []) {
+            if (blk.mediaIdbKey) nextMediaKeys.add(blk.mediaIdbKey);
+          }
+        }
+        const removedKeys: string[] = [];
+        for (const sec of previousTopic.sections) {
+          for (const blk of sec.contentBlocks || []) {
+            if (blk.mediaIdbKey && !nextMediaKeys.has(blk.mediaIdbKey)) {
+              removedKeys.push(blk.mediaIdbKey);
+            }
+          }
+        }
+        if (removedKeys.length > 0) {
+          void deleteLocalMediaRecordsByKeys(removedKeys);
+        }
+      }
+    }
+
     setTopics((prev) => {
       if (isEdit) {
         return prev.map((t) => (t.id === topic.id ? topic : t));
@@ -909,9 +936,23 @@ export default function App() {
 
   const handleDeleteTopic = (topicId: string) => {
     const target = topics.find((t) => t.id === topicId);
+    if (target) {
+      const keysToDelete: string[] = [];
+      for (const sec of target.sections) {
+        for (const blk of sec.contentBlocks || []) {
+          if (blk.mediaIdbKey) {
+            keysToDelete.push(blk.mediaIdbKey);
+          }
+        }
+      }
+      if (keysToDelete.length > 0) {
+        void deleteLocalMediaRecordsByKeys(keysToDelete);
+      }
+      void deleteLocalMediaRecordsByTopicId(topicId);
+    }
     setTopics((prev) => prev.filter((t) => t.id !== topicId));
     if (target) {
-      showToast(`تم حذف الموضوع "${target.title}"`);
+      showToast(`تم حذف الموضوع "${target.title}" ووسائطه المحلية`);
     }
   };
 
@@ -1750,10 +1791,10 @@ export default function App() {
       content,
       mime
     });
-    if (res.verified) {
-      showToast(`تم حفظ الملف بنجاح في ${res.savedPath} (${res.sizeKB} KB)`);
+    if (res.initiated) {
+      showToast(res.messageAr);
     } else {
-      showToast(res.error || 'تعذر التحقق من حفظ الملف', 'info');
+      showToast(res.error || 'تعذر تجهيز أو حفظ الملف', 'info');
     }
     return res;
   };
@@ -1772,9 +1813,11 @@ export default function App() {
       jsonString,
       'application/json;charset=utf-8'
     ).then((res) => {
-      if (res.verified) {
+      if (res.initiated) {
         setLastImportedOrCopiedSummary(summary);
-        setLastBackupTime(`الآن (${res.savedPath})`);
+        setLastBackupTime(
+          res.verifiedOnDisk ? `محفوظ (${res.savedPath})` : `تنزيل المتصفح (${res.filename})`
+        );
       }
     });
   };
@@ -1802,10 +1845,12 @@ export default function App() {
       content: zipBytes,
       mime: 'application/zip'
     }).then((res) => {
-      if (res.verified) {
+      if (res.initiated) {
         setLastImportedOrCopiedSummary(summary);
-        setLastBackupTime(`الآن (${res.savedPath})`);
-        showToast(`تم حفظ حزمة ZIP بنجاح في ${res.savedPath} (${res.sizeKB} KB)`);
+        setLastBackupTime(
+          res.verifiedOnDisk ? `محفوظ (${res.savedPath})` : `تنزيل المتصفح (${res.filename})`
+        );
+        showToast(res.messageAr);
       } else {
         showToast(res.error || 'تعذر حفظ حزمة ZIP', 'info');
       }
@@ -1822,23 +1867,20 @@ export default function App() {
       studyStats
     });
 
+    const shareRes = await shareFileWithVerification({
+      filename: 'dictengine-umd-full-data.json',
+      content: fullJson,
+      mime: 'application/json;charset=utf-8',
+      title: 'بيانات المعجم الطبي UMEDT',
+      text: `نسخة بيانات القاموس الطبي (${terms.length} مصطلح و ${sentences.length} جملة سياقية)`
+    });
+
+    if (shareRes.initiated) {
+      showToast(shareRes.messageAr);
+      return;
+    }
+
     try {
-      const file = new File([fullJson], 'dictengine-umd-full-data.json', {
-        type: 'application/json'
-      });
-      if (
-        typeof navigator !== 'undefined' &&
-        navigator.share &&
-        (!navigator.canShare || navigator.canShare({ files: [file] }))
-      ) {
-        await navigator.share({
-          title: 'بيانات المعجم الطبي UMEDT',
-          text: `نسخة بيانات القاموس الطبي (${terms.length} مصطلح و ${sentences.length} جملة سياقية)`,
-          files: [file]
-        });
-        showToast('تمت مشاركة ملف الداتا بنجاح');
-        return;
-      }
       if (typeof navigator !== 'undefined' && navigator.share) {
         await navigator.share({
           title: 'بيانات المعجم الطبي UMEDT',
@@ -1848,7 +1890,7 @@ export default function App() {
         return;
       }
     } catch {
-      // Fallback to direct download if user cancels or browser blocks share inside iframe
+      // Fallback to download
     }
     handleExportFullBackup();
   };

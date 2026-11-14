@@ -413,7 +413,7 @@ export const SearchHub: React.FC<SearchHubProps> = ({
                 <button
                   type="button"
                   onClick={onShuffleTermOfDay}
-                  className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
+                  className="min-h-[38px] min-w-[38px] flex items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
                   title="تبديل المصطلح"
                 >
                   <Shuffle className="w-3.5 h-3.5" />
@@ -421,7 +421,7 @@ export const SearchHub: React.FC<SearchHubProps> = ({
                 <button
                   type="button"
                   onClick={(e) => onToggleFavoriteTerm(termOfDay.id, e)}
-                  className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-amber-500"
+                  className="min-h-[38px] min-w-[38px] flex items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-amber-500"
                   title="المفضلة"
                 >
                   <Star
@@ -469,7 +469,7 @@ export const SearchHub: React.FC<SearchHubProps> = ({
                       <button
                         type="button"
                         onClick={(e) => onToggleFavoriteTerm(item.id, e)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-amber-500"
+                        className="min-h-[38px] min-w-[38px] flex items-center justify-center rounded-xl text-slate-400 hover:text-amber-500"
                         title="المفضلة"
                       >
                         <Star
@@ -482,7 +482,7 @@ export const SearchHub: React.FC<SearchHubProps> = ({
                         <button
                           type="button"
                           onClick={(e) => onRemoveRecentTerm(item.id, e)}
-                          className="p-1.5 rounded-lg text-slate-300 hover:text-rose-500 dark:text-slate-600 dark:hover:text-rose-400 transition-colors"
+                          className="min-h-[38px] min-w-[38px] flex items-center justify-center rounded-xl text-slate-300 hover:text-rose-500 dark:text-slate-600 dark:hover:text-rose-400 transition-colors"
                           title="إزالة من السجل الأخير"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -567,7 +567,7 @@ export const SearchHub: React.FC<SearchHubProps> = ({
                     <button
                       type="button"
                       onClick={(e) => onToggleFavoriteTerm(item.id, e)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-amber-500 shrink-0"
+                      className="min-h-[38px] min-w-[38px] flex items-center justify-center rounded-xl text-slate-400 hover:text-amber-500 shrink-0"
                       title="المفضلة"
                     >
                       <Star
@@ -593,18 +593,18 @@ export const SearchHub: React.FC<SearchHubProps> = ({
               </div>
 
               {filteredTerms.length > visibleLimit && (
-                <div className="flex items-center justify-center gap-2 pt-2">
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
                   <button
                     type="button"
                     onClick={() => setVisibleLimit((prev) => prev + 250)}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold transition-colors"
+                    className="min-h-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold transition-colors"
                   >
                     عرض 250 نتيجة إضافية (المتبقي {(filteredTerms.length - visibleLimit).toLocaleString()})
                   </button>
                   <button
                     type="button"
                     onClick={() => setVisibleLimit(filteredTerms.length)}
-                    className="px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold transition-colors"
+                    className="min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold transition-colors"
                   >
                     عرض الكل ({filteredTerms.length.toLocaleString()})
                   </button>

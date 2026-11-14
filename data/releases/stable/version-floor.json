@@ -1,4 +1,0 @@
-{
-  "dataVersion": "2026.10.8-umd",
-  "reason": "Preserve monotonic OTA version progression for installations already on 2026.10.8-umd."
-}

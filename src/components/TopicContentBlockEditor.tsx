@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   ArrowUp,
   ArrowDown,
@@ -27,6 +27,8 @@ import {
 import { VoiceRecorderBlock } from './VoiceRecorderBlock';
 import {
   saveLocalMediaRecord,
+  getLocalMediaRecord,
+  deleteLocalMediaRecord,
   formatBytesLabel
 } from '../services/mediaStorageService';
 import { executeVerifiedExportDownload } from '../services/exportDownloadService';
@@ -107,14 +109,55 @@ export const SectionContentBlocksRenderer: React.FC<
   const [inlineQuizAnswers, setInlineQuizAnswers] = useState<
     Record<string, string>
   >({});
+  const [resolvedMediaUrls, setResolvedMediaUrls] = useState<
+    Record<string, string>
+  >({});
 
   const sortedBlocks = [...blocks].sort((a, b) => a.order - b.order);
 
+  useEffect(() => {
+    let cancelled = false;
+    const resolveStoredMedia = async () => {
+      const nextMap: Record<string, string> = {};
+      for (const blk of blocks) {
+        if (blk.type === 'audio') continue; // Handled directly by VoiceRecorderBlock
+        const rawUrl = blk.mediaUrl || '';
+        const idbKey = rawUrl.startsWith('idb://')
+          ? rawUrl.slice(6)
+          : !rawUrl && blk.mediaIdbKey
+            ? blk.mediaIdbKey
+            : '';
+        if (idbKey) {
+          const rec = await getLocalMediaRecord(idbKey);
+          if (rec?.dataUrl && !cancelled) {
+            nextMap[blk.id] = rec.dataUrl;
+          }
+        }
+      }
+      if (!cancelled && Object.keys(nextMap).length > 0) {
+        setResolvedMediaUrls((prev) => ({ ...prev, ...nextMap }));
+      }
+    };
+    void resolveStoredMedia();
+    return () => {
+      cancelled = true;
+    };
+  }, [blocks]);
+
   const handleDownloadInlineAttachment = async (blk: TopicContentBlock) => {
     const fileName = blk.mediaFileName || blk.titleEn || 'Attachment.txt';
-    const contentOrUrl = blk.mediaUrl || blk.text || '';
+    let contentOrUrl = resolvedMediaUrls[blk.id] || blk.mediaUrl || blk.text || '';
+
+    if (contentOrUrl.startsWith('idb://') || (!contentOrUrl && blk.mediaIdbKey)) {
+      const key = contentOrUrl.startsWith('idb://')
+        ? contentOrUrl.slice(6)
+        : blk.mediaIdbKey || '';
+      const rec = key ? await getLocalMediaRecord(key) : null;
+      contentOrUrl = rec?.dataUrl || '';
+    }
+
     if (!contentOrUrl) {
-      showToast('الملف المرفق فارغ', 'info');
+      showToast('الملف المرفق فارغ أو تعذر العثور عليه في التخزين المحلي', 'info');
       return;
     }
 
@@ -122,7 +165,8 @@ export const SectionContentBlocksRenderer: React.FC<
       const commaIdx = contentOrUrl.indexOf(',');
       const header = commaIdx !== -1 ? contentOrUrl.slice(5, commaIdx) : '';
       const dataPart = commaIdx !== -1 ? contentOrUrl.slice(commaIdx + 1) : '';
-      const mime = header.split(';')[0] || blk.mediaMimeType || 'application/octet-stream';
+      const mime =
+        header.split(';')[0] || blk.mediaMimeType || 'application/octet-stream';
       const payload = header.includes('base64')
         ? base64ToUint8Array(dataPart)
         : decodeURIComponent(dataPart);
@@ -131,8 +175,8 @@ export const SectionContentBlocksRenderer: React.FC<
         content: payload,
         mime
       });
-      if (res.verified) {
-        showToast(`تم حفظ المرفق في ${res.savedPath} (${res.sizeKB} KB)`);
+      if (res.initiated) {
+        showToast(res.messageAr);
       } else {
         showToast(res.error || 'تعذر حفظ الملف المرفق', 'info');
       }
@@ -147,11 +191,7 @@ export const SectionContentBlocksRenderer: React.FC<
       deliveryMode: 'download',
       titleAr: fileName
     });
-    if (res.success) {
-      showToast(`تم حفظ المرفق في ${res.savedPath || `Download/UMEDT/${fileName}`}`);
-    } else {
-      showToast(res.messageAr, 'info');
-    }
+    showToast(res.messageAr, res.success ? 'success' : 'info');
   };
 
   return (
@@ -201,8 +241,8 @@ export const SectionContentBlocksRenderer: React.FC<
               key={blk.id}
               className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-1.5"
             >
-              <div className="flex items-center justify-between gap-2 text-xs font-extrabold text-amber-800 dark:text-amber-300">
-                <span dir="ltr">{blk.titleEn || 'Clinical Correlation & High-Yield Note'}</span>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-extrabold text-amber-800 dark:text-amber-300">
+                <span dir="ltr" className="break-words">{blk.titleEn || 'Clinical Correlation & High-Yield Note'}</span>
                 <span>{blk.titleAr || 'ملاحظة سريرية هامة'}</span>
               </div>
               <p
@@ -224,8 +264,8 @@ export const SectionContentBlocksRenderer: React.FC<
               className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900"
             >
               {(blk.titleEn || blk.titleAr) && (
-                <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-                  <span dir="ltr" className="text-xs font-extrabold text-slate-900 dark:text-white">
+                <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                  <span dir="ltr" className="text-xs font-extrabold text-slate-900 dark:text-white break-words">
                     {blk.titleEn}
                   </span>
                   {blk.titleAr && (
@@ -233,7 +273,7 @@ export const SectionContentBlocksRenderer: React.FC<
                   )}
                 </div>
               )}
-              <div className="overflow-x-auto">
+              <div className="w-full max-w-full overflow-x-auto">
                 <table className="w-full text-xs text-left border-collapse" dir="ltr">
                   {headers.length > 0 && (
                     <thead>
@@ -273,24 +313,28 @@ export const SectionContentBlocksRenderer: React.FC<
           );
         }
 
-        if (blk.type === 'image' && blk.mediaUrl) {
+        if (blk.type === 'image' && (resolvedMediaUrls[blk.id] || blk.mediaUrl)) {
+          const imgSrc =
+            resolvedMediaUrls[blk.id] ||
+            (blk.mediaUrl && !blk.mediaUrl.startsWith('idb://') ? blk.mediaUrl : '');
+          if (!imgSrc) return null;
           return (
             <figure
               key={blk.id}
-              className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-950 my-2"
+              className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-950 my-2 max-w-full"
             >
               <img
-                src={blk.mediaUrl}
+                src={imgSrc}
                 alt={blk.captionEn || blk.captionAr || 'Medical diagram'}
                 referrerPolicy="no-referrer"
                 onError={(e) => {
                   const target = e.currentTarget;
                   target.style.display = 'none';
                 }}
-                className="w-full max-h-[420px] object-contain mx-auto bg-slate-950"
+                className="w-full max-w-full h-auto max-h-[420px] object-contain mx-auto bg-slate-950"
               />
               {(blk.captionEn || blk.captionAr) && (
-                <figcaption className="p-3 bg-slate-900 text-slate-200 text-xs leading-relaxed text-center">
+                <figcaption className="p-3 bg-slate-900 text-slate-200 text-xs leading-relaxed text-center break-words">
                   {blk.captionEn || blk.captionAr}
                 </figcaption>
               )}
@@ -347,18 +391,18 @@ export const SectionContentBlocksRenderer: React.FC<
           return (
             <div
               key={blk.id}
-              className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3"
+              className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3"
             >
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
                 <Paperclip className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p
                     dir="ltr"
                     className="text-xs font-extrabold text-slate-900 dark:text-white truncate text-left"
                   >
                     {blk.mediaFileName || blk.titleEn || 'Attached Medical Document'}
                   </p>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-slate-500 break-words">
                     {blk.mediaMimeType || blk.titleAr || 'Document'} ·{' '}
                     {blk.mediaSizeBytes
                       ? formatBytesLabel(blk.mediaSizeBytes)
@@ -369,7 +413,7 @@ export const SectionContentBlocksRenderer: React.FC<
               <button
                 type="button"
                 onClick={() => void handleDownloadInlineAttachment(blk)}
-                className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5 shrink-0"
+                className="min-h-[44px] px-3.5 py-2 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5 shrink-0"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>تنزيل / فتح</span>
@@ -389,7 +433,7 @@ export const SectionContentBlocksRenderer: React.FC<
               key={blk.id}
               className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/30 space-y-3"
             >
-              <div className="flex items-center justify-between text-xs font-extrabold text-emerald-700 dark:text-emerald-400">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs font-extrabold text-emerald-700 dark:text-emerald-400">
                 <span dir="ltr">Inline Self-Check Question</span>
                 <span>سؤال تحقق ذاتي مدمج بالشرح</span>
               </div>
@@ -503,6 +547,10 @@ export const SectionContentBlocksEditor: React.FC<
   };
 
   const deleteBlock = (blockId: string) => {
+    const target = sortedBlocks.find((b) => b.id === blockId);
+    if (target?.mediaIdbKey) {
+      void deleteLocalMediaRecord(target.mediaIdbKey);
+    }
     const filtered = sortedBlocks
       .filter((b) => b.id !== blockId)
       .map((b, i) => ({ ...b, order: i + 1 }));
@@ -605,6 +653,8 @@ export const SectionContentBlocksEditor: React.FC<
   const handleUploadInlineImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeUploadBlockId) return;
+    const prevBlock = sortedBlocks.find((b) => b.id === activeUploadBlockId);
+    const prevKey = prevBlock?.mediaIdbKey;
     const reader = new FileReader();
     reader.onload = async () => {
       const dataUrl = typeof reader.result === 'string' ? reader.result : '';
@@ -622,9 +672,12 @@ export const SectionContentBlocksEditor: React.FC<
         dataUrl,
         createdAt: new Date().toISOString()
       });
-      if (!saved.success) {
-        showToast(saved.errorAr || 'حجم الصورة كبير جداً', 'info');
+      if (!saved.success || !saved.verifiedInIdb) {
+        showToast(saved.errorAr || 'حجم الصورة كبير جداً أو تعذر الحفظ في IndexedDB', 'info');
         return;
+      }
+      if (prevKey && prevKey !== idbKey) {
+        void deleteLocalMediaRecord(prevKey);
       }
       updateBlockById(activeUploadBlockId, {
         mediaUrl: dataUrl,
@@ -633,7 +686,7 @@ export const SectionContentBlocksEditor: React.FC<
         mediaSizeBytes: file.size,
         captionEn: file.name.replace(/\.[^/.]+$/, '')
       });
-      showToast(`تم إدراج الصورة "${file.name}" في موضعها داخل الشرح`);
+      showToast(`تم حفظ الصورة "${file.name}" في IndexedDB وإدراجها داخل الشرح`);
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -644,6 +697,8 @@ export const SectionContentBlocksEditor: React.FC<
   ) => {
     const file = e.target.files?.[0];
     if (!file || !activeUploadBlockId) return;
+    const prevBlock = sortedBlocks.find((b) => b.id === activeUploadBlockId);
+    const prevKey = prevBlock?.mediaIdbKey;
     const reader = new FileReader();
     reader.onload = async () => {
       const dataUrl = typeof reader.result === 'string' ? reader.result : '';
@@ -661,9 +716,12 @@ export const SectionContentBlocksEditor: React.FC<
         dataUrl,
         createdAt: new Date().toISOString()
       });
-      if (!saved.success) {
-        showToast(saved.errorAr || 'حجم الملف يتجاوز الحد الآمن', 'info');
+      if (!saved.success || !saved.verifiedInIdb) {
+        showToast(saved.errorAr || 'حجم الملف يتجاوز الحد الآمن أو تعذر الحفظ في IndexedDB', 'info');
         return;
+      }
+      if (prevKey && prevKey !== idbKey) {
+        void deleteLocalMediaRecord(prevKey);
       }
       updateBlockById(activeUploadBlockId, {
         mediaUrl: dataUrl,
@@ -674,7 +732,7 @@ export const SectionContentBlocksEditor: React.FC<
         titleEn: file.name,
         text: formatBytesLabel(file.size)
       });
-      showToast(`تم إرفاق الملف "${file.name}" (${formatBytesLabel(file.size)}) في هذا القسم`);
+      showToast(`تم حفظ وإرفاق الملف "${file.name}" (${formatBytesLabel(file.size)}) في هذا القسم`);
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -707,20 +765,20 @@ export const SectionContentBlocksEditor: React.FC<
             className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2.5"
           >
             {/* Block Header & Reorder Controls */}
-            <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-              <div className="flex items-center gap-2 text-xs font-extrabold text-slate-700 dark:text-slate-300">
-                <IconComp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+              <div className="flex items-center gap-2 text-xs font-extrabold text-slate-700 dark:text-slate-300 min-w-0">
+                <IconComp className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span className="break-words">
                   #{idx + 1} · {meta.labelEn} ({meta.labelAr})
                 </span>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 shrink-0">
                 <button
                   type="button"
                   disabled={idx === 0}
                   onClick={() => moveBlock(idx, 'up')}
-                  className="min-h-[34px] min-w-[34px] rounded-lg bg-slate-100 dark:bg-slate-800 disabled:opacity-30 flex items-center justify-center"
+                  className="min-h-[40px] min-w-[40px] rounded-xl bg-slate-100 dark:bg-slate-800 disabled:opacity-30 flex items-center justify-center"
                   title="نقل للأعلى"
                 >
                   <ArrowUp className="w-3.5 h-3.5" />
@@ -729,7 +787,7 @@ export const SectionContentBlocksEditor: React.FC<
                   type="button"
                   disabled={idx === sortedBlocks.length - 1}
                   onClick={() => moveBlock(idx, 'down')}
-                  className="min-h-[34px] min-w-[34px] rounded-lg bg-slate-100 dark:bg-slate-800 disabled:opacity-30 flex items-center justify-center"
+                  className="min-h-[40px] min-w-[40px] rounded-xl bg-slate-100 dark:bg-slate-800 disabled:opacity-30 flex items-center justify-center"
                   title="نقل للأسفل"
                 >
                   <ArrowDown className="w-3.5 h-3.5" />
@@ -737,7 +795,7 @@ export const SectionContentBlocksEditor: React.FC<
                 <button
                   type="button"
                   onClick={() => deleteBlock(blk.id)}
-                  className="min-h-[34px] min-w-[34px] rounded-lg text-rose-500 hover:bg-rose-500/10 flex items-center justify-center"
+                  className="min-h-[40px] min-w-[40px] rounded-xl text-rose-500 hover:bg-rose-500/10 flex items-center justify-center"
                   title="حذف هذه الكتلة"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -879,7 +937,7 @@ export const SectionContentBlocksEditor: React.FC<
                       setActiveUploadBlockId(blk.id);
                       imageInputRef.current?.click();
                     }}
-                    className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-1.5"
+                    className="min-h-[44px] px-3.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-1.5"
                   >
                     <Upload className="w-3.5 h-3.5" />
                     <span>رفع صورة من الجهاز</span>
@@ -892,7 +950,7 @@ export const SectionContentBlocksEditor: React.FC<
                       updateBlockById(blk.id, { mediaUrl: e.target.value })
                     }
                     placeholder="أو الصق رابط الصورة المباشر (https://...)"
-                    className="flex-1 min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                    className="w-full sm:w-auto sm:flex-1 min-w-0 min-h-[44px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                   />
                 </div>
                 <input
@@ -906,14 +964,14 @@ export const SectionContentBlocksEditor: React.FC<
                     })
                   }
                   placeholder="وصف الشكل أو الصورة التوضيحية..."
-                  className="w-full px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                  className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                 />
-                {blk.mediaUrl && (
+                {blk.mediaUrl && !blk.mediaUrl.startsWith('idb://') && (
                   <img
                     src={blk.mediaUrl}
                     alt={blk.captionEn || 'Preview'}
                     referrerPolicy="no-referrer"
-                    className="max-h-40 rounded-xl object-contain border border-slate-200 dark:border-slate-800"
+                    className="max-w-full max-h-40 rounded-xl object-contain border border-slate-200 dark:border-slate-800"
                   />
                 )}
               </div>
@@ -1027,7 +1085,7 @@ export const SectionContentBlocksEditor: React.FC<
                               }
                             })
                           }
-                          className={`min-h-[36px] min-w-[36px] rounded-lg font-mono text-xs font-bold border ${
+                          className={`min-h-[44px] min-w-[44px] rounded-xl font-mono text-xs font-bold border shrink-0 ${
                             isRight
                               ? 'bg-emerald-600 text-white border-emerald-600'
                               : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'

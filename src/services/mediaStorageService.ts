@@ -1,170 +1,304 @@
-import { LocalMediaRecord } from '../types/learningPlatform';
+import { LocalMediaRecord } from '../types/lexicon';
 
-const MEDIA_DB_NAME = 'umedt_learning_media_db_v1';
-const MEDIA_DB_VERSION = 1;
-const MEDIA_STORE_NAME = 'media_blobs';
-const MAX_SINGLE_MEDIA_BYTES = 15 * 1024 * 1024; // 15 MB safe limit per mobile file
+const DB_NAME = 'umedt_learning_media_db_v1';
+const DB_VERSION = 1;
+const STORE_NAME = 'media_records';
 
-const memoryMediaFallback = new Map<string, LocalMediaRecord>();
+// Max safe single media payload (15 MB)
+export const MAX_SAFE_MEDIA_BYTES = 15 * 1024 * 1024;
+
+const memoryMediaStore = new Map<string, LocalMediaRecord>();
 
 function hasIndexedDb(): boolean {
-  return typeof window !== 'undefined' && typeof window.indexedDB !== 'undefined';
+  try {
+    return typeof indexedDB !== 'undefined' && indexedDB !== null;
+  } catch {
+    return false;
+  }
 }
 
 function openMediaDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (!hasIndexedDb()) {
-      reject(new Error('IndexedDB not available'));
+      reject(new Error('INDEXEDDB_UNAVAILABLE'));
       return;
     }
-    const request = window.indexedDB.open(MEDIA_DB_NAME, MEDIA_DB_VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(MEDIA_STORE_NAME)) {
-        const store = db.createObjectStore(MEDIA_STORE_NAME, { keyPath: 'id' });
-        store.createIndex('topicId', 'topicId', { unique: false });
-        store.createIndex('mediaType', 'mediaType', { unique: false });
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error('Failed to open media DB'));
+    try {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+          store.createIndex('by_topic', 'topicId', { unique: false });
+          store.createIndex('by_block', 'blockId', { unique: false });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () =>
+        reject(req.error || new Error('FAILED_TO_OPEN_MEDIA_IDB'));
+      req.onblocked = () =>
+        reject(new Error('MEDIA_IDB_BLOCKED'));
+    } catch (err) {
+      reject(err instanceof Error ? err : new Error(String(err)));
+    }
   });
 }
 
-export async function saveLocalMediaRecord(
-  record: LocalMediaRecord
-): Promise<{ success: boolean; errorAr?: string; record?: LocalMediaRecord }> {
-  if (record.sizeBytes > MAX_SINGLE_MEDIA_BYTES) {
+export async function saveLocalMediaRecord(record: LocalMediaRecord): Promise<{
+  success: boolean;
+  errorAr?: string;
+  record?: LocalMediaRecord;
+  verifiedInIdb?: boolean;
+}> {
+  if (!record || !record.id || !record.dataUrl) {
     return {
       success: false,
-      errorAr: `حجم الملف (${(record.sizeBytes / (1024 * 1024)).toFixed(1)} MB) يتجاوز الحد الآمن للهاتف (15 MB). يرجى استخدام ملف أصغر أو رابط خارجي.`
+      errorAr: 'بيانات الملف الصوتي غير مكتملة أو فارغة ولا يمكن حفظها.'
     };
   }
 
-  memoryMediaFallback.set(record.id, record);
-
-  if (!hasIndexedDb()) {
-    return { success: true, record };
+  if (record.sizeBytes <= 0) {
+    return {
+      success: false,
+      errorAr: 'الملف الصوتي فارغ (0 بايت) — يرجى إعادة التسجيل أو اختيار ملف صالح.'
+    };
   }
 
+  if (record.sizeBytes > MAX_SAFE_MEDIA_BYTES) {
+    return {
+      success: false,
+      errorAr: `حجم الملف (${(record.sizeBytes / (1024 * 1024)).toFixed(
+        1
+      )} MB) يتجاوز الحد الآمن للتخزين المحلي (15 MB).`
+    };
+  }
+
+  if (!hasIndexedDb()) {
+    return {
+      success: false,
+      errorAr:
+        'قاعدة البيانات المحلية (IndexedDB) غير متاحة أو معطلة في هذا المتصفح — تعذر حفظ الملف الصوتي بشكل دائم.'
+    };
+  }
+
+  let db: IDBDatabase | null = null;
   try {
-    const db = await openMediaDb();
+    db = await openMediaDb();
+
+    // 1. Write record into IndexedDB
     await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(MEDIA_STORE_NAME, 'readwrite');
-      const store = tx.objectStore(MEDIA_STORE_NAME);
-      store.put(record);
-      tx.oncomplete = () => {
-        db.close();
-        resolve();
-      };
-      tx.onerror = () => {
-        db.close();
-        reject(tx.error || new Error('Failed to save media record'));
-      };
+      const tx = db!.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const putReq = store.put(record);
+      putReq.onerror = () =>
+        reject(putReq.error || new Error('IDB_PUT_FAILED'));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () =>
+        reject(tx.error || new Error('IDB_TX_ERROR'));
+      tx.onabort = () =>
+        reject(tx.error || new Error('IDB_TX_ABORTED_QUOTA'));
     });
-    return { success: true, record };
-  } catch {
-    return { success: true, record };
+
+    // 2. Read-back verification to guarantee actual persistence in IndexedDB
+    const verifiedRecord = await new Promise<LocalMediaRecord | null>(
+      (resolve, reject) => {
+        const verifyTx = db!.transaction(STORE_NAME, 'readonly');
+        const store = verifyTx.objectStore(STORE_NAME);
+        const getReq = store.get(record.id);
+        getReq.onsuccess = () =>
+          resolve((getReq.result as LocalMediaRecord) || null);
+        getReq.onerror = () =>
+          reject(getReq.error || new Error('IDB_VERIFY_READ_FAILED'));
+      }
+    );
+
+    db.close();
+    db = null;
+
+    if (
+      !verifiedRecord ||
+      verifiedRecord.id !== record.id ||
+      !verifiedRecord.dataUrl ||
+      verifiedRecord.dataUrl.length !== record.dataUrl.length
+    ) {
+      return {
+        success: false,
+        errorAr:
+          'فشل التحقق من ثبات الملف الصوتي في الذاكرة المحلية (IndexedDB) بعد الحفظ.'
+      };
+    }
+
+    memoryMediaStore.set(record.id, verifiedRecord);
+    return {
+      success: true,
+      record: verifiedRecord,
+      verifiedInIdb: true
+    };
+  } catch (err) {
+    if (db) {
+      try {
+        db.close();
+      } catch {
+        // ignore
+      }
+    }
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const isQuota = /quota|storage|full/i.test(errMsg);
+    return {
+      success: false,
+      errorAr: isQuota
+        ? 'مساحة التخزين المحلية (IndexedDB) ممتلئة — تعذر حفظ التسجيل الصوتي.'
+        : `تعذر حفظ الملف الصوتي في قاعدة البيانات المحلية (IndexedDB): ${errMsg}`
+    };
   }
 }
 
-export async function getLocalMediaRecord(id: string): Promise<LocalMediaRecord | null> {
-  if (memoryMediaFallback.has(id)) {
-    return memoryMediaFallback.get(id) || null;
-  }
-  if (!hasIndexedDb()) {
-    return null;
-  }
-  try {
-    const db = await openMediaDb();
-    return await new Promise<LocalMediaRecord | null>((resolve) => {
-      const tx = db.transaction(MEDIA_STORE_NAME, 'readonly');
-      const store = tx.objectStore(MEDIA_STORE_NAME);
-      const req = store.get(id);
-      req.onsuccess = () => {
-        const res = (req.result as LocalMediaRecord | undefined) || null;
-        if (res) {
-          memoryMediaFallback.set(res.id, res);
+export async function getLocalMediaRecord(
+  id: string
+): Promise<LocalMediaRecord | null> {
+  if (!id) return null;
+
+  if (hasIndexedDb()) {
+    let db: IDBDatabase | null = null;
+    try {
+      db = await openMediaDb();
+      const found = await new Promise<LocalMediaRecord | null>((resolve) => {
+        const tx = db!.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.get(id);
+        req.onsuccess = () => {
+          resolve((req.result as LocalMediaRecord) || null);
+        };
+        req.onerror = () => resolve(null);
+      });
+      db.close();
+      if (found) {
+        memoryMediaStore.set(id, found);
+        return found;
+      }
+    } catch {
+      if (db) {
+        try {
+          db.close();
+        } catch {
+          // ignore
         }
-        db.close();
-        resolve(res);
-      };
-      req.onerror = () => {
-        db.close();
-        resolve(null);
-      };
-    });
-  } catch {
-    return null;
+      }
+    }
   }
+
+  return memoryMediaStore.get(id) || null;
 }
 
-export async function listLocalMediaRecords(): Promise<LocalMediaRecord[]> {
-  if (!hasIndexedDb()) {
-    return Array.from(memoryMediaFallback.values());
+export async function getMediaRecordsByTopicId(
+  topicId: string
+): Promise<LocalMediaRecord[]> {
+  if (!topicId) return [];
+  const results = new Map<string, LocalMediaRecord>();
+  for (const item of memoryMediaStore.values()) {
+    if (item.topicId === topicId) {
+      results.set(item.id, item);
+    }
   }
+  if (!hasIndexedDb()) {
+    return Array.from(results.values());
+  }
+  let db: IDBDatabase | null = null;
   try {
-    const db = await openMediaDb();
-    return await new Promise<LocalMediaRecord[]>((resolve) => {
-      const tx = db.transaction(MEDIA_STORE_NAME, 'readonly');
-      const store = tx.objectStore(MEDIA_STORE_NAME);
+    db = await openMediaDb();
+    const idbItems = await new Promise<LocalMediaRecord[]>((resolve) => {
+      const tx = db!.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
       const req = store.getAll();
       req.onsuccess = () => {
-        const list = Array.isArray(req.result) ? (req.result as LocalMediaRecord[]) : [];
-        for (const item of list) {
-          memoryMediaFallback.set(item.id, item);
-        }
-        db.close();
-        resolve(list);
+        const all = (req.result as LocalMediaRecord[]) || [];
+        resolve(all.filter((r) => r.topicId === topicId));
       };
-      req.onerror = () => {
-        db.close();
-        resolve(Array.from(memoryMediaFallback.values()));
-      };
+      req.onerror = () => resolve([]);
     });
+    db.close();
+    for (const item of idbItems) {
+      results.set(item.id, item);
+    }
   } catch {
-    return Array.from(memoryMediaFallback.values());
+    if (db) {
+      try {
+        db.close();
+      } catch {
+        // ignore
+      }
+    }
   }
+  return Array.from(results.values());
 }
 
-export async function deleteLocalMediaRecord(id: string): Promise<void> {
-  memoryMediaFallback.delete(id);
-  if (!hasIndexedDb()) return;
+export async function deleteLocalMediaRecord(id: string): Promise<boolean> {
+  if (!id) return false;
+  memoryMediaStore.delete(id);
+  if (!hasIndexedDb()) return false;
+
+  let db: IDBDatabase | null = null;
   try {
-    const db = await openMediaDb();
-    await new Promise<void>((resolve) => {
-      const tx = db.transaction(MEDIA_STORE_NAME, 'readwrite');
-      tx.objectStore(MEDIA_STORE_NAME).delete(id);
-      tx.oncomplete = () => {
-        db.close();
-        resolve();
-      };
-      tx.onerror = () => {
-        db.close();
-        resolve();
-      };
+    db = await openMediaDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db!.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      store.delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error || new Error('IDB_DELETE_ERROR'));
     });
+
+    // Verify deletion
+    const remaining = await new Promise<LocalMediaRecord | null>((resolve) => {
+      const verifyTx = db!.transaction(STORE_NAME, 'readonly');
+      const store = verifyTx.objectStore(STORE_NAME);
+      const getReq = store.get(id);
+      getReq.onsuccess = () =>
+        resolve((getReq.result as LocalMediaRecord) || null);
+      getReq.onerror = () => resolve(null);
+    });
+    db.close();
+    return remaining === null;
   } catch {
-    // ignore
+    if (db) {
+      try {
+        db.close();
+      } catch {
+        // ignore
+      }
+    }
+    return false;
   }
 }
 
-export async function getMediaStorageUsage(): Promise<{
-  count: number;
-  totalBytes: number;
-  formattedSize: string;
-}> {
-  const all = await listLocalMediaRecords();
-  const totalBytes = all.reduce((sum, r) => sum + (r.sizeBytes || 0), 0);
-  const formattedSize =
-    totalBytes >= 1024 * 1024
-      ? `${(totalBytes / (1024 * 1024)).toFixed(2)} MB`
-      : `${Math.round(totalBytes / 1024)} KB`;
-  return {
-    count: all.length,
-    totalBytes,
-    formattedSize
-  };
+export async function deleteLocalMediaRecordsByKeys(
+  keys: string[]
+): Promise<number> {
+  const validKeys = Array.from(
+    new Set((keys || []).map((k) => (k || '').trim()).filter(Boolean))
+  );
+  if (validKeys.length === 0) return 0;
+
+  let deletedCount = 0;
+  for (const key of validKeys) {
+    const ok = await deleteLocalMediaRecord(key);
+    if (ok) deletedCount += 1;
+  }
+  return deletedCount;
+}
+
+export async function deleteLocalMediaRecordsByTopicId(
+  topicId: string
+): Promise<number> {
+  if (!topicId) return 0;
+  const records = await getMediaRecordsByTopicId(topicId);
+  const keys = records.map((r) => r.id);
+  for (const [k, v] of memoryMediaStore.entries()) {
+    if (v.topicId === topicId && !keys.includes(k)) {
+      keys.push(k);
+    }
+  }
+  return deleteLocalMediaRecordsByKeys(keys);
 }
 
 export function formatBytesLabel(bytes?: number): string {

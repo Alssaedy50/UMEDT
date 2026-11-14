@@ -1,8 +1,10 @@
 package org.umed2.dictengine;
 
+import android.Manifest;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
@@ -16,6 +18,8 @@ import android.webkit.JavascriptInterface;
 import android.webkit.URLUtil;
 import android.webkit.WebView;
 
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
 import com.getcapacitor.BridgeActivity;
@@ -28,6 +32,8 @@ import java.io.FileOutputStream;
 import java.io.OutputStream;
 
 public class MainActivity extends BridgeActivity {
+
+    private static final int REQ_RECORD_AUDIO_CODE = 7101;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -50,6 +56,7 @@ public class MainActivity extends BridgeActivity {
             webView.getSettings().setJavaScriptEnabled(true);
             webView.getSettings().setAllowFileAccess(true);
             webView.getSettings().setDomStorageEnabled(true);
+            webView.getSettings().setMediaPlaybackRequiresUserGesture(false);
 
             try {
                 webView.removeJavascriptInterface("UMEDNativeDownloader");
@@ -115,6 +122,27 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public boolean isAvailable() {
             return true;
+        }
+
+        @JavascriptInterface
+        public boolean hasMicrophonePermission() {
+            return ContextCompat.checkSelfPermission(
+                    MainActivity.this,
+                    Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED;
+        }
+
+        @JavascriptInterface
+        public boolean requestMicrophonePermission() {
+            if (hasMicrophonePermission()) {
+                return true;
+            }
+            ActivityCompat.requestPermissions(
+                    MainActivity.this,
+                    new String[]{Manifest.permission.RECORD_AUDIO},
+                    REQ_RECORD_AUDIO_CODE
+            );
+            return false;
         }
 
         @JavascriptInterface

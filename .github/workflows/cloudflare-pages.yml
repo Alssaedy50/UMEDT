@@ -72,7 +72,7 @@ jobs:
           printf '%s\\n' '### UMED-2 Cloudflare Pages Build & Verification Summary' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\\n' '- **Production Build (`npm run build -> dist`):** Passed' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\\n' '- **PWA Assets (`dist/sw.js`, `dist/manifest.webmanifest`):** Verified' >> "$GITHUB_STEP_SUMMARY"
-          printf '%s\\n' '- **Automated Verification Suite (`npm test`):** Passed (13/13 checks)' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\\n' '- **Automated Verification Suite (`npm test`):** Passed (15/15 checks)' >> "$GITHUB_STEP_SUMMARY"
           if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
             printf '%s\\n' '- **Cloudflare Pages Direct Deployment:** Executed via Wrangler' >> "$GITHUB_STEP_SUMMARY"
           else

@@ -90,8 +90,11 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "pwa-192x192.png",
     "revision": "461e3d079dbe4033f0541e4a066f4424"
   }, {
+    "url": "manifest.webmanifest",
+    "revision": "6789ab21bd9f1223f37108f2a93301c7"
+  }, {
     "url": "index.html",
-    "revision": "b3e07c35f2956cc59cc54d6f97c1c3ea"
+    "revision": "1899bdfee143bb3f79df29f6e6110634"
   }, {
     "url": "icon.svg",
     "revision": "de3825fdeaffe99000bb989fa4bd5ac5"
@@ -102,17 +105,17 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "assets/workbox-window.prod.es5-BBnX5xw4.js",
     "revision": null
   }, {
-    "url": "assets/virtual_pwa-register-BJvUklIT.js",
+    "url": "assets/virtual_pwa-register-BFUVuG1c.js",
     "revision": null
   }, {
-    "url": "assets/index-RYm_mrLP.js",
+    "url": "assets/index-DGk9t5hx.css",
     "revision": null
   }, {
-    "url": "assets/index-D4lFr_x4.css",
+    "url": "assets/index-CUlDaZdR.js",
     "revision": null
   }, {
     "url": "_headers",
-    "revision": "cf29f60707d30bf35da6ff9031770a34"
+    "revision": "20a1c969cc83ca9edc0937812286ec12"
   }, {
     "url": "_redirects",
     "revision": "ea91721b625ee1760e5368ace2014144"
@@ -123,6 +126,9 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "icon.svg",
     "revision": "de3825fdeaffe99000bb989fa4bd5ac5"
   }, {
+    "url": "manifest.webmanifest",
+    "revision": "6789ab21bd9f1223f37108f2a93301c7"
+  }, {
     "url": "pwa-192x192.png",
     "revision": "461e3d079dbe4033f0541e4a066f4424"
   }, {
@@ -131,9 +137,6 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
   }, {
     "url": "pwa-maskable-512x512.png",
     "revision": "e8a1c0ea5857c7c7dbc20cc67b42f5f5"
-  }, {
-    "url": "manifest.webmanifest",
-    "revision": "e0c55acddf57a534fb1a711018f88583"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("/index.html"), {

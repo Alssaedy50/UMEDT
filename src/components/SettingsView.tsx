@@ -1224,12 +1224,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         setDownloadedFilesList(getDownloadedFilesHistory());
                         if (dl && dl.verified) {
                           setLocalVerifyFeedback(
-                            `تم حفظ ملف JSON فعلياً في: ${dl.savedPath} (${dl.sizeKB} KB)`
+                            dl.verifiedOnDisk
+                              ? `تم التحقق وحفظ ملف JSON فعلياً في: ${dl.savedPath} (${dl.sizeKB} KB)`
+                              : `تم إرسال ملف JSON (${dl.sizeKB} KB) إلى تنزيلات المتصفح — تحقق من مجلد التنزيلات في جهازك.`
                           );
                         }
-                      }, 250);
+                      }, 300);
                     }}
-                    className="min-h-[42px] px-3 py-2 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-extrabold flex items-center justify-center gap-1.5"
+                    className="min-h-[44px] px-3 py-2 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-extrabold flex items-center justify-center gap-1.5"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>تصدير JSON</span>
@@ -1245,12 +1247,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         setDownloadedFilesList(getDownloadedFilesHistory());
                         if (dl && dl.verified) {
                           setLocalVerifyFeedback(
-                            `تم حفظ حزمة ZIP فعلياً في: ${dl.savedPath} (${dl.sizeKB} KB)`
+                            dl.verifiedOnDisk
+                              ? `تم التحقق وحفظ حزمة ZIP فعلياً في: ${dl.savedPath} (${dl.sizeKB} KB)`
+                              : `تم إرسال حزمة ZIP (${dl.sizeKB} KB) إلى تنزيلات المتصفح — تحقق من مجلد التنزيلات في جهازك.`
                           );
                         }
-                      }, 250);
+                      }, 300);
                     }}
-                    className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 font-bold flex items-center justify-center gap-1.5"
+                    className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 font-bold flex items-center justify-center gap-1.5"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>تصدير ZIP</span>
@@ -1259,7 +1263,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5"
+                    className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5"
                   >
                     <Upload className="w-3.5 h-3.5 text-emerald-500" />
                     <span>استيراد بيانات أوفلاين</span>
@@ -1273,7 +1277,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         setDownloadedFilesList(getDownloadedFilesHistory());
                       }, 300);
                     }}
-                    className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5"
+                    className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5"
                   >
                     <Share2 className="w-3.5 h-3.5 text-emerald-500" />
                     <span>مشاركة النسخة</span>
@@ -1288,7 +1292,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     setDownloadedFilesList(getDownloadedFilesHistory());
                     const dlText =
                       check.lastDownload && check.lastDownload.verified
-                        ? ` · آخر ملف محفوظ: ${check.lastDownload.savedPath} (${check.lastDownload.sizeKB} KB)`
+                        ? check.lastDownload.verifiedOnDisk
+                          ? ` · آخر ملف محفوظ فعلياً: ${check.lastDownload.savedPath} (${check.lastDownload.sizeKB} KB)`
+                          : ` · آخر ملف أُرسل للتنزيل: ${check.lastDownload.filename} (${check.lastDownload.sizeKB} KB)`
                         : '';
                     setLocalVerifyFeedback(
                       check.ok
@@ -1296,7 +1302,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         : 'تعذر الوصول إلى التخزين المحلي في المتصفح.'
                     );
                   }}
-                  className="w-full min-h-[38px] px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-colors"
+                  className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-colors"
                 >
                   <Check className="w-3.5 h-3.5" />
                   <span>تأكيد وفحص التحميل والتخزين المحلي</span>
@@ -1313,7 +1319,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-extrabold text-slate-700 dark:text-slate-200">
-                        الملفات المنزّلة في الهاتف (Download/UMEDT)
+                        سجل التنزيلات (Download/UMEDT)
                       </span>
                       <span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">
                         {downloadedFilesList.length} ملف
@@ -1331,10 +1337,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                               dir="ltr"
                               className="font-mono font-extrabold text-slate-900 dark:text-white text-left break-all text-[11px]"
                             >
-                              {fileRec.savedPath || `Download/UMEDT/${fileRec.filename}`}
+                              {fileRec.verifiedOnDisk
+                                ? fileRec.savedPath
+                                : fileRec.filename}
                             </div>
                             <div className="text-[10px] text-slate-500">
-                              {fileRec.sizeKB} KB · تم التأكد من الحفظ
+                              {fileRec.sizeKB} KB ·{' '}
+                              {fileRec.verifiedOnDisk
+                                ? 'تم التأكد من الحفظ في Download/UMEDT'
+                                : 'أُرسل لتنزيلات المتصفح'}
                             </div>
                           </div>
 
@@ -1348,7 +1359,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                 }
                                 setLocalVerifyFeedback(openRes.messageAr);
                               }}
-                              className="min-h-[30px] px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold text-[11px]"
+                              className="min-h-[36px] px-3 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold text-[11px]"
                             >
                               فتح
                             </button>
@@ -1359,7 +1370,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                   setLocalVerifyFeedback(sh.messageAr);
                                 });
                               }}
-                              className="min-h-[30px] px-2.5 py-1 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-[11px]"
+                              className="min-h-[36px] px-3 py-1 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-[11px]"
                             >
                               مشاركة
                             </button>

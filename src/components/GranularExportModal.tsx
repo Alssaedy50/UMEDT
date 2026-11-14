@@ -608,10 +608,15 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
                       dir="ltr"
                       className="font-mono font-extrabold text-slate-900 dark:text-white text-left break-all text-[11px]"
                     >
-                      {item.savedPath || `Download/UMEDT/${item.filename}`}
+                      {item.verifiedOnDisk
+                        ? item.savedPath || `Download/UMEDT/${item.filename}`
+                        : item.filename}
                     </div>
                     <div className="text-[10px] text-slate-500">
-                      الحجم: {item.sizeKB} KB · تم الحفظ والتحقق
+                      الحجم: {item.sizeKB} KB ·{' '}
+                      {item.verifiedOnDisk
+                        ? 'تم الحفظ والتحقق في Download/UMEDT'
+                        : 'أُرسل لتنزيلات المتصفح'}
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -624,7 +629,7 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
                         }
                         showToast(openRes.messageAr);
                       }}
-                      className="min-h-[30px] px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold text-[11px]"
+                      className="min-h-[36px] px-3 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold text-[11px]"
                     >
                       فتح
                     </button>
@@ -635,7 +640,7 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
                           showToast(sh.messageAr);
                         });
                       }}
-                      className="min-h-[30px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-[11px]"
+                      className="min-h-[36px] px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-[11px]"
                     >
                       مشاركة
                     </button>

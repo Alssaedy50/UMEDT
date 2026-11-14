@@ -54,6 +54,7 @@ import {
   loadMedicalBlocks,
   saveMedicalBlocks
 } from '../src/services/learningHierarchyService';
+import { saveLocalMediaRecord } from '../src/services/mediaStorageService';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,8 +71,8 @@ async function main() {
   console.log('UMED-2 — Independent Web, PWA & Android APK Verification Suite');
   console.log('================================================================');
 
-  // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.3.0)
-  assertCondition(APP_VERSION === '2.3.0', `Expected APP_VERSION 2.3.0, got ${APP_VERSION}`);
+  // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.4.0)
+  assertCondition(APP_VERSION === '2.4.0', `Expected APP_VERSION 2.4.0, got ${APP_VERSION}`);
   assertCondition(DB_SCHEMA_VERSION === 2, `Expected DB_SCHEMA_VERSION 2, got ${DB_SCHEMA_VERSION}`);
   assertCondition(
     BUNDLED_DATA_VERSION === '2026.10.0-umd',
@@ -164,21 +165,21 @@ async function main() {
   assertCondition(
     apkWorkflowContent.includes('assembleDebug') &&
       apkWorkflowContent.includes('assembleRelease') &&
-      apkWorkflowContent.includes('UMED-2-v2.3.0-debug-apk') &&
-      apkWorkflowContent.includes('UMED-2-v2.3.0-release-apk') &&
+      apkWorkflowContent.includes('UMED-2-v2.4.0-debug-apk') &&
+      apkWorkflowContent.includes('UMED-2-v2.4.0-release-apk') &&
       apkWorkflowContent.includes('VITE_UMED_MANIFEST_URL') &&
       apkWorkflowContent.includes('VITE_UMED_PUBLIC_KEY_PEM'),
-    'android-apk-release.yml must build v2.3.0 Debug/Release APKs with Cloud OTA env vars'
+    'android-apk-release.yml must build v2.4.0 Debug/Release APKs with Cloud OTA env vars'
   );
 
   const gradleContent = fs.readFileSync(androidBuildGradlePath, 'utf8');
   assertCondition(
     gradleContent.includes('org.umed2.dictengine') &&
-      gradleContent.includes('versionCode 20300') &&
-      gradleContent.includes('versionName "2.3.0"'),
-    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20300, and versionName "2.3.0"'
+      gradleContent.includes('versionCode 20400') &&
+      gradleContent.includes('versionName "2.4.0"'),
+    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20400, and versionName "2.4.0"'
   );
-  console.log('[PASS] 3. Capacitor Native Android Project (v2.3.0 / 20300) & Bundled Local Web Assets Synced');
+  console.log('[PASS] 3. Capacitor Native Android Project (v2.4.0 / 20400) & Bundled Local Web Assets Synced');
 
   // 4. Verify Safe, Versioned, Idempotent Storage Migration + Backup & Rollback
   const initialState = loadAppState();
@@ -982,8 +983,86 @@ async function main() {
   console.log(
     `[PASS] 14. Download/UMEDT Native Bridge, File Verification (JSON: ${jsonDownloadRecord.sizeKB} KB, ZIP: ${zipDownloadRecord.sizeKB} KB) & Full Arabic Block/Subject Names Verified`
   );
+
+  // --------------------------------------------------------------------------
+  // 15. Audio Mic Permissions, PWA Manifest, Media IDB Honesty & Download Honesty
+  // --------------------------------------------------------------------------
+  const manifestXmlPath = path.join(
+    ROOT_DIR,
+    'android',
+    'app',
+    'src',
+    'main',
+    'AndroidManifest.xml'
+  );
+  const manifestXml = fs.readFileSync(manifestXmlPath, 'utf8');
+  assertCondition(
+    manifestXml.includes('android.permission.RECORD_AUDIO') &&
+      manifestXml.includes('android.permission.MODIFY_AUDIO_SETTINGS'),
+    'AndroidManifest.xml must declare RECORD_AUDIO and MODIFY_AUDIO_SETTINGS'
+  );
+
+  assertCondition(
+    mainActivityJava.includes('hasMicrophonePermission') &&
+      mainActivityJava.includes('requestMicrophonePermission'),
+    'MainActivity.java must expose hasMicrophonePermission and requestMicrophonePermission'
+  );
+
+  const audioHeadersPath = path.join(ROOT_DIR, 'public', '_headers');
+  const audioHeadersContent = fs.readFileSync(audioHeadersPath, 'utf8');
+  assertCondition(
+    audioHeadersContent.includes('microphone=(self)'),
+    'public/_headers must allow microphone=(self) in Permissions-Policy'
+  );
+
+  const indexHtmlPath = path.join(ROOT_DIR, 'index.html');
+  const indexHtml = fs.readFileSync(indexHtmlPath, 'utf8');
+  assertCondition(
+    indexHtml.includes('href="/manifest.webmanifest"') &&
+      !indexHtml.includes('href="/manifest.json"'),
+    'index.html must reference /manifest.webmanifest and not /manifest.json'
+  );
+
+  const distIndexHtmlPath = path.join(ROOT_DIR, 'dist', 'index.html');
+  if (fs.existsSync(distIndexHtmlPath)) {
+    const distIndexHtml = fs.readFileSync(distIndexHtmlPath, 'utf8');
+    const manifestLinks = distIndexHtml.match(/rel="manifest"/g) || [];
+    assertCondition(
+      manifestLinks.length === 1 &&
+        distIndexHtml.includes('href="/manifest.webmanifest"'),
+      'dist/index.html must contain exactly one manifest link pointing to /manifest.webmanifest'
+    );
+  }
+
+  const webManifestPath = path.join(ROOT_DIR, 'public', 'manifest.webmanifest');
+  assertCondition(fs.existsSync(webManifestPath), 'public/manifest.webmanifest must exist');
+
+  const idbUnavailableRes = await saveLocalMediaRecord({
+    id: 'test-audio-no-idb',
+    topicId: 'test-topic',
+    mediaType: 'audio_recording',
+    mimeType: 'audio/webm',
+    fileName: 'test.webm',
+    dataUrl: 'data:audio/webm;base64,AAAA',
+    sizeBytes: 4,
+    createdAt: new Date().toISOString()
+  });
+  assertCondition(
+    idbUnavailableRes.success === false && !idbUnavailableRes.verifiedInIdb,
+    'saveLocalMediaRecord must return success === false (never fake true) when IndexedDB is unavailable'
+  );
+
+  assertCondition(
+    jsonDownloadRecord.verifiedOnDisk === false &&
+      zipDownloadRecord.verifiedOnDisk === false,
+    'prepareAndDownloadFile on Web/Node must report verifiedOnDisk === false instead of claiming verified physical disk write'
+  );
+
+  console.log(
+    '[PASS] 15. Mic Permissions, PWA Manifest Link, Media IDB Failure Honesty & Download Disk Honesty Verified'
+  );
   console.log('================================================================');
-  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (14/14 — 100%)');
+  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (15/15 — 100%)');
   console.log('================================================================');
 }
 

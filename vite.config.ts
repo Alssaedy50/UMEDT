@@ -17,47 +17,13 @@ export default defineConfig(() => {
           'pwa-192x192.png',
           'pwa-512x512.png',
           'pwa-maskable-512x512.png',
+          'manifest.webmanifest',
           '_redirects',
           '_headers'
         ],
-        manifest: {
-          id: '/',
-          name: 'UMEDT',
-          short_name: 'UMEDT',
-          description:
-            'تطبيق UMEDT: القاموس الطبي والمترجم السريري بدون إنترنت.',
-          theme_color: '#059669',
-          background_color: '#020617',
-          display: 'standalone',
-          orientation: 'portrait',
-          dir: 'rtl',
-          lang: 'ar',
-          start_url: '/',
-          scope: '/',
-          categories: ['medical', 'education', 'reference', 'productivity'],
-          icons: [
-            {
-              src: '/pwa-192x192.png',
-              sizes: '192x192',
-              type: 'image/png',
-              purpose: 'any'
-            },
-            {
-              src: '/pwa-512x512.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'any'
-            },
-            {
-              src: '/pwa-maskable-512x512.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'maskable'
-            }
-          ]
-        },
+        manifest: false,
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,json,woff,woff2}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest,woff,woff2}'],
           globIgnores: ['**/assets/aistudio/**'],
           cleanupOutdatedCaches: true,
           clientsClaim: true,

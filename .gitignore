@@ -12,3 +12,6 @@ keys/
 *.key
 *.p8
 *.pkcs8
+artifacts/
+releases/
+public/assets/aistudio/

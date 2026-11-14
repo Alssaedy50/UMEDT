@@ -16,6 +16,7 @@ export interface LocalDownloadRecord {
   mime: string;
   timestamp: string;
   verified: boolean;
+  verifiedOnDisk?: boolean;
   nativeUri?: string;
   previewText?: string;
   method:
@@ -168,7 +169,15 @@ export function getDownloadedFilesHistory(): LocalDownloadRecord[] {
     const store = getSafeStorage();
     const raw = store.getItem(DOWNLOAD_HISTORY_KEY);
     const parsed: LocalDownloadRecord[] = raw ? JSON.parse(raw) : [];
-    const validList = Array.isArray(parsed) ? parsed : [];
+    const validList: LocalDownloadRecord[] = (Array.isArray(parsed) ? parsed : []).map(
+      (rec) => ({
+        ...rec,
+        verifiedOnDisk:
+          typeof rec.verifiedOnDisk === 'boolean'
+            ? rec.verifiedOnDisk
+            : rec.method === 'android-native-storage'
+      })
+    );
 
     // Merge with native Android files in Download/UMEDT if running on Android APK
     const bridge = getNativeBridge();
@@ -199,6 +208,7 @@ export function getDownloadedFilesHistory(): LocalDownloadRecord[] {
                   : 'application/json',
                 timestamp: new Date(nf.timestamp || Date.now()).toISOString(),
                 verified: true,
+                verifiedOnDisk: true,
                 method: 'android-native-storage'
               });
             }
@@ -300,6 +310,8 @@ export async function prepareAndDownloadFile(options: {
   mime?: string;
 }): Promise<{
   verified: boolean;
+  verifiedOnDisk: boolean;
+  initiated: boolean;
   savedPath: string;
   downloadUrl: string;
   filename: string;
@@ -307,6 +319,7 @@ export async function prepareAndDownloadFile(options: {
   sizeKB: number;
   method: LocalDownloadRecord['method'];
   record: LocalDownloadRecord;
+  messageAr: string;
   error?: string;
 }> {
   const { filename, content, mime = 'application/octet-stream' } = options;
@@ -329,10 +342,14 @@ export async function prepareAndDownloadFile(options: {
       mime,
       timestamp: new Date().toISOString(),
       verified: false,
+      verifiedOnDisk: false,
       method: 'client-blob'
     };
+    const errorMsg = 'محتوى الملف فارغ ولا يمكن حفظه';
     return {
       verified: false,
+      verifiedOnDisk: false,
+      initiated: false,
       savedPath,
       downloadUrl: '',
       filename: safeFilename,
@@ -340,7 +357,8 @@ export async function prepareAndDownloadFile(options: {
       sizeKB: 0,
       method: 'client-blob',
       record: emptyRec,
-      error: 'محتوى الملف فارغ ولا يمكن حفظه'
+      messageAr: errorMsg,
+      error: errorMsg
     };
   }
 
@@ -382,6 +400,7 @@ export async function prepareAndDownloadFile(options: {
           mime,
           timestamp: new Date().toISOString(),
           verified: true,
+          verifiedOnDisk: true,
           nativeUri: parsed.uri || undefined,
           previewText,
           method: 'android-native-storage'
@@ -390,19 +409,21 @@ export async function prepareAndDownloadFile(options: {
 
         return {
           verified: true,
+          verifiedOnDisk: true,
+          initiated: true,
           savedPath: finalPath,
           downloadUrl: parsed.uri || `file:///storage/emulated/0/${finalPath}`,
           filename: finalName,
           sizeBytes: finalBytes,
           sizeKB: finalKB,
           method: 'android-native-storage',
-          record: rec
+          record: rec,
+          messageAr: `تم التحقق وحفظ الملف فعلياً في "${finalPath}" (${finalKB} KB) بنجاح.`
         };
       } else {
         throw new Error(parsed.error || 'فشل التحقق من حفظ الملف في ذاكرة الهاتف');
       }
     } catch (err) {
-      // If on native bridge and it threw an error, only continue to fallback if allowed
       console.warn('[UMEDNativeDownloader] Fallback after native save error:', err);
     }
   }
@@ -448,19 +469,23 @@ export async function prepareAndDownloadFile(options: {
             mime,
             timestamp: new Date().toISOString(),
             verified: true,
+            verifiedOnDisk: false,
             previewText,
             method: 'server-attachment'
           };
           recordLocalDownload(rec, content);
           return {
             verified: true,
+            verifiedOnDisk: false,
+            initiated: true,
             savedPath: finalPath,
             downloadUrl: data.downloadUrl,
             filename: finalName,
             sizeBytes,
             sizeKB,
             method: 'server-attachment',
-            record: rec
+            record: rec,
+            messageAr: `تم تجهيز الملف "${finalName}" (${sizeKB} KB) وإرسال طلب التنزيل إلى المتصفح — راجع مجلد التنزيلات في جهازك.`
           };
         }
       }
@@ -483,26 +508,30 @@ export async function prepareAndDownloadFile(options: {
         mime,
         timestamp: new Date().toISOString(),
         verified: true,
+        verifiedOnDisk: false,
         previewText,
         method: 'android-data-uri'
       };
       recordLocalDownload(rec, content);
       return {
         verified: true,
+        verifiedOnDisk: false,
+        initiated: true,
         savedPath,
         downloadUrl: dataUrl,
         filename: safeFilename,
         sizeBytes,
         sizeKB,
         method: 'android-data-uri',
-        record: rec
+        record: rec,
+        messageAr: `تم إرسال الملف "${safeFilename}" (${sizeKB} KB) إلى مدير التنزيلات في النظام — تحقق من اكتمال الحفظ في الجهاز.`
       };
     } catch {
       // Continue to standard Blob download
     }
   }
 
-  // 4. Standard client-side Blob URL download
+  // 4. Standard client-side Blob URL download (Web / PWA — browser handles disk write, JS cannot verify disk persistence)
   const blob = isBinary
     ? new Blob([new Uint8Array(content)], { type: mime })
     : new Blob([content], { type: mime });
@@ -521,6 +550,7 @@ export async function prepareAndDownloadFile(options: {
     }, 30000);
   }
 
+  const payloadReady = blob.size === sizeBytes && sizeBytes > 0;
   const rec: LocalDownloadRecord = {
     id: `dl-${Date.now()}`,
     filename: safeFilename,
@@ -529,21 +559,27 @@ export async function prepareAndDownloadFile(options: {
     sizeKB,
     mime,
     timestamp: new Date().toISOString(),
-    verified: blob.size === sizeBytes && sizeBytes > 0,
+    verified: payloadReady,
+    verifiedOnDisk: false,
     previewText,
     method: 'client-blob'
   };
   recordLocalDownload(rec, content);
 
   return {
-    verified: rec.verified,
+    verified: payloadReady,
+    verifiedOnDisk: false,
+    initiated: payloadReady,
     savedPath,
     downloadUrl: blobUrl,
     filename: safeFilename,
     sizeBytes,
     sizeKB,
     method: 'client-blob',
-    record: rec
+    record: rec,
+    messageAr: payloadReady
+      ? `تم تجهيز الملف "${safeFilename}" (${sizeKB} KB) وإرساله إلى تنزيلات المتصفح — لا يمكن لمتصفح الويب التحقق تلقائياً من مسار القرص.`
+      : 'تعذر تجهيز بيانات الملف للتنزيل.'
   };
 }
 
@@ -667,13 +703,20 @@ export async function shareSavedDownloadFile(
   };
 }
 
-export async function shareFileOnAndroidOrDownload(options: {
+export async function shareFileWithVerification(options: {
   filename: string;
   content: string | Uint8Array;
   mime?: string;
   title?: string;
   text?: string;
-}): Promise<boolean> {
+}): Promise<{
+  initiated: boolean;
+  sharedViaNativeSheet: boolean;
+  verifiedOnDisk: boolean;
+  savedPath: string;
+  messageAr: string;
+  record: LocalDownloadRecord;
+}> {
   const {
     filename,
     content,
@@ -682,21 +725,39 @@ export async function shareFileOnAndroidOrDownload(options: {
     text = `ملف من تطبيق UMEDT: ${filename}`
   } = options;
 
-  // First ensure the file is saved & verified in Download/UMEDT
   const savedRes = await prepareAndDownloadFile({
     filename,
     content,
     mime
   });
 
-  // If running on native Android bridge, share directly from Download/UMEDT
+  if (!savedRes.initiated) {
+    return {
+      initiated: false,
+      sharedViaNativeSheet: false,
+      verifiedOnDisk: false,
+      savedPath: savedRes.savedPath,
+      messageAr: savedRes.error || 'تعذر تجهيز الملف للمشاركة أو الحفظ.',
+      record: savedRes.record
+    };
+  }
+
   const bridge = getNativeBridge();
   if (bridge && typeof bridge.shareDownloadedFile === 'function') {
     try {
       const raw = bridge.shareDownloadedFile(savedRes.filename, mime, title);
       const parsed = JSON.parse(raw) as { ok?: boolean };
       if (parsed.ok) {
-        return true;
+        return {
+          initiated: true,
+          sharedViaNativeSheet: true,
+          verifiedOnDisk: savedRes.verifiedOnDisk,
+          savedPath: savedRes.savedPath,
+          messageAr: savedRes.verifiedOnDisk
+            ? `تم حفظ الملف فعلياً في ${savedRes.savedPath} وفتح نافذة المشاركة.`
+            : `تم فتح نافذة مشاركة الملف "${savedRes.filename}".`,
+          record: savedRes.record
+        };
       }
     } catch {
       // Fallback to Web Share API
@@ -716,11 +777,36 @@ export async function shareFileOnAndroidOrDownload(options: {
         text,
         files: [file]
       });
-      return true;
+      return {
+        initiated: true,
+        sharedViaNativeSheet: true,
+        verifiedOnDisk: savedRes.verifiedOnDisk,
+        savedPath: savedRes.savedPath,
+        messageAr: `تمت مشاركة الملف "${savedRes.filename}" (${savedRes.sizeKB} KB) عبر قائمة المشاركة.`,
+        record: savedRes.record
+      };
     }
   } catch {
-    // User cancelled or browser blocked share; file is already saved in Download/UMEDT
+    // User cancelled or Web Share unsupported
   }
 
-  return savedRes.verified;
+  return {
+    initiated: savedRes.initiated,
+    sharedViaNativeSheet: false,
+    verifiedOnDisk: savedRes.verifiedOnDisk,
+    savedPath: savedRes.savedPath,
+    messageAr: savedRes.messageAr,
+    record: savedRes.record
+  };
+}
+
+export async function shareFileOnAndroidOrDownload(options: {
+  filename: string;
+  content: string | Uint8Array;
+  mime?: string;
+  title?: string;
+  text?: string;
+}): Promise<boolean> {
+  const res = await shareFileWithVerification(options);
+  return res.initiated;
 }

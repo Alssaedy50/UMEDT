@@ -179,7 +179,7 @@ jobs:
             echo "### UMEDT Medical Data Release Summary" >> "$GITHUB_STEP_SUMMARY"
             echo "- **Channel:** \`${{ github.event.inputs.channel || 'stable' }}\`" >> "$GITHUB_STEP_SUMMARY"
             echo "- **Data Version:** \`${DATA_VERSION}\`" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **App Version:** \`2.2.0\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **App Version:** \`2.4.0\`" >> "$GITHUB_STEP_SUMMARY"
             echo "- **Terms:** \`${TERMS}\`" >> "$GITHUB_STEP_SUMMARY"
             echo "- **Sentences:** \`${SENTENCES}\`" >> "$GITHUB_STEP_SUMMARY"
             echo "- **Signature:** \`${ALGO}\`" >> "$GITHUB_STEP_SUMMARY"

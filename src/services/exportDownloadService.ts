@@ -8,7 +8,7 @@ import {
 } from '../types/lexicon';
 import {
   prepareAndDownloadFile,
-  shareFileOnAndroidOrDownload,
+  shareFileWithVerification,
   LocalDownloadRecord
 } from '../utils/downloadHelper';
 import { extractDetailedTermMatchesFromText } from '../engine/knowledgeLinker';
@@ -27,6 +27,7 @@ export const GITHUB_DIRECT_RELEASE_LINKS = {
 
 export interface VerifiedExportResult {
   success: boolean;
+  verifiedOnDisk: boolean;
   fileName: string;
   savedPath?: string;
   format: 'json' | 'csv';
@@ -214,6 +215,7 @@ export async function executeVerifiedExportDownload(params: {
   if (!cleanContent || cleanContent.length < 2) {
     return {
       success: false,
+      verifiedOnDisk: false,
       fileName: params.fileName,
       format: params.format,
       byteSize: 0,
@@ -228,6 +230,7 @@ export async function executeVerifiedExportDownload(params: {
   if (byteSize === 0) {
     return {
       success: false,
+      verifiedOnDisk: false,
       fileName: params.fileName,
       format: params.format,
       byteSize: 0,
@@ -246,7 +249,7 @@ export async function executeVerifiedExportDownload(params: {
 
   try {
     if (params.deliveryMode === 'share') {
-      const shared = await shareFileOnAndroidOrDownload({
+      const shareRes = await shareFileWithVerification({
         filename: params.fileName,
         content: params.content,
         mime,
@@ -254,16 +257,16 @@ export async function executeVerifiedExportDownload(params: {
         text: `${params.titleAr} (${params.recordsCount} سجل · ${sizeKb} KB)`
       });
       return {
-        success: shared,
+        success: shareRes.initiated,
+        verifiedOnDisk: shareRes.verifiedOnDisk,
         fileName: params.fileName,
-        savedPath: `Download/UMEDT/${params.fileName}`,
+        savedPath: shareRes.savedPath,
         format: params.format,
         byteSize,
         recordsCount: params.recordsCount,
-        sharedViaNativeSheet: shared,
-        messageAr: shared
-          ? `تم حفظ الملف في Download/UMEDT/${params.fileName} (${sizeKb} KB) وفتح نافذة المشاركة بنجاح.`
-          : 'تعذر إكمال مشاركة أو حفظ الملف.'
+        sharedViaNativeSheet: shareRes.sharedViaNativeSheet,
+        record: shareRes.record,
+        messageAr: shareRes.messageAr
       };
     }
 
@@ -273,9 +276,10 @@ export async function executeVerifiedExportDownload(params: {
       mime
     });
 
-    if (!res || !res.verified || !res.downloadUrl) {
+    if (!res || !res.initiated || !res.downloadUrl) {
       return {
         success: false,
+        verifiedOnDisk: false,
         fileName: params.fileName,
         savedPath: res?.savedPath || `Download/UMEDT/${params.fileName}`,
         format: params.format,
@@ -284,12 +288,13 @@ export async function executeVerifiedExportDownload(params: {
         sharedViaNativeSheet: false,
         messageAr:
           res?.error ||
-          'تعذر التأكد من حفظ الملف على الجهاز. جرب خيار مشاركة الملف.'
+          'تعذر تجهيز أو حفظ الملف على الجهاز. جرب خيار مشاركة الملف.'
       };
     }
 
     return {
       success: true,
+      verifiedOnDisk: res.verifiedOnDisk,
       fileName: res.filename || params.fileName,
       savedPath: res.savedPath,
       format: params.format,
@@ -297,11 +302,14 @@ export async function executeVerifiedExportDownload(params: {
       recordsCount: params.recordsCount,
       sharedViaNativeSheet: false,
       record: res.record,
-      messageAr: `تم التحقق وحفظ الملف فعلياً في "${res.savedPath}" (${sizeKb} KB · ${params.recordsCount} سجل) بنجاح.`
+      messageAr: res.verifiedOnDisk
+        ? `تم التحقق وحفظ الملف فعلياً في "${res.savedPath}" (${sizeKb} KB · ${params.recordsCount} سجل) بنجاح.`
+        : `تم تجهيز الملف "${res.filename}" (${sizeKb} KB · ${params.recordsCount} سجل) وإرساله إلى تنزيلات المتصفح.`
     };
   } catch (err) {
     return {
       success: false,
+      verifiedOnDisk: false,
       fileName: params.fileName,
       savedPath: `Download/UMEDT/${params.fileName}`,
       format: params.format,
