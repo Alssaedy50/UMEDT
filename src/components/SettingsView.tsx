@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Sun,
   Moon,
@@ -37,6 +37,8 @@ import {
   TelegramBackupSchedule,
   ConciseDataSummary,
   SCHEDULE_LABELS_AR,
+  loadTelegramBackupConfig,
+  saveTelegramBackupConfig,
   testTelegramConnection
 } from '../services/telegramBackupService';
 
@@ -82,7 +84,7 @@ interface SettingsViewProps {
   lastBackupTime: string;
   telegramConfig?: TelegramBackupConfig;
   onUpdateTelegramConfig?: (nextConfig: TelegramBackupConfig) => void;
-  onTriggerTelegramBackupNow?: () => Promise<{
+  onTriggerTelegramBackupNow?: (overrideConfig?: TelegramBackupConfig) => Promise<{
     ok: boolean;
     message: string;
     summary?: ConciseDataSummary;
@@ -200,6 +202,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   lastImportedOrCopiedSummary
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const botTokenInputRef = useRef<HTMLInputElement | null>(null);
+  const chatIdInputRef = useRef<HTMLInputElement | null>(null);
   const [activeModal, setActiveModal] = useState<SettingsModalType>(null);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [isSendingTelegram, setIsSendingTelegram] = useState<boolean>(false);
@@ -208,6 +212,60 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     ok: boolean;
     message: string;
   } | null>(null);
+
+  const [draftBotToken, setDraftBotToken] = useState<string>(
+    () => telegramConfig?.botToken || loadTelegramBackupConfig().botToken || ''
+  );
+  const [draftChatId, setDraftChatId] = useState<string>(
+    () => telegramConfig?.chatId || loadTelegramBackupConfig().chatId || ''
+  );
+
+  // Sync draft credentials from persisted config only if draft is empty and persisted has values
+  useEffect(() => {
+    const stored = loadTelegramBackupConfig();
+    const incomingToken = telegramConfig?.botToken || stored.botToken || '';
+    const incomingChatId = telegramConfig?.chatId || stored.chatId || '';
+    if (incomingToken && !draftBotToken) {
+      setDraftBotToken(incomingToken);
+    }
+    if (incomingChatId && !draftChatId) {
+      setDraftChatId(incomingChatId);
+    }
+  }, [telegramConfig?.botToken, telegramConfig?.chatId, draftBotToken, draftChatId]);
+
+  const syncAndPersistTelegramDraft = (overrides?: Partial<TelegramBackupConfig>): TelegramBackupConfig => {
+    const stored = loadTelegramBackupConfig();
+    const base = telegramConfig || stored;
+    const liveToken =
+      overrides?.botToken !== undefined
+        ? overrides.botToken
+        : botTokenInputRef.current?.value ?? draftBotToken ?? base.botToken ?? '';
+    const liveChatId =
+      overrides?.chatId !== undefined
+        ? overrides.chatId
+        : chatIdInputRef.current?.value ?? draftChatId ?? base.chatId ?? '';
+    const nextSchedule = overrides?.schedule ?? base.schedule ?? 'daily';
+    const hasCreds = Boolean(liveToken.trim() && liveChatId.trim());
+
+    const nextCfg: TelegramBackupConfig = {
+      ...stored,
+      ...base,
+      ...overrides,
+      botToken: liveToken,
+      chatId: liveChatId,
+      schedule: nextSchedule,
+      enabled:
+        nextSchedule === 'off'
+          ? false
+          : hasCreds
+          ? true
+          : Boolean(overrides?.enabled ?? base.enabled)
+    };
+
+    const saved = saveTelegramBackupConfig(nextCfg);
+    onUpdateTelegramConfig?.(saved);
+    return saved;
+  };
 
   const { isInstallable, isCapacitorNative, install } = usePWAInstall();
   const browserOnline = useOnlineStatus();
@@ -246,22 +304,70 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const handleTestTelegram = async () => {
-    if (!telegramConfig) return;
+    const currentToken = (
+      botTokenInputRef.current?.value ??
+      draftBotToken ??
+      telegramConfig?.botToken ??
+      ''
+    ).trim();
+    const currentChatId = (
+      chatIdInputRef.current?.value ??
+      draftChatId ??
+      telegramConfig?.chatId ??
+      ''
+    ).trim();
+
+    setDraftBotToken(currentToken);
+    setDraftChatId(currentChatId);
+    const savedBeforeTest = syncAndPersistTelegramDraft({
+      botToken: currentToken,
+      chatId: currentChatId
+    });
+
     setIsTestingTelegram(true);
     setTelegramFeedback(null);
     const res = await testTelegramConnection(
-      telegramConfig.botToken,
-      telegramConfig.chatId
+      savedBeforeTest.botToken,
+      savedBeforeTest.chatId
     );
+    // Ensure credentials remain persisted in state and storage after test finishes
+    syncAndPersistTelegramDraft({
+      botToken: currentToken,
+      chatId: currentChatId
+    });
     setTelegramFeedback(res);
     setIsTestingTelegram(false);
   };
 
   const handleSendTelegramNow = async () => {
     if (!onTriggerTelegramBackupNow) return;
+    const currentToken = (
+      botTokenInputRef.current?.value ??
+      draftBotToken ??
+      telegramConfig?.botToken ??
+      ''
+    ).trim();
+    const currentChatId = (
+      chatIdInputRef.current?.value ??
+      draftChatId ??
+      telegramConfig?.chatId ??
+      ''
+    ).trim();
+
+    setDraftBotToken(currentToken);
+    setDraftChatId(currentChatId);
+    const savedCfg = syncAndPersistTelegramDraft({
+      botToken: currentToken,
+      chatId: currentChatId
+    });
+
     setIsSendingTelegram(true);
     setTelegramFeedback(null);
-    const res = await onTriggerTelegramBackupNow();
+    const res = await onTriggerTelegramBackupNow(savedCfg);
+    syncAndPersistTelegramDraft({
+      botToken: currentToken,
+      chatId: currentChatId
+    });
     setTelegramFeedback({ ok: res.ok, message: res.message });
     setIsSendingTelegram(false);
   };
@@ -399,6 +505,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           type="button"
           onClick={() => {
             setTelegramFeedback(null);
+            const latestCfg = telegramConfig || loadTelegramBackupConfig();
+            if (latestCfg.botToken && !draftBotToken) {
+              setDraftBotToken(latestCfg.botToken);
+            }
+            if (latestCfg.chatId && !draftChatId) {
+              setDraftChatId(latestCfg.chatId);
+            }
             setActiveModal('telegram');
           }}
           className="w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-right"
@@ -411,13 +524,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
             <span
               className={
-                telegramConfig?.enabled && telegramConfig?.botToken
+                (telegramConfig?.botToken || draftBotToken).trim() &&
+                (telegramConfig?.chatId || draftChatId).trim()
                   ? 'text-emerald-600 dark:text-emerald-400'
                   : ''
               }
             >
-              {telegramConfig?.enabled && telegramConfig?.botToken
-                ? SCHEDULE_LABELS_AR[telegramConfig.schedule]
+              {(telegramConfig?.botToken || draftBotToken).trim() &&
+              (telegramConfig?.chatId || draftChatId).trim()
+                ? SCHEDULE_LABELS_AR[telegramConfig?.schedule || 'daily']
                 : 'إعداد'}
             </span>
             <ChevronLeft className="w-4 h-4" />
@@ -737,15 +852,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       رمز البوت (Telegram Bot Token) *
                     </label>
                     <input
+                      ref={botTokenInputRef}
                       type="text"
                       dir="ltr"
-                      value={telegramConfig.botToken}
-                      onChange={(e) =>
-                        onUpdateTelegramConfig({
-                          ...telegramConfig,
-                          botToken: e.target.value
-                        })
-                      }
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={draftBotToken}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDraftBotToken(val);
+                        syncAndPersistTelegramDraft({ botToken: val });
+                      }}
+                      onBlur={(e) => {
+                        const val = e.currentTarget.value;
+                        setDraftBotToken(val);
+                        syncAndPersistTelegramDraft({ botToken: val });
+                      }}
                       placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
                       className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-left focus:outline-none focus:border-emerald-500"
                     />
@@ -756,15 +878,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       معرف المحادثة أو القناة (Chat ID) *
                     </label>
                     <input
+                      ref={chatIdInputRef}
                       type="text"
                       dir="ltr"
-                      value={telegramConfig.chatId}
-                      onChange={(e) =>
-                        onUpdateTelegramConfig({
-                          ...telegramConfig,
-                          chatId: e.target.value
-                        })
-                      }
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={draftChatId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDraftChatId(val);
+                        syncAndPersistTelegramDraft({ chatId: val });
+                      }}
+                      onBlur={(e) => {
+                        const val = e.currentTarget.value;
+                        setDraftChatId(val);
+                        syncAndPersistTelegramDraft({ chatId: val });
+                      }}
                       placeholder="e.g., 987654321 or -100123456789"
                       className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-left focus:outline-none focus:border-emerald-500"
                     />
@@ -779,8 +908,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       value={telegramConfig.schedule}
                       onChange={(e) => {
                         const nextSched = e.target.value as TelegramBackupSchedule;
-                        onUpdateTelegramConfig({
-                          ...telegramConfig,
+                        syncAndPersistTelegramDraft({
                           schedule: nextSched,
                           enabled: nextSched !== 'off'
                         });
@@ -804,8 +932,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         type="checkbox"
                         checked={telegramConfig.includeDictionaryAndTerms}
                         onChange={(e) =>
-                          onUpdateTelegramConfig({
-                            ...telegramConfig,
+                          syncAndPersistTelegramDraft({
                             includeDictionaryAndTerms: e.target.checked
                           })
                         }
@@ -819,8 +946,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         type="checkbox"
                         checked={telegramConfig.includeTopicsAndHierarchy}
                         onChange={(e) =>
-                          onUpdateTelegramConfig({
-                            ...telegramConfig,
+                          syncAndPersistTelegramDraft({
                             includeTopicsAndHierarchy: e.target.checked
                           })
                         }

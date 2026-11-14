@@ -249,24 +249,57 @@ const memoryFallbackStore = new Map<string, string>();
 
 function getStorageRawItem(key: string): string | null {
   if (typeof window !== 'undefined' && window.localStorage) {
-    return window.localStorage.getItem(key);
+    const val = window.localStorage.getItem(key);
+    if (val !== null) return val;
   }
   return memoryFallbackStore.get(key) ?? null;
 }
 
 function setStorageRawItem(key: string, value: string): void {
+  memoryFallbackStore.set(key, value);
   if (typeof window !== 'undefined' && window.localStorage) {
-    window.localStorage.setItem(key, value);
-  } else {
-    memoryFallbackStore.set(key, value);
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      // QuotaExceededError recovery: prune heavy backup history snapshots first
+      try {
+        if (key !== STORAGE_KEYS.BACKUP_HISTORY) {
+          const rawHistory = window.localStorage.getItem(STORAGE_KEYS.BACKUP_HISTORY);
+          if (rawHistory) {
+            const parsed = JSON.parse(rawHistory);
+            if (Array.isArray(parsed) && parsed.length > 1) {
+              window.localStorage.setItem(
+                STORAGE_KEYS.BACKUP_HISTORY,
+                JSON.stringify(parsed.slice(0, 1))
+              );
+            } else {
+              window.localStorage.removeItem(STORAGE_KEYS.BACKUP_HISTORY);
+            }
+          }
+          window.localStorage.setItem(key, value);
+          return;
+        } else {
+          const parsed = JSON.parse(value);
+          if (Array.isArray(parsed) && parsed.length > 1) {
+            window.localStorage.setItem(key, JSON.stringify(parsed.slice(0, 1)));
+            return;
+          }
+        }
+      } catch {
+        // Ignore secondary quota error; memoryFallbackStore already holds the value
+      }
+    }
   }
 }
 
 function removeStorageRawItem(key: string): void {
+  memoryFallbackStore.delete(key);
   if (typeof window !== 'undefined' && window.localStorage) {
-    window.localStorage.removeItem(key);
-  } else {
-    memoryFallbackStore.delete(key);
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Ignore
+    }
   }
 }
 

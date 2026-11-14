@@ -701,7 +701,13 @@ export default function App() {
           versionMetadata
         );
         if (res.ok && res.summary) {
-          setTelegramConfig(loadTelegramBackupConfig());
+          const fresh = loadTelegramBackupConfig();
+          setTelegramConfig((prev) => ({
+            ...prev,
+            ...fresh,
+            botToken: fresh.botToken || prev.botToken || cfg.botToken,
+            chatId: fresh.chatId || prev.chatId || cfg.chatId
+          }));
           setLastImportedOrCopiedSummary(res.summary);
           setLastBackupTime('تلقائي إلى تليجرام');
         }
@@ -736,7 +742,13 @@ export default function App() {
         versionMetadata
       );
       if (res.ok && res.summary) {
-        setTelegramConfig(loadTelegramBackupConfig());
+        const fresh = loadTelegramBackupConfig();
+        setTelegramConfig((prev) => ({
+          ...prev,
+          ...fresh,
+          botToken: fresh.botToken || prev.botToken || cfg.botToken,
+          chatId: fresh.chatId || prev.chatId || cfg.chatId
+        }));
         setLastImportedOrCopiedSummary(res.summary);
         setLastBackupTime('تلقائي إلى تليجرام');
       }
@@ -1692,13 +1704,23 @@ export default function App() {
   );
 
   const handleUpdateTelegramConfig = (nextConfig: TelegramBackupConfig) => {
-    setTelegramConfig(nextConfig);
-    saveTelegramBackupConfig(nextConfig);
+    const saved = saveTelegramBackupConfig(nextConfig);
+    setTelegramConfig((prev) => ({
+      ...prev,
+      ...saved,
+      botToken: nextConfig.botToken ?? saved.botToken,
+      chatId: nextConfig.chatId ?? saved.chatId
+    }));
   };
 
-  const handleTriggerTelegramBackupNow = async () => {
+  const handleTriggerTelegramBackupNow = async (overrideConfig?: TelegramBackupConfig) => {
+    const activeCfg = overrideConfig
+      ? saveTelegramBackupConfig(overrideConfig)
+      : saveTelegramBackupConfig(telegramConfig);
+    setTelegramConfig(activeCfg);
+
     const res = await sendBackupToTelegram(
-      telegramConfig,
+      activeCfg,
       terms,
       sentences,
       topics,
@@ -1707,7 +1729,13 @@ export default function App() {
       versionMetadata
     );
     if (res.ok && res.summary) {
-      setTelegramConfig(loadTelegramBackupConfig());
+      const fresh = loadTelegramBackupConfig();
+      setTelegramConfig((prev) => ({
+        ...prev,
+        ...fresh,
+        botToken: activeCfg.botToken || fresh.botToken || prev.botToken,
+        chatId: activeCfg.chatId || fresh.chatId || prev.chatId
+      }));
       setLastImportedOrCopiedSummary(res.summary);
       setLastBackupTime('إلى تليجرام الآن');
       showToast(`تم النسخ الاحتياطي إلى تليجرام (${res.summary.shortText})`);

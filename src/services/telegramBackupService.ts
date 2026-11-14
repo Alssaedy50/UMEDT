@@ -48,6 +48,8 @@ export interface TelegramBackupConfig {
 }
 
 const STORAGE_KEY_TELEGRAM_CONFIG = 'umed_telegram_backup_config_v1';
+const STORAGE_KEY_TELEGRAM_CREDENTIALS_BACKUP = 'umed_telegram_backup_credentials_v1';
+const STORAGE_KEY_MAIN_BACKUP_HISTORY = 'dictengine_umd_backup_history_v2';
 
 const DEFAULT_CONFIG: TelegramBackupConfig = {
   enabled: false,
@@ -59,29 +61,172 @@ const DEFAULT_CONFIG: TelegramBackupConfig = {
   includeQuizzesAndStats: true
 };
 
+let memoryTelegramConfig: TelegramBackupConfig | null = null;
+
+function readRawFromStorage(key: string): string | null {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const val = window.localStorage.getItem(key);
+      if (val) return val;
+    }
+  } catch {
+    // ignore localStorage read error
+  }
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const val = window.sessionStorage.getItem(key);
+      if (val) return val;
+    }
+  } catch {
+    // ignore sessionStorage read error
+  }
+  return null;
+}
+
+function writeRawToStorageWithQuotaRecovery(key: string, value: string): boolean {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.setItem(key, value);
+    }
+  } catch {
+    // ignore sessionStorage error
+  }
+
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(key, value);
+      return true;
+    }
+  } catch {
+    // Likely QuotaExceededError due to large backup history in localStorage; prune oldest backups and retry
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const rawHistory = window.localStorage.getItem(STORAGE_KEY_MAIN_BACKUP_HISTORY);
+        if (rawHistory) {
+          const parsedHistory = JSON.parse(rawHistory);
+          if (Array.isArray(parsedHistory) && parsedHistory.length > 1) {
+            window.localStorage.setItem(
+              STORAGE_KEY_MAIN_BACKUP_HISTORY,
+              JSON.stringify(parsedHistory.slice(0, 1))
+            );
+          } else {
+            window.localStorage.removeItem(STORAGE_KEY_MAIN_BACKUP_HISTORY);
+          }
+        }
+        window.localStorage.setItem(key, value);
+        return true;
+      }
+    } catch {
+      // ignore if still full
+    }
+  }
+  return false;
+}
+
 export function loadTelegramBackupConfig(): TelegramBackupConfig {
   try {
-    if (typeof window === 'undefined' || !window.localStorage) return DEFAULT_CONFIG;
-    const raw = window.localStorage.getItem(STORAGE_KEY_TELEGRAM_CONFIG);
-    if (!raw) return DEFAULT_CONFIG;
-    const parsed = JSON.parse(raw);
-    return {
+    const rawFull = readRawFromStorage(STORAGE_KEY_TELEGRAM_CONFIG);
+    const rawCreds = readRawFromStorage(STORAGE_KEY_TELEGRAM_CREDENTIALS_BACKUP);
+
+    const parsedFull = rawFull ? (JSON.parse(rawFull) as Partial<TelegramBackupConfig>) : {};
+    const parsedCreds = rawCreds ? (JSON.parse(rawCreds) as Partial<TelegramBackupConfig>) : {};
+
+    const botToken =
+      (typeof parsedFull.botToken === 'string' && parsedFull.botToken.trim()) ||
+      (typeof parsedCreds.botToken === 'string' && parsedCreds.botToken.trim()) ||
+      memoryTelegramConfig?.botToken ||
+      '';
+    const chatId =
+      (typeof parsedFull.chatId === 'string' && parsedFull.chatId.trim()) ||
+      (typeof parsedCreds.chatId === 'string' && parsedCreds.chatId.trim()) ||
+      memoryTelegramConfig?.chatId ||
+      '';
+    const schedule: TelegramBackupSchedule =
+      parsedFull.schedule ||
+      parsedCreds.schedule ||
+      memoryTelegramConfig?.schedule ||
+      DEFAULT_CONFIG.schedule;
+
+    const hasCredentials = Boolean(botToken && chatId);
+    const enabled =
+      typeof parsedFull.enabled === 'boolean'
+        ? parsedFull.enabled || (hasCredentials && schedule !== 'off')
+        : typeof parsedCreds.enabled === 'boolean'
+        ? parsedCreds.enabled || (hasCredentials && schedule !== 'off')
+        : memoryTelegramConfig?.enabled ?? (hasCredentials && schedule !== 'off');
+
+    const resolved: TelegramBackupConfig = {
       ...DEFAULT_CONFIG,
-      ...parsed
+      ...memoryTelegramConfig,
+      ...parsedCreds,
+      ...parsedFull,
+      botToken,
+      chatId,
+      schedule,
+      enabled
     };
+
+    memoryTelegramConfig = resolved;
+    return resolved;
   } catch {
-    return DEFAULT_CONFIG;
+    return memoryTelegramConfig || DEFAULT_CONFIG;
   }
 }
 
-export function saveTelegramBackupConfig(config: TelegramBackupConfig): void {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(STORAGE_KEY_TELEGRAM_CONFIG, JSON.stringify(config));
-    }
-  } catch {
-    // ignore storage errors
+export function saveTelegramBackupConfig(config: TelegramBackupConfig): TelegramBackupConfig {
+  const previous = memoryTelegramConfig || DEFAULT_CONFIG;
+  const botToken = typeof config.botToken === 'string' ? config.botToken : previous.botToken;
+  const chatId = typeof config.chatId === 'string' ? config.chatId : previous.chatId;
+  const schedule = config.schedule || previous.schedule || 'daily';
+  const hasCredentials = Boolean(botToken.trim() && chatId.trim());
+
+  const normalized: TelegramBackupConfig = {
+    ...DEFAULT_CONFIG,
+    ...previous,
+    ...config,
+    botToken,
+    chatId,
+    schedule,
+    enabled:
+      schedule === 'off'
+        ? false
+        : hasCredentials
+        ? true
+        : Boolean(config.enabled)
+  };
+
+  memoryTelegramConfig = normalized;
+
+  // Always save lightweight credentials first so they never fail even if localStorage is nearly full
+  const credentialsOnly = {
+    enabled: normalized.enabled,
+    botToken: normalized.botToken,
+    chatId: normalized.chatId,
+    schedule: normalized.schedule,
+    includeTopicsAndHierarchy: normalized.includeTopicsAndHierarchy,
+    includeDictionaryAndTerms: normalized.includeDictionaryAndTerms,
+    includeQuizzesAndStats: normalized.includeQuizzesAndStats,
+    lastBackupAt: normalized.lastBackupAt
+  };
+  writeRawToStorageWithQuotaRecovery(
+    STORAGE_KEY_TELEGRAM_CREDENTIALS_BACKUP,
+    JSON.stringify(credentialsOnly)
+  );
+
+  if (
+    !writeRawToStorageWithQuotaRecovery(
+      STORAGE_KEY_TELEGRAM_CONFIG,
+      JSON.stringify(normalized)
+    )
+  ) {
+    // Fallback: write without bulky lastBackupSummary if needed
+    writeRawToStorageWithQuotaRecovery(
+      STORAGE_KEY_TELEGRAM_CONFIG,
+      JSON.stringify(credentialsOnly)
+    );
   }
+
+  return normalized;
 }
 
 export interface FullUnifiedBackupPayload {
@@ -226,6 +371,49 @@ export async function testTelegramConnection(
     return { ok: false, message: 'يرجى إدخال Bot Token و Chat ID أولاً.' };
   }
 
+  // Persist credentials immediately so they never disappear after clicking Check
+  const currentCfg = loadTelegramBackupConfig();
+  saveTelegramBackupConfig({
+    ...currentCfg,
+    botToken: cleanToken,
+    chatId: cleanChatId,
+    enabled: currentCfg.schedule !== 'off'
+  });
+
+  const messageText = '✅ تم ربط تطبيق UMEDT بنجاح لعمل النسخ الاحتياطية التلقائية واليدوية.';
+
+  // 1. Try server-side proxy first (avoids browser CORS/CSP/iframe restrictions)
+  try {
+    const proxyRes = await fetch('/api/telegram/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        botToken: cleanToken,
+        chatId: cleanChatId,
+        text: messageText
+      })
+    });
+    if (proxyRes.ok || proxyRes.status === 400 || proxyRes.status === 401 || proxyRes.status === 404) {
+      const contentType = proxyRes.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const proxyData = await proxyRes.json();
+        if (typeof proxyData?.ok === 'boolean') {
+          return {
+            ok: proxyData.ok,
+            message:
+              proxyData.message ||
+              (proxyData.ok
+                ? 'تم الاتصال وإرسال رسالة تأكيد إلى تليجرام وحفظ بيانات الربط بنجاح.'
+                : 'فشل الاتصال بتليجرام.')
+          };
+        }
+      }
+    }
+  } catch {
+    // Fall back to direct Telegram API call below (e.g., in offline/Capacitor APK mode)
+  }
+
+  // 2. Direct Telegram Bot API call
   try {
     const res = await fetch(
       `https://api.telegram.org/bot${cleanToken}/sendMessage`,
@@ -234,7 +422,7 @@ export async function testTelegramConnection(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: cleanChatId,
-          text: '✅ تم ربط تطبيق UMEDT بنجاح لعمل النسخ الاحتياطية التلقائية واليدوية.'
+          text: messageText
         })
       }
     );
@@ -247,7 +435,7 @@ export async function testTelegramConnection(
     }
     return {
       ok: true,
-      message: 'تم الاتصال وإرسال رسالة تأكيد إلى تليجرام بنجاح.'
+      message: 'تم الاتصال وإرسال رسالة تأكيد إلى تليجرام وحفظ بيانات الربط بنجاح.'
     };
   } catch (err: unknown) {
     return {
@@ -269,8 +457,9 @@ export async function sendBackupToTelegram(
   studyStats?: StudyStats,
   versionMetadata?: VersionMetadata
 ): Promise<{ ok: boolean; message: string; summary?: ConciseDataSummary }> {
-  const cleanToken = config.botToken.trim();
-  const cleanChatId = config.chatId.trim();
+  const latestSaved = loadTelegramBackupConfig();
+  const cleanToken = (config.botToken || latestSaved.botToken || '').trim();
+  const cleanChatId = (config.chatId || latestSaved.chatId || '').trim();
   if (!cleanToken || !cleanChatId) {
     return {
       ok: false,
@@ -279,10 +468,18 @@ export async function sendBackupToTelegram(
     };
   }
 
+  // Ensure credentials are saved before sending
+  const mergedConfig = saveTelegramBackupConfig({
+    ...latestSaved,
+    ...config,
+    botToken: cleanToken,
+    chatId: cleanChatId
+  });
+
   try {
-    const filteredTerms = config.includeDictionaryAndTerms ? terms : [];
-    const filteredSentences = config.includeDictionaryAndTerms ? sentences : [];
-    const filteredTopics = config.includeTopicsAndHierarchy ? topics : [];
+    const filteredTerms = mergedConfig.includeDictionaryAndTerms ? terms : [];
+    const filteredSentences = mergedConfig.includeDictionaryAndTerms ? sentences : [];
+    const filteredTopics = mergedConfig.includeTopicsAndHierarchy ? topics : [];
 
     const { jsonString, summary } = createUnifiedBackupPackage(
       filteredTerms,
@@ -295,39 +492,74 @@ export async function sendBackupToTelegram(
 
     const dateStr = new Date().toISOString().slice(0, 10);
     const filename = `UMEDT-Backup-${dateStr}.json`;
-    const blob = new Blob([jsonString], { type: 'application/json' });
-
     const captionLines = [
       `📦 نسخة احتياطية UMEDT (${reasonLabel})`,
       `📋 تعريف البيانات: ${summary.shortText}`,
       `⭐ المفضلة: ${summary.favoritesCount} · الحجم: ${summary.sizeKB} KB`,
       `🕒 التاريخ: ${new Date(summary.timestamp).toLocaleString('ar-SA')}`
     ];
+    const caption = captionLines.join('\n');
 
-    const formData = new FormData();
-    formData.append('chat_id', cleanChatId);
-    formData.append('document', blob, filename);
-    formData.append('caption', captionLines.join('\n'));
-
-    const res = await fetch(
-      `https://api.telegram.org/bot${cleanToken}/sendDocument`,
-      {
+    let sentViaProxy = false;
+    try {
+      const proxyRes = await fetch('/api/telegram/send-backup', {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          botToken: cleanToken,
+          chatId: cleanChatId,
+          filename,
+          caption,
+          jsonContent: jsonString
+        })
+      });
+      const contentType = proxyRes.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const proxyData = await proxyRes.json();
+        if (typeof proxyData?.ok === 'boolean') {
+          if (!proxyData.ok) {
+            return {
+              ok: false,
+              message: proxyData.message || 'تعذر إرسال النسخة إلى تليجرام.'
+            };
+          }
+          sentViaProxy = true;
+        }
       }
-    );
+    } catch {
+      // Fall back to direct FormData upload below
+    }
 
-    const data = await res.json();
-    if (!res.ok || !data?.ok) {
-      return {
-        ok: false,
-        message:
-          data?.description || `تعذر إرسال النسخة إلى تليجرام (${res.status})`
-      };
+    if (!sentViaProxy) {
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const formData = new FormData();
+      formData.append('chat_id', cleanChatId);
+      formData.append('document', blob, filename);
+      formData.append('caption', caption);
+
+      const res = await fetch(
+        `https://api.telegram.org/bot${cleanToken}/sendDocument`,
+        {
+          method: 'POST',
+          body: formData
+        }
+      );
+
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        return {
+          ok: false,
+          message:
+            data?.description || `تعذر إرسال النسخة إلى تليجرام (${res.status})`
+        };
+      }
     }
 
     const updatedConfig: TelegramBackupConfig = {
-      ...config,
+      ...loadTelegramBackupConfig(),
+      ...mergedConfig,
+      botToken: cleanToken,
+      chatId: cleanChatId,
       lastBackupAt: summary.timestamp,
       lastBackupSummary: summary
     };

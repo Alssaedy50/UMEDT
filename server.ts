@@ -89,7 +89,7 @@ Reference meanings of masked placeholders (for grammatical gender/number agreeme
 ${placeholderContext || 'None'}`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-4-hydrogen',
         contents: prompt,
         config: {
           systemInstruction,
@@ -115,7 +115,7 @@ ${placeholderContext || 'None'}`;
       if (!apiKey) {
         res.status(400).json({
           connected: false,
-          model: 'gemini-3.8-flash',
+          model: 'gemini-4-hydrogen',
           message: 'تعذر الاتصال بخدمة الذكاء الاصطناعي السحابية.',
           error: 'GEMINI_API_KEY is not configured on the server.'
         });
@@ -132,7 +132,7 @@ ${placeholderContext || 'None'}`;
       });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-4-hydrogen',
         contents:
           'Respond with exactly the single word "READY" if the clinical assistant service is operational.'
       });
@@ -140,7 +140,7 @@ ${placeholderContext || 'None'}`;
       const text = (response.text ?? '').trim();
       res.json({
         connected: true,
-        model: 'gemini-3.8-flash',
+        model: 'gemini-4-hydrogen',
         message: text.includes('READY')
           ? 'تم الاتصال بخدمة Gemini Cloud بنجاح، المساعد الطبي السحابي جاهز للعمل.'
           : 'تم الاتصال بالخدمة بنجاح.'
@@ -149,7 +149,7 @@ ${placeholderContext || 'None'}`;
       const errStr = err instanceof Error ? err.message : String(err);
       res.status(500).json({
         connected: false,
-        model: 'gemini-3.8-flash',
+        model: 'gemini-4-hydrogen',
         message: 'تعذر الاتصال بخدمة الذكاء الاصطناعي السحابية.',
         error: errStr
       });
@@ -188,7 +188,7 @@ ${placeholderContext || 'None'}`;
 
       if (mimeType && base64Data) {
         const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-4-hydrogen',
           contents: [
             {
               role: 'user',
@@ -212,14 +212,14 @@ ${placeholderContext || 'None'}`;
 
         res.json({
           success: true,
-          modelUsed: 'gemini-3.8-flash',
+          modelUsed: 'gemini-4-hydrogen',
           rawResponseText: response.text ?? '{}'
         });
         return;
       }
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-4-hydrogen',
         contents: prompt,
         config: {
           temperature: 0.1,
@@ -230,12 +230,98 @@ ${placeholderContext || 'None'}`;
 
       res.json({
         success: true,
-        modelUsed: 'gemini-3.8-flash',
+        modelUsed: 'gemini-4-hydrogen',
         rawResponseText: response.text ?? '{}'
       });
     } catch (err) {
       res.status(500).json({
         error: err instanceof Error ? err.message : 'تعذر تحليل البيانات الطبية عبر الخادم'
+      });
+    }
+  });
+
+  // ==========================================================================
+  // 3. Telegram Backup Server Proxy (Avoids Browser/Iframe CORS or Adblock Issues)
+  // ==========================================================================
+  app.post('/api/telegram/test', async (req, res) => {
+    try {
+      const { botToken, chatId, text } = req.body as {
+        botToken?: string;
+        chatId?: string;
+        text?: string;
+      };
+
+      const token = (botToken || '').trim();
+      const targetChatId = (chatId || '').trim();
+      if (!token || !targetChatId) {
+        res.status(400).json({
+          ok: false,
+          description: 'يرجى إدخال رمز البوت (Bot Token) ومعرف المحادثة (Chat ID) أولاً.'
+        });
+        return;
+      }
+
+      const tgRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: targetChatId,
+          text:
+            text ||
+            '✅ تم ربط تطبيق المعجم الطبي الموحد (UMED-2) بنجاح مع تليجرام للنسخ الاحتياطي الدوري.',
+          parse_mode: 'HTML'
+        })
+      });
+
+      const data = (await tgRes.json()) as { ok?: boolean; description?: string };
+      res.status(tgRes.ok ? 200 : 400).json(data);
+    } catch (err) {
+      res.status(500).json({
+        ok: false,
+        description: err instanceof Error ? err.message : 'تعذر الاتصال بخوادم تليجرام'
+      });
+    }
+  });
+
+  app.post('/api/telegram/send-backup', async (req, res) => {
+    try {
+      const { botToken, chatId, filename, jsonString, caption } = req.body as {
+        botToken?: string;
+        chatId?: string;
+        filename?: string;
+        jsonString?: string;
+        caption?: string;
+      };
+
+      const token = (botToken || '').trim();
+      const targetChatId = (chatId || '').trim();
+      if (!token || !targetChatId || typeof jsonString !== 'string') {
+        res.status(400).json({
+          ok: false,
+          description: 'بيانات البوت أو ملف النسخة الاحتياطية غير مكتملة.'
+        });
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('chat_id', targetChatId);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      formData.append('document', blob, filename || 'umed2-backup.json');
+      if (caption) {
+        formData.append('caption', caption);
+      }
+
+      const tgRes = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = (await tgRes.json()) as { ok?: boolean; description?: string };
+      res.status(tgRes.ok ? 200 : 400).json(data);
+    } catch (err) {
+      res.status(500).json({
+        ok: false,
+        description: err instanceof Error ? err.message : 'تعذر إرسال النسخة الاحتياطية إلى تليجرام'
       });
     }
   });
