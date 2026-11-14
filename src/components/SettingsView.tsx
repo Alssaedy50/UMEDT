@@ -707,7 +707,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveModal(null)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -795,7 +795,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveModal(null)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -843,7 +843,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveModal(null)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1026,7 +1026,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveModal(null)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1067,7 +1067,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveModal(null)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1095,7 +1095,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono text-left focus:outline-none focus:border-emerald-500"
                   />
 
-                  <div className="flex items-center justify-between px-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-1">
                     <span className="text-[11px] text-slate-400">مستودع التحديثات:</span>
                     <button
                       type="button"
@@ -1127,15 +1127,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 font-bold">
+                      <div className="flex items-center justify-between gap-2 min-w-0">
+                        <div className="flex items-center gap-2 font-bold min-w-0">
                           {isBusyUpdating && (
                             <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600 dark:text-amber-400 shrink-0" />
                           )}
                           {onlineUpdateStatus.phase === 'completed' && (
                             <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                           )}
-                          <span className="leading-snug">{onlineUpdateStatus.message}</span>
+                          <span className="leading-snug break-words min-w-0">{onlineUpdateStatus.message}</span>
                         </div>
                         {onlineUpdateStatus.progressPercent !== null && (
                           <span className="font-mono text-[11px] font-extrabold shrink-0">
@@ -1194,7 +1194,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveModal(null)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1408,14 +1408,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 )}
 
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-xs font-bold text-slate-500">
                       نقاط الاستعادة المحفوظة محلياً ({backupHistory.length})
                     </span>
                     <button
                       type="button"
                       onClick={onCreateManualBackup}
-                      className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs font-bold"
+                      className="min-h-[36px] px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs font-bold"
                     >
                       + حفظ نقطة الآن
                     </button>
@@ -1450,7 +1450,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         return (
                           <div
                             key={item.backupId}
-                            className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-xs"
+                            className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs"
                           >
                             <div className="min-w-0 flex-1 space-y-0.5">
                               <div className="flex items-center gap-1.5">
@@ -1476,21 +1476,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                 )}
                               </div>
                             </div>
-                            <div className="flex items-center gap-1 shrink-0">
+                            <div className="flex items-center gap-1.5 shrink-0">
                               <button
                                 type="button"
                                 onClick={() => {
                                   onRestoreBackupById(item.backupId);
                                   setActiveModal(null);
                                 }}
-                                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-bold"
+                                className="min-h-[36px] px-3 py-1.5 rounded-lg bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-bold"
                               >
                                 استعادة
                               </button>
                               <button
                                 type="button"
                                 onClick={() => onDeleteBackupById(item.backupId)}
-                                className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10"
+                                className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg text-rose-500 hover:bg-rose-500/10"
                                 title="حذف نقطة الاستعادة"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1515,7 +1515,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveModal(null)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
                   >
                     <X className="w-4 h-4" />
                   </button>

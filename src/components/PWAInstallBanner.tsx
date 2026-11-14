@@ -225,13 +225,13 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({
                       </button>
                     )}
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0 w-full">
                       <input
                         type="text"
                         readOnly
                         dir="ltr"
                         value={shareableAppUrl}
-                        className="flex-1 px-2.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-mono text-left text-slate-700 dark:text-slate-300"
+                        className="flex-1 min-w-0 w-full px-2.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-mono text-left text-slate-700 dark:text-slate-300"
                       />
                       <button
                         type="button"

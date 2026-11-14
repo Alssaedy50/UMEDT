@@ -274,7 +274,7 @@ ${placeholderContext || 'None'}`;
           chat_id: targetChatId,
           text:
             text ||
-            '✅ تم ربط تطبيق المعجم الطبي الموحد (UMED-2) بنجاح مع تليجرام للنسخ الاحتياطي الدوري.'
+            '✅ تم ربط تطبيق المعجم الطبي الموحد (UMEDT) بنجاح مع تليجرام للنسخ الاحتياطي الدوري.'
         })
       });
 
@@ -520,7 +520,7 @@ ${placeholderContext || 'None'}`;
       packageFormat: 'zip',
       summary:
         'إصدار التحديث السحابي المباشر (2026.10.1-umd) مع مصطلح Coronary Microvascular Dysfunction وتوقيع ECDSA-P256-SHA256 الموثق',
-      author: 'UMED-2 Cloud OTA Server',
+      author: 'UMEDT Cloud OTA Server',
       privateKeyPem: keyPair.privateKeyPem,
       publicKeyPem: keyPair.publicKeyPem,
       signatureAlgorithm: 'ECDSA-P256-SHA256'

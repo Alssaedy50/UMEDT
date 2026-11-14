@@ -1470,7 +1470,7 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                     {manualOptions.map((opt, idx) => {
                       const isChecked = manualCorrectKeys.includes(opt.key);
                       return (
-                        <div key={opt.key} className="flex items-center gap-2">
+                        <div key={opt.key} className="flex items-center gap-2 min-w-0 w-full">
                           <button
                             type="button"
                             onClick={() => {
@@ -1484,7 +1484,7 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                                 setManualCorrectKeys([opt.key]);
                               }
                             }}
-                            className={`min-h-[40px] min-w-[40px] rounded-xl font-mono text-xs font-extrabold border ${
+                            className={`min-h-[40px] min-w-[40px] shrink-0 rounded-xl font-mono text-xs font-extrabold border ${
                               isChecked
                                 ? 'bg-emerald-600 text-white border-emerald-600'
                                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
@@ -1505,7 +1505,7 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                               );
                             }}
                             placeholder={`Option ${opt.key} in English...`}
-                            className="flex-1 min-h-[40px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs"
+                            className="flex-1 min-w-0 w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs"
                           />
                         </div>
                       );

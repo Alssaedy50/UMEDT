@@ -528,7 +528,7 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
                       dir="ltr"
                       className="flex items-start justify-between gap-2 text-left"
                     >
-                      <p className="text-[13px] text-slate-800 dark:text-slate-100 font-medium leading-relaxed flex-1">
+                      <p className="text-[13px] text-slate-800 dark:text-slate-100 font-medium leading-relaxed flex-1 min-w-0 break-words">
                         {renderAutoLinkedText(ex.en, activeDetailTerm.id)}
                       </p>
                       <div className="flex items-center gap-0.5 shrink-0 pt-0.5">
@@ -577,7 +577,7 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
                       dir="ltr"
                       className="flex items-start justify-between gap-2 text-left"
                     >
-                      <p className="text-[13px] text-slate-800 dark:text-slate-100 font-medium leading-relaxed flex-1">
+                      <p className="text-[13px] text-slate-800 dark:text-slate-100 font-medium leading-relaxed flex-1 min-w-0 break-words">
                         {renderAutoLinkedText(sent.en, activeDetailTerm.id)}
                       </p>
                       <button

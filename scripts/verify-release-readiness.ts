@@ -1058,8 +1058,35 @@ async function main() {
     'prepareAndDownloadFile on Web/Node must report verifiedOnDisk === false instead of claiming verified physical disk write'
   );
 
+  const stylesV35Path = path.join(
+    ROOT_DIR,
+    'android',
+    'app',
+    'src',
+    'main',
+    'res',
+    'values-v35',
+    'styles.xml'
+  );
+  assertCondition(
+    fs.existsSync(stylesV35Path) &&
+      fs.readFileSync(stylesV35Path, 'utf8').includes('windowOptOutEdgeToEdgeEnforcement'),
+    'android/app/src/main/res/values-v35/styles.xml must opt out of forced edge-to-edge overlap'
+  );
+  assertCondition(
+    mainActivityJava.includes('applySafeSystemBarInsets') &&
+      mainActivityJava.includes('ViewCompat.setOnApplyWindowInsetsListener'),
+    'MainActivity.java must apply WindowInsets safe-area padding on system bars'
+  );
+  const blockEditorPath = path.join(ROOT_DIR, 'src', 'components', 'TopicContentBlockEditor.tsx');
+  const blockEditorSrc = fs.readFileSync(blockEditorPath, 'utf8');
+  assertCondition(
+    blockEditorSrc.includes('flex-1 min-w-0 w-full'),
+    'TopicContentBlockEditor.tsx inline option inputs must enforce flex-1 min-w-0 w-full to avoid mobile clipping'
+  );
+
   console.log(
-    '[PASS] 15. Mic Permissions, PWA Manifest Link, Media IDB Failure Honesty & Download Disk Honesty Verified'
+    '[PASS] 15. Mic Permissions, PWA Manifest Link, Media IDB Failure Honesty, Download Honesty, Android Safe Area & Mobile Input Layout Verified'
   );
   console.log('================================================================');
   console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (15/15 — 100%)');

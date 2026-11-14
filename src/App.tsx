@@ -1916,15 +1916,15 @@ export default function App() {
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed top-16 inset-x-4 max-w-md mx-auto z-50 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-slate-900 dark:bg-slate-800 border border-emerald-500/40 text-white shadow-xl">
-          <div className="flex items-center gap-2.5 text-xs font-medium">
+        <div className="fixed top-[calc(env(safe-area-inset-top,0px)+4rem)] inset-x-4 max-w-md mx-auto z-50 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-slate-900 dark:bg-slate-800 border border-emerald-500/40 text-white shadow-xl">
+          <div className="flex items-center gap-2.5 text-xs font-medium min-w-0">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{toast.message}</span>
+            <span className="break-words">{toast.message}</span>
           </div>
           <button
             type="button"
             onClick={() => setToast(null)}
-            className="text-slate-400 hover:text-white p-1 min-h-[36px] min-w-[36px] flex items-center justify-center"
+            className="text-slate-400 hover:text-white p-1 min-h-[36px] min-w-[36px] flex items-center justify-center shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -1934,7 +1934,7 @@ export default function App() {
       {/* ====================================================================
           TOP HEADER BAR (Clean: Side Menu Trigger + Desktop Tabs + Brand)
          ==================================================================== */}
-      <header className="sticky top-0 z-30 h-14 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-3 w-full box-border">
+      <header className="sticky top-0 z-30 min-h-14 pt-[env(safe-area-inset-top,0px)] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 lg:px-8 py-1.5 flex items-center justify-between gap-3 w-full box-border">
         <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"

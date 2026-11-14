@@ -762,7 +762,7 @@ export const SectionContentBlocksEditor: React.FC<
         return (
           <div
             key={blk.id}
-            className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2.5"
+            className="w-full max-w-full min-w-0 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2.5 box-border"
           >
             {/* Block Header & Reorder Controls */}
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
@@ -814,7 +814,7 @@ export const SectionContentBlocksEditor: React.FC<
                     updateBlockById(blk.id, { titleEn: e.target.value })
                   }
                   placeholder="English Subheading (Primary)..."
-                  className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                  className="w-full min-w-0 min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                 />
                 <input
                   type="text"
@@ -823,7 +823,7 @@ export const SectionContentBlocksEditor: React.FC<
                     updateBlockById(blk.id, { titleAr: e.target.value })
                   }
                   placeholder="الترجمة العربية للعنوان الفرعي..."
-                  className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                  className="w-full min-w-0 min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                 />
               </div>
             )}
@@ -840,7 +840,7 @@ export const SectionContentBlocksEditor: React.FC<
                         updateBlockById(blk.id, { titleEn: e.target.value })
                       }
                       placeholder="Clinical Note Title (EN)..."
-                      className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                      className="w-full min-w-0 min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                     />
                     <input
                       type="text"
@@ -849,7 +849,7 @@ export const SectionContentBlocksEditor: React.FC<
                         updateBlockById(blk.id, { titleAr: e.target.value })
                       }
                       placeholder="عنوان الملاحظة السريرية (عربي)..."
-                      className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                      className="w-full min-w-0 min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                     />
                   </div>
                 )}
@@ -877,7 +877,7 @@ export const SectionContentBlocksEditor: React.FC<
                       updateBlockById(blk.id, { titleEn: e.target.value })
                     }
                     placeholder="Table Title (English)..."
-                    className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                    className="w-full min-w-0 min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                   />
                   <input
                     type="text"
@@ -886,7 +886,7 @@ export const SectionContentBlocksEditor: React.FC<
                       updateBlockById(blk.id, { titleAr: e.target.value })
                     }
                     placeholder="عنوان الجدول بالعربية..."
-                    className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                    className="w-full min-w-0 min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                   />
                 </div>
                 <div className="space-y-1">
@@ -987,7 +987,7 @@ export const SectionContentBlocksEditor: React.FC<
                     updateBlockById(blk.id, { titleEn: e.target.value })
                   }
                   placeholder="Link / Video Title (EN)..."
-                  className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                  className="w-full min-w-0 min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                 />
                 <input
                   type="url"
@@ -997,7 +997,7 @@ export const SectionContentBlocksEditor: React.FC<
                     updateBlockById(blk.id, { externalUrl: e.target.value })
                   }
                   placeholder="https://..."
-                  className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                  className="w-full min-w-0 min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                 />
                 <input
                   type="text"
@@ -1009,7 +1009,7 @@ export const SectionContentBlocksEditor: React.FC<
                     })
                   }
                   placeholder="وصف مختصر بالعربية..."
-                  className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                  className="w-full min-w-0 min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                 />
               </div>
             )}
@@ -1074,7 +1074,7 @@ export const SectionContentBlocksEditor: React.FC<
                       opt.key
                     );
                     return (
-                      <div key={opt.key} className="flex items-center gap-1.5">
+                      <div key={opt.key} className="flex items-center gap-1.5 min-w-0 w-full">
                         <button
                           type="button"
                           onClick={() =>
@@ -1111,7 +1111,7 @@ export const SectionContentBlocksEditor: React.FC<
                             });
                           }}
                           placeholder={`Option ${opt.key}...`}
-                          className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                          className="flex-1 min-w-0 w-full min-h-[44px] px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                         />
                       </div>
                     );

@@ -2252,9 +2252,15 @@ export async function checkRemoteDataManifest(
   });
 
   if (!response.ok) {
-    throw new Error(
-      `تعذر جلب بيان التحديث من الخادم (${response.status} ${response.statusText}).`
-    );
+    const statusDesc = [String(response.status), response.statusText?.trim()]
+      .filter(Boolean)
+      .join(' ');
+    if (response.status === 404 && cleanUrl.includes('manifest.json')) {
+      throw new Error(
+        `لا يوجد بيان تحديث سحابي منشور حالياً في هذا الرابط (${statusDesc}). التطبيق يعمل بشكل كامل بالبيانات المدمجة أوفلاين، أو يمكنك استيراد حزمة .zip / .json يدوياً.`
+      );
+    }
+    throw new Error(`تعذر جلب بيان التحديث من الخادم (${statusDesc}).`);
   }
 
   const raw = (await response.json()) as Partial<DataPackageManifest> & Record<string, unknown>;
