@@ -25,7 +25,7 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json({ limit: '15mb' }));
+  app.use(express.json({ limit: '50mb' }));
 
   app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -243,6 +243,11 @@ ${placeholderContext || 'None'}`;
   // ==========================================================================
   // 3. Telegram Backup Server Proxy (Avoids Browser/Iframe CORS or Adblock Issues)
   // ==========================================================================
+  const sanitizeTelegramCredential = (raw?: string): string =>
+    String(raw || '')
+      .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF\s]/g, '')
+      .trim();
+
   app.post('/api/telegram/test', async (req, res) => {
     try {
       const { botToken, chatId, text } = req.body as {
@@ -251,11 +256,12 @@ ${placeholderContext || 'None'}`;
         text?: string;
       };
 
-      const token = (botToken || '').trim();
-      const targetChatId = (chatId || '').trim();
+      const token = sanitizeTelegramCredential(botToken);
+      const targetChatId = sanitizeTelegramCredential(chatId);
       if (!token || !targetChatId) {
         res.status(400).json({
           ok: false,
+          message: 'يرجى إدخال رمز البوت (Bot Token) ومعرف المحادثة (Chat ID) أولاً.',
           description: 'يرجى إدخال رمز البوت (Bot Token) ومعرف المحادثة (Chat ID) أولاً.'
         });
         return;
@@ -268,45 +274,64 @@ ${placeholderContext || 'None'}`;
           chat_id: targetChatId,
           text:
             text ||
-            '✅ تم ربط تطبيق المعجم الطبي الموحد (UMED-2) بنجاح مع تليجرام للنسخ الاحتياطي الدوري.',
-          parse_mode: 'HTML'
+            '✅ تم ربط تطبيق المعجم الطبي الموحد (UMED-2) بنجاح مع تليجرام للنسخ الاحتياطي الدوري.'
         })
       });
 
       const data = (await tgRes.json()) as { ok?: boolean; description?: string };
-      res.status(tgRes.ok ? 200 : 400).json(data);
+      res.status(tgRes.ok && data?.ok ? 200 : 400).json({
+        ...data,
+        ok: Boolean(tgRes.ok && data?.ok),
+        message:
+          tgRes.ok && data?.ok
+            ? 'تم الاتصال وإرسال رسالة التأكيد إلى تليجرام بنجاح.'
+            : data?.description || 'فشل الاتصال بتليجرام.'
+      });
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'تعذر الاتصال بخوادم تليجرام';
       res.status(500).json({
         ok: false,
-        description: err instanceof Error ? err.message : 'تعذر الاتصال بخوادم تليجرام'
+        message: msg,
+        description: msg
       });
     }
   });
 
   app.post('/api/telegram/send-backup', async (req, res) => {
     try {
-      const { botToken, chatId, filename, jsonString, caption } = req.body as {
+      const { botToken, chatId, filename, jsonString, jsonContent, caption } = req.body as {
         botToken?: string;
         chatId?: string;
         filename?: string;
         jsonString?: string;
+        jsonContent?: string;
         caption?: string;
       };
 
-      const token = (botToken || '').trim();
-      const targetChatId = (chatId || '').trim();
-      if (!token || !targetChatId || typeof jsonString !== 'string') {
+      const token = sanitizeTelegramCredential(botToken);
+      const targetChatId = sanitizeTelegramCredential(chatId);
+      const resolvedJson =
+        typeof jsonString === 'string' && jsonString.length > 0
+          ? jsonString
+          : typeof jsonContent === 'string' && jsonContent.length > 0
+          ? jsonContent
+          : '';
+
+      if (!token || !targetChatId || !resolvedJson) {
         res.status(400).json({
           ok: false,
+          message: 'بيانات البوت أو ملف النسخة الاحتياطية غير مكتملة.',
           description: 'بيانات البوت أو ملف النسخة الاحتياطية غير مكتملة.'
         });
         return;
       }
 
+      const safeFilename = (filename || 'UMEDT-Backup.json').trim();
+      const fileBytes = Buffer.from(resolvedJson, 'utf8');
       const formData = new FormData();
       formData.append('chat_id', targetChatId);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      formData.append('document', blob, filename || 'umed2-backup.json');
+      const blob = new Blob([fileBytes], { type: 'application/json' });
+      formData.append('document', blob, safeFilename);
       if (caption) {
         formData.append('caption', caption);
       }
@@ -317,11 +342,21 @@ ${placeholderContext || 'None'}`;
       });
 
       const data = (await tgRes.json()) as { ok?: boolean; description?: string };
-      res.status(tgRes.ok ? 200 : 400).json(data);
+      res.status(tgRes.ok && data?.ok ? 200 : 400).json({
+        ...data,
+        ok: Boolean(tgRes.ok && data?.ok),
+        message:
+          tgRes.ok && data?.ok
+            ? 'تم إرسال ملف النسخة الاحتياطية إلى تليجرام بنجاح.'
+            : data?.description || 'تعذر إرسال النسخة الاحتياطية إلى تليجرام.'
+      });
     } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : 'تعذر إرسال النسخة الاحتياطية إلى تليجرام';
       res.status(500).json({
         ok: false,
-        description: err instanceof Error ? err.message : 'تعذر إرسال النسخة الاحتياطية إلى تليجرام'
+        message: msg,
+        description: msg
       });
     }
   });

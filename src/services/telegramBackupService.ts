@@ -357,16 +357,43 @@ export function createUnifiedBackupPackage(
     data: tempPayload
   };
 
-  const jsonString = JSON.stringify(payload, null, 2);
+  const jsonString = JSON.stringify(payload);
   return { payload, jsonString, summary };
+}
+
+function sanitizeTelegramInput(raw: string): string {
+  return String(raw || '')
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF\s]/g, '')
+    .trim();
+}
+
+function formatTelegramErrorAr(rawDesc?: string, status?: number): string {
+  const desc = String(rawDesc || '').trim();
+  const lower = desc.toLowerCase();
+  if (lower.includes('chat not found')) {
+    return 'لم يتم العثور على المحادثة أو القناة (Chat ID غير صحيح أو البوت غير مضاف كمشرف في القناة).';
+  }
+  if (lower.includes('unauthorized') || status === 401) {
+    return 'رمز البوت (Bot Token) غير صالح. تأكد من نسخه كاملاً من @BotFather.';
+  }
+  if (lower.includes('not enough rights') || lower.includes('need administrator rights')) {
+    return 'البوت لا يملك صلاحية نشر الرسائل والملفات في القناة. يرجى منحه صلاحية Post Messages.';
+  }
+  if (lower.includes('bot was kicked') || lower.includes('bot is not a member')) {
+    return 'البوت غير موجود في القناة. يرجى إضافة البوت كمشرف (Admin) في القناة أولاً.';
+  }
+  if (desc) {
+    return `خطأ من تليجرام: ${desc}`;
+  }
+  return status ? `فشل الإرسال إلى تليجرام (رمز الحالة ${status})` : 'تعذر الإرسال إلى تليجرام.';
 }
 
 export async function testTelegramConnection(
   botToken: string,
   chatId: string
 ): Promise<{ ok: boolean; message: string }> {
-  const cleanToken = botToken.trim();
-  const cleanChatId = chatId.trim();
+  const cleanToken = sanitizeTelegramInput(botToken);
+  const cleanChatId = sanitizeTelegramInput(chatId);
   if (!cleanToken || !cleanChatId) {
     return { ok: false, message: 'يرجى إدخال Bot Token و Chat ID أولاً.' };
   }
@@ -383,6 +410,7 @@ export async function testTelegramConnection(
   const messageText = '✅ تم ربط تطبيق UMEDT بنجاح لعمل النسخ الاحتياطية التلقائية واليدوية.';
 
   // 1. Try server-side proxy first (avoids browser CORS/CSP/iframe restrictions)
+  let proxyErrorMsg = '';
   try {
     const proxyRes = await fetch('/api/telegram/test', {
       method: 'POST',
@@ -393,21 +421,16 @@ export async function testTelegramConnection(
         text: messageText
       })
     });
-    if (proxyRes.ok || proxyRes.status === 400 || proxyRes.status === 401 || proxyRes.status === 404) {
-      const contentType = proxyRes.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const proxyData = await proxyRes.json();
-        if (typeof proxyData?.ok === 'boolean') {
-          return {
-            ok: proxyData.ok,
-            message:
-              proxyData.message ||
-              (proxyData.ok
-                ? 'تم الاتصال وإرسال رسالة تأكيد إلى تليجرام وحفظ بيانات الربط بنجاح.'
-                : 'فشل الاتصال بتليجرام.')
-          };
-        }
+    const contentType = proxyRes.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const proxyData = await proxyRes.json();
+      if (proxyData?.ok === true) {
+        return {
+          ok: true,
+          message: 'تم الاتصال وإرسال رسالة تأكيد إلى قناة/محادثة تليجرام وحفظ البيانات بنجاح.'
+        };
       }
+      proxyErrorMsg = proxyData?.description || proxyData?.message || '';
     }
   } catch {
     // Fall back to direct Telegram API call below (e.g., in offline/Capacitor APK mode)
@@ -430,20 +453,21 @@ export async function testTelegramConnection(
     if (!res.ok || !data?.ok) {
       return {
         ok: false,
-        message: data?.description || `فشل الاتصال بتليجرام (${res.status})`
+        message: formatTelegramErrorAr(data?.description || proxyErrorMsg, res.status)
       };
     }
     return {
       ok: true,
-      message: 'تم الاتصال وإرسال رسالة تأكيد إلى تليجرام وحفظ بيانات الربط بنجاح.'
+      message: 'تم الاتصال وإرسال رسالة تأكيد إلى قناة/محادثة تليجرام وحفظ البيانات بنجاح.'
     };
   } catch (err: unknown) {
     return {
       ok: false,
       message:
-        err instanceof Error
+        proxyErrorMsg ||
+        (err instanceof Error
           ? err.message
-          : 'تعذر الوصول إلى خادم تليجرام. تحقق من اتصال الإنترنت.'
+          : 'تعذر الوصول إلى خادم تليجرام. تحقق من اتصال الإنترنت.')
     };
   }
 }
@@ -458,8 +482,8 @@ export async function sendBackupToTelegram(
   versionMetadata?: VersionMetadata
 ): Promise<{ ok: boolean; message: string; summary?: ConciseDataSummary }> {
   const latestSaved = loadTelegramBackupConfig();
-  const cleanToken = (config.botToken || latestSaved.botToken || '').trim();
-  const cleanChatId = (config.chatId || latestSaved.chatId || '').trim();
+  const cleanToken = sanitizeTelegramInput(config.botToken || latestSaved.botToken || '');
+  const cleanChatId = sanitizeTelegramInput(config.chatId || latestSaved.chatId || '');
   if (!cleanToken || !cleanChatId) {
     return {
       ok: false,
@@ -500,7 +524,10 @@ export async function sendBackupToTelegram(
     ];
     const caption = captionLines.join('\n');
 
-    let sentViaProxy = false;
+    let sentSuccessfully = false;
+    let lastErrorDescription = '';
+
+    // 1. Try server-side proxy endpoint (/api/telegram/send-backup)
     try {
       const proxyRes = await fetch('/api/telegram/send-backup', {
         method: 'POST',
@@ -510,49 +537,142 @@ export async function sendBackupToTelegram(
           chatId: cleanChatId,
           filename,
           caption,
+          jsonString,
           jsonContent: jsonString
         })
       });
       const contentType = proxyRes.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
         const proxyData = await proxyRes.json();
-        if (typeof proxyData?.ok === 'boolean') {
-          if (!proxyData.ok) {
-            return {
-              ok: false,
-              message: proxyData.message || 'تعذر إرسال النسخة إلى تليجرام.'
-            };
-          }
-          sentViaProxy = true;
+        if (proxyData?.ok === true) {
+          sentSuccessfully = true;
+        } else {
+          lastErrorDescription = proxyData?.description || proxyData?.message || '';
         }
       }
     } catch {
       // Fall back to direct FormData upload below
     }
 
-    if (!sentViaProxy) {
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const formData = new FormData();
-      formData.append('chat_id', cleanChatId);
-      formData.append('document', blob, filename);
-      formData.append('caption', caption);
-
-      const res = await fetch(
-        `https://api.telegram.org/bot${cleanToken}/sendDocument`,
-        {
-          method: 'POST',
-          body: formData
+    // 2. Direct Telegram Bot API sendDocument upload (works in browser, PWA, and Android APK)
+    if (!sentSuccessfully) {
+      try {
+        const formData = new FormData();
+        formData.append('chat_id', cleanChatId);
+        try {
+          const fileObj = new File([jsonString], filename, { type: 'application/json' });
+          formData.append('document', fileObj, filename);
+        } catch {
+          const blob = new Blob([jsonString], { type: 'application/json' });
+          formData.append('document', blob, filename);
         }
+        formData.append('caption', caption);
+
+        const res = await fetch(
+          `https://api.telegram.org/bot${cleanToken}/sendDocument`,
+          {
+            method: 'POST',
+            body: formData
+          }
+        );
+
+        const data = await res.json();
+        if (res.ok && data?.ok) {
+          sentSuccessfully = true;
+        } else {
+          lastErrorDescription =
+            data?.description || lastErrorDescription || `HTTP ${res.status}`;
+        }
+      } catch (directErr) {
+        if (!lastErrorDescription && directErr instanceof Error) {
+          lastErrorDescription = directErr.message;
+        }
+      }
+    }
+
+    // 3. Smart fallback for slow mobile connections (e.g. <50 KB/s upload):
+    // If full 2.3MB upload failed due to network timeout rather than invalid credentials,
+    // send compact package with all topics, blocks, subjects, quizzes, favorites, and custom/studied terms.
+    const isAuthOrChatError =
+      /unauthorized|chat not found|not enough rights|bot was kicked|bot is not a member/i.test(
+        lastErrorDescription
+      );
+    if (!sentSuccessfully && !isAuthOrChatError) {
+      const compactTerms = filteredTerms.filter(
+        (t) =>
+          t.favorite ||
+          (t.collections && t.collections.length > 0) ||
+          Boolean(t.lastStudiedAt) ||
+          t.id.startsWith('custom-') ||
+          t.id.startsWith('topic-term-') ||
+          t.id.startsWith('imp-')
+      );
+      const compactSentences = filteredSentences.filter(
+        (s) => s.favorite || s.id.startsWith('sent-topic-') || s.id.startsWith('custom-')
+      );
+      const compactPkg = createUnifiedBackupPackage(
+        compactTerms,
+        compactSentences,
+        filteredTopics,
+        `${reasonLabel} — مضغوط للشبكات الضعيفة`,
+        studyStats,
+        versionMetadata
       );
 
-      const data = await res.json();
-      if (!res.ok || !data?.ok) {
-        return {
-          ok: false,
-          message:
-            data?.description || `تعذر إرسال النسخة إلى تليجرام (${res.status})`
-        };
+      try {
+        const proxyCompactRes = await fetch('/api/telegram/send-backup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            botToken: cleanToken,
+            chatId: cleanChatId,
+            filename,
+            caption,
+            jsonString: compactPkg.jsonString,
+            jsonContent: compactPkg.jsonString
+          })
+        });
+        if (proxyCompactRes.ok) {
+          const proxyCompactData = await proxyCompactRes.json();
+          if (proxyCompactData?.ok === true) {
+            sentSuccessfully = true;
+          }
+        }
+      } catch {
+        // Try direct compact upload
       }
+
+      if (!sentSuccessfully) {
+        try {
+          const compactForm = new FormData();
+          compactForm.append('chat_id', cleanChatId);
+          const compactBlob = new Blob([compactPkg.jsonString], { type: 'application/json' });
+          compactForm.append('document', compactBlob, filename);
+          compactForm.append('caption', caption);
+          const compactRes = await fetch(
+            `https://api.telegram.org/bot${cleanToken}/sendDocument`,
+            {
+              method: 'POST',
+              body: compactForm
+            }
+          );
+          const compactData = await compactRes.json();
+          if (compactRes.ok && compactData?.ok) {
+            sentSuccessfully = true;
+          } else if (compactData?.description) {
+            lastErrorDescription = compactData.description;
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    if (!sentSuccessfully) {
+      return {
+        ok: false,
+        message: formatTelegramErrorAr(lastErrorDescription)
+      };
     }
 
     const updatedConfig: TelegramBackupConfig = {
@@ -567,7 +687,7 @@ export async function sendBackupToTelegram(
 
     return {
       ok: true,
-      message: 'تم إرسال النسخة الاحتياطية إلى تليجرام بنجاح.',
+      message: `تم إرسال ملف النسخة الاحتياطية (${filename}) إلى تليجرام بنجاح.`,
       summary
     };
   } catch (err: unknown) {
