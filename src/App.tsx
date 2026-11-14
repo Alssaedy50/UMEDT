@@ -1743,13 +1743,13 @@ export default function App() {
     return res;
   };
 
-  const downloadFile = (filename: string, content: string, mime = 'application/json') => {
-    void prepareAndDownloadFile({
+  const downloadFile = async (filename: string, content: string, mime = 'application/json') => {
+    const res = await prepareAndDownloadFile({
       filename,
       content,
       mime
     });
-    showToast(`جاري تنزيل الملف: ${filename}`);
+    showToast(`تم تنزيل وحفظ الملف محلياً: ${res.filename} (${res.sizeKB} KB)`);
   };
 
   const handleExportFullBackup = () => {
@@ -1761,7 +1761,7 @@ export default function App() {
       studyStats,
       versionMetadata
     );
-    downloadFile(
+    void downloadFile(
       `UMEDT-Backup-${new Date().toISOString().slice(0, 10)}.json`,
       jsonString,
       'application/json;charset=utf-8'
@@ -1781,11 +1781,6 @@ export default function App() {
       versionMetadata
     });
     const filename = `umed2-data-package-${versionMetadata.dataVersion}.zip`;
-    void prepareAndDownloadFile({
-      filename,
-      content: zipBytes,
-      mime: 'application/zip'
-    });
     const summary = buildConciseDataSummary({
       terms,
       sentences,
@@ -1795,7 +1790,13 @@ export default function App() {
     });
     setLastImportedOrCopiedSummary(summary);
     setLastBackupTime('الآن');
-    showToast(`تم تصدير حزمة ZIP (${summary.shortText})`);
+    void prepareAndDownloadFile({
+      filename,
+      content: zipBytes,
+      mime: 'application/zip'
+    }).then((res) => {
+      showToast(`تم تنزيل حزمة ZIP محلياً: ${res.filename} (${res.sizeKB} KB)`);
+    });
   };
 
   const handleShareDataFile = async () => {
@@ -1935,20 +1936,20 @@ export default function App() {
       </header>
 
       {/* ====================================================================
-          POP-OUT SIDE NAVIGATION DRAWER (القائمة الجانبية المنبثقة)
+          CENTERED POPUP NAVIGATION CARD (البطاقة المنبثقة للتنقل السريع بدل القائمة الجانبية)
          ==================================================================== */}
       {isSidebarOpen && (
         <div
           onClick={() => setIsSidebarOpen(false)}
-          className="fixed inset-0 z-50 bg-black/60 flex justify-start"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
         >
-          <aside
+          <div
             onClick={(e) => e.stopPropagation()}
-            className="w-64 max-w-[80vw] h-full bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col p-4 overflow-y-auto"
+            className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-5 space-y-4"
           >
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                القائمة الرئيسية
+                التنقل السريع بين أقسام المنظومة
               </span>
               <button
                 type="button"
@@ -1960,12 +1961,12 @@ export default function App() {
               </button>
             </div>
 
-            <nav className="space-y-1.5">
+            <nav className="grid grid-cols-2 gap-2.5">
               {[
-                { id: 'home' as MainTab, label: 'القاموس الطبي', icon: Search },
-                { id: 'topics' as MainTab, label: 'المواضيع والمترجم الفوري', icon: BookOpen },
-                { id: 'library' as MainTab, label: 'مكتبتي (المفضلة والإضافة أوفلاين)', icon: Star },
-                { id: 'settings' as MainTab, label: 'الإعدادات والنسخ الاحتياطي', icon: Settings }
+                { id: 'home' as MainTab, label: 'القاموس الطبي', sub: `${terms.length} مصطلح`, icon: Search },
+                { id: 'topics' as MainTab, label: 'المواضيع الطبية', sub: `${topics.length} موضوع`, icon: BookOpen },
+                { id: 'library' as MainTab, label: 'مكتبتي والمفضلة', sub: `${favoriteTerms.length} محفوظ`, icon: Star },
+                { id: 'settings' as MainTab, label: 'الإعدادات والنسخ', sub: `${dbMetrics.actualSizeKb} KB`, icon: Settings }
               ].map((item) => {
                 const IconComp = item.icon;
                 const isActive = activeTab === item.id;
@@ -1978,25 +1979,34 @@ export default function App() {
                       setActiveTab(item.id);
                       setIsSidebarOpen(false);
                     }}
-                    className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-xl text-right flex items-center gap-3 text-xs sm:text-sm transition-colors ${
+                    className={`p-3.5 rounded-2xl border text-right flex flex-col justify-between gap-2 transition-all ${
                       isActive
-                        ? 'bg-emerald-600 text-white font-extrabold shadow-xs'
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-emerald-500/50'
                     }`}
                   >
-                    <IconComp
-                      className={`w-4 h-4 shrink-0 ${
-                        isActive
-                          ? 'text-white'
-                          : 'text-emerald-600 dark:text-emerald-400'
-                      }`}
-                    />
-                    <span>{item.label}</span>
+                    <div className="flex items-center justify-between w-full">
+                      <IconComp
+                        className={`w-4 h-4 shrink-0 ${
+                          isActive
+                            ? 'text-white'
+                            : 'text-emerald-600 dark:text-emerald-400'
+                        }`}
+                      />
+                      <span
+                        className={`text-[10px] font-mono font-bold ${
+                          isActive ? 'text-emerald-100' : 'text-slate-400'
+                        }`}
+                      >
+                        {item.sub}
+                      </span>
+                    </div>
+                    <span className="text-xs font-extrabold truncate">{item.label}</span>
                   </button>
                 );
               })}
             </nav>
-          </aside>
+          </div>
         </div>
       )}
 
@@ -2264,13 +2274,12 @@ export default function App() {
       {openMenu && (
         <div
           onClick={() => setOpenMenu(null)}
-          className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
+          className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 p-5 pb-[calc(3.75rem+env(safe-area-inset-bottom,0px))] sm:pb-6 space-y-4 shadow-2xl"
+            className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl"
           >
-            <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto sm:hidden" />
 
             {/* 1. Search Filters & Scope Popover */}
             {openMenu === 'searchFilters' && (
@@ -2388,13 +2397,12 @@ export default function App() {
       {previewTerm && (
         <div
           onClick={() => setPreviewTerm(null)}
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end justify-center p-0 sm:p-4"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-700 p-6 pb-[calc(3.75rem+env(safe-area-inset-bottom,0px))] sm:pb-6 space-y-4 shadow-2xl"
+            className="w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-5 sm:p-6 space-y-4 shadow-2xl"
           >
-            <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto" />
 
             <div className="flex items-start justify-between gap-2">
               <div>

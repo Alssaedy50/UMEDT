@@ -29,7 +29,8 @@ import {
   BookmarkCheck,
   ListFilter,
   SlidersHorizontal,
-  MoreHorizontal
+  MoreHorizontal,
+  ChevronDown
 } from 'lucide-react';
 import {
   DictionaryTerm,
@@ -90,6 +91,7 @@ import {
 } from './TopicContentBlockEditor';
 import { QuizCenterModal } from './QuizCenterModal';
 import { GranularExportModal } from './GranularExportModal';
+import { prepareAndDownloadFile } from '../utils/downloadHelper';
 
 interface TopicsHubProps {
   topics: TopicArticle[];
@@ -126,6 +128,8 @@ interface SelectionInspectionState {
 type HubPopupModal =
   | null
   | 'filter_hierarchy'
+  | 'block_picker'
+  | 'subject_picker'
   | 'tools_hub'
   | 'blocks_manager'
   | 'subjects_manager'
@@ -618,22 +622,28 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
       .replace(/^(?:\d+|[\u0660-\u0669]+)[.)\-:]\s*/, '')
       .trim();
 
-  // Helpers to abbreviate Arabic Block and Subject names (strip prefix words & keep first 2 words)
+  // Helpers to abbreviate Arabic Block and Subject names (strip prefix words, strip lone punctuation, & keep first 2 words)
   const getShortBlockNameAr = (block?: MedicalBlock): string => {
     if (!block) return '';
-    const cleaned = String(block.titleAr || block.titleEn || '')
+    const rawAr = String(block.titleAr || '')
+      .replace(/^[.\-_,،؛:\s]+|[.\-_,،؛:\s]+$/g, '')
       .replace(/^(?:بلوك|وحدة|قسم|مقرر|منهج)\s+/i, '')
       .trim();
-    const words = cleaned.split(/\s+/).filter(Boolean);
+    const validAr = /[\p{L}\p{N}]/u.test(rawAr) ? rawAr : '';
+    const source = validAr || String(block.titleEn || '').trim();
+    const words = source.split(/\s+/).filter(Boolean);
     return words.slice(0, 2).join(' ') || block.code;
   };
 
   const getShortSubjectNameAr = (subj?: MedicalSubject): string => {
     if (!subj) return '';
-    const cleaned = String(subj.titleAr || subj.titleEn || '')
+    const rawAr = String(subj.titleAr || '')
+      .replace(/^[.\-_,،؛:\s]+|[.\-_,،؛:\s]+$/g, '')
       .replace(/^(?:علم|مادة|مقرر|قسم)\s+/i, '')
       .trim();
-    const words = cleaned.split(/\s+/).filter(Boolean);
+    const validAr = /[\p{L}\p{N}]/u.test(rawAr) ? rawAr : '';
+    const source = validAr || String(subj.titleEn || '').trim();
+    const words = source.split(/\s+/).filter(Boolean);
     return words.slice(0, 2).join(' ') || subj.code;
   };
 
@@ -1607,25 +1617,22 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     setViewMode('reader');
   };
 
-  const handleDownloadAttachment = (att: TopicAttachmentItem) => {
+  const handleDownloadAttachment = async (att: TopicAttachmentItem) => {
     try {
       if (att.contentDataUrlOrText.startsWith('data:')) {
         const a = document.createElement('a');
         a.href = att.contentDataUrlOrText;
         a.download = att.fileName;
         a.click();
+        showToast(`تم تنزيل الملف المرفق محلياً: ${att.fileName}`);
       } else {
-        const blob = new Blob([att.contentDataUrlOrText], {
-          type: att.fileType || 'text/plain;charset=utf-8'
+        const res = await prepareAndDownloadFile({
+          filename: att.fileName,
+          content: att.contentDataUrlOrText,
+          mime: att.fileType || 'text/plain;charset=utf-8'
         });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = att.fileName;
-        a.click();
-        URL.revokeObjectURL(url);
+        showToast(`تم تنزيل الملف المرفق محلياً: ${res.filename} (${res.sizeKB} KB)`);
       }
-      showToast(`جاري تنزيل الملف المرفق: ${att.fileName}`);
     } catch {
       showToast('تعذر تنزيل الملف المرفق', 'info');
     }
@@ -1830,7 +1837,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         </div>
       )}
 
-      {/* POPUP CARD: Quick Setup Before Creating a New Topic (Select/Create Block & Subject) */}
+      {/* POPUP CARD: Quick Setup Before Creating a New Topic (Select/Create Block & Subject — Zero Duplicate Buttons) */}
       {activePopup === 'new_topic_setup' && (
         <div
           onClick={() => setActivePopup(null)}
@@ -1853,29 +1860,13 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
               </button>
             </div>
 
-            {/* Step 1: Select or Create Medical Block */}
+            {/* Step 1: Select or Create Medical Block (Single Create Card inside Grid — No Duplicate Header Link) */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
-                  1. البلوك الطبي
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingHierarchyId(null);
-                    setHTitleEn('');
-                    setHTitleAr('');
-                    setHCode('');
-                    setHDescAr('');
-                    setHierarchyModalMode('block');
-                  }}
-                  className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 hover:underline"
-                >
-                  + بلوك جديد
-                </button>
-              </div>
+              <span className="text-xs font-extrabold text-slate-700 dark:text-slate-300 block">
+                1. البلوك الطبي
+              </span>
 
-              <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-0.5">
+              <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-0.5">
                 {blocks.map((b) => {
                   const isSelected = setupBlockId === b.id;
                   return (
@@ -1919,35 +1910,18 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   className="p-2.5 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1 text-xs font-extrabold"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>إنشاء بلوك</span>
+                  <span>بلوك جديد</span>
                 </button>
               </div>
             </div>
 
-            {/* Step 2: Select or Create Subject inside Block */}
+            {/* Step 2: Select or Create Subject inside Block (Single Create Card inside Grid — No Duplicate Header Link) */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
-                  2. المادة العلمية
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingHierarchyId(null);
-                    setHTitleEn('');
-                    setHTitleAr('');
-                    setHCode('');
-                    setHDescAr('');
-                    setHParentBlockId(setupBlockId);
-                    setHierarchyModalMode('subject');
-                  }}
-                  className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 hover:underline"
-                >
-                  + مادة جديدة
-                </button>
-              </div>
+              <span className="text-xs font-extrabold text-slate-700 dark:text-slate-300 block">
+                2. المادة العلمية
+              </span>
 
-              <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-0.5">
+              <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-0.5">
                 {subjects
                   .filter((s) => !setupBlockId || s.blockId === setupBlockId || s.isStandalone)
                   .map((s) => {
@@ -1990,7 +1964,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   className="p-2.5 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1 text-xs font-extrabold"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>إنشاء مادة</span>
+                  <span>مادة جديدة</span>
                 </button>
               </div>
             </div>
@@ -2015,6 +1989,202 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
               >
                 <span>متابعة لكتابة الموضوع</span>
                 <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP CARD: Medical Block Filter Picker (Replaces Horizontal Side-Scrolling) */}
+      {activePopup === 'block_picker' && (
+        <div
+          onClick={() => setActivePopup(null)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md max-h-[82dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                اختيار البلوك الطبي
+              </h3>
+              <button
+                type="button"
+                onClick={() => setActivePopup(null)}
+                className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveBlockFilter('ALL');
+                  setActiveSubjectFilter('ALL');
+                  setSelectedCategory('All');
+                  setActivePopup(null);
+                }}
+                className={`p-3 rounded-2xl border text-right transition-all ${
+                  activeBlockFilter === 'ALL'
+                    ? 'bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-200'
+                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                <div className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400">
+                  ALL · {topics.length} موضوع
+                </div>
+                <div className="text-xs font-extrabold mt-0.5">
+                  كل البلوكات ({blocks.length})
+                </div>
+              </button>
+
+              {blocks.map((block) => {
+                const bCount = topics.filter((t) => t.blockId === block.id).length;
+                const isSelected = activeBlockFilter === block.id;
+                return (
+                  <button
+                    key={block.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveBlockFilter(block.id);
+                      setActiveSubjectFilter('ALL');
+                      setActivePopup(null);
+                    }}
+                    className={`p-3 rounded-2xl border text-right transition-all ${
+                      isSelected
+                        ? 'bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-200'
+                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div
+                      dir="ltr"
+                      className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-left truncate"
+                    >
+                      {block.code} ({bCount})
+                    </div>
+                    <div className="text-xs font-extrabold truncate mt-0.5">
+                      {getShortBlockNameAr(block)}
+                    </div>
+                  </button>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingHierarchyId(null);
+                  setHTitleEn('');
+                  setHTitleAr('');
+                  setHCode('');
+                  setHDescAr('');
+                  setHierarchyModalMode('block');
+                }}
+                className="p-3 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5 text-xs font-extrabold"
+              >
+                <Plus className="w-4 h-4" />
+                <span>بلوك جديد</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP CARD: Medical Subject Filter Picker (Replaces Horizontal Side-Scrolling) */}
+      {activePopup === 'subject_picker' && (
+        <div
+          onClick={() => setActivePopup(null)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md max-h-[82dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                اختيار المادة العلمية
+              </h3>
+              <button
+                type="button"
+                onClick={() => setActivePopup(null)}
+                className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveSubjectFilter('ALL');
+                  setActivePopup(null);
+                }}
+                className={`p-3 rounded-2xl border text-right transition-all ${
+                  activeSubjectFilter === 'ALL'
+                    ? 'bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-200'
+                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                <div className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400">
+                  ALL · {visibleSubjects.length} مادة
+                </div>
+                <div className="text-xs font-extrabold mt-0.5">
+                  كل المواد
+                </div>
+              </button>
+
+              {visibleSubjects.map((sub) => {
+                const sCount = topics.filter((t) => t.subjectId === sub.id).length;
+                const isSelected = activeSubjectFilter === sub.id;
+                return (
+                  <button
+                    key={sub.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveSubjectFilter(sub.id);
+                      setActivePopup(null);
+                    }}
+                    className={`p-3 rounded-2xl border text-right transition-all ${
+                      isSelected
+                        ? 'bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-200'
+                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div
+                      dir="ltr"
+                      className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-left truncate"
+                    >
+                      {sub.code} ({sCount})
+                    </div>
+                    <div className="text-xs font-extrabold truncate mt-0.5">
+                      {getShortSubjectNameAr(sub)}
+                    </div>
+                  </button>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingHierarchyId(null);
+                  setHTitleEn('');
+                  setHTitleAr('');
+                  setHCode('');
+                  setHDescAr('');
+                  setHParentBlockId(
+                    activeBlockFilter !== 'ALL'
+                      ? activeBlockFilter
+                      : blocks[0]?.id || ''
+                  );
+                  setHierarchyModalMode('subject');
+                }}
+                className="p-3 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5 text-xs font-extrabold"
+              >
+                <Plus className="w-4 h-4" />
+                <span>مادة جديدة</span>
               </button>
             </div>
           </div>
@@ -3202,25 +3372,25 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
       <div className="max-w-4xl mx-auto space-y-4 pb-16">
         {renderSharedModals()}
 
-        {/* Clean Single-Row Reader Toolbar */}
-        <div className="p-3 sm:p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+        {/* Clean Wrapped Reader Toolbar (Zero Horizontal Scrolling, Zero Duplicate Buttons) */}
+        <div className="p-3 sm:p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => {
               setSelectionState(null);
               setViewMode('list');
             }}
-            className="min-h-[40px] px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-extrabold flex items-center gap-1.5 shrink-0 transition-colors"
+            className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-extrabold flex items-center gap-1.5 shrink-0 transition-colors"
           >
             <ArrowRight className="w-4 h-4" />
             <span>المواضيع</span>
           </button>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
               onClick={() => setIsTocSheetOpen(true)}
-              className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
+              className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center gap-1"
             >
               <ListFilter className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
               <span>الأقسام ({activeTopic.sections.length})</span>
@@ -3229,7 +3399,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
             <button
               type="button"
               onClick={() => setIsReaderTermsPopupOpen(true)}
-              className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
+              className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center gap-1"
             >
               <BookOpen className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
               <span>المصطلحات ({detectedTerms.length})</span>
@@ -3245,27 +3415,17 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   tab: 'runner'
                 })
               }
-              className="min-h-[40px] px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5 whitespace-nowrap"
+              className="min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1"
             >
-              <GraduationCap className="w-4 h-4 shrink-0" />
+              <GraduationCap className="w-3.5 h-3.5 shrink-0" />
               <span>اختبار ({topicQuizQuestions.length})</span>
             </button>
 
             <button
               type="button"
-              onClick={() => openEditTopicEditor(activeTopic)}
-              className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
-              title="تعديل الموضوع"
-            >
-              <Edit3 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <span className="hidden sm:inline">تعديل</span>
-            </button>
-
-            <button
-              type="button"
               onClick={() => setIsReaderOptionsPopupOpen(true)}
-              className="min-h-[40px] min-w-[40px] px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0"
-              title="تصدير وحذف ومرفقات الموضوع"
+              className="min-h-[38px] min-w-[38px] px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0"
+              title="خيارات الموضوع"
             >
               <MoreHorizontal className="w-4 h-4" />
             </button>
@@ -3660,7 +3820,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
             >
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-                  تصدير ومرفقات الموضوع
+                  خيارات الموضوع والمرفقات
                 </h3>
                 <button
                   type="button"
@@ -3672,6 +3832,15 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
               </div>
 
               <div className="grid grid-cols-1 gap-2">
+                <button
+                  type="button"
+                  onClick={() => openEditTopicEditor(activeTopic)}
+                  className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center justify-between"
+                >
+                  <span>تعديل الموضوع وإضافة محتوى</span>
+                  <Edit3 className="w-4 h-4 text-emerald-500" />
+                </button>
+
                 <button
                   type="button"
                   onClick={() =>
@@ -4085,26 +4254,26 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     <div className="space-y-3.5 pb-24 relative">
       {renderSharedModals()}
 
-      {/* Floating Action Button (+) at Bottom-Left to Create Topic with Block/Subject Setup */}
+      {/* Floating Action Button (+) Safely Above Mobile Bottom Nav Bar */}
       <button
         type="button"
         onClick={openNewTopicSetupModal}
         aria-label="إضافة موضوع جديد"
         title="إضافة موضوع جديد"
-        className="fixed bottom-20 md:bottom-8 left-5 z-40 w-14 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 shadow-xl shadow-emerald-600/30 flex items-center justify-center transition-transform active:scale-95"
+        className="fixed bottom-24 md:bottom-8 left-4 z-40 w-12 h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 shadow-xl shadow-emerald-600/30 flex items-center justify-center transition-transform active:scale-95"
       >
-        <Plus className="w-6 h-6 stroke-[2.5]" />
+        <Plus className="w-5 h-5 stroke-[2.5]" />
       </button>
 
-      {/* Compact Control Surface: Title + Search + Hierarchical Block/Subject Short Tabs */}
+      {/* Compact Control Surface: Title + Search + Popup Card Filters (Zero Side-Scrolling, Zero Overlap) */}
       <div className="p-3.5 sm:p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 space-y-3 shadow-xs">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-baseline gap-2 min-w-0">
-            <h1 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white tracking-tight truncate">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">
               المواضيع
             </h1>
-            <span className="text-[11px] font-mono font-bold text-slate-400 whitespace-nowrap">
-              {filteredTopics.length} موضوع · {blocks.length} بلوك · {subjects.length} مادة
+            <span className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[11px] font-mono font-extrabold">
+              {filteredTopics.length}
             </span>
           </div>
 
@@ -4122,7 +4291,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   tab: 'runner'
                 })
               }
-              className="min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 hover:border-emerald-500/50 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-extrabold flex items-center gap-1.5 whitespace-nowrap transition-colors"
+              className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 hover:border-emerald-500/50 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-extrabold flex items-center gap-1.5 whitespace-nowrap transition-colors"
             >
               <GraduationCap className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
               <span>الاختبارات ({quizQuestions.length})</span>
@@ -4131,7 +4300,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
             <button
               type="button"
               onClick={() => setActivePopup('tools_hub')}
-              className="min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 hover:border-emerald-500/50 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-extrabold flex items-center gap-1.5 whitespace-nowrap transition-colors"
+              className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 hover:border-emerald-500/50 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-extrabold flex items-center gap-1.5 whitespace-nowrap transition-colors"
               title="الهيكل والأدوات"
             >
               <Layers className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
@@ -4181,123 +4350,51 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           </button>
         </div>
 
-        {/* Hierarchical Filter Strip: Row 1 = Blocks (Abbreviated), Row 2 = Subjects in Block */}
-        <div className="space-y-1.5 pt-1 border-t border-slate-100 dark:border-slate-800/80">
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveBlockFilter('ALL');
-                setActiveSubjectFilter('ALL');
-                setSelectedCategory('All');
-              }}
-              className={`min-h-[32px] px-2.5 py-1 rounded-xl text-[11px] font-extrabold whitespace-nowrap transition-colors ${
-                activeBlockFilter === 'ALL'
-                  ? 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950'
-                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-              }`}
-            >
-              الكل ({topics.length})
-            </button>
+        {/* Popup Card Filter Triggers (Replaces Horizontal Side-Scrolling Strips) */}
+        <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
+          <button
+            type="button"
+            onClick={() => setActivePopup('block_picker')}
+            className={`min-h-[38px] px-3 py-1.5 rounded-xl border text-xs font-extrabold flex items-center justify-between gap-1.5 transition-colors ${
+              activeBlockFilter !== 'ALL'
+                ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-800 dark:text-emerald-200'
+                : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
+            }`}
+          >
+            <span className="truncate">
+              {activeBlockFilter === 'ALL'
+                ? `البلوك: الكل (${blocks.length})`
+                : (() => {
+                    const blk = blockMap.get(activeBlockFilter);
+                    return blk
+                      ? `${blk.code} · ${getShortBlockNameAr(blk)}`
+                      : 'البلوك المحدد';
+                  })()}
+            </span>
+            <ChevronDown className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+          </button>
 
-            {blocks.map((block) => {
-              const bCount = topics.filter((t) => t.blockId === block.id).length;
-              return (
-                <button
-                  key={block.id}
-                  type="button"
-                  onClick={() => {
-                    setActiveBlockFilter(block.id);
-                    setActiveSubjectFilter('ALL');
-                  }}
-                  className={`min-h-[32px] px-2.5 py-1 rounded-xl text-[11px] font-bold whitespace-nowrap transition-colors flex items-center gap-1 ${
-                    activeBlockFilter === block.id
-                      ? 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950'
-                      : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  <span dir="ltr" className="font-mono font-extrabold text-[10px]">
-                    {block.code}
-                  </span>
-                  <span>· {getShortBlockNameAr(block)}</span>
-                  <span className="opacity-75">({bCount})</span>
-                </button>
-              );
-            })}
-
-            <button
-              type="button"
-              onClick={() => {
-                setEditingHierarchyId(null);
-                setHTitleEn('');
-                setHTitleAr('');
-                setHCode('');
-                setHDescAr('');
-                setHierarchyModalMode('block');
-              }}
-              className="min-h-[32px] px-2.5 py-1 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 text-[11px] font-extrabold whitespace-nowrap transition-colors"
-            >
-              + بلوك
-            </button>
-          </div>
-
-          {visibleSubjects.length > 0 && (
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-              <button
-                type="button"
-                onClick={() => setActiveSubjectFilter('ALL')}
-                className={`min-h-[28px] px-2.5 py-0.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${
-                  activeSubjectFilter === 'ALL'
-                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40'
-                    : 'bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 border border-slate-200/80 dark:border-slate-800'
-                }`}
-              >
-                كل المواد ({visibleSubjects.length})
-              </button>
-
-              {visibleSubjects.map((sub) => {
-                const sCount = topics.filter((t) => t.subjectId === sub.id).length;
-                return (
-                  <button
-                    key={sub.id}
-                    type="button"
-                    onClick={() => setActiveSubjectFilter(sub.id)}
-                    className={`min-h-[28px] px-2.5 py-0.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors flex items-center gap-1 ${
-                      activeSubjectFilter === sub.id
-                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40'
-                        : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-800'
-                    }`}
-                  >
-                    <span dir="ltr" className="font-mono text-[10px]">
-                      {sub.code}
-                    </span>
-                    <span>· {getShortSubjectNameAr(sub)}</span>
-                    <span className="opacity-75">({sCount})</span>
-                  </button>
-                );
-              })}
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingHierarchyId(null);
-                  setHTitleEn('');
-                  setHTitleAr('');
-                  setHCode('');
-                  setHDescAr('');
-                  setHParentBlockId(
-                    activeBlockFilter !== 'ALL'
-                      ? activeBlockFilter
-                      : blocks[0]?.id || ''
-                  );
-                  setHierarchyModalMode('subject');
-                }}
-                className="min-h-[28px] px-2 py-0.5 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold whitespace-nowrap"
-              >
-                + مادة
-              </button>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => setActivePopup('subject_picker')}
+            className={`min-h-[38px] px-3 py-1.5 rounded-xl border text-xs font-extrabold flex items-center justify-between gap-1.5 transition-colors ${
+              activeSubjectFilter !== 'ALL'
+                ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-800 dark:text-emerald-200'
+                : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
+            }`}
+          >
+            <span className="truncate">
+              {activeSubjectFilter === 'ALL'
+                ? `المادة: الكل (${visibleSubjects.length})`
+                : (() => {
+                    const sub = subjectMap.get(activeSubjectFilter);
+                    return sub
+                      ? `${sub.code} · ${getShortSubjectNameAr(sub)}`
+                      : 'المادة المحددة';
+                  })()}
+            </span>
+            <ChevronDown className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+          </button>
         </div>
       </div>
 

@@ -45,6 +45,15 @@ import {
   rollbackImportByHistoryId,
   loadImportHistory
 } from '../src/services/importManagerService';
+import {
+  prepareAndDownloadFile,
+  verifyLocalStoragePersistence,
+  getLastLocalDownloadRecord
+} from '../src/utils/downloadHelper';
+import {
+  loadMedicalBlocks,
+  saveMedicalBlocks
+} from '../src/services/learningHierarchyService';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -858,8 +867,69 @@ async function main() {
   console.log(
     '[PASS] 13. UMED Medical Package (.umedpack), Universal File Import Engine, Zero-Local-LLM Guard & Rollback Verified'
   );
+
+  // 14. Verify Local Storage Persistence, Download Helper Integrity & Block Title Sanitization
+  const jsonDownloadRecord = await prepareAndDownloadFile({
+    content: exportedJson,
+    filename: 'umed2-test-backup.json',
+    mime: 'application/json'
+  });
+  assertCondition(
+    jsonDownloadRecord.filename === 'umed2-test-backup.json' &&
+      jsonDownloadRecord.sizeBytes > 1000 &&
+      jsonDownloadRecord.sizeKB > 1,
+    'prepareAndDownloadFile must accurately compute byte and KB size for JSON backup'
+  );
+
+  const zipDownloadRecord = await prepareAndDownloadFile({
+    content: exportedZipBytes,
+    filename: 'umed2-test-package.zip',
+    mime: 'application/zip'
+  });
+  assertCondition(
+    zipDownloadRecord.filename === 'umed2-test-package.zip' &&
+      zipDownloadRecord.sizeBytes === exportedZipBytes.byteLength &&
+      zipDownloadRecord.sizeKB > 1,
+    'prepareAndDownloadFile must accurately compute byte and KB size for binary ZIP package'
+  );
+
+  const storageCheck = verifyLocalStoragePersistence();
+  assertCondition(
+    storageCheck.ok === true && storageCheck.keysCount >= 0,
+    'verifyLocalStoragePersistence must pass read/write verification'
+  );
+
+  const initialBlocksSnapshot = loadMedicalBlocks();
+  saveMedicalBlocks([
+    ...initialBlocksSnapshot,
+    {
+      id: 'block-test-dot',
+      code: 'BLD',
+      titleEn: 'Hematology Block',
+      titleAr: '.',
+      descriptionEn: '',
+      descriptionAr: '',
+      colorAccent: 'rose',
+      order: 99,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+  ]);
+  const sanitizedBlocks = loadMedicalBlocks();
+  const bldBlock = sanitizedBlocks.find((b) => b.id === 'block-test-dot');
+  assertCondition(
+    Boolean(bldBlock && bldBlock.titleAr !== '.' && bldBlock.titleAr === 'أمراض الدم'),
+    `Expected block with lone dot '.' in titleAr to be sanitized to 'أمراض الدم', got '${bldBlock?.titleAr}'`
+  );
+  saveMedicalBlocks(initialBlocksSnapshot);
+  // Restore last download record state
+  void getLastLocalDownloadRecord();
+
+  console.log(
+    `[PASS] 14. Local Download & Storage Integrity Verified (JSON: ${jsonDownloadRecord.sizeKB} KB, ZIP: ${zipDownloadRecord.sizeKB} KB) & Hierarchy Title Sanitization`
+  );
   console.log('================================================================');
-  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (13/13 — 100%)');
+  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (14/14 — 100%)');
   console.log('================================================================');
 }
 

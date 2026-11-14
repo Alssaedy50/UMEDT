@@ -41,6 +41,7 @@ import {
   saveTelegramBackupConfig,
   testTelegramConnection
 } from '../services/telegramBackupService';
+import { verifyLocalStoragePersistence } from '../utils/downloadHelper';
 
 interface SettingsViewProps {
   isDark: boolean;
@@ -219,6 +220,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [draftChatId, setDraftChatId] = useState<string>(
     () => telegramConfig?.chatId || loadTelegramBackupConfig().chatId || ''
   );
+  const [localVerifyFeedback, setLocalVerifyFeedback] = useState<string | null>(null);
 
   // Sync draft credentials from persisted config only if draft is empty and persisted has values
   useEffect(() => {
@@ -399,7 +401,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">
             {summaryToShow?.sourceLabel || 'تعريف بيانات التطبيق الحالية'}
           </div>
-          <div className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5 truncate">
+          <div className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5 leading-relaxed break-words">
             {summaryToShow
               ? summaryToShow.shortText
               : `${dbMetrics.totalTerms} مصطلح · ${dbMetrics.totalTopics || 0} موضوع · ${dbMetrics.totalSentences} جملة`}
@@ -1197,7 +1199,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     type="button"
                     onClick={() => {
                       onExportBackup();
-                      setActiveModal(null);
+                      setTimeout(() => {
+                        const check = verifyLocalStoragePersistence();
+                        const dl = check.lastDownload;
+                        setLocalVerifyFeedback(
+                          dl
+                            ? `تم تنزيل وحفظ ملف JSON في التخزين المحلي بنجاح: ${dl.filename} (${dl.sizeKB} KB)`
+                            : 'تم بدء تنزيل نسخة JSON إلى التخزين المحلي بنجاح.'
+                        );
+                      }, 150);
                     }}
                     className="min-h-[42px] px-3 py-2 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-extrabold flex items-center justify-center gap-1.5"
                   >
@@ -1209,7 +1219,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     type="button"
                     onClick={() => {
                       onExportZipPackage();
-                      setActiveModal(null);
+                      setTimeout(() => {
+                        const check = verifyLocalStoragePersistence();
+                        const dl = check.lastDownload;
+                        setLocalVerifyFeedback(
+                          dl
+                            ? `تم تنزيل وحفظ حزمة ZIP في التخزين المحلي بنجاح: ${dl.filename} (${dl.sizeKB} KB)`
+                            : 'تم بدء تنزيل حزمة ZIP إلى التخزين المحلي بنجاح.'
+                        );
+                      }, 150);
                     }}
                     className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 font-bold flex items-center justify-center gap-1.5"
                   >
@@ -1230,7 +1248,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     type="button"
                     onClick={() => {
                       onShareDataFile();
-                      setActiveModal(null);
                     }}
                     className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5"
                   >
@@ -1238,6 +1255,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <span>مشاركة النسخة</span>
                   </button>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onCreateManualBackup();
+                    const check = verifyLocalStoragePersistence();
+                    const dlText = check.lastDownload
+                      ? ` · آخر ملف محمّل: ${check.lastDownload.filename} (${check.lastDownload.sizeKB} KB)`
+                      : '';
+                    setLocalVerifyFeedback(
+                      check.ok
+                        ? `التخزين المحلي يعمل بكفاءة (${check.usedKB} KB محفوظة في ${check.keysCount} سجل محلي)${dlText}`
+                        : 'تعذر الوصول إلى التخزين المحلي في المتصفح.'
+                    );
+                  }}
+                  className="w-full min-h-[38px] px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>تأكيد وفحص التحميل والتخزين المحلي</span>
+                </button>
+
+                {localVerifyFeedback && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-200 text-xs font-bold leading-relaxed">
+                    {localVerifyFeedback}
+                  </div>
+                )}
 
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
                   <div className="flex items-center justify-between">

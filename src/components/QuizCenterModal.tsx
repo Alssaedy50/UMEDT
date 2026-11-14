@@ -510,13 +510,12 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-4xl max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 p-4 sm:p-6 pb-[calc(4.5rem+env(safe-area-inset-bottom,16px))] sm:pb-6 space-y-4 sm:space-y-5 shadow-2xl"
+        className="w-full max-w-4xl max-h-[88dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 space-y-4 sm:space-y-5 shadow-2xl"
       >
-        <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto sm:hidden" />
 
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">

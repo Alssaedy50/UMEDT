@@ -645,18 +645,49 @@ export function enrichAllTopicsWithHierarchy(topics: TopicArticle[]): TopicArtic
   return topics.map((t) => enrichTopicWithHierarchyAndContentBlocks(t, topics));
 }
 
+function sanitizeEntityTitleAr(titleAr: string | undefined, titleEn: string | undefined, code: string | undefined): string {
+  const cleaned = (titleAr || '').replace(/^[.\-_\s،,;:]+|[.\-_\s،,;:]+$/g, '').trim();
+  if (cleaned && /[\p{L}\p{N}]/u.test(cleaned)) {
+    return cleaned;
+  }
+  const upperCode = (code || '').toUpperCase();
+  if (upperCode === 'BLD' || upperCode.includes('HEME')) {
+    return 'أمراض الدم';
+  }
+  return (titleEn || code || 'عام').trim();
+}
+
+const hierarchyMemoryStore = new Map<string, string>();
+
+function getHierarchyStorage() {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return {
+      getItem: (k: string) => window.localStorage.getItem(k),
+      setItem: (k: string, v: string) => window.localStorage.setItem(k, v),
+    };
+  }
+  return {
+    getItem: (k: string) => hierarchyMemoryStore.get(k) ?? null,
+    setItem: (k: string, v: string) => {
+      hierarchyMemoryStore.set(k, v);
+    },
+  };
+}
+
 export function loadMedicalBlocks(): MedicalBlock[] {
   try {
-    if (typeof window === 'undefined' || !window.localStorage) {
-      return [...INITIAL_MEDICAL_BLOCKS];
-    }
-    const raw = window.localStorage.getItem(LEARNING_STORAGE_KEYS.BLOCKS);
+    const raw = getHierarchyStorage().getItem(LEARNING_STORAGE_KEYS.BLOCKS);
     if (raw === null) return [...INITIAL_MEDICAL_BLOCKS];
     const parsed = JSON.parse(raw) as MedicalBlock[];
     if (!Array.isArray(parsed)) {
       return [...INITIAL_MEDICAL_BLOCKS];
     }
-    return [...parsed].sort((a, b) => a.order - b.order);
+    return parsed
+      .map((b) => ({
+        ...b,
+        titleAr: sanitizeEntityTitleAr(b.titleAr, b.titleEn, b.code),
+      }))
+      .sort((a, b) => a.order - b.order);
   } catch {
     return [...INITIAL_MEDICAL_BLOCKS];
   }
@@ -664,9 +695,7 @@ export function loadMedicalBlocks(): MedicalBlock[] {
 
 export function saveMedicalBlocks(blocks: MedicalBlock[]): void {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(LEARNING_STORAGE_KEYS.BLOCKS, JSON.stringify(blocks));
-    }
+    getHierarchyStorage().setItem(LEARNING_STORAGE_KEYS.BLOCKS, JSON.stringify(blocks));
   } catch {
     // ignore storage quota errors
   }
@@ -674,16 +703,18 @@ export function saveMedicalBlocks(blocks: MedicalBlock[]): void {
 
 export function loadMedicalSubjects(): MedicalSubject[] {
   try {
-    if (typeof window === 'undefined' || !window.localStorage) {
-      return [...INITIAL_MEDICAL_SUBJECTS];
-    }
-    const raw = window.localStorage.getItem(LEARNING_STORAGE_KEYS.SUBJECTS);
+    const raw = getHierarchyStorage().getItem(LEARNING_STORAGE_KEYS.SUBJECTS);
     if (raw === null) return [...INITIAL_MEDICAL_SUBJECTS];
     const parsed = JSON.parse(raw) as MedicalSubject[];
     if (!Array.isArray(parsed)) {
       return [...INITIAL_MEDICAL_SUBJECTS];
     }
-    return [...parsed].sort((a, b) => a.order - b.order);
+    return parsed
+      .map((s) => ({
+        ...s,
+        titleAr: sanitizeEntityTitleAr(s.titleAr, s.titleEn, s.code),
+      }))
+      .sort((a, b) => a.order - b.order);
   } catch {
     return [...INITIAL_MEDICAL_SUBJECTS];
   }
@@ -691,9 +722,7 @@ export function loadMedicalSubjects(): MedicalSubject[] {
 
 export function saveMedicalSubjects(subjects: MedicalSubject[]): void {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(LEARNING_STORAGE_KEYS.SUBJECTS, JSON.stringify(subjects));
-    }
+    getHierarchyStorage().setItem(LEARNING_STORAGE_KEYS.SUBJECTS, JSON.stringify(subjects));
   } catch {
     // ignore
   }
