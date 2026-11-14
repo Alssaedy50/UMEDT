@@ -30,7 +30,8 @@ import {
   ListFilter,
   SlidersHorizontal,
   MoreHorizontal,
-  ChevronDown
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import {
   DictionaryTerm,
@@ -298,6 +299,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   // Quick Setup Modal State before opening New Topic Editor
   const [setupBlockId, setSetupBlockId] = useState<string>('block-hematology');
   const [setupSubjectId, setSetupSubjectId] = useState<string>('subj-hematology');
+  const [setupPickerMode, setSetupPickerMode] = useState<null | 'block' | 'subject'>(null);
 
   // Block Deletion Safety System State
   const [blockDeleteTarget, setBlockDeleteTarget] = useState<MedicalBlock | null>(null);
@@ -663,6 +665,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           '';
     setSetupBlockId(defaultBlock);
     setSetupSubjectId(matchingSubj);
+    setSetupPickerMode(null);
     setActivePopup('new_topic_setup');
   };
 
@@ -1843,165 +1846,261 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         </div>
       )}
 
-      {/* POPUP CARD: Quick Setup Before Creating a New Topic (Select/Create Block & Subject — Zero Duplicate Buttons) */}
-      {activePopup === 'new_topic_setup' && (
+      {/* POPUP CARD: Quick Setup Before Creating a New Topic (Compact Pop-up Options) */}
+      {activePopup === 'new_topic_setup' && (() => {
+        const selectedSetupBlock = blocks.find((b) => b.id === setupBlockId);
+        const filteredSetupSubjects = subjects.filter(
+          (s) => !setupBlockId || s.blockId === setupBlockId || s.isStandalone
+        );
+        const selectedSetupSubject = filteredSetupSubjects.find(
+          (s) => s.id === setupSubjectId
+        );
+
+        return (
+          <div
+            onClick={() => {
+              setSetupPickerMode(null);
+              setActivePopup(null);
+            }}
+            className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                  إضافة موضوع جديد
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSetupPickerMode(null);
+                    setActivePopup(null);
+                  }}
+                  className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Step 1: Compact Pop-up Trigger for Medical Block */}
+              <div className="space-y-1.5">
+                <span className="text-xs font-extrabold text-slate-700 dark:text-slate-300 block">
+                  1. البلوك الطبي
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSetupPickerMode('block')}
+                  className="w-full min-h-[46px] px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/60 flex items-center justify-between gap-2 text-right transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    {selectedSetupBlock ? (
+                      <>
+                        <span
+                          dir="ltr"
+                          className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
+                        >
+                          {selectedSetupBlock.code}
+                        </span>
+                        <span className="text-xs font-extrabold text-slate-900 dark:text-white leading-snug break-words min-w-0">
+                          {getShortBlockNameAr(selectedSetupBlock)}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-xs font-bold text-slate-400">
+                        اختر البلوك الطبي...
+                      </span>
+                    )}
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-emerald-500 shrink-0" />
+                </button>
+              </div>
+
+              {/* Step 2: Compact Pop-up Trigger for Medical Subject */}
+              <div className="space-y-1.5">
+                <span className="text-xs font-extrabold text-slate-700 dark:text-slate-300 block">
+                  2. المادة العلمية
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSetupPickerMode('subject')}
+                  className="w-full min-h-[46px] px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/60 flex items-center justify-between gap-2 text-right transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    {selectedSetupSubject ? (
+                      <>
+                        <span
+                          dir="ltr"
+                          className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
+                        >
+                          {selectedSetupSubject.code}
+                        </span>
+                        <span className="text-xs font-extrabold text-slate-900 dark:text-white leading-snug break-words min-w-0">
+                          {getShortSubjectNameAr(selectedSetupSubject)}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-xs font-bold text-slate-400">
+                        اختر المادة أو أنشئ مادة جديدة...
+                      </span>
+                    )}
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-emerald-500 shrink-0" />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSetupPickerMode(null);
+                    setActivePopup(null);
+                  }}
+                  className="min-h-[40px] px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSetupPickerMode(null);
+                    openCreateTopicEditor({
+                      blockId: setupBlockId,
+                      subjectId: setupSubjectId
+                    });
+                  }}
+                  className="min-h-[40px] px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5"
+                >
+                  <span>متابعة لكتابة الموضوع</span>
+                  <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* POPUP CARD: Compact Block / Subject Selector Inside New Topic Setup (z-[65] above setup modal, below hierarchyModal z-[70]) */}
+      {activePopup === 'new_topic_setup' && setupPickerMode && (
         <div
-          onClick={() => setActivePopup(null)}
-          className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setSetupPickerMode(null)}
+          className="fixed inset-0 z-[65] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl"
+            className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 space-y-3 shadow-2xl"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-                إضافة موضوع جديد
-              </h3>
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+              <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                {setupPickerMode === 'block' ? 'اختيار البلوك الطبي' : 'اختيار المادة العلمية'}
+              </h4>
               <button
                 type="button"
-                onClick={() => setActivePopup(null)}
+                onClick={() => setSetupPickerMode(null)}
                 className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Step 1: Select or Create Medical Block (Single Create Card inside Grid — No Duplicate Header Link) */}
-            <div className="space-y-2">
-              <span className="text-xs font-extrabold text-slate-700 dark:text-slate-300 block">
-                1. البلوك الطبي
-              </span>
-
-              <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-0.5">
-                {blocks.map((b) => {
-                  const isSelected = setupBlockId === b.id;
-                  return (
-                    <button
-                      key={b.id}
-                      type="button"
-                      onClick={() => {
-                        setSetupBlockId(b.id);
-                        const firstSub = subjects.find((s) => s.blockId === b.id);
-                        setSetupSubjectId(firstSub ? firstSub.id : '');
-                      }}
-                      className={`p-2.5 rounded-2xl border text-right transition-all ${
-                        isSelected
-                          ? 'bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-200'
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                      }`}
-                    >
-                      <div
-                        dir="ltr"
-                        className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-left break-words"
-                      >
-                        {b.code}
-                      </div>
-                      <div className="text-xs font-extrabold leading-snug break-words mt-1">
-                        {getShortBlockNameAr(b)}
-                      </div>
-                    </button>
-                  );
-                })}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingHierarchyId(null);
-                    setHTitleEn('');
-                    setHTitleAr('');
-                    setHCode('');
-                    setHDescAr('');
-                    setHierarchyModalMode('block');
-                  }}
-                  className="p-2.5 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1 text-xs font-extrabold"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>بلوك جديد</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Step 2: Select or Create Subject inside Block (Single Create Card inside Grid — No Duplicate Header Link) */}
-            <div className="space-y-2">
-              <span className="text-xs font-extrabold text-slate-700 dark:text-slate-300 block">
-                2. المادة العلمية
-              </span>
-
-              <div className="grid grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-0.5">
-                {subjects
-                  .filter((s) => !setupBlockId || s.blockId === setupBlockId || s.isStandalone)
-                  .map((s) => {
-                    const isSelected = setupSubjectId === s.id;
+            <div className="space-y-1.5 max-h-[52dvh] overflow-y-auto pr-0.5">
+              {setupPickerMode === 'block'
+                ? blocks.map((b) => {
+                    const isSelected = setupBlockId === b.id;
                     return (
                       <button
-                        key={s.id}
+                        key={b.id}
                         type="button"
-                        onClick={() => setSetupSubjectId(s.id)}
-                        className={`p-2.5 rounded-2xl border text-right transition-all ${
+                        onClick={() => {
+                          setSetupBlockId(b.id);
+                          const firstSub = subjects.find((s) => s.blockId === b.id);
+                          setSetupSubjectId(firstSub ? firstSub.id : '');
+                          setSetupPickerMode(null);
+                        }}
+                        className={`w-full min-h-[44px] px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-right transition-colors ${
                           isSelected
                             ? 'bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-200'
                             : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
                         }`}
                       >
-                        <div
-                          dir="ltr"
-                          className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-left break-words"
-                        >
-                          {s.code}
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span
+                            dir="ltr"
+                            className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
+                          >
+                            {b.code}
+                          </span>
+                          <span className="text-xs font-extrabold leading-snug break-words min-w-0">
+                            {getShortBlockNameAr(b)}
+                          </span>
                         </div>
-                        <div className="text-xs font-extrabold leading-snug break-words mt-1">
-                          {getShortSubjectNameAr(s)}
-                        </div>
+                        {isSelected && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
                       </button>
                     );
-                  })}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingHierarchyId(null);
-                    setHTitleEn('');
-                    setHTitleAr('');
-                    setHCode('');
-                    setHDescAr('');
-                    setHParentBlockId(setupBlockId);
-                    setHierarchyModalMode('subject');
-                  }}
-                  className="p-2.5 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1 text-xs font-extrabold"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>مادة جديدة</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setActivePopup(null)}
-                className="min-h-[40px] px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold"
-              >
-                إلغاء
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  openCreateTopicEditor({
-                    blockId: setupBlockId,
-                    subjectId: setupSubjectId
                   })
-                }
-                className="min-h-[40px] px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5"
-              >
-                <span>متابعة لكتابة الموضوع</span>
-                <ArrowRight className="w-3.5 h-3.5 rotate-180" />
-              </button>
+                : subjects
+                    .filter((s) => !setupBlockId || s.blockId === setupBlockId || s.isStandalone)
+                    .map((s) => {
+                      const isSelected = setupSubjectId === s.id;
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => {
+                            setSetupSubjectId(s.id);
+                            setSetupPickerMode(null);
+                          }}
+                          className={`w-full min-h-[44px] px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-right transition-colors ${
+                            isSelected
+                              ? 'bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-200'
+                              : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span
+                              dir="ltr"
+                              className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
+                            >
+                              {s.code}
+                            </span>
+                            <span className="text-xs font-extrabold leading-snug break-words min-w-0">
+                              {getShortSubjectNameAr(s)}
+                            </span>
+                          </div>
+                          {isSelected && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
+                        </button>
+                      );
+                    })}
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const targetMode = setupPickerMode;
+                setSetupPickerMode(null);
+                setEditingHierarchyId(null);
+                setHTitleEn('');
+                setHTitleAr('');
+                setHCode('');
+                setHDescAr('');
+                if (targetMode === 'subject') {
+                  setHParentBlockId(setupBlockId);
+                  setHierarchyModalMode('subject');
+                } else {
+                  setHierarchyModalMode('block');
+                }
+              }}
+              className="w-full min-h-[40px] px-3 py-2 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5 text-xs font-extrabold"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>{setupPickerMode === 'block' ? 'بلوك جديد' : 'مادة جديدة'}</span>
+            </button>
           </div>
         </div>
       )}
 
-      {/* POPUP CARD: Medical Block Filter Picker (Replaces Horizontal Side-Scrolling) */}
+      {/* POPUP CARD: Medical Block Filter Picker (Compact Pop-up Options) */}
       {activePopup === 'block_picker' && (
         <div
           onClick={() => setActivePopup(null)}
@@ -2009,10 +2108,10 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md max-h-[82dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl"
+            className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 space-y-3 shadow-2xl"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+              <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
                 اختيار البلوك الطبي
               </h3>
               <button
@@ -2024,7 +2123,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-1.5 max-h-[55dvh] overflow-y-auto pr-0.5">
               <button
                 type="button"
                 onClick={() => {
@@ -2033,18 +2132,23 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   setSelectedCategory('All');
                   setActivePopup(null);
                 }}
-                className={`p-3 rounded-2xl border text-right transition-all ${
+                className={`w-full min-h-[44px] px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-right transition-colors ${
                   activeBlockFilter === 'ALL'
                     ? 'bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-200'
                     : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
                 }`}
               >
-                <div className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400">
-                  ALL · {topics.length} موضوع
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0">
+                    ALL ({topics.length})
+                  </span>
+                  <span className="text-xs font-extrabold">
+                    كل البلوكات ({blocks.length})
+                  </span>
                 </div>
-                <div className="text-xs font-extrabold mt-0.5">
-                  كل البلوكات ({blocks.length})
-                </div>
+                {activeBlockFilter === 'ALL' && (
+                  <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                )}
               </button>
 
               {blocks.map((block) => {
@@ -2059,46 +2163,49 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                       setActiveSubjectFilter('ALL');
                       setActivePopup(null);
                     }}
-                    className={`p-3 rounded-2xl border text-right transition-all ${
+                    className={`w-full min-h-[44px] px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-right transition-colors ${
                       isSelected
                         ? 'bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-200'
                         : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
                     }`}
                   >
-                    <div
-                      dir="ltr"
-                      className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-left break-words"
-                    >
-                      {block.code} ({bCount})
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span
+                        dir="ltr"
+                        className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
+                      >
+                        {block.code} ({bCount})
+                      </span>
+                      <span className="text-xs font-extrabold leading-snug break-words min-w-0">
+                        {getShortBlockNameAr(block)}
+                      </span>
                     </div>
-                    <div className="text-xs font-extrabold leading-snug break-words mt-1">
-                      {getShortBlockNameAr(block)}
-                    </div>
+                    {isSelected && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
                   </button>
                 );
               })}
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingHierarchyId(null);
-                  setHTitleEn('');
-                  setHTitleAr('');
-                  setHCode('');
-                  setHDescAr('');
-                  setHierarchyModalMode('block');
-                }}
-                className="p-3 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5 text-xs font-extrabold"
-              >
-                <Plus className="w-4 h-4" />
-                <span>بلوك جديد</span>
-              </button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setEditingHierarchyId(null);
+                setHTitleEn('');
+                setHTitleAr('');
+                setHCode('');
+                setHDescAr('');
+                setHierarchyModalMode('block');
+              }}
+              className="w-full min-h-[40px] px-3 py-2 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5 text-xs font-extrabold"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>بلوك جديد</span>
+            </button>
           </div>
         </div>
       )}
 
-      {/* POPUP CARD: Medical Subject Filter Picker (Replaces Horizontal Side-Scrolling) */}
+      {/* POPUP CARD: Medical Subject Filter Picker (Compact Pop-up Options) */}
       {activePopup === 'subject_picker' && (
         <div
           onClick={() => setActivePopup(null)}
@@ -2106,10 +2213,10 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md max-h-[82dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl"
+            className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 space-y-3 shadow-2xl"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+              <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
                 اختيار المادة العلمية
               </h3>
               <button
@@ -2121,25 +2228,30 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-1.5 max-h-[55dvh] overflow-y-auto pr-0.5">
               <button
                 type="button"
                 onClick={() => {
                   setActiveSubjectFilter('ALL');
                   setActivePopup(null);
                 }}
-                className={`p-3 rounded-2xl border text-right transition-all ${
+                className={`w-full min-h-[44px] px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-right transition-colors ${
                   activeSubjectFilter === 'ALL'
                     ? 'bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-200'
                     : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
                 }`}
               >
-                <div className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400">
-                  ALL · {visibleSubjects.length} مادة
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0">
+                    ALL ({visibleSubjects.length})
+                  </span>
+                  <span className="text-xs font-extrabold">
+                    كل المواد
+                  </span>
                 </div>
-                <div className="text-xs font-extrabold mt-0.5">
-                  كل المواد
-                </div>
+                {activeSubjectFilter === 'ALL' && (
+                  <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                )}
               </button>
 
               {visibleSubjects.map((sub) => {
@@ -2153,46 +2265,49 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                       setActiveSubjectFilter(sub.id);
                       setActivePopup(null);
                     }}
-                    className={`p-3 rounded-2xl border text-right transition-all ${
+                    className={`w-full min-h-[44px] px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-right transition-colors ${
                       isSelected
                         ? 'bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-200'
                         : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
                     }`}
                   >
-                    <div
-                      dir="ltr"
-                      className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-left break-words"
-                    >
-                      {sub.code} ({sCount})
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span
+                        dir="ltr"
+                        className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
+                      >
+                        {sub.code} ({sCount})
+                      </span>
+                      <span className="text-xs font-extrabold leading-snug break-words min-w-0">
+                        {getShortSubjectNameAr(sub)}
+                      </span>
                     </div>
-                    <div className="text-xs font-extrabold leading-snug break-words mt-1">
-                      {getShortSubjectNameAr(sub)}
-                    </div>
+                    {isSelected && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
                   </button>
                 );
               })}
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingHierarchyId(null);
-                  setHTitleEn('');
-                  setHTitleAr('');
-                  setHCode('');
-                  setHDescAr('');
-                  setHParentBlockId(
-                    activeBlockFilter !== 'ALL'
-                      ? activeBlockFilter
-                      : blocks[0]?.id || ''
-                  );
-                  setHierarchyModalMode('subject');
-                }}
-                className="p-3 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5 text-xs font-extrabold"
-              >
-                <Plus className="w-4 h-4" />
-                <span>مادة جديدة</span>
-              </button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setEditingHierarchyId(null);
+                setHTitleEn('');
+                setHTitleAr('');
+                setHCode('');
+                setHDescAr('');
+                setHParentBlockId(
+                  activeBlockFilter !== 'ALL'
+                    ? activeBlockFilter
+                    : blocks[0]?.id || ''
+                );
+                setHierarchyModalMode('subject');
+              }}
+              className="w-full min-h-[40px] px-3 py-2 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5 text-xs font-extrabold"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>مادة جديدة</span>
+            </button>
           </div>
         </div>
       )}
