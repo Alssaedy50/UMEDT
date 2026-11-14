@@ -482,6 +482,7 @@ ${placeholderContext || 'None'}`;
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
+        allowedHosts: true,
         hmr: false,
         watch: null
       },
