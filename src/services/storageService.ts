@@ -217,7 +217,8 @@ const envPublicKeyPem = buildTimeEmbeddedPublicKeyPem;
 
 export const DEFAULT_ONLINE_UPDATE_CONFIG: OnlineUpdateConfig = {
   manifestUrl: envManifestUrl,
-  autoCheckOnStartup: Boolean(envManifestUrl),
+  // The independent repository is initialized but has no signed release until official data is added.
+  autoCheckOnStartup: false,
   autoUpdatePolicy: 'notify-only',
   channel: 'stable',
   publicKeyPem: envPublicKeyPem,
@@ -711,7 +712,9 @@ export function loadOnlineUpdateConfig(): OnlineUpdateConfig {
       ? DEFAULT_ONLINE_UPDATE_CONFIG.manifestUrl
       : normalizeManifestUrl(rawStoredUrl),
     autoCheckOnStartup:
-      typeof stored.autoCheckOnStartup === 'boolean'
+      rawStoredUrl.includes('/UMEDT/main/data/releases/')
+        ? false
+        : typeof stored.autoCheckOnStartup === 'boolean'
         ? stored.autoCheckOnStartup
         : DEFAULT_ONLINE_UPDATE_CONFIG.autoCheckOnStartup,
     autoUpdatePolicy:
