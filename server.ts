@@ -16,6 +16,12 @@ import {
 } from './src/data/medicalLexiconData';
 import { INITIAL_TOPICS } from './src/data/topicsSeedData';
 import { autoEnrichAllTermsRelations } from './src/engine/knowledgeLinker';
+import {
+  loadUnifiedCloudMirror,
+  saveUnifiedCloudMirror,
+  mergeRecordsIntoCloudSnapshot,
+  UnifiedCloudStoreSnapshot
+} from './src/services/cloudLibrarySyncService';
 import type { DataPackagePayload, PublishedReleaseBundle } from './src/types/lexicon';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -647,6 +653,117 @@ ${placeholderContext || 'None'}`;
     } catch (err) {
       res.status(500).json({
         error: err instanceof Error ? err.message : 'تعذر تنزيل حزمة التحديث من الخادم'
+      });
+    }
+  });
+
+  // ==========================================================================
+  // 6. Unified Cloud Library API (/api/cloud-library)
+  //    Supports automatic background sync (push/pull), SHA-256 deduplication,
+  //    and optional GitHub Contents API persistence when GITHUB_TOKEN is set.
+  // ==========================================================================
+  let serverCloudSnapshot: UnifiedCloudStoreSnapshot = loadUnifiedCloudMirror();
+
+  app.get('/api/cloud-library', async (req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      const targetType = typeof req.query.targetType === 'string' ? req.query.targetType : '';
+      const targetId = typeof req.query.targetId === 'string' ? req.query.targetId : '';
+
+      if (targetType && targetId) {
+        if (targetType === 'block') {
+          const blocks = serverCloudSnapshot.blocks.filter((b) => b.id === targetId);
+          const subjects = serverCloudSnapshot.subjects.filter((s) => s.blockId === targetId);
+          const subjIds = new Set(subjects.map((s) => s.id));
+          const topics = serverCloudSnapshot.topics.filter(
+            (t) => t.blockId === targetId || (t.subjectId && subjIds.has(t.subjectId))
+          );
+          const topicIds = new Set(topics.map((t) => t.id));
+          const mediaRecords = serverCloudSnapshot.mediaRecords.filter(
+            (m) => m.topicId && topicIds.has(m.topicId)
+          );
+          res.json({
+            version: serverCloudSnapshot.version,
+            updatedAt: serverCloudSnapshot.updatedAt,
+            blocks,
+            subjects,
+            topics,
+            mediaRecords
+          });
+          return;
+        }
+        if (targetType === 'subject') {
+          const subjects = serverCloudSnapshot.subjects.filter((s) => s.id === targetId);
+          const topics = serverCloudSnapshot.topics.filter((t) => t.subjectId === targetId);
+          const topicIds = new Set(topics.map((t) => t.id));
+          const mediaRecords = serverCloudSnapshot.mediaRecords.filter(
+            (m) => m.topicId && topicIds.has(m.topicId)
+          );
+          res.json({
+            version: serverCloudSnapshot.version,
+            updatedAt: serverCloudSnapshot.updatedAt,
+            subjects,
+            topics,
+            mediaRecords
+          });
+          return;
+        }
+        if (targetType === 'topic') {
+          const topics = serverCloudSnapshot.topics.filter((t) => t.id === targetId);
+          const mediaRecords = serverCloudSnapshot.mediaRecords.filter(
+            (m) => m.topicId === targetId
+          );
+          res.json({
+            version: serverCloudSnapshot.version,
+            updatedAt: serverCloudSnapshot.updatedAt,
+            topics,
+            mediaRecords
+          });
+          return;
+        }
+      }
+
+      res.json(serverCloudSnapshot);
+    } catch (err) {
+      res.status(500).json({
+        error: err instanceof Error ? err.message : 'تعذر قراءة بيانات المكتبة السحابية'
+      });
+    }
+  });
+
+  app.post('/api/cloud-library', async (req, res) => {
+    try {
+      const body = (req.body || {}) as {
+        blocks?: UnifiedCloudStoreSnapshot['blocks'];
+        subjects?: UnifiedCloudStoreSnapshot['subjects'];
+        topics?: UnifiedCloudStoreSnapshot['topics'];
+        terms?: UnifiedCloudStoreSnapshot['terms'];
+        sentences?: UnifiedCloudStoreSnapshot['sentences'];
+        mediaRecords?: UnifiedCloudStoreSnapshot['mediaRecords'];
+      };
+
+      const merged = mergeRecordsIntoCloudSnapshot(serverCloudSnapshot, {
+        blocks: body.blocks,
+        subjects: body.subjects,
+        topics: body.topics,
+        terms: body.terms,
+        sentences: body.sentences,
+        mediaRecords: body.mediaRecords
+      });
+
+      serverCloudSnapshot = merged.snapshot;
+      saveUnifiedCloudMirror(serverCloudSnapshot);
+
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({
+        success: true,
+        appliedCount: merged.appliedCount,
+        skippedIdenticalCount: merged.skippedIdenticalCount,
+        updatedAt: serverCloudSnapshot.updatedAt
+      });
+    } catch (err) {
+      res.status(500).json({
+        error: err instanceof Error ? err.message : 'تعذر تحديث المكتبة السحابية'
       });
     }
   });

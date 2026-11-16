@@ -21,6 +21,7 @@ import {
   exportFullDatabaseJson,
   exportFullDatabaseZipBytes,
   loadAppState,
+  saveTopics,
   loadOnlineUpdateConfig,
   saveOnlineUpdateConfig,
   loadPublisherReleaseConfig,
@@ -54,9 +55,22 @@ import {
 } from '../src/utils/downloadHelper';
 import {
   loadMedicalBlocks,
-  saveMedicalBlocks
+  saveMedicalBlocks,
+  loadMedicalSubjects
 } from '../src/services/learningHierarchyService';
 import { saveLocalMediaRecord } from '../src/services/mediaStorageService';
+import {
+  computeEntitySha256,
+  deduplicateTopicMediaAndAttachments,
+  enqueueEntitiesForCloudSync,
+  processCloudSyncQueue,
+  loadSyncQueue,
+  setCloudSyncSimulatedOffline,
+  buildCloudLibraryCatalogView,
+  downloadCloudLibraryTarget,
+  deleteCloudLibraryTargetLocally,
+  clearLocallyRemovedRegistry
+} from '../src/services/cloudLibrarySyncService';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1231,8 +1245,250 @@ async function main() {
   console.log(
     '[PASS] 15. Mic Permissions, PWA Manifest Link, Media IDB Failure Honesty, Download Honesty, Android Safe Area, Mobile Input Layout & GitHub Releases 404 Fallback Verified'
   );
+
+  // 16. [Unified Cloud Library, Offline Sync Queue, SHA-256 Deduplication, Selective Download & Local-Only Deletion]
+  clearLocallyRemovedRegistry();
+  setCloudSyncSimulatedOffline(true);
+
+  const initialStateForCloud = loadAppState();
+  const testCloudTopic = {
+    ...initialStateForCloud.topics[0],
+    id: 'topic-cloud-test-sync-1',
+    title: 'موضوع اختبار المكتبة السحابية الموحدة',
+    titleEn: 'Unified Cloud Library Test Topic',
+    images: [
+      { id: 'img-1', url: 'https://example.com/ecg-lead.png', caption: 'تخطيط 1' },
+      { id: 'img-2', url: 'https://example.com/ecg-lead.png', caption: 'تخطيط مكرر' }
+    ],
+    attachments: [
+      {
+        id: 'att-1',
+        fileName: 'guideline.pdf',
+        fileType: 'pdf' as const,
+        fileSizeLabel: '120 KB',
+        addedAt: '2026-11-15',
+        contentDataUrlOrText: 'data:application/pdf;base64,JVBERi0xLjQK'
+      },
+      {
+        id: 'att-2',
+        fileName: 'guideline.pdf',
+        fileType: 'pdf' as const,
+        fileSizeLabel: '120 KB',
+        addedAt: '2026-11-15',
+        contentDataUrlOrText: 'data:application/pdf;base64,JVBERi0xLjQK'
+      }
+    ],
+    sections: [
+      {
+        id: 'sec-test-1',
+        heading: 'Section 1',
+        paragraphs: ['Testing SHA-256 deduplication and selective download.'],
+        contentBlocks: [
+          {
+            id: 'cb-img-dup-1',
+            type: 'image' as const,
+            order: 1,
+            mediaUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+            captionAr: 'Duplicate Image 1'
+          },
+          {
+            id: 'cb-img-dup-2',
+            type: 'image' as const,
+            order: 2,
+            mediaUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+            captionAr: 'Duplicate Image 2 (identical payload)'
+          }
+        ]
+      }
+    ]
+  };
+
+  // 16.1 Media & Attachment SHA-256 Deduplication inside Topics
+  const dedupedTopic = deduplicateTopicMediaAndAttachments(testCloudTopic);
+  assertCondition(
+    dedupedTopic.sections[0].contentBlocks?.length === 1 &&
+      dedupedTopic.images?.length === 1 &&
+      dedupedTopic.attachments?.length === 1,
+    'Identical images and attachments inside a topic must be deduplicated by hash without storing duplicates'
+  );
+
+  // 16.2 Offline Enqueue -> Sync Queue Pending Status & SHA-256 Duplicate Prevention
+  const enqueueOfflineRes = await enqueueEntitiesForCloudSync({
+    topics: [dedupedTopic]
+  });
+  assertCondition(
+    enqueueOfflineRes.enqueuedCount === 1 && enqueueOfflineRes.queueLength >= 1,
+    `Expected offline enqueue to queue 1 item in SyncQueue, got enqueued=${enqueueOfflineRes.enqueuedCount}, queueLength=${enqueueOfflineRes.queueLength}`
+  );
+  const offlineCatalogView = buildCloudLibraryCatalogView({
+    localTopics: initialStateForCloud.topics,
+    localTerms: initialStateForCloud.terms,
+    localSentences: initialStateForCloud.sentences
+  });
+  assertCondition(
+    offlineCatalogView.overallSyncStatus === 'pending' && offlineCatalogView.pendingCount >= 1,
+    `Expected Sync Engine status 'pending' while offline with queued items, got ${offlineCatalogView.overallSyncStatus}`
+  );
+
+  // Enqueue the exact same topic again -> must be skipped by SHA-256 hash comparison
+  const duplicateEnqueueRes = await enqueueEntitiesForCloudSync({
+    topics: [dedupedTopic]
+  });
+  assertCondition(
+    duplicateEnqueueRes.enqueuedCount === 0 && duplicateEnqueueRes.skippedDuplicateCount === 1,
+    `Expected identical SHA-256 topic to be skipped (skippedDuplicateCount=1), got enqueued=${duplicateEnqueueRes.enqueuedCount}, skipped=${duplicateEnqueueRes.skippedDuplicateCount}`
+  );
+
+  // 16.3 Error Handling & Exponential Backoff when Remote Endpoint Fails, then Auto-Recovery when Online
+  setCloudSyncSimulatedOffline(false, { autoFlush: false });
+  const failedFlushRes = await processCloudSyncQueue({
+    forceRetryFailed: true,
+    customFetch: async () => new Response('Simulated Cloud Outage', { status: 503 })
+  });
+  assertCondition(
+    failedFlushRes.failedCount >= 1 && failedFlushRes.status === 'failed',
+    `Expected SyncQueue to report 'failed' status when cloud endpoint returns 503, got ${failedFlushRes.status}`
+  );
+
+  const recoveredFlushRes = await processCloudSyncQueue({
+    forceRetryFailed: true,
+    customFetch: async () =>
+      new Response(JSON.stringify({ ok: true, appliedCount: 1 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+  });
+  assertCondition(
+    recoveredFlushRes.syncedCount >= 1 &&
+      recoveredFlushRes.pendingCount === 0 &&
+      recoveredFlushRes.status === 'synced' &&
+      loadSyncQueue().filter((q) => q.status !== 'synced').length === 0,
+    `Expected SyncQueue to recover to 'synced' status when connectivity returns, got ${recoveredFlushRes.status}`
+  );
+
+  // 16.4 Local-Only Deletion (Topic, Subject, Block) & Re-Appearance in Cloud Catalog
+  const seedTopicToDelete = initialStateForCloud.topics[0];
+  const seedTopicHash = await computeEntitySha256('topic', seedTopicToDelete);
+  assertCondition(seedTopicHash.length === 64, 'Expected 64-char SHA-256 hex digest');
+
+  const afterTopicDelete = await deleteCloudLibraryTargetLocally({
+    targetType: 'topic',
+    targetId: seedTopicToDelete.id,
+    currentTopics: initialStateForCloud.topics,
+    currentTerms: initialStateForCloud.terms,
+    currentSentences: initialStateForCloud.sentences
+  });
+  saveTopics(afterTopicDelete.updatedTopics);
+  assertCondition(
+    afterTopicDelete.success &&
+      afterTopicDelete.removedTopicsCount === 1 &&
+      !afterTopicDelete.updatedTopics.some((t) => t.id === seedTopicToDelete.id),
+    'Local deletion of a Topic must remove it completely from local topics list'
+  );
+
+  // Verify loadAppState() also respects local deletion of built-in seed topic
+  const reloadedAfterTopicDelete = loadAppState();
+  assertCondition(
+    !reloadedAfterTopicDelete.topics.some((t) => t.id === seedTopicToDelete.id),
+    'loadAppState() must not re-inject a locally deleted seed topic until re-downloaded'
+  );
+
+  // Verify the deleted topic still appears in Cloud Catalog as Not Downloaded (المكتبة السحابية)
+  const catalogAfterTopicDelete = buildCloudLibraryCatalogView({
+    localTopics: afterTopicDelete.updatedTopics,
+    localTerms: afterTopicDelete.updatedTerms,
+    localSentences: initialStateForCloud.sentences
+  });
+  const deletedTopicCatalogEntry = catalogAfterTopicDelete.blocks
+    .flatMap((b) => b.subjects)
+    .flatMap((s) => s.topics)
+    .find((t) => t.id === seedTopicToDelete.id);
+  assertCondition(
+    Boolean(deletedTopicCatalogEntry && deletedTopicCatalogEntry.isDownloaded === false),
+    'Locally deleted topic must remain visible in the Cloud Library catalog with isDownloaded === false'
+  );
+
+  // 16.5 Selective Re-Download of Individual Topic + SHA-256 Deduplication Check
+  const redownloadTopicRes = await downloadCloudLibraryTarget({
+    targetType: 'topic',
+    targetId: seedTopicToDelete.id,
+    currentTopics: afterTopicDelete.updatedTopics,
+    currentTerms: afterTopicDelete.updatedTerms,
+    currentSentences: initialStateForCloud.sentences
+  });
+  saveTopics(redownloadTopicRes.updatedTopics);
+  assertCondition(
+    redownloadTopicRes.success &&
+      redownloadTopicRes.downloadedTopicsCount === 1 &&
+      redownloadTopicRes.updatedTopics.some((t) => t.id === seedTopicToDelete.id),
+    'Selective download of a single Topic must restore it to local storage'
+  );
+
+  // Downloading the same already-downloaded topic again must skip identical SHA-256 content
+  const redundantDownloadRes = await downloadCloudLibraryTarget({
+    targetType: 'topic',
+    targetId: seedTopicToDelete.id,
+    currentTopics: redownloadTopicRes.updatedTopics,
+    currentTerms: redownloadTopicRes.updatedTerms,
+    currentSentences: redownloadTopicRes.updatedSentences
+  });
+  assertCondition(
+    redundantDownloadRes.success &&
+      redundantDownloadRes.downloadedTopicsCount === 0 &&
+      redundantDownloadRes.skippedIdenticalCount >= 1,
+    'Downloading an already-downloaded topic with matching SHA-256 hash must skip re-downloading identical records'
+  );
+
+  // 16.6 Local Deletion & Selective Re-Download of an Entire Block (with its Subjects & Topics)
+  const allBlocksBefore = loadMedicalBlocks();
+  const targetBlockToTest = allBlocksBefore[0];
+  const afterBlockDelete = await deleteCloudLibraryTargetLocally({
+    targetType: 'block',
+    targetId: targetBlockToTest.id,
+    currentTopics: redownloadTopicRes.updatedTopics,
+    currentTerms: redownloadTopicRes.updatedTerms,
+    currentSentences: redownloadTopicRes.updatedSentences
+  });
+  saveTopics(afterBlockDelete.updatedTopics);
+  assertCondition(
+    afterBlockDelete.success && !loadMedicalBlocks().some((b) => b.id === targetBlockToTest.id),
+    'Deleting a Block locally must remove it from local loadMedicalBlocks()'
+  );
+
+  const catalogAfterBlockDelete = buildCloudLibraryCatalogView({
+    localTopics: afterBlockDelete.updatedTopics,
+    localTerms: afterBlockDelete.updatedTerms,
+    localSentences: redownloadTopicRes.updatedSentences
+  });
+  const blockCatalogEntry = catalogAfterBlockDelete.blocks.find(
+    (b) => b.id === targetBlockToTest.id
+  );
+  assertCondition(
+    Boolean(blockCatalogEntry && blockCatalogEntry.downloadedTopicsCount === 0),
+    'Locally deleted Block must still appear in Cloud Catalog with 0 downloaded topics'
+  );
+
+  const redownloadBlockRes = await downloadCloudLibraryTarget({
+    targetType: 'block',
+    targetId: targetBlockToTest.id,
+    currentTopics: afterBlockDelete.updatedTopics,
+    currentTerms: afterBlockDelete.updatedTerms,
+    currentSentences: redownloadTopicRes.updatedSentences
+  });
+  saveTopics(redownloadBlockRes.updatedTopics);
+  assertCondition(
+    redownloadBlockRes.success &&
+      loadMedicalBlocks().some((b) => b.id === targetBlockToTest.id) &&
+      loadMedicalSubjects().length > 0,
+    'Selective download of a Block must restore the Block, its Subjects, and its Topics to local storage'
+  );
+
+  clearLocallyRemovedRegistry();
+  console.log(
+    '[PASS] 16. Unified Cloud Library, Automatic Sync Queue, SHA-256 Deduplication, Selective Download & Local Deletion Verified'
+  );
   console.log('================================================================');
-  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (15/15 — 100%)');
+  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (16/16 — 100%)');
   console.log('================================================================');
 }
 

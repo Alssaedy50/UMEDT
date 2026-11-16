@@ -99,6 +99,13 @@ import {
 import { saveQuizQuestions, saveQuizAttempts } from './services/quizEngineService';
 import { parseUploadedFile } from './services/fileParserService';
 import { lookupQuickWordOrPhraseAr } from './engine/hybridTranslator';
+import {
+  enqueueEntitiesForCloudSync,
+  processCloudSyncQueue,
+  syncWithRemoteCloudLibrary,
+  setCloudSyncSimulatedOffline,
+  clearLocallyRemovedRegistry
+} from './services/cloudLibrarySyncService';
 
 type MainTab = 'home' | 'topics' | 'library' | 'settings';
 
@@ -681,6 +688,60 @@ export default function App() {
     void putAllInStore(IDB_STORES.SENTENCES, sentences);
   }, [sentences]);
 
+  // Sync simulatedOffline flag with Unified Cloud Library Sync Engine
+  useEffect(() => {
+    setCloudSyncSimulatedOffline(simulatedOffline);
+    if (!simulatedOffline) {
+      void processCloudSyncQueue().then(() => {
+        void syncWithRemoteCloudLibrary({
+          localTopics: topics,
+          localTerms: terms,
+          localSentences: sentences
+        });
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simulatedOffline]);
+
+  // Automatic Cloud Library Sync on connectivity restoration & periodic retry for pending queue
+  useEffect(() => {
+    const runCloudSyncCycle = async () => {
+      if (simulatedOffline) return;
+      await processCloudSyncQueue();
+      await syncWithRemoteCloudLibrary({
+        localTopics: topics,
+        localTerms: terms,
+        localSentences: sentences
+      });
+    };
+
+    const handleOnline = () => {
+      void runCloudSyncCycle();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', handleOnline);
+    }
+
+    const startupTimer = setTimeout(() => {
+      void runCloudSyncCycle();
+    }, 800);
+
+    const retryInterval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      void processCloudSyncQueue();
+    }, 30 * 1000);
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', handleOnline);
+      }
+      clearTimeout(startupTimer);
+      clearInterval(retryInterval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simulatedOffline]);
+
   // Non-blocking startup online update check
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -927,6 +988,7 @@ export default function App() {
       }
       return [topic, ...prev];
     });
+    void enqueueEntitiesForCloudSync({ topics: [topic] });
     showToast(
       isEdit
         ? `تم حفظ التعديلات على الموضوع "${topic.title}"`
@@ -1148,6 +1210,7 @@ export default function App() {
       setSentences(syncedSentences);
       return nextTerms;
     });
+    void enqueueEntitiesForCloudSync({ terms: [updatedTerm] });
   };
 
   const handleDeleteTerm = (termId: string) => {
@@ -1166,6 +1229,7 @@ export default function App() {
   };
 
   const handleAddSentenceToTerm = (termId: string, example: TermExample) => {
+    let updatedTargetTerm: DictionaryTerm | null = null;
     setTerms((prevTerms) => {
       let targetTerm: DictionaryTerm | null = null;
       const replaced = prevTerms.map((t) => {
@@ -1174,6 +1238,7 @@ export default function App() {
             ...t,
             examples: [example, ...t.examples]
           };
+          updatedTargetTerm = targetTerm;
           return targetTerm;
         }
         return t;
@@ -1185,6 +1250,9 @@ export default function App() {
       setSentences(synced);
       return nextTerms;
     });
+    if (updatedTargetTerm) {
+      void enqueueEntitiesForCloudSync({ terms: [updatedTargetTerm] });
+    }
     showToast('تمت إضافة الجملة السياقية للمصطلح وربطها بقاعدة الجمل');
   };
 
@@ -1192,6 +1260,7 @@ export default function App() {
     newTerm: DictionaryTerm,
     newLinkedSentences: LinkedSentence[]
   ) => {
+    let savedTargetTerm: DictionaryTerm = newTerm;
     setTerms((prevTerms) => {
       const existingIdx = prevTerms.findIndex(
         (t) => t.term.toLowerCase() === newTerm.term.toLowerCase()
@@ -1225,11 +1294,16 @@ export default function App() {
       } else {
         rawNextTerms = [newTerm, ...prevTerms];
       }
+      savedTargetTerm = targetTerm;
       const nextTerms = autoEnrichTermRelations(targetTerm, rawNextTerms);
       const combinedSentences = [...newLinkedSentences, ...sentences];
       const synced = syncTermExamplesToSentences(nextTerms, combinedSentences);
       setSentences(synced);
       return nextTerms;
+    });
+    void enqueueEntitiesForCloudSync({
+      terms: [savedTargetTerm],
+      sentences: newLinkedSentences
     });
     showToast(`تم حفظ المصطلح "${newTerm.term}" وربطه بشبكة المعرفة`);
   };
@@ -1258,6 +1332,7 @@ export default function App() {
       }
       return next;
     });
+    void enqueueEntitiesForCloudSync({ topics: incomingTopics });
     return importedCount;
   };
 
@@ -1656,6 +1731,10 @@ export default function App() {
         combinedSentences
       );
       setSentences(syncedSentences);
+      void enqueueEntitiesForCloudSync({
+        terms: enrichedTerms.slice(0, Math.max(stagedTerms.length, 1)),
+        sentences: incomingSentences
+      });
       return enrichedTerms;
     });
 
@@ -2192,6 +2271,16 @@ export default function App() {
             onImportFullBackupJson={handleImportFullBackupJson}
             onImportPackageFile={handleImportPackageFile}
             onImportTopicsBatch={handleImportTopicsBatch}
+            onSyncStateUpdated={({
+              topics: nextTopics,
+              terms: nextTerms,
+              sentences: nextSentences
+            }) => {
+              setTopics(nextTopics);
+              setTerms(nextTerms);
+              setSentences(nextSentences);
+            }}
+            showToast={showToast}
           />
         )}
 
@@ -2245,6 +2334,7 @@ export default function App() {
             currentDataSummary={currentDataSummary}
             lastImportedOrCopiedSummary={lastImportedOrCopiedSummary}
             onResetDefaults={() => {
+              clearLocallyRemovedRegistry();
               const defaults = resetToDefaults();
               setTerms(defaults.terms);
               setSentences(defaults.sentences);

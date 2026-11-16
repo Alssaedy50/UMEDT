@@ -1,0 +1,1856 @@
+import {
+  DictionaryTerm,
+  LinkedSentence,
+  TopicArticle,
+  MedicalBlock,
+  MedicalSubject,
+  LocalMediaRecord,
+  TopicImageItem,
+  TopicAttachmentItem
+} from '../types/lexicon';
+import {
+  INITIAL_TERMS,
+  INITIAL_LINKED_SENTENCES
+} from '../data/medicalLexiconData';
+import { INITIAL_TOPICS } from '../data/topicsSeedData';
+import {
+  INITIAL_MEDICAL_BLOCKS,
+  INITIAL_MEDICAL_SUBJECTS,
+  loadMedicalBlocks,
+  saveMedicalBlocks,
+  loadMedicalSubjects,
+  saveMedicalSubjects,
+  enrichAllTopicsWithHierarchy
+} from './learningHierarchyService';
+import { computeSha256Hex } from './dataPlatformService';
+import {
+  getLocalMediaRecord,
+  saveLocalMediaRecord,
+  deleteLocalMediaRecordsByTopicId,
+  deleteLocalMediaRecordsByKeys,
+  getMediaRecordsByTopicId,
+  formatBytesLabel
+} from './mediaStorageService';
+
+export type CloudEntityType = 'block' | 'subject' | 'topic' | 'term' | 'sentence' | 'media';
+export type SyncItemStatus = 'synced' | 'pending' | 'syncing' | 'failed';
+
+export interface SyncQueueItem {
+  id: string;
+  entityType: CloudEntityType;
+  entityId: string;
+  title: string;
+  sha256: string;
+  sizeBytes: number;
+  updatedAt: string;
+  status: SyncItemStatus;
+  attempts: number;
+  lastError?: string;
+  nextRetryAt?: number;
+  payload: unknown;
+}
+
+export interface LocallyRemovedRegistry {
+  blocks: string[];
+  subjects: string[];
+  topics: string[];
+  terms: string[];
+  sentences: string[];
+}
+
+export interface CloudCatalogTopicEntry {
+  id: string;
+  blockId: string;
+  subjectId: string;
+  title: string;
+  titleEn: string;
+  titleAr: string;
+  subtitle: string;
+  sha256: string;
+  sizeBytes: number;
+  sizeLabel: string;
+  updatedAt: string;
+  isDownloaded: boolean;
+  hasNewerCloudVersion: boolean;
+  syncStatus: SyncItemStatus;
+  termsCount: number;
+  mediaCount: number;
+}
+
+export interface CloudCatalogSubjectEntry {
+  id: string;
+  blockId: string;
+  code: string;
+  titleEn: string;
+  titleAr: string;
+  descriptionAr: string;
+  sha256: string;
+  sizeBytes: number;
+  sizeLabel: string;
+  updatedAt: string;
+  isDownloaded: boolean;
+  isPartiallyDownloaded: boolean;
+  downloadedTopicsCount: number;
+  totalTopicsCount: number;
+  termsCount: number;
+  syncStatus: SyncItemStatus;
+  topics: CloudCatalogTopicEntry[];
+}
+
+export interface CloudCatalogBlockEntry {
+  id: string;
+  code: string;
+  titleEn: string;
+  titleAr: string;
+  descriptionAr: string;
+  colorAccent: string;
+  sha256: string;
+  sizeBytes: number;
+  sizeLabel: string;
+  updatedAt: string;
+  isDownloaded: boolean;
+  isPartiallyDownloaded: boolean;
+  downloadedTopicsCount: number;
+  totalTopicsCount: number;
+  subjectsCount: number;
+  termsCount: number;
+  syncStatus: SyncItemStatus;
+  subjects: CloudCatalogSubjectEntry[];
+}
+
+export interface UnifiedCloudStoreSnapshot {
+  version: string;
+  updatedAt: string;
+  blocks: MedicalBlock[];
+  subjects: MedicalSubject[];
+  topics: TopicArticle[];
+  terms: DictionaryTerm[];
+  sentences: LinkedSentence[];
+  mediaRecords: LocalMediaRecord[];
+  hashes: Record<string, string>;
+}
+
+export interface CloudLibraryStateSummary {
+  overallSyncStatus: SyncItemStatus;
+  pendingCount: number;
+  failedCount: number;
+  syncedCount: number;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+  localTotalBytes: number;
+  localTotalLabel: string;
+  cloudTotalBytes: number;
+  cloudTotalLabel: string;
+  downloadedTopicsCount: number;
+  totalCloudTopicsCount: number;
+  downloadedBlocksCount: number;
+  totalCloudBlocksCount: number;
+  blocks: CloudCatalogBlockEntry[];
+  queue: SyncQueueItem[];
+}
+
+export const CLOUD_LIBRARY_STORAGE_KEYS = {
+  SYNC_QUEUE: 'umed_cloud_sync_queue_v1',
+  CLOUD_SNAPSHOT_MIRROR: 'umed_unified_cloud_mirror_v1',
+  LOCALLY_REMOVED_IDS: 'umed_locally_removed_cloud_ids_v1',
+  KNOWN_HASHES: 'umed_cloud_known_hashes_v1',
+  LAST_SYNCED_AT: 'umed_cloud_last_synced_at_v1'
+} as const;
+
+const memoryStorageFallback = ((
+  globalThis as unknown as { __UMED_SHARED_MEMORY_STORAGE__?: Map<string, string> }
+).__UMED_SHARED_MEMORY_STORAGE__ ??= new Map<string, string>());
+let inMemoryCloudMirror: UnifiedCloudStoreSnapshot | null = null;
+let isSyncLoopRunning = false;
+let simulatedOfflineOverride = false;
+let customCloudFetchOverride: typeof fetch | null = null;
+const syncListeners = new Set<() => void>();
+
+function getSafeStorage() {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return {
+      getItem: (k: string): string | null => {
+        try {
+          return window.localStorage.getItem(k);
+        } catch {
+          return memoryStorageFallback.get(k) ?? null;
+        }
+      },
+      setItem: (k: string, v: string): void => {
+        try {
+          window.localStorage.setItem(k, v);
+        } catch {
+          // quota fallback
+        }
+        memoryStorageFallback.set(k, v);
+      },
+      removeItem: (k: string): void => {
+        try {
+          window.localStorage.removeItem(k);
+        } catch {
+          // ignore
+        }
+        memoryStorageFallback.delete(k);
+      }
+    };
+  }
+  return {
+    getItem: (k: string) => memoryStorageFallback.get(k) ?? null,
+    setItem: (k: string, v: string) => {
+      memoryStorageFallback.set(k, v);
+    },
+    removeItem: (k: string) => {
+      memoryStorageFallback.delete(k);
+    }
+  };
+}
+
+export function subscribeToCloudLibraryChanges(listener: () => void): () => void {
+  syncListeners.add(listener);
+  return () => {
+    syncListeners.delete(listener);
+  };
+}
+
+function notifyCloudLibraryListeners(): void {
+  for (const listener of syncListeners) {
+    try {
+      listener();
+    } catch {
+      // ignore listener error
+    }
+  }
+}
+
+export function setCloudSyncSimulatedOffline(
+  offline: boolean,
+  options?: { autoFlush?: boolean }
+): void {
+  const wasOffline = simulatedOfflineOverride;
+  simulatedOfflineOverride = offline;
+  notifyCloudLibraryListeners();
+  if (wasOffline && !offline && options?.autoFlush !== false) {
+    void processCloudSyncQueue();
+  }
+}
+
+export function setCustomCloudFetchForTesting(fn: typeof fetch | null): void {
+  customCloudFetchOverride = fn;
+}
+
+export function isCloudSyncOnline(): boolean {
+  if (simulatedOfflineOverride) return false;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false && !customCloudFetchOverride) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Deterministic UTF-8 byte size calculation for any entity or JSON payload.
+ */
+export function computeEntitySizeBytes(entity: unknown): number {
+  if (entity === null || entity === undefined) return 0;
+  const serialized = typeof entity === 'string' ? entity : JSON.stringify(entity);
+  return new TextEncoder().encode(serialized).byteLength;
+}
+
+/**
+ * Canonical JSON serialization for stable SHA-256 content hashing (ignores transient UI fields like lastOpenedAt).
+ */
+export function canonicalizeForHash(entityType: CloudEntityType, entity: unknown): string {
+  if (!entity || typeof entity !== 'object') {
+    return String(entity ?? '');
+  }
+  const clone = { ...(entity as Record<string, unknown>) };
+  delete clone.lastOpenedAt;
+  delete clone.lastStudiedAt;
+  delete clone.studyCount;
+  delete clone.srsData;
+
+  const sortKeysDeep = (val: unknown): unknown => {
+    if (Array.isArray(val)) {
+      return val.map(sortKeysDeep);
+    }
+    if (val && typeof val === 'object') {
+      const obj = val as Record<string, unknown>;
+      const sorted: Record<string, unknown> = {};
+      for (const k of Object.keys(obj).sort()) {
+        sorted[k] = sortKeysDeep(obj[k]);
+      }
+      return sorted;
+    }
+    return val;
+  };
+
+  return `${entityType}:${JSON.stringify(sortKeysDeep(clone))}`;
+}
+
+/**
+ * Fast synchronous deterministic hash fallback used alongside full WebCrypto SHA-256
+ * when synchronous catalog rendering is needed.
+ */
+export function computeDeterministicFastHashHex(canonicalText: string): string {
+  let h1 = 0xdeadbeef ^ canonicalText.length;
+  let h2 = 0x41c6ce57 ^ canonicalText.length;
+  let h3 = 0x9e3779b9 ^ canonicalText.length;
+  let h4 = 0x85ebca6b ^ canonicalText.length;
+
+  for (let i = 0; i < canonicalText.length; i++) {
+    const ch = canonicalText.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+    h3 = Math.imul(h3 ^ ch, 2246822519);
+    h4 = Math.imul(h4 ^ ch, 3266489917);
+  }
+
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  h3 = Math.imul(h3 ^ (h3 >>> 16), 2246822507) ^ Math.imul(h4 ^ (h4 >>> 13), 3266489909);
+  h4 = Math.imul(h4 ^ (h4 >>> 16), 2246822507) ^ Math.imul(h3 ^ (h3 >>> 13), 3266489909);
+
+  const hex = (n: number) => (n >>> 0).toString(16).padStart(8, '0');
+  return `${hex(h1)}${hex(h2)}${hex(h3)}${hex(h4)}${hex(h1 ^ h3)}${hex(h2 ^ h4)}${hex(
+    h1 ^ h4
+  )}${hex(h2 ^ h3)}`;
+}
+
+/**
+ * Computes real cryptographic SHA-256 hex digest for any entity.
+ */
+export async function computeEntitySha256(
+  entityType: CloudEntityType,
+  entity: unknown
+): Promise<string> {
+  const canonical = canonicalizeForHash(entityType, entity);
+  const bytes = new TextEncoder().encode(canonical);
+  return computeSha256Hex(bytes);
+}
+
+/**
+ * Deduplicates images, attachments, and inline media blocks within a TopicArticle using SHA-256/content hashes
+ * so duplicate images or attachments are never stored or uploaded twice.
+ */
+export function deduplicateTopicMediaAndAttachments(topic: TopicArticle): TopicArticle {
+  const seenImageHashes = new Set<string>();
+  const dedupedImages: TopicImageItem[] = [];
+  for (const img of topic.images || []) {
+    if (!img || !img.url) continue;
+    const hash = computeDeterministicFastHashHex(`img:${img.url.trim()}`);
+    if (!seenImageHashes.has(hash)) {
+      seenImageHashes.add(hash);
+      dedupedImages.push(img);
+    }
+  }
+
+  const seenAttachmentHashes = new Set<string>();
+  const dedupedAttachments: TopicAttachmentItem[] = [];
+  for (const att of topic.attachments || []) {
+    if (!att || (!att.contentDataUrlOrText && !att.fileName)) continue;
+    const hash = computeDeterministicFastHashHex(
+      `att:${att.fileName || ''}:${att.contentDataUrlOrText || ''}`
+    );
+    if (!seenAttachmentHashes.has(hash)) {
+      seenAttachmentHashes.add(hash);
+      dedupedAttachments.push(att);
+    }
+  }
+
+  const dedupedSections = (topic.sections || []).map((sec) => {
+    if (!Array.isArray(sec.contentBlocks) || sec.contentBlocks.length === 0) {
+      return sec;
+    }
+    const seenBlockMediaHashes = new Set<string>();
+    const filteredBlocks = sec.contentBlocks.filter((blk) => {
+      if (blk.type === 'image' || blk.type === 'attachment' || blk.type === 'audio') {
+        const anyBlk = blk as unknown as {
+          mediaIdbKey?: string;
+          mediaUrl?: string;
+          imageUrl?: string;
+        };
+        const mediaKey = anyBlk.mediaIdbKey || anyBlk.mediaUrl || anyBlk.imageUrl || '';
+        if (!mediaKey) return true;
+        const mHash = computeDeterministicFastHashHex(`${blk.type}:${mediaKey}`);
+        if (seenBlockMediaHashes.has(mHash)) {
+          return false;
+        }
+        seenBlockMediaHashes.add(mHash);
+      }
+      return true;
+    });
+    return {
+      ...sec,
+      contentBlocks: filteredBlocks
+    };
+  });
+
+  return {
+    ...topic,
+    images: dedupedImages,
+    attachments: dedupedAttachments,
+    sections: dedupedSections
+  };
+}
+
+export function loadLocallyRemovedRegistry(): LocallyRemovedRegistry {
+  try {
+    const raw = getSafeStorage().getItem(CLOUD_LIBRARY_STORAGE_KEYS.LOCALLY_REMOVED_IDS);
+    if (!raw) {
+      return { blocks: [], subjects: [], topics: [], terms: [], sentences: [] };
+    }
+    const parsed = JSON.parse(raw) as Partial<LocallyRemovedRegistry>;
+    return {
+      blocks: Array.isArray(parsed.blocks) ? parsed.blocks : [],
+      subjects: Array.isArray(parsed.subjects) ? parsed.subjects : [],
+      topics: Array.isArray(parsed.topics) ? parsed.topics : [],
+      terms: Array.isArray(parsed.terms) ? parsed.terms : [],
+      sentences: Array.isArray(parsed.sentences) ? parsed.sentences : []
+    };
+  } catch {
+    return { blocks: [], subjects: [], topics: [], terms: [], sentences: [] };
+  }
+}
+
+export function saveLocallyRemovedRegistry(reg: LocallyRemovedRegistry): void {
+  const deduped: LocallyRemovedRegistry = {
+    blocks: Array.from(new Set(reg.blocks)),
+    subjects: Array.from(new Set(reg.subjects)),
+    topics: Array.from(new Set(reg.topics)),
+    terms: Array.from(new Set(reg.terms)),
+    sentences: Array.from(new Set(reg.sentences))
+  };
+  getSafeStorage().setItem(
+    CLOUD_LIBRARY_STORAGE_KEYS.LOCALLY_REMOVED_IDS,
+    JSON.stringify(deduped)
+  );
+}
+
+export function clearLocallyRemovedRegistry(): void {
+  getSafeStorage().removeItem(CLOUD_LIBRARY_STORAGE_KEYS.LOCALLY_REMOVED_IDS);
+}
+
+export function loadKnownCloudHashes(): Record<string, string> {
+  try {
+    const raw = getSafeStorage().getItem(CLOUD_LIBRARY_STORAGE_KEYS.KNOWN_HASHES);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveKnownCloudHashes(hashes: Record<string, string>): void {
+  getSafeStorage().setItem(CLOUD_LIBRARY_STORAGE_KEYS.KNOWN_HASHES, JSON.stringify(hashes));
+}
+
+export function loadSyncQueue(): SyncQueueItem[] {
+  try {
+    const raw = getSafeStorage().getItem(CLOUD_LIBRARY_STORAGE_KEYS.SYNC_QUEUE);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as SyncQueueItem[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveSyncQueue(queue: SyncQueueItem[]): void {
+  getSafeStorage().setItem(CLOUD_LIBRARY_STORAGE_KEYS.SYNC_QUEUE, JSON.stringify(queue));
+  notifyCloudLibraryListeners();
+}
+
+/**
+ * Builds or loads the authoritative Unified Cloud Store Snapshot.
+ * Combines bundled canonical medical blocks/subjects/topics/terms/sentences with all cloud-synced items.
+ */
+export function loadUnifiedCloudMirror(): UnifiedCloudStoreSnapshot {
+  if (inMemoryCloudMirror) {
+    return inMemoryCloudMirror;
+  }
+
+  try {
+    const raw = getSafeStorage().getItem(CLOUD_LIBRARY_STORAGE_KEYS.CLOUD_SNAPSHOT_MIRROR);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<UnifiedCloudStoreSnapshot>;
+      if (
+        parsed &&
+        Array.isArray(parsed.blocks) &&
+        Array.isArray(parsed.subjects) &&
+        Array.isArray(parsed.topics)
+      ) {
+        inMemoryCloudMirror = {
+          version: parsed.version || '2.4.0-cloud',
+          updatedAt: parsed.updatedAt || new Date().toISOString(),
+          blocks: parsed.blocks,
+          subjects: parsed.subjects,
+          topics: enrichAllTopicsWithHierarchy(parsed.topics),
+          terms: Array.isArray(parsed.terms) ? parsed.terms : [...INITIAL_TERMS],
+          sentences: Array.isArray(parsed.sentences)
+            ? parsed.sentences
+            : [...INITIAL_LINKED_SENTENCES],
+          mediaRecords: Array.isArray(parsed.mediaRecords) ? parsed.mediaRecords : [],
+          hashes: parsed.hashes && typeof parsed.hashes === 'object' ? parsed.hashes : {}
+        };
+        return inMemoryCloudMirror;
+      }
+    }
+  } catch {
+    // fallback to seed initialization
+  }
+
+  const enrichedTopics = enrichAllTopicsWithHierarchy([...INITIAL_TOPICS]);
+  const hashes: Record<string, string> = {};
+
+  for (const b of INITIAL_MEDICAL_BLOCKS) {
+    hashes[`block:${b.id}`] = computeDeterministicFastHashHex(canonicalizeForHash('block', b));
+  }
+  for (const s of INITIAL_MEDICAL_SUBJECTS) {
+    hashes[`subject:${s.id}`] = computeDeterministicFastHashHex(
+      canonicalizeForHash('subject', s)
+    );
+  }
+  for (const t of enrichedTopics) {
+    hashes[`topic:${t.id}`] = computeDeterministicFastHashHex(canonicalizeForHash('topic', t));
+  }
+  for (const tm of INITIAL_TERMS) {
+    hashes[`term:${tm.id}`] = computeDeterministicFastHashHex(canonicalizeForHash('term', tm));
+  }
+  for (const sn of INITIAL_LINKED_SENTENCES) {
+    hashes[`sentence:${sn.id}`] = computeDeterministicFastHashHex(
+      canonicalizeForHash('sentence', sn)
+    );
+  }
+
+  const initialMirror: UnifiedCloudStoreSnapshot = {
+    version: '2.4.0-cloud',
+    updatedAt: new Date().toISOString(),
+    blocks: [...INITIAL_MEDICAL_BLOCKS],
+    subjects: [...INITIAL_MEDICAL_SUBJECTS],
+    topics: enrichedTopics,
+    terms: [...INITIAL_TERMS],
+    sentences: [...INITIAL_LINKED_SENTENCES],
+    mediaRecords: [],
+    hashes
+  };
+
+  inMemoryCloudMirror = initialMirror;
+  saveUnifiedCloudMirror(initialMirror);
+  return initialMirror;
+}
+
+export function saveUnifiedCloudMirror(snapshot: UnifiedCloudStoreSnapshot): void {
+  inMemoryCloudMirror = snapshot;
+  // Store lightweight mirror in localStorage (avoiding huge base64 media overflow if quota is tight)
+  try {
+    getSafeStorage().setItem(
+      CLOUD_LIBRARY_STORAGE_KEYS.CLOUD_SNAPSHOT_MIRROR,
+      JSON.stringify(snapshot)
+    );
+  } catch {
+    // If quota is exceeded, save without bulky inline mediaRecords while keeping full in-memory mirror
+    try {
+      getSafeStorage().setItem(
+        CLOUD_LIBRARY_STORAGE_KEYS.CLOUD_SNAPSHOT_MIRROR,
+        JSON.stringify({ ...snapshot, mediaRecords: [] })
+      );
+    } catch {
+      // ignore
+    }
+  }
+}
+
+/**
+ * Applies incoming upsert records into a UnifiedCloudStoreSnapshot with strict ID + SHA-256 deduplication.
+ */
+export function mergeRecordsIntoCloudSnapshot(
+  current: UnifiedCloudStoreSnapshot,
+  incoming: {
+    blocks?: MedicalBlock[];
+    subjects?: MedicalSubject[];
+    topics?: TopicArticle[];
+    terms?: DictionaryTerm[];
+    sentences?: LinkedSentence[];
+    mediaRecords?: LocalMediaRecord[];
+  }
+): {
+  snapshot: UnifiedCloudStoreSnapshot;
+  appliedCount: number;
+  skippedIdenticalCount: number;
+} {
+  let appliedCount = 0;
+  let skippedIdenticalCount = 0;
+  const nextHashes = { ...(current.hashes || {}) };
+
+  const blocksMap = new Map(current.blocks.map((b) => [b.id, b]));
+  for (const blk of incoming.blocks || []) {
+    if (!blk || !blk.id) continue;
+    const key = `block:${blk.id}`;
+    const hash = computeDeterministicFastHashHex(canonicalizeForHash('block', blk));
+    if (nextHashes[key] === hash && blocksMap.has(blk.id)) {
+      skippedIdenticalCount += 1;
+      continue;
+    }
+    blocksMap.set(blk.id, blk);
+    nextHashes[key] = hash;
+    appliedCount += 1;
+  }
+
+  const subjectsMap = new Map(current.subjects.map((s) => [s.id, s]));
+  for (const subj of incoming.subjects || []) {
+    if (!subj || !subj.id) continue;
+    const key = `subject:${subj.id}`;
+    const hash = computeDeterministicFastHashHex(canonicalizeForHash('subject', subj));
+    if (nextHashes[key] === hash && subjectsMap.has(subj.id)) {
+      skippedIdenticalCount += 1;
+      continue;
+    }
+    subjectsMap.set(subj.id, subj);
+    nextHashes[key] = hash;
+    appliedCount += 1;
+  }
+
+  const topicsMap = new Map(current.topics.map((t) => [t.id, t]));
+  for (const rawTopic of incoming.topics || []) {
+    if (!rawTopic || !rawTopic.id) continue;
+    const cleanTopic = deduplicateTopicMediaAndAttachments(rawTopic);
+    const key = `topic:${cleanTopic.id}`;
+    const hash = computeDeterministicFastHashHex(canonicalizeForHash('topic', cleanTopic));
+    if (nextHashes[key] === hash && topicsMap.has(cleanTopic.id)) {
+      skippedIdenticalCount += 1;
+      continue;
+    }
+    topicsMap.set(cleanTopic.id, cleanTopic);
+    nextHashes[key] = hash;
+    appliedCount += 1;
+  }
+
+  const termsMap = new Map(current.terms.map((t) => [t.id, t]));
+  const termByNormName = new Map(
+    current.terms.map((t) => [(t.termNormalized || t.term).toLowerCase(), t.id])
+  );
+  for (const term of incoming.terms || []) {
+    if (!term || !term.term) continue;
+    const norm = (term.termNormalized || term.term).trim().toLowerCase();
+    const resolvedId = termsMap.has(term.id)
+      ? term.id
+      : termByNormName.get(norm) || term.id;
+    const normalizedTerm: DictionaryTerm = {
+      ...term,
+      id: resolvedId,
+      termNormalized: norm
+    };
+    const key = `term:${resolvedId}`;
+    const hash = computeDeterministicFastHashHex(canonicalizeForHash('term', normalizedTerm));
+    if (nextHashes[key] === hash && termsMap.has(resolvedId)) {
+      skippedIdenticalCount += 1;
+      continue;
+    }
+    termsMap.set(resolvedId, normalizedTerm);
+    termByNormName.set(norm, resolvedId);
+    nextHashes[key] = hash;
+    appliedCount += 1;
+  }
+
+  const sentencesMap = new Map(current.sentences.map((s) => [s.id, s]));
+  const sentenceByEn = new Map(
+    current.sentences.map((s) => [s.en.trim().toLowerCase(), s.id])
+  );
+  for (const sen of incoming.sentences || []) {
+    if (!sen || !sen.en) continue;
+    const normEn = sen.en.trim().toLowerCase();
+    const resolvedId = sentencesMap.has(sen.id)
+      ? sen.id
+      : sentenceByEn.get(normEn) || sen.id;
+    const normalizedSen: LinkedSentence = {
+      ...sen,
+      id: resolvedId
+    };
+    const key = `sentence:${resolvedId}`;
+    const hash = computeDeterministicFastHashHex(
+      canonicalizeForHash('sentence', normalizedSen)
+    );
+    if (nextHashes[key] === hash && sentencesMap.has(resolvedId)) {
+      skippedIdenticalCount += 1;
+      continue;
+    }
+    sentencesMap.set(resolvedId, normalizedSen);
+    sentenceByEn.set(normEn, resolvedId);
+    nextHashes[key] = hash;
+    appliedCount += 1;
+  }
+
+  const mediaMap = new Map(current.mediaRecords.map((m) => [m.id, m]));
+  const mediaHashSet = new Set(
+    current.mediaRecords.map((m) => computeDeterministicFastHashHex(`media:${m.dataUrl}`))
+  );
+  for (const media of incoming.mediaRecords || []) {
+    if (!media || !media.id || !media.dataUrl) continue;
+    const contentHash = computeDeterministicFastHashHex(`media:${media.dataUrl}`);
+    const key = `media:${media.id}`;
+    if ((nextHashes[key] === contentHash && mediaMap.has(media.id)) || mediaHashSet.has(contentHash)) {
+      skippedIdenticalCount += 1;
+      continue;
+    }
+    mediaMap.set(media.id, media);
+    mediaHashSet.add(contentHash);
+    nextHashes[key] = contentHash;
+    appliedCount += 1;
+  }
+
+  const snapshot: UnifiedCloudStoreSnapshot = {
+    version: current.version,
+    updatedAt: appliedCount > 0 ? new Date().toISOString() : current.updatedAt,
+    blocks: Array.from(blocksMap.values()).sort((a, b) => a.order - b.order),
+    subjects: Array.from(subjectsMap.values()).sort((a, b) => a.order - b.order),
+    topics: enrichAllTopicsWithHierarchy(Array.from(topicsMap.values())),
+    terms: Array.from(termsMap.values()),
+    sentences: Array.from(sentencesMap.values()),
+    mediaRecords: Array.from(mediaMap.values()),
+    hashes: nextHashes
+  };
+
+  return { snapshot, appliedCount, skippedIdenticalCount };
+}
+
+/**
+ * Enqueues one or more added/updated entities into the persistent Automatic Sync Queue.
+ * Skips any item whose SHA-256 matches the already-synced cloud hash (preventing duplicate uploads).
+ * Immediately triggers background sync if online.
+ */
+export async function enqueueEntitiesForCloudSync(params: {
+  blocks?: MedicalBlock[];
+  subjects?: MedicalSubject[];
+  topics?: TopicArticle[];
+  terms?: DictionaryTerm[];
+  sentences?: LinkedSentence[];
+  mediaRecords?: LocalMediaRecord[];
+  triggerImmediateSync?: boolean;
+}): Promise<{
+  enqueuedCount: number;
+  skippedDuplicateCount: number;
+  queueLength: number;
+}> {
+  const knownHashes = loadKnownCloudHashes();
+  const mirror = loadUnifiedCloudMirror();
+  const queue = loadSyncQueue();
+  let enqueuedCount = 0;
+  let skippedDuplicateCount = 0;
+  const nowIso = new Date().toISOString();
+
+  const upsertQueueItem = async (
+    entityType: CloudEntityType,
+    entityId: string,
+    title: string,
+    payload: unknown
+  ) => {
+    const sha256 = await computeEntitySha256(entityType, payload);
+    const fastHash = computeDeterministicFastHashHex(canonicalizeForHash(entityType, payload));
+    const hashKey = `${entityType}:${entityId}`;
+
+    // Check if already synced with exact same SHA-256 or fast hash
+    const existingQueueIdx = queue.findIndex(
+      (q) => q.entityType === entityType && q.entityId === entityId
+    );
+    if (
+      existingQueueIdx === -1 &&
+      (knownHashes[hashKey] === sha256 || mirror.hashes[hashKey] === fastHash)
+    ) {
+      skippedDuplicateCount += 1;
+      return;
+    }
+
+    if (existingQueueIdx !== -1 && queue[existingQueueIdx].sha256 === sha256) {
+      skippedDuplicateCount += 1;
+      return;
+    }
+
+    const sizeBytes = computeEntitySizeBytes(payload);
+    const nextItem: SyncQueueItem = {
+      id: `sync-${entityType}-${entityId}-${Date.now()}`,
+      entityType,
+      entityId,
+      title,
+      sha256,
+      sizeBytes,
+      updatedAt: nowIso,
+      status: 'pending',
+      attempts: 0,
+      payload
+    };
+
+    if (existingQueueIdx !== -1) {
+      queue[existingQueueIdx] = nextItem;
+    } else {
+      queue.push(nextItem);
+    }
+    enqueuedCount += 1;
+  };
+
+  for (const b of params.blocks || []) {
+    if (!b || !b.id) continue;
+    await upsertQueueItem('block', b.id, b.titleAr || b.titleEn || b.code, b);
+  }
+
+  for (const s of params.subjects || []) {
+    if (!s || !s.id) continue;
+    await upsertQueueItem('subject', s.id, s.titleAr || s.titleEn || s.code, s);
+  }
+
+  for (const t of params.topics || []) {
+    if (!t || !t.id) continue;
+    const dedupedTopic = deduplicateTopicMediaAndAttachments(t);
+    await upsertQueueItem(
+      'topic',
+      dedupedTopic.id,
+      dedupedTopic.titleAr || dedupedTopic.title || dedupedTopic.titleEn || dedupedTopic.id,
+      dedupedTopic
+    );
+
+    // Also enqueue any associated IndexedDB audio/media records for this topic
+    const topicMedia = await getMediaRecordsByTopicId(dedupedTopic.id);
+    for (const m of topicMedia) {
+      await upsertQueueItem('media', m.id, m.fileName || m.id, m);
+    }
+  }
+
+  for (const tm of params.terms || []) {
+    if (!tm || !tm.id) continue;
+    await upsertQueueItem('term', tm.id, `${tm.term} (${tm.translation})`, tm);
+  }
+
+  for (const sn of params.sentences || []) {
+    if (!sn || !sn.id) continue;
+    await upsertQueueItem('sentence', sn.id, sn.en.slice(0, 50), sn);
+  }
+
+  for (const m of params.mediaRecords || []) {
+    if (!m || !m.id) continue;
+    await upsertQueueItem('media', m.id, m.fileName || m.id, m);
+  }
+
+  saveSyncQueue(queue);
+
+  if (params.triggerImmediateSync !== false && isCloudSyncOnline()) {
+    await processCloudSyncQueue();
+  }
+
+  return {
+    enqueuedCount,
+    skippedDuplicateCount,
+    queueLength: loadSyncQueue().filter((q) => q.status !== 'synced').length
+  };
+}
+
+/**
+ * Processes pending and retryable items in the Automatic Sync Queue:
+ * - Pushes batch updates to `/api/cloud-library` when reachable AND updates the local Cloud Mirror.
+ * - Handles offline state gracefully (keeps items `pending`).
+ * - Handles upload errors by marking items `failed` with automatic exponential backoff retry.
+ */
+export async function processCloudSyncQueue(options?: {
+  forceRetryFailed?: boolean;
+  customFetch?: typeof fetch;
+}): Promise<{
+  syncedCount: number;
+  pendingCount: number;
+  failedCount: number;
+  status: SyncItemStatus;
+  error?: string;
+}> {
+  const queue = loadSyncQueue();
+  const actionable = queue.filter((item) => {
+    if (item.status === 'pending') return true;
+    if (item.status === 'failed') {
+      if (options?.forceRetryFailed) return true;
+      if (!item.nextRetryAt || Date.now() >= item.nextRetryAt) return true;
+    }
+    return false;
+  });
+
+  if (actionable.length === 0) {
+    const failed = queue.filter((q) => q.status === 'failed').length;
+    const pending = queue.filter((q) => q.status === 'pending').length;
+    return {
+      syncedCount: 0,
+      pendingCount: pending,
+      failedCount: failed,
+      status: failed > 0 ? 'failed' : pending > 0 ? 'pending' : 'synced'
+    };
+  }
+
+  if (!isCloudSyncOnline()) {
+    return {
+      syncedCount: 0,
+      pendingCount: queue.filter((q) => q.status !== 'synced').length,
+      failedCount: queue.filter((q) => q.status === 'failed').length,
+      status: 'pending'
+    };
+  }
+
+  if (isSyncLoopRunning) {
+    return {
+      syncedCount: 0,
+      pendingCount: queue.filter((q) => q.status === 'pending').length,
+      failedCount: queue.filter((q) => q.status === 'failed').length,
+      status: 'syncing'
+    };
+  }
+
+  isSyncLoopRunning = true;
+  try {
+    // Mark actionable items as syncing
+    const actionableIds = new Set(actionable.map((a) => a.id));
+    for (const q of queue) {
+      if (actionableIds.has(q.id)) {
+        q.status = 'syncing';
+      }
+    }
+    saveSyncQueue(queue);
+
+    const batchPayload = {
+      blocks: actionable
+        .filter((i) => i.entityType === 'block')
+        .map((i) => i.payload as MedicalBlock),
+      subjects: actionable
+        .filter((i) => i.entityType === 'subject')
+        .map((i) => i.payload as MedicalSubject),
+      topics: actionable
+        .filter((i) => i.entityType === 'topic')
+        .map((i) => i.payload as TopicArticle),
+      terms: actionable
+        .filter((i) => i.entityType === 'term')
+        .map((i) => i.payload as DictionaryTerm),
+      sentences: actionable
+        .filter((i) => i.entityType === 'sentence')
+        .map((i) => i.payload as LinkedSentence),
+      mediaRecords: actionable
+        .filter((i) => i.entityType === 'media')
+        .map((i) => i.payload as LocalMediaRecord)
+    };
+
+    const fetchFn = options?.customFetch || customCloudFetchOverride;
+    let remoteError: string | null = null;
+
+    if (fetchFn) {
+      const res = await fetchFn('/api/cloud-library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync_push', ...batchPayload })
+      });
+      if (!res.ok) {
+        remoteError = `HTTP ${res.status} ${res.statusText}`.trim();
+      }
+    } else if (
+      typeof window !== 'undefined' &&
+      typeof window.location?.protocol === 'string' &&
+      /^https?:$/i.test(window.location.protocol) &&
+      typeof globalThis.fetch === 'function'
+    ) {
+      try {
+        const res = await globalThis.fetch('/api/cloud-library', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'sync_push', ...batchPayload })
+        });
+        const ct = res.headers.get('content-type') || '';
+        if (!res.ok && !ct.includes('text/html') && res.status >= 500) {
+          remoteError = `HTTP ${res.status}`;
+        }
+      } catch {
+        // When running on standalone static/APK without local express endpoint, mirror persists locally and via GitHub fallback
+      }
+    }
+
+    if (remoteError) {
+      for (const q of queue) {
+        if (actionableIds.has(q.id)) {
+          q.status = 'failed';
+          q.attempts = (q.attempts || 0) + 1;
+          q.lastError = `تعذر الرفع إلى المكتبة السحابية (${remoteError})`;
+          q.nextRetryAt = Date.now() + Math.min(60000, 2000 * Math.pow(2, q.attempts));
+        }
+      }
+      saveSyncQueue(queue);
+      return {
+        syncedCount: 0,
+        pendingCount: queue.filter((q) => q.status === 'pending').length,
+        failedCount: queue.filter((q) => q.status === 'failed').length,
+        status: 'failed',
+        error: remoteError
+      };
+    }
+
+    // Merge into unified cloud mirror and record verified SHA-256 hashes
+    const currentMirror = loadUnifiedCloudMirror();
+    const merged = mergeRecordsIntoCloudSnapshot(currentMirror, batchPayload);
+    saveUnifiedCloudMirror(merged.snapshot);
+
+    const knownHashes = loadKnownCloudHashes();
+    for (const item of actionable) {
+      knownHashes[`${item.entityType}:${item.entityId}`] = item.sha256;
+    }
+    saveKnownCloudHashes(knownHashes);
+
+    const remainingQueue = queue.filter((q) => !actionableIds.has(q.id));
+    saveSyncQueue(remainingQueue);
+    getSafeStorage().setItem(
+      CLOUD_LIBRARY_STORAGE_KEYS.LAST_SYNCED_AT,
+      new Date().toISOString()
+    );
+    notifyCloudLibraryListeners();
+
+    return {
+      syncedCount: actionable.length,
+      pendingCount: remainingQueue.filter((q) => q.status === 'pending').length,
+      failedCount: remainingQueue.filter((q) => q.status === 'failed').length,
+      status: remainingQueue.some((q) => q.status === 'failed')
+        ? 'failed'
+        : remainingQueue.length > 0
+        ? 'pending'
+        : 'synced'
+    };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const currentQueue = loadSyncQueue();
+    for (const q of currentQueue) {
+      if (q.status === 'syncing') {
+        q.status = 'failed';
+        q.attempts = (q.attempts || 0) + 1;
+        q.lastError = errMsg;
+        q.nextRetryAt = Date.now() + Math.min(60000, 2000 * Math.pow(2, q.attempts));
+      }
+    }
+    saveSyncQueue(currentQueue);
+    return {
+      syncedCount: 0,
+      pendingCount: currentQueue.filter((q) => q.status === 'pending').length,
+      failedCount: currentQueue.filter((q) => q.status === 'failed').length,
+      status: 'failed',
+      error: errMsg
+    };
+  } finally {
+    isSyncLoopRunning = false;
+  }
+}
+
+/**
+ * Pulls latest cloud changes from `/api/cloud-library` into the Unified Cloud Mirror,
+ * and automatically merges new/updated cloud items into local state UNLESS the user
+ * explicitly deleted those items locally (so locally deleted items remain in the Cloud Library
+ * ready for selective re-download).
+ */
+export async function syncWithRemoteCloudLibrary(params: {
+  localTerms: DictionaryTerm[];
+  localSentences: LinkedSentence[];
+  localTopics: TopicArticle[];
+  customFetch?: typeof fetch;
+}): Promise<{
+  mirror: UnifiedCloudStoreSnapshot;
+  autoMergedTopics: TopicArticle[];
+  autoMergedTerms: DictionaryTerm[];
+  autoMergedSentences: LinkedSentence[];
+  autoMergedBlocks: MedicalBlock[];
+  autoMergedSubjects: MedicalSubject[];
+  newUpdatesApplied: number;
+}> {
+  if (isCloudSyncOnline()) {
+    await processCloudSyncQueue({ customFetch: params.customFetch });
+
+    const fetchFn =
+      params.customFetch ||
+      customCloudFetchOverride ||
+      (typeof window !== 'undefined' &&
+      /^https?:$/i.test(window.location?.protocol || '') &&
+      typeof globalThis.fetch === 'function'
+        ? globalThis.fetch
+        : null);
+
+    if (fetchFn) {
+      try {
+        const res = await fetchFn('/api/cloud-library?action=snapshot', {
+          headers: { Accept: 'application/json' },
+          cache: 'no-store'
+        });
+        if (res.ok) {
+          const data = (await res.json()) as Partial<UnifiedCloudStoreSnapshot>;
+          if (data && Array.isArray(data.topics)) {
+            const currentMirror = loadUnifiedCloudMirror();
+            const mergedMirror = mergeRecordsIntoCloudSnapshot(currentMirror, {
+              blocks: data.blocks,
+              subjects: data.subjects,
+              topics: data.topics,
+              terms: data.terms,
+              sentences: data.sentences,
+              mediaRecords: data.mediaRecords
+            });
+            saveUnifiedCloudMirror(mergedMirror.snapshot);
+          }
+        }
+      } catch {
+        // Offline or static fallback; use local cloud mirror
+      }
+    }
+  }
+
+  // Also ensure any local items that aren't in the cloud mirror yet (and aren't locally deleted) are represented
+  const removed = loadLocallyRemovedRegistry();
+  const removedBlocksSet = new Set(removed.blocks);
+  const removedSubjectsSet = new Set(removed.subjects);
+  const removedTopicsSet = new Set(removed.topics);
+  const removedTermsSet = new Set(removed.terms);
+
+  const localBlocks = loadMedicalBlocks();
+  const localSubjects = loadMedicalSubjects();
+
+  const currentMirror = loadUnifiedCloudMirror();
+  const syncedMirrorRes = mergeRecordsIntoCloudSnapshot(currentMirror, {
+    blocks: localBlocks,
+    subjects: localSubjects,
+    topics: params.localTopics,
+    terms: params.localTerms,
+    sentences: params.localSentences
+  });
+  const mirror = syncedMirrorRes.snapshot;
+  if (syncedMirrorRes.appliedCount > 0) {
+    saveUnifiedCloudMirror(mirror);
+  }
+
+  let newUpdatesApplied = 0;
+
+  // Merge cloud updates into local state for items that were NOT explicitly uninstalled locally
+  const localBlockMap = new Map(localBlocks.map((b) => [b.id, b]));
+  for (const cb of mirror.blocks) {
+    if (removedBlocksSet.has(cb.id)) continue;
+    const existing = localBlockMap.get(cb.id);
+    if (!existing) {
+      localBlockMap.set(cb.id, cb);
+      newUpdatesApplied += 1;
+    } else {
+      const localHash = computeDeterministicFastHashHex(canonicalizeForHash('block', existing));
+      const cloudHash = computeDeterministicFastHashHex(canonicalizeForHash('block', cb));
+      if (localHash !== cloudHash && (cb.updatedAt || '') > (existing.updatedAt || '')) {
+        localBlockMap.set(cb.id, cb);
+        newUpdatesApplied += 1;
+      }
+    }
+  }
+  const autoMergedBlocks = Array.from(localBlockMap.values()).sort((a, b) => a.order - b.order);
+
+  const localSubjMap = new Map(localSubjects.map((s) => [s.id, s]));
+  for (const cs of mirror.subjects) {
+    if (removedSubjectsSet.has(cs.id) || removedBlocksSet.has(cs.blockId || '')) continue;
+    const existing = localSubjMap.get(cs.id);
+    if (!existing) {
+      localSubjMap.set(cs.id, cs);
+      newUpdatesApplied += 1;
+    } else {
+      const localHash = computeDeterministicFastHashHex(canonicalizeForHash('subject', existing));
+      const cloudHash = computeDeterministicFastHashHex(canonicalizeForHash('subject', cs));
+      if (localHash !== cloudHash && (cs.updatedAt || '') > (existing.updatedAt || '')) {
+        localSubjMap.set(cs.id, cs);
+        newUpdatesApplied += 1;
+      }
+    }
+  }
+  const autoMergedSubjects = Array.from(localSubjMap.values()).sort((a, b) => a.order - b.order);
+
+  const localTopicMap = new Map(params.localTopics.map((t) => [t.id, t]));
+  for (const ct of mirror.topics) {
+    if (
+      removedTopicsSet.has(ct.id) ||
+      removedSubjectsSet.has(ct.subjectId || '') ||
+      removedBlocksSet.has(ct.blockId || '')
+    ) {
+      continue;
+    }
+    const existing = localTopicMap.get(ct.id);
+    if (!existing) {
+      localTopicMap.set(ct.id, ct);
+      newUpdatesApplied += 1;
+    } else {
+      const localHash = computeDeterministicFastHashHex(canonicalizeForHash('topic', existing));
+      const cloudHash = computeDeterministicFastHashHex(canonicalizeForHash('topic', ct));
+      if (localHash !== cloudHash) {
+        localTopicMap.set(ct.id, { ...ct, favorite: existing.favorite });
+        newUpdatesApplied += 1;
+      }
+    }
+  }
+  const autoMergedTopics = Array.from(localTopicMap.values());
+
+  const localTermMap = new Map(params.localTerms.map((t) => [t.id, t]));
+  for (const ctm of mirror.terms) {
+    if (removedTermsSet.has(ctm.id)) continue;
+    const existing = localTermMap.get(ctm.id);
+    if (!existing) {
+      localTermMap.set(ctm.id, ctm);
+      newUpdatesApplied += 1;
+    } else {
+      const localHash = computeDeterministicFastHashHex(canonicalizeForHash('term', existing));
+      const cloudHash = computeDeterministicFastHashHex(canonicalizeForHash('term', ctm));
+      if (localHash !== cloudHash) {
+        localTermMap.set(ctm.id, {
+          ...ctm,
+          favorite: existing.favorite,
+          srsData: existing.srsData || ctm.srsData
+        });
+        newUpdatesApplied += 1;
+      }
+    }
+  }
+  const autoMergedTerms = Array.from(localTermMap.values());
+
+  const localSentenceMap = new Map(params.localSentences.map((s) => [s.id, s]));
+  for (const csn of mirror.sentences) {
+    if (!localSentenceMap.has(csn.id)) {
+      localSentenceMap.set(csn.id, csn);
+    }
+  }
+  const autoMergedSentences = Array.from(localSentenceMap.values());
+
+  if (newUpdatesApplied > 0) {
+    saveMedicalBlocks(autoMergedBlocks);
+    saveMedicalSubjects(autoMergedSubjects);
+  }
+
+  notifyCloudLibraryListeners();
+  return {
+    mirror,
+    autoMergedTopics,
+    autoMergedTerms,
+    autoMergedSentences,
+    autoMergedBlocks,
+    autoMergedSubjects,
+    newUpdatesApplied
+  };
+}
+
+/**
+ * Builds the complete hierarchical Cloud Library State Summary for `LibraryView.tsx`
+ * showing all Blocks, Subjects, and Topics, what is downloaded on the phone (`المكتبة المحلية`)
+ * vs what is in the cloud (`المكتبة السحابية`), exact byte sizes, and sync status.
+ */
+export function buildCloudLibraryCatalogView(params: {
+  localTopics: TopicArticle[];
+  localTerms: DictionaryTerm[];
+  localSentences: LinkedSentence[];
+}): CloudLibraryStateSummary {
+  const mirror = loadUnifiedCloudMirror();
+  const localBlocks = loadMedicalBlocks();
+  const localSubjects = loadMedicalSubjects();
+  const queue = loadSyncQueue();
+  const removed = loadLocallyRemovedRegistry();
+
+  const localBlockIds = new Set(
+    localBlocks.filter((b) => !removed.blocks.includes(b.id)).map((b) => b.id)
+  );
+  const localSubjectIds = new Set(
+    localSubjects.filter((s) => !removed.subjects.includes(s.id)).map((s) => s.id)
+  );
+  const localTopicMap = new Map(
+    params.localTopics
+      .filter((t) => !removed.topics.includes(t.id))
+      .map((t) => [t.id, t])
+  );
+
+  // Combine cloud blocks + any new local blocks
+  const allBlocksMap = new Map<string, MedicalBlock>();
+  for (const b of mirror.blocks) allBlocksMap.set(b.id, b);
+  for (const b of localBlocks) {
+    if (!removed.blocks.includes(b.id)) allBlocksMap.set(b.id, b);
+  }
+
+  // Combine cloud subjects + any new local subjects
+  const allSubjectsMap = new Map<string, MedicalSubject>();
+  for (const s of mirror.subjects) allSubjectsMap.set(s.id, s);
+  for (const s of localSubjects) {
+    if (!removed.subjects.includes(s.id)) allSubjectsMap.set(s.id, s);
+  }
+
+  // Combine cloud topics + any new local topics
+  const allTopicsMap = new Map<string, TopicArticle>();
+  for (const t of enrichAllTopicsWithHierarchy(mirror.topics)) {
+    allTopicsMap.set(t.id, t);
+  }
+  for (const t of enrichAllTopicsWithHierarchy(params.localTopics)) {
+    if (!removed.topics.includes(t.id)) {
+      allTopicsMap.set(t.id, t);
+    }
+  }
+
+  const queueByEntityKey = new Map<string, SyncQueueItem>();
+  for (const q of queue) {
+    queueByEntityKey.set(`${q.entityType}:${q.entityId}`, q);
+  }
+
+  // Group terms by topicId / subjectId / blockId for accurate size and count attribution
+  const allTerms = mirror.terms.length >= params.localTerms.length ? mirror.terms : params.localTerms;
+
+  let localTotalBytes = 0;
+  let cloudTotalBytes = 0;
+  let downloadedTopicsCount = 0;
+  let totalCloudTopicsCount = 0;
+
+  const blockEntries: CloudCatalogBlockEntry[] = [];
+
+  const sortedBlocks = Array.from(allBlocksMap.values()).sort((a, b) => a.order - b.order);
+
+  for (const blk of sortedBlocks) {
+    const blockSubjects = Array.from(allSubjectsMap.values())
+      .filter((s) => s.blockId === blk.id)
+      .sort((a, b) => a.order - b.order);
+
+    const subjectEntries: CloudCatalogSubjectEntry[] = [];
+    let blockBytes = computeEntitySizeBytes(blk);
+    let blockDownloadedTopics = 0;
+    let blockTotalTopics = 0;
+    let blockTermsCount = 0;
+    let blockHasPending = queueByEntityKey.get(`block:${blk.id}`)?.status === 'pending';
+    let blockHasFailed = queueByEntityKey.get(`block:${blk.id}`)?.status === 'failed';
+
+    for (const subj of blockSubjects) {
+      const subjTopics = Array.from(allTopicsMap.values()).filter(
+        (t) => t.subjectId === subj.id || (!t.subjectId && t.blockId === blk.id)
+      );
+
+      let subjBytes = computeEntitySizeBytes(subj);
+      let subjDownloadedTopics = 0;
+      const topicEntries: CloudCatalogTopicEntry[] = [];
+
+      const subjLinkedTerms = allTerms.filter(
+        (tm) =>
+          (tm.linkedSubjectIds || []).includes(subj.id) ||
+          subjTopics.some((tp) => (tm.linkedTopicIds || []).includes(tp.id))
+      );
+      const subjTermsBytes = computeEntitySizeBytes(subjLinkedTerms);
+      subjBytes += subjTermsBytes;
+
+      let subjHasPending = queueByEntityKey.get(`subject:${subj.id}`)?.status === 'pending';
+      let subjHasFailed = queueByEntityKey.get(`subject:${subj.id}`)?.status === 'failed';
+
+      for (const tp of subjTopics) {
+        const localTp = localTopicMap.get(tp.id);
+        const isTpDownloaded =
+          Boolean(localTp) &&
+          !removed.topics.includes(tp.id) &&
+          !removed.subjects.includes(subj.id) &&
+          !removed.blocks.includes(blk.id);
+
+        const tpTerms = allTerms.filter(
+          (tm) =>
+            (tm.linkedTopicIds || []).includes(tp.id) ||
+            (tp.titleEn &&
+              tm.collections?.some((c) =>
+                tp.titleEn!.toLowerCase().includes(c.toLowerCase())
+              ))
+        );
+        const tpMediaCount =
+          (tp.images?.length || 0) +
+          (tp.attachments?.length || 0) +
+          (tp.sections || []).reduce(
+            (acc, s) =>
+              acc +
+              (s.contentBlocks || []).filter(
+                (cb) =>
+                  cb.type === 'audio' ||
+                  cb.type === 'image' ||
+                  cb.type === 'attachment'
+              ).length,
+            0
+          );
+
+        const tpBytes = computeEntitySizeBytes(tp) + computeEntitySizeBytes(tpTerms);
+        subjBytes += computeEntitySizeBytes(tp);
+
+        const cloudHash = computeDeterministicFastHashHex(canonicalizeForHash('topic', tp));
+        const localHash = localTp
+          ? computeDeterministicFastHashHex(canonicalizeForHash('topic', localTp))
+          : '';
+
+        const qItem = queueByEntityKey.get(`topic:${tp.id}`);
+        const tpSyncStatus: SyncItemStatus = qItem ? qItem.status : 'synced';
+        if (tpSyncStatus === 'pending') subjHasPending = true;
+        if (tpSyncStatus === 'failed') subjHasFailed = true;
+
+        if (isTpDownloaded) {
+          subjDownloadedTopics += 1;
+          downloadedTopicsCount += 1;
+          localTotalBytes += tpBytes;
+        }
+        totalCloudTopicsCount += 1;
+
+        topicEntries.push({
+          id: tp.id,
+          blockId: blk.id,
+          subjectId: subj.id,
+          title: tp.title,
+          titleEn: tp.titleEn || tp.title,
+          titleAr: tp.titleAr || tp.subtitle || tp.title,
+          subtitle: tp.subtitle,
+          sha256: cloudHash.slice(0, 16),
+          sizeBytes: tpBytes,
+          sizeLabel: formatBytesLabel(tpBytes),
+          updatedAt: tp.publishedAt || '2026-11-15',
+          isDownloaded: isTpDownloaded,
+          hasNewerCloudVersion: Boolean(localTp && localHash !== cloudHash),
+          syncStatus: tpSyncStatus,
+          termsCount: tpTerms.length,
+          mediaCount: tpMediaCount
+        });
+      }
+
+      const isSubjDownloaded =
+        subjTopics.length > 0
+          ? subjDownloadedTopics === subjTopics.length
+          : localSubjectIds.has(subj.id) && !removed.subjects.includes(subj.id);
+      const isSubjPartial = subjDownloadedTopics > 0 && subjDownloadedTopics < subjTopics.length;
+
+      if (subjHasPending) blockHasPending = true;
+      if (subjHasFailed) blockHasFailed = true;
+
+      blockBytes += subjBytes;
+      blockDownloadedTopics += subjDownloadedTopics;
+      blockTotalTopics += subjTopics.length;
+      blockTermsCount += subjLinkedTerms.length;
+
+      subjectEntries.push({
+        id: subj.id,
+        blockId: blk.id,
+        code: subj.code,
+        titleEn: subj.titleEn,
+        titleAr: subj.titleAr,
+        descriptionAr: subj.descriptionAr,
+        sha256: computeDeterministicFastHashHex(canonicalizeForHash('subject', subj)).slice(0, 16),
+        sizeBytes: subjBytes,
+        sizeLabel: formatBytesLabel(subjBytes),
+        updatedAt: subj.updatedAt,
+        isDownloaded: isSubjDownloaded,
+        isPartiallyDownloaded: isSubjPartial,
+        downloadedTopicsCount: subjDownloadedTopics,
+        totalTopicsCount: subjTopics.length,
+        termsCount: subjLinkedTerms.length,
+        syncStatus: subjHasFailed ? 'failed' : subjHasPending ? 'pending' : 'synced',
+        topics: topicEntries
+      });
+    }
+
+    const isBlockDownloaded =
+      blockTotalTopics > 0
+        ? blockDownloadedTopics === blockTotalTopics
+        : localBlockIds.has(blk.id) && !removed.blocks.includes(blk.id);
+    const isBlockPartial = blockDownloadedTopics > 0 && blockDownloadedTopics < blockTotalTopics;
+
+    cloudTotalBytes += blockBytes;
+    if (isBlockDownloaded) {
+      localTotalBytes += computeEntitySizeBytes(blk);
+    }
+
+    blockEntries.push({
+      id: blk.id,
+      code: blk.code,
+      titleEn: blk.titleEn,
+      titleAr: blk.titleAr,
+      descriptionAr: blk.descriptionAr,
+      colorAccent: blk.colorAccent || 'emerald',
+      sha256: computeDeterministicFastHashHex(canonicalizeForHash('block', blk)).slice(0, 16),
+      sizeBytes: blockBytes,
+      sizeLabel: formatBytesLabel(blockBytes),
+      updatedAt: blk.updatedAt,
+      isDownloaded: isBlockDownloaded,
+      isPartiallyDownloaded: isBlockPartial,
+      downloadedTopicsCount: blockDownloadedTopics,
+      totalTopicsCount: blockTotalTopics,
+      subjectsCount: subjectEntries.length,
+      termsCount: blockTermsCount,
+      syncStatus: blockHasFailed ? 'failed' : blockHasPending ? 'pending' : 'synced',
+      subjects: subjectEntries
+    });
+  }
+
+  // Add general dictionary terms size to totals
+  const dictTermsBytes = computeEntitySizeBytes(params.localTerms) + computeEntitySizeBytes(params.localSentences);
+  localTotalBytes += dictTermsBytes;
+  cloudTotalBytes += computeEntitySizeBytes(mirror.terms) + computeEntitySizeBytes(mirror.sentences);
+
+  const pendingCount = queue.filter((q) => q.status === 'pending' || q.status === 'syncing').length;
+  const failedCount = queue.filter((q) => q.status === 'failed').length;
+  const lastError = queue.find((q) => q.status === 'failed')?.lastError || null;
+  const overallSyncStatus: SyncItemStatus = isSyncLoopRunning
+    ? 'syncing'
+    : failedCount > 0
+    ? 'failed'
+    : pendingCount > 0
+    ? 'pending'
+    : 'synced';
+
+  const downloadedBlocksCount = blockEntries.filter((b) => b.isDownloaded).length;
+
+  return {
+    overallSyncStatus,
+    pendingCount,
+    failedCount,
+    syncedCount: Object.keys(mirror.hashes || {}).length,
+    lastSyncedAt: getSafeStorage().getItem(CLOUD_LIBRARY_STORAGE_KEYS.LAST_SYNCED_AT),
+    lastError,
+    localTotalBytes,
+    localTotalLabel: formatBytesLabel(localTotalBytes),
+    cloudTotalBytes,
+    cloudTotalLabel: formatBytesLabel(cloudTotalBytes),
+    downloadedTopicsCount,
+    totalCloudTopicsCount,
+    downloadedBlocksCount,
+    totalCloudBlocksCount: blockEntries.length,
+    blocks: blockEntries,
+    queue
+  };
+}
+
+/**
+ * Selective Granular Download:
+ * Downloads a specific Block, Subject, or Topic from the Unified Cloud Library to local storage.
+ * Enforces SHA-256 deduplication so identical local content/media is never downloaded twice.
+ */
+export async function downloadCloudLibraryTarget(params: {
+  targetType: 'block' | 'subject' | 'topic';
+  targetId: string;
+  currentTopics: TopicArticle[];
+  currentTerms: DictionaryTerm[];
+  currentSentences: LinkedSentence[];
+  customFetch?: typeof fetch;
+}): Promise<{
+  success: boolean;
+  downloadedTopicsCount: number;
+  downloadedTermsCount: number;
+  downloadedMediaCount: number;
+  skippedIdenticalCount: number;
+  bytesDownloaded: number;
+  updatedTopics: TopicArticle[];
+  updatedTerms: DictionaryTerm[];
+  updatedSentences: LinkedSentence[];
+  updatedBlocks: MedicalBlock[];
+  updatedSubjects: MedicalSubject[];
+  messageAr: string;
+}> {
+  const mirror = loadUnifiedCloudMirror();
+  const removed = loadLocallyRemovedRegistry();
+  const localBlocks = loadMedicalBlocks();
+  const localSubjects = loadMedicalSubjects();
+
+  let targetBlocks: MedicalBlock[] = [];
+  let targetSubjects: MedicalSubject[] = [];
+  let targetTopics: TopicArticle[] = [];
+
+  if (params.targetType === 'block') {
+    const blk = mirror.blocks.find((b) => b.id === params.targetId);
+    if (blk) targetBlocks.push(blk);
+    targetSubjects = mirror.subjects.filter((s) => s.blockId === params.targetId);
+    const subjIds = new Set(targetSubjects.map((s) => s.id));
+    targetTopics = mirror.topics.filter(
+      (t) => t.blockId === params.targetId || (t.subjectId && subjIds.has(t.subjectId))
+    );
+    removed.blocks = removed.blocks.filter((id) => id !== params.targetId);
+    for (const s of targetSubjects) {
+      removed.subjects = removed.subjects.filter((id) => id !== s.id);
+    }
+    for (const t of targetTopics) {
+      removed.topics = removed.topics.filter((id) => id !== t.id);
+    }
+  } else if (params.targetType === 'subject') {
+    const subj = mirror.subjects.find((s) => s.id === params.targetId);
+    if (subj) {
+      targetSubjects.push(subj);
+      if (subj.blockId) {
+        const parentBlk = mirror.blocks.find((b) => b.id === subj.blockId);
+        if (parentBlk) targetBlocks.push(parentBlk);
+        removed.blocks = removed.blocks.filter((id) => id !== subj.blockId);
+      }
+    }
+    targetTopics = mirror.topics.filter((t) => t.subjectId === params.targetId);
+    removed.subjects = removed.subjects.filter((id) => id !== params.targetId);
+    for (const t of targetTopics) {
+      removed.topics = removed.topics.filter((id) => id !== t.id);
+    }
+  } else {
+    const tp = mirror.topics.find((t) => t.id === params.targetId);
+    if (tp) {
+      targetTopics.push(tp);
+      if (tp.subjectId) {
+        const parentSubj = mirror.subjects.find((s) => s.id === tp.subjectId);
+        if (parentSubj) targetSubjects.push(parentSubj);
+        removed.subjects = removed.subjects.filter((id) => id !== tp.subjectId);
+      }
+      if (tp.blockId) {
+        const parentBlk = mirror.blocks.find((b) => b.id === tp.blockId);
+        if (parentBlk) targetBlocks.push(parentBlk);
+        removed.blocks = removed.blocks.filter((id) => id !== tp.blockId);
+      }
+    }
+    removed.topics = removed.topics.filter((id) => id !== params.targetId);
+  }
+
+  let downloadedTopicsCount = 0;
+  let downloadedTermsCount = 0;
+  let downloadedMediaCount = 0;
+  let skippedIdenticalCount = 0;
+  let bytesDownloaded = 0;
+
+  // 1. Merge Blocks with SHA-256 deduplication
+  const nextBlocksMap = new Map(localBlocks.map((b) => [b.id, b]));
+  for (const blk of targetBlocks) {
+    const existing = nextBlocksMap.get(blk.id);
+    const incomingHash = await computeEntitySha256('block', blk);
+    const existingHash = existing ? await computeEntitySha256('block', existing) : '';
+    if (existing && existingHash === incomingHash) {
+      skippedIdenticalCount += 1;
+    } else {
+      nextBlocksMap.set(blk.id, blk);
+      bytesDownloaded += computeEntitySizeBytes(blk);
+    }
+  }
+  const updatedBlocks = Array.from(nextBlocksMap.values()).sort((a, b) => a.order - b.order);
+  saveMedicalBlocks(updatedBlocks);
+
+  // 2. Merge Subjects with SHA-256 deduplication
+  const nextSubjectsMap = new Map(localSubjects.map((s) => [s.id, s]));
+  for (const subj of targetSubjects) {
+    const existing = nextSubjectsMap.get(subj.id);
+    const incomingHash = await computeEntitySha256('subject', subj);
+    const existingHash = existing ? await computeEntitySha256('subject', existing) : '';
+    if (existing && existingHash === incomingHash) {
+      skippedIdenticalCount += 1;
+    } else {
+      nextSubjectsMap.set(subj.id, subj);
+      bytesDownloaded += computeEntitySizeBytes(subj);
+    }
+  }
+  const updatedSubjects = Array.from(nextSubjectsMap.values()).sort((a, b) => a.order - b.order);
+  saveMedicalSubjects(updatedSubjects);
+
+  // 3. Merge Topics with SHA-256 & media deduplication
+  const nextTopicsMap = new Map(params.currentTopics.map((t) => [t.id, t]));
+  const targetTopicIds = new Set(targetTopics.map((t) => t.id));
+
+  for (const rawTp of targetTopics) {
+    const tp = deduplicateTopicMediaAndAttachments(rawTp);
+    const existing = nextTopicsMap.get(tp.id);
+    const incomingHash = await computeEntitySha256('topic', tp);
+    const existingHash = existing ? await computeEntitySha256('topic', existing) : '';
+
+    if (existing && existingHash === incomingHash) {
+      skippedIdenticalCount += 1;
+    } else {
+      nextTopicsMap.set(tp.id, existing ? { ...tp, favorite: existing.favorite } : tp);
+      downloadedTopicsCount += 1;
+      bytesDownloaded += computeEntitySizeBytes(tp);
+    }
+
+    // Restore any associated media records into IndexedDB if not already present with matching SHA-256
+    const cloudMediaForTopic = mirror.mediaRecords.filter((m) => m.topicId === tp.id);
+    for (const mediaRec of cloudMediaForTopic) {
+      const localMedia = await getLocalMediaRecord(mediaRec.id);
+      const incomingMediaHash = await computeEntitySha256('media', mediaRec);
+      const localMediaHash = localMedia ? await computeEntitySha256('media', localMedia) : '';
+      if (localMedia && localMediaHash === incomingMediaHash) {
+        skippedIdenticalCount += 1;
+      } else {
+        const saved = await saveLocalMediaRecord(mediaRec);
+        if (saved.success) {
+          downloadedMediaCount += 1;
+          bytesDownloaded += mediaRec.sizeBytes || computeEntitySizeBytes(mediaRec);
+        }
+      }
+    }
+  }
+  const updatedTopics = Array.from(nextTopicsMap.values());
+
+  // 4. Merge Linked Terms & Sentences for these topics/subjects/blocks with SHA-256 deduplication
+  const targetSubjIds = new Set(targetSubjects.map((s) => s.id));
+  const targetBlockIds = new Set(targetBlocks.map((b) => b.id));
+  const cloudTermsForTarget = mirror.terms.filter(
+    (tm) =>
+      (tm.linkedTopicIds || []).some((id) => targetTopicIds.has(id)) ||
+      (tm.linkedSubjectIds || []).some((id) => targetSubjIds.has(id)) ||
+      (tm.linkedBlockIds || []).some((id) => targetBlockIds.has(id))
+  );
+
+  const nextTermsMap = new Map(params.currentTerms.map((t) => [t.id, t]));
+  for (const ctm of cloudTermsForTarget) {
+    removed.terms = removed.terms.filter((id) => id !== ctm.id);
+    const existing = nextTermsMap.get(ctm.id);
+    const incomingHash = await computeEntitySha256('term', ctm);
+    const existingHash = existing ? await computeEntitySha256('term', existing) : '';
+    if (existing && existingHash === incomingHash) {
+      skippedIdenticalCount += 1;
+    } else {
+      nextTermsMap.set(
+        ctm.id,
+        existing ? { ...ctm, favorite: existing.favorite, srsData: existing.srsData } : ctm
+      );
+      downloadedTermsCount += 1;
+      bytesDownloaded += computeEntitySizeBytes(ctm);
+    }
+  }
+  const updatedTerms = Array.from(nextTermsMap.values());
+
+  saveLocallyRemovedRegistry(removed);
+  notifyCloudLibraryListeners();
+
+  const messageAr =
+    downloadedTopicsCount === 0 && downloadedTermsCount === 0 && skippedIdenticalCount > 0
+      ? `المحتوى مطابق لبصمة SHA-256 وموجود بالفعل في المكتبة المحلية (تم تخطي ${skippedIdenticalCount} عنصر مكرر).`
+      : `تم تنزيل المحتوى إلى المكتبة المحلية (${downloadedTopicsCount} موضوع · ${formatBytesLabel(
+          bytesDownloaded
+        )}) مع التحقق من بصمة SHA-256.`;
+
+  return {
+    success: true,
+    downloadedTopicsCount,
+    downloadedTermsCount,
+    downloadedMediaCount,
+    skippedIdenticalCount,
+    bytesDownloaded,
+    updatedTopics,
+    updatedTerms,
+    updatedSentences: params.currentSentences,
+    updatedBlocks,
+    updatedSubjects,
+    messageAr
+  };
+}
+
+/**
+ * Local-Only Deletion:
+ * Completely deletes a Block, Subject, or Topic (and its associated media in IndexedDB)
+ * from local device storage while preserving it in the Unified Cloud Mirror so it appears
+ * under `المكتبة السحابية` and can be re-downloaded at any time.
+ */
+export async function deleteCloudLibraryTargetLocally(params: {
+  targetType: 'block' | 'subject' | 'topic';
+  targetId: string;
+  currentTopics: TopicArticle[];
+  currentTerms: DictionaryTerm[];
+  currentSentences: LinkedSentence[];
+}): Promise<{
+  success: boolean;
+  removedTopicsCount: number;
+  freedBytes: number;
+  updatedTopics: TopicArticle[];
+  updatedTerms: DictionaryTerm[];
+  updatedBlocks: MedicalBlock[];
+  updatedSubjects: MedicalSubject[];
+  messageAr: string;
+}> {
+  const localBlocks = loadMedicalBlocks();
+  const localSubjects = loadMedicalSubjects();
+
+  // First ensure current local state is backed up into the Unified Cloud Mirror so it is never lost
+  const currentMirror = loadUnifiedCloudMirror();
+  const preservedMirror = mergeRecordsIntoCloudSnapshot(currentMirror, {
+    blocks: localBlocks,
+    subjects: localSubjects,
+    topics: params.currentTopics,
+    terms: params.currentTerms,
+    sentences: params.currentSentences
+  });
+  saveUnifiedCloudMirror(preservedMirror.snapshot);
+
+  const removed = loadLocallyRemovedRegistry();
+  let topicsToRemoveIds = new Set<string>();
+  let subjectsToRemoveIds = new Set<string>();
+  let blocksToRemoveIds = new Set<string>();
+
+  const enrichedLocalTopics = enrichAllTopicsWithHierarchy(params.currentTopics);
+
+  if (params.targetType === 'block') {
+    blocksToRemoveIds.add(params.targetId);
+    removed.blocks.push(params.targetId);
+    for (const s of localSubjects) {
+      if (s.blockId === params.targetId) {
+        subjectsToRemoveIds.add(s.id);
+        removed.subjects.push(s.id);
+      }
+    }
+    for (const t of enrichedLocalTopics) {
+      if (t.blockId === params.targetId || (t.subjectId && subjectsToRemoveIds.has(t.subjectId))) {
+        topicsToRemoveIds.add(t.id);
+        removed.topics.push(t.id);
+      }
+    }
+  } else if (params.targetType === 'subject') {
+    subjectsToRemoveIds.add(params.targetId);
+    removed.subjects.push(params.targetId);
+    for (const t of enrichedLocalTopics) {
+      if (t.subjectId === params.targetId) {
+        topicsToRemoveIds.add(t.id);
+        removed.topics.push(t.id);
+      }
+    }
+  } else {
+    topicsToRemoveIds.add(params.targetId);
+    removed.topics.push(params.targetId);
+  }
+
+  let freedBytes = 0;
+
+  // Delete media from IndexedDB for all removed topics (preserving a copy in the cloud mirror if needed)
+  for (const topicId of topicsToRemoveIds) {
+    const targetTopic = params.currentTopics.find((t) => t.id === topicId);
+    if (targetTopic) {
+      freedBytes += computeEntitySizeBytes(targetTopic);
+      const mediaRecords = await getMediaRecordsByTopicId(topicId);
+      if (mediaRecords.length > 0) {
+        const withMedia = mergeRecordsIntoCloudSnapshot(loadUnifiedCloudMirror(), {
+          mediaRecords
+        });
+        saveUnifiedCloudMirror(withMedia.snapshot);
+      }
+      const inlineKeys: string[] = [];
+      for (const sec of targetTopic.sections || []) {
+        for (const cb of sec.contentBlocks || []) {
+          if (cb.mediaIdbKey) inlineKeys.push(cb.mediaIdbKey);
+        }
+      }
+      if (inlineKeys.length > 0) {
+        await deleteLocalMediaRecordsByKeys(inlineKeys);
+      }
+      await deleteLocalMediaRecordsByTopicId(topicId);
+    }
+  }
+
+  const updatedBlocks = localBlocks.filter((b) => {
+    if (blocksToRemoveIds.has(b.id)) {
+      freedBytes += computeEntitySizeBytes(b);
+      return false;
+    }
+    return true;
+  });
+
+  const updatedSubjects = localSubjects.filter((s) => {
+    if (subjectsToRemoveIds.has(s.id)) {
+      freedBytes += computeEntitySizeBytes(s);
+      return false;
+    }
+    return true;
+  });
+
+  const updatedTopics = params.currentTopics.filter((t) => !topicsToRemoveIds.has(t.id));
+
+  saveMedicalBlocks(updatedBlocks);
+  saveMedicalSubjects(updatedSubjects);
+  saveLocallyRemovedRegistry(removed);
+  notifyCloudLibraryListeners();
+
+  return {
+    success: true,
+    removedTopicsCount: topicsToRemoveIds.size,
+    freedBytes,
+    updatedTopics,
+    updatedTerms: params.currentTerms,
+    updatedBlocks,
+    updatedSubjects,
+    messageAr: `تم حذف العنصر من التخزين المحلي بالكامل وتفريغ ${formatBytesLabel(
+      freedBytes
+    )} — يمكنك إعادة تنزيله في أي وقت من «المكتبة السحابية».`
+  };
+}

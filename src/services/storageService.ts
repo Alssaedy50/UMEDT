@@ -245,7 +245,9 @@ export const DEFAULT_STUDY_STATS: StudyStats = {
 };
 
 // Fallback in-memory store for non-browser test runners (Node.js) when window.localStorage is absent
-const memoryFallbackStore = new Map<string, string>();
+const memoryFallbackStore = ((
+  globalThis as unknown as { __UMED_SHARED_MEMORY_STORAGE__?: Map<string, string> }
+).__UMED_SHARED_MEMORY_STORAGE__ ??= new Map<string, string>());
 
 function getStorageRawItem(key: string): string | null {
   if (typeof window !== 'undefined' && window.localStorage) {
@@ -1135,13 +1137,23 @@ export function loadAppState(): PersistedAppState {
     rawSentences = [...INITIAL_LINKED_SENTENCES];
   }
 
+  const removedCloudRegistry = safeReadJson<{
+    topics?: string[];
+  }>('umed_locally_removed_cloud_ids_v1', { topics: [] });
+  const removedTopicIds = new Set(
+    Array.isArray(removedCloudRegistry.topics) ? removedCloudRegistry.topics : []
+  );
+
   let topics: TopicArticle[];
-  if (Array.isArray(storedTopics) && storedTopics.length > 0) {
-    const existingTopicIds = new Set(storedTopics.map((tp) => tp.id));
-    const missingTopicSeeds = INITIAL_TOPICS.filter((seed) => !existingTopicIds.has(seed.id));
-    topics = [...storedTopics, ...missingTopicSeeds];
+  if (Array.isArray(storedTopics)) {
+    const filteredStored = storedTopics.filter((tp) => !removedTopicIds.has(tp.id));
+    const existingTopicIds = new Set(filteredStored.map((tp) => tp.id));
+    const missingTopicSeeds = INITIAL_TOPICS.filter(
+      (seed) => !existingTopicIds.has(seed.id) && !removedTopicIds.has(seed.id)
+    );
+    topics = [...filteredStored, ...missingTopicSeeds];
   } else {
-    topics = [...INITIAL_TOPICS];
+    topics = INITIAL_TOPICS.filter((seed) => !removedTopicIds.has(seed.id));
   }
 
   const sentences = deduplicateAndEnsureUniqueSentenceIds(rawSentences);
@@ -2064,6 +2076,7 @@ export function importFullDatabaseJson(
 export function resetToDefaults(): PersistedAppState {
   try {
     Object.values(STORAGE_KEYS).forEach((k) => removeStorageRawItem(k));
+    removeStorageRawItem('umed_locally_removed_cloud_ids_v1');
   } catch (err) {
     console.warn('[StorageService] Error clearing localStorage:', err);
   }

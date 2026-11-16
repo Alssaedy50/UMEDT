@@ -92,6 +92,7 @@ import {
 } from './TopicContentBlockEditor';
 import { QuizCenterModal } from './QuizCenterModal';
 import { GranularExportModal } from './GranularExportModal';
+import { enqueueEntitiesForCloudSync } from '../services/cloudLibrarySyncService';
 import {
   prepareAndDownloadFile,
   base64ToUint8Array
@@ -766,6 +767,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         : [...blocks, nextBlock];
       setBlocks(nextBlocks);
       saveMedicalBlocks(nextBlocks);
+      void enqueueEntitiesForCloudSync({ blocks: [nextBlock] });
       setSetupBlockId(nextBlock.id);
       setDraftBlockId(nextBlock.id);
       const firstSubjInBlock = subjects.find((s) => s.blockId === nextBlock.id);
@@ -797,6 +799,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         : [...subjects, nextSubj];
       setSubjects(nextSubjects);
       saveMedicalSubjects(nextSubjects);
+      void enqueueEntitiesForCloudSync({ subjects: [nextSubj] });
       if (nextSubj.blockId) {
         setSetupBlockId(nextSubj.blockId);
         setDraftBlockId(nextSubj.blockId);
