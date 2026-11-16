@@ -17,7 +17,11 @@ import {
   Download,
   Upload,
   CheckCircle2,
-  XCircle
+  XCircle,
+  GitBranch,
+  FileText,
+  BookOpen,
+  GraduationCap
 } from 'lucide-react';
 import {
   TopicContentBlock,
@@ -34,11 +38,21 @@ import {
   downloadRemoteMediaToOfflineCache,
   openMediaInExternalApp
 } from '../services/mediaStorageService';
+import { loadAcademicBooks, loadAcademicExams } from '../services/learningHierarchyService';
 import { executeVerifiedExportDownload } from '../services/exportDownloadService';
 import {
   prepareAndDownloadFile,
   base64ToUint8Array
 } from '../utils/downloadHelper';
+
+export function sanitizeSvgMarkup(rawSvg: string): string {
+  if (!rawSvg || typeof rawSvg !== 'string') return '';
+  return rawSvg
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<foreignObject[\s\S]*?>[\s\S]*?<\/foreignObject>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/javascript\s*:/gi, '');
+}
 
 const CONTENT_BLOCK_TYPE_META: Record<
   ContentBlockType,
@@ -97,6 +111,26 @@ const CONTENT_BLOCK_TYPE_META: Record<
     labelEn: 'Clinical Correlation / High-Yield Note',
     labelAr: 'ملاحظة سريرية أو تنبيه امتحاني',
     icon: AlertCircle
+  },
+  diagram: {
+    labelEn: 'SVG Diagram / Flowchart',
+    labelAr: 'مخطط أو رسم تفاعلي',
+    icon: GitBranch
+  },
+  pdf_viewer: {
+    labelEn: 'Interactive PDF Reader',
+    labelAr: 'عارض PDF تفاعلي',
+    icon: FileText
+  },
+  book_reference: {
+    labelEn: 'Academic Book Reference',
+    labelAr: 'مرجع كتاب أكاديمي',
+    icon: BookOpen
+  },
+  exam_link: {
+    labelEn: 'Exam / Quiz Link',
+    labelAr: 'رابط اختبار تفاعلي',
+    icon: GraduationCap
   }
 };
 
@@ -109,11 +143,12 @@ interface SectionContentBlocksRendererProps {
   sectionId: string;
   blocks: TopicContentBlock[];
   showToast: (msg: string, type?: string) => void;
+  onOpenExamOrQuiz?: (examId?: string, topicId?: string) => void;
 }
 
 export const SectionContentBlocksRenderer: React.FC<
   SectionContentBlocksRendererProps
-> = ({ topicId, sectionId, blocks, showToast }) => {
+> = ({ topicId, sectionId, blocks, showToast, onOpenExamOrQuiz }) => {
   const [inlineQuizAnswers, setInlineQuizAnswers] = useState<
     Record<string, string>
   >({});
@@ -765,7 +800,326 @@ export const SectionContentBlocksRenderer: React.FC<
           );
         }
 
-        return null;
+        if (blk.type === 'diagram') {
+          const remoteUrl =
+            blk.externalUrl ||
+            (blk.mediaUrl && /^https?:\/\//i.test(blk.mediaUrl) ? blk.mediaUrl : '');
+          const rawSvg = blk.diagramSvg ? sanitizeSvgMarkup(blk.diagramSvg) : '';
+          const imgSrc =
+            resolvedMediaUrls[blk.id] ||
+            (blk.mediaUrl && !blk.mediaUrl.startsWith('idb://') ? blk.mediaUrl : '') ||
+            remoteUrl;
+          const svgDataUri = rawSvg
+            ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(rawSvg)}`
+            : '';
+          const isCachedLocally = Boolean(
+            rawSvg || resolvedMediaUrls[blk.id] || (imgSrc && imgSrc.startsWith('data:'))
+          );
+
+          return (
+            <figure
+              key={blk.id}
+              className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 my-2 max-w-full"
+            >
+              {(blk.titleEn || blk.titleAr) && (
+                <div className="px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                  <span dir="ltr" className="text-xs font-extrabold text-slate-900 dark:text-white">
+                    {blk.titleEn || 'Medical Diagram'}
+                  </span>
+                  {blk.titleAr && (
+                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                      {blk.titleAr}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {rawSvg ? (
+                <div
+                  onClick={() =>
+                    setZoomedImage({
+                      src: svgDataUri,
+                      caption: blk.captionEn || blk.captionAr || blk.titleAr || blk.titleEn || ''
+                    })
+                  }
+                  className="p-3 bg-white dark:bg-slate-950 flex justify-center overflow-x-auto cursor-zoom-in [&>svg]:max-w-full [&>svg]:h-auto"
+                  dangerouslySetInnerHTML={{ __html: rawSvg }}
+                />
+              ) : imgSrc ? (
+                <img
+                  src={imgSrc}
+                  alt={blk.captionEn || blk.titleEn || 'Medical diagram'}
+                  referrerPolicy="no-referrer"
+                  onClick={() =>
+                    setZoomedImage({
+                      src: imgSrc,
+                      caption: blk.captionEn || blk.captionAr || blk.titleAr || ''
+                    })
+                  }
+                  className="w-full max-w-full h-auto max-h-[420px] object-contain mx-auto bg-slate-950 cursor-zoom-in"
+                />
+              ) : (
+                <div className="p-4 text-xs text-slate-600 dark:text-slate-300 whitespace-pre-line">
+                  {blk.text || blk.captionAr || blk.captionEn || 'مخطط توضيحي'}
+                </div>
+              )}
+
+              <figcaption className="px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-xs flex flex-wrap items-center justify-between gap-2">
+                <span className="text-slate-700 dark:text-slate-300 break-words">
+                  {blk.captionAr || blk.captionEn || blk.text || 'مخطط علمي'}
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  {remoteUrl && !isCachedLocally && (
+                    <button
+                      type="button"
+                      disabled={downloadingBlockId === blk.id}
+                      onClick={() => void handleCacheExternalMediaOffline(blk, remoteUrl)}
+                      className="min-h-[36px] px-2.5 py-1 rounded-xl bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1 whitespace-nowrap shrink-0"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>{downloadingBlockId === blk.id ? 'تنزيل...' : 'حفظ أوفلاين'}</span>
+                    </button>
+                  )}
+                  {(svgDataUri || imgSrc) && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setZoomedImage({
+                          src: svgDataUri || imgSrc,
+                          caption: blk.captionAr || blk.captionEn || blk.titleEn || ''
+                        })
+                      }
+                      className="min-h-[36px] px-2.5 py-1 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-[11px] font-bold whitespace-nowrap shrink-0"
+                    >
+                      تكبير
+                    </button>
+                  )}
+                </div>
+              </figcaption>
+            </figure>
+          );
+        }
+
+        if (blk.type === 'pdf_viewer') {
+          const remoteUrl =
+            blk.externalUrl ||
+            (blk.mediaUrl && /^https?:\/\//i.test(blk.mediaUrl) ? blk.mediaUrl : '');
+          const resolvedSrc =
+            resolvedMediaUrls[blk.id] ||
+            (blk.mediaUrl && !blk.mediaUrl.startsWith('idb://') ? blk.mediaUrl : '') ||
+            remoteUrl;
+          const isCachedLocally = Boolean(
+            resolvedMediaUrls[blk.id] || resolvedSrc.startsWith('data:')
+          );
+
+          return (
+            <div
+              key={blk.id}
+              className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3"
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <FileText className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <p className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white truncate">
+                    {blk.titleAr || blk.titleEn || blk.mediaFileName || 'ملف PDF'}
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums break-words">
+                    {blk.mediaFileName || 'PDF'} ·{' '}
+                    {blk.mediaSizeBytes
+                      ? formatBytesLabel(blk.mediaSizeBytes)
+                      : blk.text || (isCachedLocally ? 'متاح أوفلاين' : 'رابط سحابي')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                {resolvedSrc && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setInlinePdfModal({
+                        url: resolvedSrc,
+                        title: blk.titleAr || blk.titleEn || blk.mediaFileName || 'PDF',
+                        mimeType: blk.mediaMimeType || 'application/pdf'
+                      })
+                    }
+                    className="min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-900 dark:bg-slate-800 text-white text-xs font-extrabold whitespace-nowrap shrink-0"
+                  >
+                    معاينة PDF
+                  </button>
+                )}
+                {remoteUrl && !isCachedLocally && (
+                  <button
+                    type="button"
+                    disabled={downloadingBlockId === blk.id}
+                    onClick={() => void handleCacheExternalMediaOffline(blk, remoteUrl)}
+                    className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-extrabold flex items-center gap-1 whitespace-nowrap shrink-0"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{downloadingBlockId === blk.id ? 'تنزيل...' : 'حفظ أوفلاين'}</span>
+                  </button>
+                )}
+                {resolvedSrc && (
+                  <button
+                    type="button"
+                    onClick={() => void handleOpenInExternalApp(blk, resolvedSrc)}
+                    className="min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center gap-1 whitespace-nowrap shrink-0"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>فتح</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        if (blk.type === 'book_reference') {
+          const matchedBook = blk.bookId
+            ? loadAcademicBooks().find((b) => b.id === blk.bookId)
+            : undefined;
+          const bookTitle =
+            blk.titleAr ||
+            matchedBook?.titleAr ||
+            blk.titleEn ||
+            matchedBook?.titleEn ||
+            'مرجع كتاب طبي';
+          const bookPdfUrl =
+            resolvedMediaUrls[blk.id] ||
+            (blk.mediaUrl && !blk.mediaUrl.startsWith('idb://') ? blk.mediaUrl : '') ||
+            blk.externalUrl ||
+            matchedBook?.pdfUrl ||
+            matchedBook?.mediaUrl ||
+            matchedBook?.externalUrl ||
+            '';
+
+          const handleOpenBook = async () => {
+            if (matchedBook?.mediaIdbKey) {
+              const rec = await getLocalMediaRecord(matchedBook.mediaIdbKey);
+              if (rec?.dataUrl) {
+                setInlinePdfModal({
+                  url: rec.dataUrl,
+                  title: bookTitle,
+                  mimeType: rec.mimeType || 'application/pdf'
+                });
+                return;
+              }
+            }
+            if (bookPdfUrl) {
+              setInlinePdfModal({
+                url: bookPdfUrl,
+                title: bookTitle,
+                mimeType: 'application/pdf'
+              });
+              return;
+            }
+            showToast('المرجع غير مرتبط بملف PDF قابل للعرض محلياً بعد', 'info');
+          };
+
+          return (
+            <div
+              key={blk.id}
+              className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3"
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <BookOpen className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <p className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white break-words">
+                    {bookTitle}
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 break-words">
+                    {blk.text || blk.captionAr || blk.captionEn || (matchedBook ? `${matchedBook.authors?.join('، ') || 'مرجع أكاديمي'} · ${(matchedBook.fileFormat || 'pdf').toUpperCase()}` : blk.bookId || 'مرجع علمي')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => void handleOpenBook()}
+                  className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-extrabold whitespace-nowrap shrink-0"
+                >
+                  فتح الكتاب
+                </button>
+                {bookPdfUrl && /^https?:\/\//i.test(bookPdfUrl) && !resolvedMediaUrls[blk.id] && (
+                  <button
+                    type="button"
+                    disabled={downloadingBlockId === blk.id}
+                    onClick={() => void handleCacheExternalMediaOffline(blk, bookPdfUrl)}
+                    className="min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center gap-1 whitespace-nowrap shrink-0"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{downloadingBlockId === blk.id ? 'تنزيل...' : 'أوفلاين'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        if (blk.type === 'exam_link') {
+          const matchedExam = blk.examId
+            ? loadAcademicExams().find((ex) => ex.id === blk.examId)
+            : undefined;
+          const examTitle =
+            blk.titleAr ||
+            matchedExam?.titleAr ||
+            blk.titleEn ||
+            matchedExam?.titleEn ||
+            'اختبار التقييم الذاتي';
+          const qCount = matchedExam?.questionIds?.length || matchedExam?.questions?.length;
+
+          return (
+            <div
+              key={blk.id}
+              className="p-3.5 sm:p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/30 flex flex-wrap items-center justify-between gap-3"
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <GraduationCap className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <p className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white break-words">
+                    {examTitle}
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 break-words">
+                    {blk.text ||
+                      (matchedExam
+                        ? `${qCount || 0} سؤال · ${matchedExam.durationMinutes || 15} دقيقة`
+                        : 'اختبار تدريبي مرتبط بالموضوع')}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onOpenExamOrQuiz) {
+                    onOpenExamOrQuiz(blk.examId, topicId);
+                  } else {
+                    showToast('يمكنك فتح الاختبار من شريط الاختبارات بالأعلى', 'info');
+                  }
+                }}
+                className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold whitespace-nowrap shrink-0"
+              >
+                بدء الاختبار
+              </button>
+            </div>
+          );
+        }
+
+        return (
+          <div
+            key={blk.id}
+            className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1"
+          >
+            {(blk.titleEn || blk.titleAr) && (
+              <p className="text-xs font-extrabold text-slate-900 dark:text-white">
+                {blk.titleAr || blk.titleEn}
+              </p>
+            )}
+            {blk.text && (
+              <p className="text-xs text-slate-600 dark:text-slate-300 whitespace-pre-line">
+                {blk.text}
+              </p>
+            )}
+          </div>
+        );
       })}
 
       {/* Image Zoom Lightbox Modal */}
@@ -1000,6 +1354,40 @@ export const SectionContentBlocksEditor: React.FC<
       newBlock = {
         ...newBlock,
         inlineQuestion: inlineQ
+      };
+    } else if (type === 'diagram') {
+      newBlock = {
+        ...newBlock,
+        titleEn: 'Medical Concept Diagram',
+        titleAr: 'مخطط توضيحي للمفاهيم',
+        diagramSvg: '',
+        captionAr: '',
+        externalUrl: ''
+      };
+    } else if (type === 'pdf_viewer') {
+      newBlock = {
+        ...newBlock,
+        titleEn: 'Reference PDF Viewer',
+        titleAr: 'عرض ملف PDF مرجعي',
+        externalUrl: '',
+        mediaFileName: 'reference.pdf'
+      };
+    } else if (type === 'book_reference') {
+      newBlock = {
+        ...newBlock,
+        titleEn: 'Academic Textbook Chapter',
+        titleAr: 'مرجع من كتاب أكاديمي',
+        bookId: '',
+        externalUrl: '',
+        text: 'الفصل الأول · الصفحات 1-18'
+      };
+    } else if (type === 'exam_link') {
+      newBlock = {
+        ...newBlock,
+        titleEn: 'Topic Assessment Exam',
+        titleAr: 'اختبار تقييم الموضوع',
+        examId: '',
+        text: 'اختبار شامل لأسئلة هذا الموضوع'
       };
     }
 
@@ -1611,6 +1999,143 @@ export const SectionContentBlocksEditor: React.FC<
                   }
                   placeholder="Explanation of the correct answer..."
                   className="w-full px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                />
+              </div>
+            )}
+
+            {blk.type === 'diagram' && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={blk.titleEn || ''}
+                    onChange={(e) => updateBlockById(blk.id, { titleEn: e.target.value })}
+                    placeholder="Diagram Title (EN)..."
+                    className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                  />
+                  <input
+                    type="text"
+                    value={blk.titleAr || ''}
+                    onChange={(e) => updateBlockById(blk.id, { titleAr: e.target.value })}
+                    placeholder="عنوان المخطط بالعربية..."
+                    className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                  />
+                </div>
+                <textarea
+                  rows={3}
+                  dir="ltr"
+                  value={blk.diagramSvg || ''}
+                  onChange={(e) => updateBlockById(blk.id, { diagramSvg: e.target.value })}
+                  placeholder="<svg viewBox='0 0 400 200'>...</svg> أو اتركه فارغاً لاستخدام رابط الصورة"
+                  className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono"
+                />
+                <input
+                  type="url"
+                  dir="ltr"
+                  value={blk.externalUrl || ''}
+                  onChange={(e) =>
+                    updateBlockById(blk.id, {
+                      externalUrl: e.target.value,
+                      mediaUrl: e.target.value
+                    })
+                  }
+                  placeholder="أو رابط صورة المخطط (https://...)"
+                  className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                />
+              </div>
+            )}
+
+            {blk.type === 'pdf_viewer' && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={blk.titleAr || ''}
+                    onChange={(e) => updateBlockById(blk.id, { titleAr: e.target.value })}
+                    placeholder="عنوان ملف PDF بالعربية..."
+                    className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                  />
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={blk.mediaFileName || ''}
+                    onChange={(e) => updateBlockById(blk.id, { mediaFileName: e.target.value })}
+                    placeholder="filename.pdf"
+                    className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono"
+                  />
+                </div>
+                <input
+                  type="url"
+                  dir="ltr"
+                  value={blk.externalUrl || ''}
+                  onChange={(e) =>
+                    updateBlockById(blk.id, {
+                      externalUrl: e.target.value,
+                      mediaUrl: e.target.value
+                    })
+                  }
+                  placeholder="رابط ملف PDF المباشر (https://...pdf)"
+                  className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                />
+              </div>
+            )}
+
+            {blk.type === 'book_reference' && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={blk.titleAr || ''}
+                    onChange={(e) => updateBlockById(blk.id, { titleAr: e.target.value })}
+                    placeholder="اسم الكتاب أو الفصل..."
+                    className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                  />
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={blk.bookId || ''}
+                    onChange={(e) => updateBlockById(blk.id, { bookId: e.target.value })}
+                    placeholder="bookId (e.g. book-robbins-heme)"
+                    className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono"
+                  />
+                </div>
+                <input
+                  type="url"
+                  dir="ltr"
+                  value={blk.externalUrl || ''}
+                  onChange={(e) => updateBlockById(blk.id, { externalUrl: e.target.value })}
+                  placeholder="رابط PDF الكتاب (اختياري https://...)"
+                  className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                />
+              </div>
+            )}
+
+            {blk.type === 'exam_link' && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={blk.titleAr || ''}
+                    onChange={(e) => updateBlockById(blk.id, { titleAr: e.target.value })}
+                    placeholder="عنوان الاختبار المرتبط..."
+                    className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                  />
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={blk.examId || ''}
+                    onChange={(e) => updateBlockById(blk.id, { examId: e.target.value })}
+                    placeholder="examId (e.g. exam-heme-01)"
+                    className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono"
+                  />
+                </div>
+                <input
+                  type="text"
+                  value={blk.text || ''}
+                  onChange={(e) => updateBlockById(blk.id, { text: e.target.value })}
+                  placeholder="وصف مختصر للاختبار..."
+                  className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                 />
               </div>
             )}

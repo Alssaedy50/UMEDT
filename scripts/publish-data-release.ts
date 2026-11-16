@@ -227,7 +227,7 @@ export async function executeProductionDataReleasePublish(
   const channelPrefix = channel === 'beta' ? 'beta' : 'stable';
   const defaultPackageFileName = `umed2-data-${targetVersion}.zip`;
 
-  const dataRepository = (env.UMED_DATA_REPOSITORY || 'Alssaedy50/UMEDT_DATA')
+  const dataRepository = (env.UMED_DATA_REPOSITORY || 'Alssaedy50/UMEDT-DATA')
     .trim()
     .replace(/^https?:\/\/github\.com\//i, '')
     .replace(/\.git$/i, '')

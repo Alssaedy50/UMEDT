@@ -11,11 +11,17 @@ import {
   UnifiedQuizQuestion,
   QuizAttemptRecord,
   StudyStats,
-  VersionMetadata
+  VersionMetadata,
+  AcademicBookResource,
+  AcademicExamPackage,
+  MediaAssetRecord
 } from '../types/lexicon';
 import {
   loadMedicalBlocks,
-  loadMedicalSubjects
+  loadMedicalSubjects,
+  loadAcademicBooks,
+  loadAcademicExams,
+  loadMediaAssetsIndex
 } from './learningHierarchyService';
 import {
   loadQuizQuestions,
@@ -32,6 +38,8 @@ export interface ConciseDataSummary {
   subjectsCount: number;
   sentencesCount: number;
   questionsCount: number;
+  booksCount?: number;
+  examsCount?: number;
   favoritesCount: number;
   sizeKB: number;
   timestamp: string;
@@ -577,9 +585,20 @@ export interface FullUnifiedBackupPayload {
     subjects: MedicalSubject[];
     quizQuestions: UnifiedQuizQuestion[];
     quizAttempts: QuizAttemptRecord[];
+    books?: AcademicBookResource[];
+    exams?: AcademicExamPackage[];
+    mediaAssets?: MediaAssetRecord[];
     studyStats?: StudyStats;
     versionMetadata: VersionMetadata;
   };
+}
+
+function stripBinaryMediaFromBooksForBackup(books: AcademicBookResource[]): AcademicBookResource[] {
+  return (books || []).map((bk) => ({
+    ...bk,
+    pdfUrl: isInlineBinaryDataUrl(bk.pdfUrl) ? `idb://${bk.mediaIdbKey || bk.id}` : bk.pdfUrl,
+    coverUrl: isInlineBinaryDataUrl(bk.coverUrl) ? undefined : bk.coverUrl
+  }));
 }
 
 export function buildConciseDataSummary(params: {
@@ -589,6 +608,8 @@ export function buildConciseDataSummary(params: {
   blocks?: MedicalBlock[];
   subjects?: MedicalSubject[];
   questions?: UnifiedQuizQuestion[];
+  books?: AcademicBookResource[];
+  exams?: AcademicExamPackage[];
   sourceLabel?: string;
   rawSizeBytes?: number;
 }): ConciseDataSummary {
@@ -598,6 +619,8 @@ export function buildConciseDataSummary(params: {
   const blocks = params.blocks ?? loadMedicalBlocks();
   const subjects = params.subjects ?? loadMedicalSubjects();
   const questions = params.questions ?? loadQuizQuestions(topics, terms);
+  const books = params.books ?? loadAcademicBooks();
+  const exams = params.exams ?? loadAcademicExams();
 
   const favoritesCount =
     terms.filter((t) => t.favorite).length +
@@ -610,7 +633,9 @@ export function buildConciseDataSummary(params: {
       JSON.stringify({
         t: terms.length,
         s: sentences.length,
-        tp: topics.length
+        tp: topics.length,
+        bk: books.length,
+        ex: exams.length
       })
     ]).size;
 
@@ -625,6 +650,8 @@ export function buildConciseDataSummary(params: {
   if (subjects.length > 0) parts.push(`${subjects.length} مادة`);
   if (sentences.length > 0) parts.push(`${sentences.length} جملة`);
   if (questions.length > 0) parts.push(`${questions.length} سؤال`);
+  if (books.length > 0) parts.push(`${books.length} كتاب`);
+  if (exams.length > 0) parts.push(`${exams.length} اختبار`);
 
   const shortText =
     parts.length > 0 ? parts.join(' · ') : 'لا توجد سجلات مضافة';
@@ -636,6 +663,8 @@ export function buildConciseDataSummary(params: {
     subjectsCount: subjects.length,
     sentencesCount: sentences.length,
     questionsCount: questions.length,
+    booksCount: books.length,
+    examsCount: exams.length,
     favoritesCount,
     sizeKB,
     timestamp,
@@ -658,8 +687,11 @@ export function createUnifiedBackupPackage(
 } {
   const blocks = loadMedicalBlocks();
   const subjects = loadMedicalSubjects();
-  // Always strip heavy binary media from backup topics while keeping URLs & metadata references
+  // Always strip heavy binary media from backup topics & books while keeping URLs & metadata references
   const sanitizedTopics = stripBinaryMediaFromTopicsForBackup(topics);
+  const sanitizedBooks = stripBinaryMediaFromBooksForBackup(loadAcademicBooks());
+  const exams = loadAcademicExams();
+  const mediaAssets = loadMediaAssetsIndex();
   const quizQuestions = loadQuizQuestions(sanitizedTopics, terms);
   const quizAttempts = loadQuizAttempts();
   const resolvedMetadata = versionMetadata || createDefaultVersionMetadata();
@@ -672,6 +704,9 @@ export function createUnifiedBackupPackage(
     subjects,
     quizQuestions,
     quizAttempts,
+    books: sanitizedBooks,
+    exams,
+    mediaAssets,
     studyStats,
     versionMetadata: resolvedMetadata
   };
@@ -684,6 +719,8 @@ export function createUnifiedBackupPackage(
     blocks,
     subjects,
     questions: quizQuestions,
+    books: sanitizedBooks,
+    exams,
     sourceLabel,
     rawSizeBytes: new Blob([rawJson]).size
   });

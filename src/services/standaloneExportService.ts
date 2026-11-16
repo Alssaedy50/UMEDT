@@ -4,7 +4,9 @@ import {
   MedicalBlock,
   MedicalSubject,
   UnifiedQuizQuestion,
-  LocalMediaRecord
+  LocalMediaRecord,
+  AcademicBookResource,
+  AcademicExamPackage
 } from '../types/lexicon';
 import {
   getAllLocalMediaRecordsMap,
@@ -15,6 +17,7 @@ import {
   stripBinaryMediaFromTopicsForBackup,
   redactBotTokenFromText
 } from './telegramBackupService';
+import { computeDeterministicFastHashHex } from './cloudLibrarySyncService';
 import { resolveTermsForTopics } from './exportDownloadService';
 import { base64ToUint8Array } from '../utils/downloadHelper';
 
@@ -37,6 +40,8 @@ export interface StandaloneExportParams {
   topics?: TopicArticle[];
   allTerms: DictionaryTerm[];
   allQuestions: UnifiedQuizQuestion[];
+  books?: AcademicBookResource[];
+  exams?: AcademicExamPackage[];
   includeLocalMedia: boolean;
   /**
    * When true, local media inside HTML will reference relative `media/<filename>` paths
@@ -53,6 +58,16 @@ function escapeHtml(raw: unknown): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function sanitizeSvgMarkup(rawSvg: string): string {
+  const input = String(rawSvg || '').trim();
+  if (!input || !/<svg[\s>]/i.test(input)) return '';
+  return input
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/javascript\s*:/gi, '');
 }
 
 function sanitizeZipEntryName(rawName: string, fallback: string): string {
@@ -260,6 +275,30 @@ export async function generateStandaloneHtmlDocument(
 
   const linkedTerms = resolveTermsForTopics(targetTopics, params.allTerms);
   const topicIdSet = new Set(targetTopics.map((t) => t.id));
+  const referencedBookIds = new Set<string>();
+  const referencedExamIds = new Set<string>();
+  for (const tp of targetTopics) {
+    for (const sec of tp.sections || []) {
+      for (const cb of sec.contentBlocks || []) {
+        if (cb.bookId) referencedBookIds.add(cb.bookId);
+        if (cb.examId) referencedExamIds.add(cb.examId);
+      }
+    }
+  }
+  const linkedBooks = (params.books || []).filter(
+    (bk) =>
+      referencedBookIds.has(bk.id) ||
+      (bk.topicIds || []).some((tid) => topicIdSet.has(tid)) ||
+      (normalizedScope === 'complete_block' && params.block && bk.blockId === params.block.id) ||
+      (normalizedScope === 'complete_subject' && params.subject && bk.subjectId === params.subject.id)
+  );
+  const linkedExams = (params.exams || []).filter(
+    (ex) =>
+      referencedExamIds.has(ex.id) ||
+      (ex.topicIds || []).some((tid) => topicIdSet.has(tid)) ||
+      (normalizedScope === 'complete_block' && params.block && ex.blockId === params.block.id) ||
+      (normalizedScope === 'complete_subject' && params.subject && ex.subjectId === params.subject.id)
+  );
   const linkedQuestions = params.allQuestions.filter(
     (q) =>
       (q.topicId && topicIdSet.has(q.topicId)) ||
@@ -290,7 +329,13 @@ export async function generateStandaloneHtmlDocument(
     const idbKey = raw.startsWith('idb://')
       ? raw.slice(6)
       : opts.mediaIdbKey || '';
-    const record = idbKey ? mediaMap.get(idbKey) : undefined;
+    const hashedExternalKey = externalHref
+      ? `idb-${computeDeterministicFastHashHex(externalHref).slice(0, 16)}`
+      : '';
+    const record =
+      (idbKey ? mediaMap.get(idbKey) : undefined) ||
+      (hashedExternalKey ? mediaMap.get(hashedExternalKey) : undefined);
+    const resolvedKey = record?.id || idbKey || hashedExternalKey;
     const localDataUrl =
       record?.dataUrl || (raw.startsWith('data:') ? raw : '');
 
@@ -305,7 +350,7 @@ export async function generateStandaloneHtmlDocument(
       includedLocalMediaCount += 1;
       if (params.useRelativeZipMediaPaths) {
         const baseName = sanitizeZipEntryName(
-          opts.fileName || record?.fileName || `${idbKey || 'media'}.${opts.fallbackExt}`,
+          opts.fileName || record?.fileName || `${resolvedKey || 'media'}.${opts.fallbackExt}`,
           `media_${Date.now()}.${opts.fallbackExt}`
         );
         const zipEntryPath = `media/${baseName}`;
@@ -514,6 +559,91 @@ export async function generateStandaloneHtmlDocument(
                       cb.mediaFileName || 'Document'
                     )})</div>`
               }</div>`;
+            }
+            if (cb.type === 'diagram') {
+              const safeSvg = cb.diagramSvg ? sanitizeSvgMarkup(cb.diagramSvg) : '';
+              if (safeSvg) {
+                return `<figure class="media-card"><div class="diagram-wrap">${safeSvg}</div><figcaption>${escapeHtml(
+                  cb.captionEn || cb.titleEn || cb.titleAr || ''
+                )}</figcaption></figure>`;
+              }
+              const resolved = resolveMediaUrlForStandalone({
+                rawUrl: cb.mediaUrl,
+                externalUrl: cb.externalUrl,
+                mediaIdbKey: cb.mediaIdbKey,
+                fileName: cb.mediaFileName,
+                fallbackExt: 'svg'
+              });
+              return `<figure class="media-card">${
+                resolved.resolvedSrc
+                  ? `<img src="${escapeHtml(resolved.resolvedSrc)}" alt="${escapeHtml(
+                      cb.titleEn || cb.captionEn || 'Medical Diagram'
+                    )}" loading="lazy" />`
+                  : `<div class="omitted-media">مخطط طبي (${escapeHtml(
+                      cb.titleAr || cb.titleEn || 'Diagram'
+                    )})</div>`
+              }<figcaption>${escapeHtml(cb.titleAr || cb.titleEn || cb.captionEn || '')}</figcaption></figure>`;
+            }
+            if (cb.type === 'pdf_viewer') {
+              const resolved = resolveMediaUrlForStandalone({
+                rawUrl: cb.mediaUrl,
+                externalUrl: cb.externalUrl,
+                mediaIdbKey: cb.mediaIdbKey,
+                fileName: cb.mediaFileName,
+                fallbackExt: 'pdf'
+              });
+              const pdfHref = resolved.resolvedSrc || resolved.externalHref;
+              return `<div class="media-card"><div class="media-header"><strong dir="ltr">${escapeHtml(
+                cb.titleEn || cb.mediaFileName || 'PDF Document'
+              )}</strong><span>${escapeHtml(cb.titleAr || 'عارض PDF')}</span></div>${
+                pdfHref
+                  ? `<iframe src="${escapeHtml(pdfHref)}" class="video-frame" title="${escapeHtml(
+                      cb.titleEn || cb.mediaFileName || 'PDF Viewer'
+                    )}"></iframe><div class="media-actions"><a href="${escapeHtml(
+                      pdfHref
+                    )}" download="${escapeHtml(
+                      cb.mediaFileName || 'document.pdf'
+                    )}" target="_blank" rel="noopener noreferrer" class="ext-btn">فتح / تنزيل PDF ↗</a></div>`
+                  : `<div class="omitted-media">مستند PDF محلي غير مضمّن (${escapeHtml(
+                      cb.mediaFileName || 'Document'
+                    )})</div>`
+              }</div>`;
+            }
+            if (cb.type === 'book_reference') {
+              const refBook = (params.books || []).find((bk) => bk.id === cb.bookId);
+              const resolvedBookPdf = refBook?.pdfUrl || refBook?.mediaIdbKey
+                ? resolveMediaUrlForStandalone({
+                    rawUrl: refBook.pdfUrl,
+                    externalUrl: refBook.pdfUrl,
+                    mediaIdbKey: refBook.mediaIdbKey,
+                    fileName: `${refBook.id}.pdf`,
+                    fallbackExt: 'pdf'
+                  })
+                : { resolvedSrc: cb.externalUrl || '', externalHref: cb.externalUrl || '', isOmittedLocal: false };
+              const bookHref = resolvedBookPdf.resolvedSrc || resolvedBookPdf.externalHref;
+              return `<div class="clinical-note"><div class="note-head"><span dir="ltr">${escapeHtml(
+                refBook?.titleEn || cb.titleEn || 'Book Reference'
+              )}</span><span>${escapeHtml(
+                refBook?.titleAr || cb.titleAr || 'مرجع كتاب'
+              )}</span></div>${
+                cb.text ? `<p dir="auto">${escapeHtml(cb.text)}</p>` : ''
+              }${
+                bookHref
+                  ? `<div class="media-actions"><a href="${escapeHtml(
+                      bookHref
+                    )}" target="_blank" rel="noopener noreferrer" class="ext-btn">فتح الكتاب / المرجع ↗</a></div>`
+                  : ''
+              }</div>`;
+            }
+            if (cb.type === 'exam_link') {
+              const refExam = (params.exams || []).find((ex) => ex.id === cb.examId);
+              return `<div class="quiz-card"><div class="quiz-badge">${escapeHtml(
+                refExam?.titleAr || cb.titleAr || 'اختبار مرتبط'
+              )}</div><p class="quiz-stem" dir="ltr">${escapeHtml(
+                refExam?.titleEn || cb.titleEn || 'Linked Clinical Exam'
+              )}</p>${
+                cb.text ? `<p class="para">${escapeHtml(cb.text)}</p>` : ''
+              }<a href="#standalone-quizzes" class="ext-btn">الانتقال إلى الاختبار التفاعلي ↓</a></div>`;
             }
             if (cb.type === 'question' && cb.inlineQuestion) {
               const iq = cb.inlineQuestion;
@@ -794,6 +924,8 @@ export async function generateStandaloneHtmlDocument(
       text-align: center;
     }
     .media-card img, .video-player { max-width: 100%; max-height: 440px; border-radius: 0.75rem; }
+    .diagram-wrap { overflow-x: auto; display: flex; justify-content: center; padding: 0.5rem; background: var(--surface); border-radius: 0.75rem; }
+    .diagram-wrap svg { max-width: 100%; height: auto; }
     .video-frame { width: 100%; height: 340px; border: 0; border-radius: 0.75rem; }
     .audio-player { width: 100%; margin-top: 0.5rem; }
     .media-header { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.84rem; }
@@ -862,7 +994,9 @@ export async function generateStandaloneHtmlDocument(
       <h1>${escapeHtml(mainTitleAr)}</h1>
       <p dir="ltr">${escapeHtml(mainTitleEn)}</p>
       <p style="margin-top:0.4rem;font-size:0.8rem;">
-        المواضيع: ${targetTopics.length} · المصطلحات المرتبطة: ${linkedTerms.length} · الأسئلة التفاعلية: ${linkedQuestions.length} · الوسائط المحلية: ${
+        المواضيع: ${targetTopics.length} · المصطلحات المرتبطة: ${linkedTerms.length} · الأسئلة التفاعلية: ${linkedQuestions.length}${
+          linkedBooks.length > 0 ? ` · الكتب: ${linkedBooks.length}` : ''
+        } · الوسائط المحلية: ${
           params.includeLocalMedia ? 'مضمّنة داخل الحزمة' : 'روابط ومراجع خارجية فقط'
         }
       </p>
@@ -876,6 +1010,7 @@ export async function generateStandaloneHtmlDocument(
           )
           .join('')}
         ${linkedTerms.length > 0 ? `<a href="#standalone-glossary">المصطلحات (${linkedTerms.length})</a>` : ''}
+        ${linkedBooks.length > 0 ? `<a href="#standalone-books">الكتب (${linkedBooks.length})</a>` : ''}
         ${linkedQuestions.length > 0 ? `<a href="#standalone-quizzes">الاختبارات (${linkedQuestions.length})</a>` : ''}
       </nav>
     </section>
@@ -889,6 +1024,65 @@ export async function generateStandaloneHtmlDocument(
         ? `<section id="standalone-glossary" class="topic-article">
             <h2>قاموس المصطلحات الطبية المرتبطة (${linkedTerms.length})</h2>
             <div class="grid-terms">${termsGlossaryHtml}</div>
+          </section>`
+        : ''
+    }
+
+    ${
+      linkedBooks.length > 0
+        ? `<section id="standalone-books" class="topic-article">
+            <h2>الكتب والمراجع الأكاديمية (${linkedBooks.length})</h2>
+            <div class="grid-terms">${linkedBooks
+              .map((bk) => {
+                const resolvedPdf = resolveMediaUrlForStandalone({
+                  rawUrl: bk.pdfUrl,
+                  externalUrl: bk.pdfUrl,
+                  mediaIdbKey: bk.mediaIdbKey,
+                  fileName: `${bk.id}.pdf`,
+                  fallbackExt: 'pdf'
+                });
+                const bookHref = resolvedPdf.resolvedSrc || resolvedPdf.externalHref;
+                return `<div class="term-card" data-search="${escapeHtml(
+                  `${bk.titleEn} ${bk.titleAr} ${(bk.authors || []).join(' ')}`.toLowerCase()
+                )}">
+                  <div class="term-top">
+                    <strong dir="ltr" class="term-en">${escapeHtml(bk.titleEn)}</strong>
+                    <span class="term-ar">${escapeHtml(bk.titleAr)}</span>
+                  </div>
+                  <p class="term-def">${escapeHtml((bk.authors || []).join(' · ') || 'UMEDT Reference')}${
+                    bk.pageCount ? ` · ${bk.pageCount} صفحة` : ''
+                  }</p>
+                  ${
+                    bookHref
+                      ? `<a href="${escapeHtml(
+                          bookHref
+                        )}" target="_blank" rel="noopener noreferrer" class="ext-btn">فتح الكتاب PDF ↗</a>`
+                      : ''
+                  }
+                </div>`;
+              })
+              .join('\n')}</div>
+          </section>`
+        : ''
+    }
+
+    ${
+      linkedExams.length > 0
+        ? `<section id="standalone-exams" class="topic-article">
+            <h2>الاختبارات المرفقة (${linkedExams.length})</h2>
+            <div class="grid-terms">${linkedExams
+              .map(
+                (ex) => `<div class="term-card">
+                  <div class="term-top">
+                    <strong dir="ltr" class="term-en">${escapeHtml(ex.titleEn)}</strong>
+                    <span class="term-ar">${escapeHtml(ex.titleAr)}</span>
+                  </div>
+                  <p class="term-def">${escapeHtml(ex.descriptionAr || '')} · ${
+                    (ex.questionIds || []).length
+                  } سؤال</p>
+                </div>`
+              )
+              .join('\n')}</div>
           </section>`
         : ''
     }
@@ -1019,6 +1213,19 @@ export async function generateStandaloneZipArchiveBytes(
         q.subjectId === params.subject.id)
   );
 
+  const linkedBooks = (params.books || []).filter(
+    (bk) =>
+      (bk.topicIds || []).some((tid) => topicIdSet.has(tid)) ||
+      (normalizedScope === 'complete_block' && params.block && bk.blockId === params.block.id) ||
+      (normalizedScope === 'complete_subject' && params.subject && bk.subjectId === params.subject.id)
+  );
+  const linkedExams = (params.exams || []).filter(
+    (ex) =>
+      (ex.topicIds || []).some((tid) => topicIdSet.has(tid)) ||
+      (normalizedScope === 'complete_block' && params.block && ex.blockId === params.block.id) ||
+      (normalizedScope === 'complete_subject' && params.subject && ex.subjectId === params.subject.id)
+  );
+
   const dataJsonObject = {
     format: 'umed-granular-export-v1',
     exportType:
@@ -1040,7 +1247,9 @@ export async function generateStandaloneZipArchiveBytes(
             : allSubjects,
       topics: sanitizedTopics,
       terms: linkedTerms,
-      quizQuestions: linkedQuestions
+      quizQuestions: linkedQuestions,
+      books: linkedBooks,
+      exams: linkedExams
     }
   };
 

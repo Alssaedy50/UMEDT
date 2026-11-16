@@ -2977,7 +2977,7 @@ export async function verifyBackupRecordIntegrity(
  * ============================================================================
  */
 
-export const DEFAULT_CDN_RELEASE_BASE_URL = 'https://raw.githubusercontent.com/Alssaedy50/UMEDT_DATA/main/data/releases/stable';
+export const DEFAULT_CDN_RELEASE_BASE_URL = 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/releases/stable';
 
 function encodeBytesToBase64(bytes: Uint8Array): string {
   if (typeof globalThis.btoa === 'function') {

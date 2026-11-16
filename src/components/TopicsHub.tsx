@@ -3723,6 +3723,14 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                         text: p
                       }))
                     }
+                    onOpenExamOrQuiz={(_examId, tId) =>
+                      openQuizForScope({
+                        blockId: activeTopic.blockId,
+                        subjectId: activeTopic.subjectId,
+                        topicId: tId || activeTopic.id,
+                        tab: 'runner'
+                      })
+                    }
                     showToast={showToast}
                   />
                 </section>

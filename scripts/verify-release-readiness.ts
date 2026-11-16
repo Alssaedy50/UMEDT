@@ -56,7 +56,10 @@ import {
 import {
   loadMedicalBlocks,
   saveMedicalBlocks,
-  loadMedicalSubjects
+  loadMedicalSubjects,
+  loadAcademicBooks,
+  loadAcademicExams,
+  loadMediaAssetsIndex
 } from '../src/services/learningHierarchyService';
 import {
   saveLocalMediaRecord,
@@ -66,6 +69,8 @@ import {
   openMediaInExternalApp
 } from '../src/services/mediaStorageService';
 import {
+  UMEDT_DATA_CATALOG_URL,
+  computeDeterministicFastHashHex,
   computeEntitySha256,
   deduplicateTopicMediaAndAttachments,
   enqueueEntitiesForCloudSync,
@@ -73,11 +78,13 @@ import {
   loadSyncQueue,
   setCloudSyncSimulatedOffline,
   syncWithRemoteCloudLibrary,
+  syncFromUmedtDataRepository,
   buildCloudLibraryCatalogView,
   downloadCloudLibraryTarget,
   deleteCloudLibraryTargetLocally,
   clearLocallyRemovedRegistry
 } from '../src/services/cloudLibrarySyncService';
+import { importUniversalAiOrLocalContent } from '../src/services/aiUniversalImportService';
 import {
   encryptBotTokenForStorage,
   decryptBotTokenFromStorage,
@@ -128,7 +135,7 @@ async function main() {
   assertCondition(
     DEFAULT_ONLINE_UPDATE_CONFIG.autoCheckOnStartup === false &&
       (DEFAULT_ONLINE_UPDATE_CONFIG.manifestUrl === '' ||
-        DEFAULT_ONLINE_UPDATE_CONFIG.manifestUrl.includes('Alssaedy50/UMEDT_DATA')),
+        DEFAULT_ONLINE_UPDATE_CONFIG.manifestUrl.includes('Alssaedy50/UMEDT-DATA')),
     'Optional CDN medical-data auto-check on startup must NOT be activated by default'
   );
   assertCondition(
@@ -2092,8 +2099,607 @@ async function main() {
   console.log(
     '[PASS] 17. Telegram Auto-Sync & Debounce, Single Backup Rotation After Verification, Media Separation, Offline Media Caching & Playback, Standalone Topic/Block HTML & ZIP Export, and Bot Token Keystore Protection Verified'
   );
+
+  // =========================================================================
+  // 18. Verify Dual Data Sources (UMEDT-DATA Repo + Universal AI/Local Import),
+  //     Offline Books/Media Prefetch, Interactive Standalone Export, & Backup
+  // =========================================================================
+  clearLocallyRemovedRegistry();
+  setCloudSyncSimulatedOffline(false);
+
+  const umedtPdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a]); // %PDF-1.4\n
+  const mockBookPdfUrl = 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/media/cardio_atlas.pdf';
+
+  const masterPayloads: Record<string, unknown> = {
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/blocks.json': {
+      blocks: [
+        {
+          id: 'blk-umedt-data-1',
+          code: 'BLK-UD1',
+          titleEn: 'Cardiopulmonary Block',
+          titleAr: 'بلوك القلب والتنفس',
+          descriptionEn: 'Cardiopulmonary sciences',
+          descriptionAr: 'علوم القلب والجهاز التنفسي',
+          colorAccent: 'emerald',
+          order: 10,
+          createdAt: '2026-10-01T00:00:00.000Z',
+          updatedAt: '2026-10-01T00:00:00.000Z'
+        }
+      ]
+    },
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/subjects.json': {
+      subjects: [
+        {
+          id: 'subj-umedt-data-1',
+          blockId: 'blk-umedt-data-1',
+          code: 'CARD-201',
+          titleEn: 'Clinical Cardiology',
+          titleAr: 'أمراض القلب السريرية',
+          descriptionEn: 'Clinical cardiology topics',
+          descriptionAr: 'مواضيع القلب السريرية',
+          order: 1,
+          createdAt: '2026-10-01T00:00:00.000Z',
+          updatedAt: '2026-10-01T00:00:00.000Z'
+        }
+      ]
+    },
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/topics.json': {
+      topics: [
+        {
+          id: 'topic-umedt-data-1',
+          blockId: 'blk-umedt-data-1',
+          subjectId: 'subj-umedt-data-1',
+          title: 'Acute Coronary Syndrome',
+          titleEn: 'Acute Coronary Syndrome',
+          titleAr: 'المتلازمة التاجية الحادة',
+          subtitle: 'ECG & Troponin Pathway',
+          category: 'Cardiology',
+          system: 'Cardiovascular',
+          difficulty: 'Intermediate',
+          summary: 'Diagnostic pathway for STEMI and NSTEMI.',
+          keyTakeaways: ['Obtain 12-lead ECG within 10 minutes'],
+          sections: [
+            {
+              id: 'sec-ud-1',
+              title: 'Algorithm',
+              body: 'Follow reperfusion pathway.',
+              contentBlocks: [
+                {
+                  id: 'cb-ud-diag',
+                  type: 'diagram',
+                  title: 'ACS ECG Flowchart',
+                  diagramSvg: '<svg viewBox="0 0 120 40"><rect width="120" height="40" fill="#ecfdf5"/><text x="10" y="25">ECG &lt; 10m</text></svg>'
+                },
+                {
+                  id: 'cb-ud-pdf',
+                  type: 'pdf_viewer',
+                  title: 'Guidelines PDF',
+                  url: mockBookPdfUrl
+                },
+                {
+                  id: 'cb-ud-book',
+                  type: 'book_reference',
+                  title: 'Cardio Atlas Reference',
+                  bookId: 'book-umedt-data-1'
+                },
+                {
+                  id: 'cb-ud-exam',
+                  type: 'exam_link',
+                  title: 'ACS Mastery Exam',
+                  examId: 'exam-umedt-data-1'
+                }
+              ]
+            }
+          ],
+          linkedTermIds: ['term-umedt-data-1'],
+          linkedTerms: ['Ischemia'],
+          tags: ['ACS'],
+          updatedAt: '2026-10-01T00:00:00.000Z'
+        }
+      ]
+    },
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/terms.json': {
+      terms: [
+        {
+          id: 'term-umedt-data-1',
+          term: 'Ischemia',
+          arabicTranslation: 'نقص التروية',
+          category: 'Cardiology',
+          definition: 'Restricted blood supply to tissues.',
+          arabicSummary: 'انخفاض تدفق الدم والأكسجين إلى الأنسجة',
+          exampleSentence: 'Myocardial ischemia causes angina.',
+          exampleTranslation: 'يسبب نقص تروية عضلة القلب ذبحة صدرية.',
+          pronunciation: '/ɪˈskiːmiə/',
+          tags: ['Cardio'],
+          rootBreakdown: { root: 'isch- (hold back) + -emia (blood)' },
+          updatedAt: '2026-10-01T00:00:00.000Z'
+        }
+      ]
+    },
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/sentences.json': {
+      sentences: [
+        {
+          id: 'sent-umedt-data-1',
+          english: 'ST-segment elevation indicates transmural myocardial injury.',
+          arabic: 'يشير ارتفاع قطعة ST إلى إصابة عابرة لجدار عضلة القلب.',
+          termIds: ['term-umedt-data-1'],
+          sourceTopicId: 'topic-umedt-data-1'
+        }
+      ]
+    },
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/custom_affixes.json': {
+      affixes: [
+        {
+          id: 'affix-umedt-1',
+          affix: 'isch-',
+          type: 'prefix',
+          meaning: 'Hold back / deficient',
+          meaningAr: 'احتباس / نقص',
+          examples: ['Ischemia'],
+          notes: 'Greek root'
+        }
+      ]
+    },
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/custom_abbreviations.json': {
+      abbreviations: [
+        {
+          id: 'abbr-umedt-1',
+          abbr: 'STEMI',
+          expansion: 'ST-Elevation Myocardial Infarction',
+          arabicMeaning: 'احتشاء عضلة القلب المصحوب بارتفاع ST',
+          clinicalContext: 'Emergency cardiology'
+        }
+      ]
+    },
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/books.json': {
+      books: [
+        {
+          id: 'book-umedt-data-1',
+          title: 'Cardio Atlas',
+          titleEn: 'Cardio Atlas',
+          titleAr: 'أطلس أمراض القلب',
+          authors: 'UMEDT Editorial',
+          blockId: 'blk-umedt-data-1',
+          subjectId: 'subj-umedt-data-1',
+          pdfUrl: mockBookPdfUrl,
+          sizeBytes: 9,
+          updatedAt: '2026-10-01T00:00:00.000Z'
+        }
+      ]
+    },
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/questions.json': {
+      questions: [
+        {
+          id: 'q-umedt-data-1',
+          type: 'single_choice',
+          prompt: 'Which ECG finding confirms STEMI?',
+          promptAr: 'أي علامة في تخطيط القلب تؤكد STEMI؟',
+          options: [
+            { id: 'a', text: 'ST-segment elevation', textAr: 'ارتفاع قطعة ST', isCorrect: true },
+            { id: 'b', text: 'Isolated U wave', textAr: 'موجة U معزولة', isCorrect: false }
+          ],
+          correctOptionIds: ['a'],
+          explanation: 'Persistent ST elevation in contiguous leads defines STEMI.',
+          explanationAr: 'ارتفاع قطعة ST المستمر في اتجاهات متجاورة يحدد STEMI.',
+          difficulty: 'medium',
+          topicId: 'topic-umedt-data-1',
+          blockId: 'blk-umedt-data-1',
+          subjectId: 'subj-umedt-data-1',
+          termId: 'term-umedt-data-1'
+        }
+      ]
+    },
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/exams.json': {
+      exams: [
+        {
+          id: 'exam-umedt-data-1',
+          title: 'Cardiology Midterm',
+          titleEn: 'Cardiology Midterm',
+          titleAr: 'اختبار منتصف بلوك القلب',
+          blockId: 'blk-umedt-data-1',
+          subjectId: 'subj-umedt-data-1',
+          topicIds: ['topic-umedt-data-1'],
+          questionIds: ['q-umedt-data-1'],
+          timeLimitMinutes: 15,
+          passingScorePercent: 70,
+          updatedAt: '2026-10-01T00:00:00.000Z'
+        }
+      ]
+    },
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/media_assets.json': {
+      mediaAssets: [
+        {
+          id: 'asset-umedt-1',
+          title: 'Cardio Atlas PDF',
+          kind: 'pdf',
+          url: mockBookPdfUrl,
+          sizeBytes: 9,
+          mimeType: 'application/pdf'
+        }
+      ]
+    }
+  };
+
+  const catalogCollections: Array<{ id: string; contentType: string; rendererType: string; rawUrl: string; sha256: string }> = [
+    { id: 'blocks', contentType: 'blocks', rendererType: 'block_hub', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/blocks.json', sha256: 'hash-blocks-v1' },
+    { id: 'subjects', contentType: 'subjects', rendererType: 'subject_list', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/subjects.json', sha256: 'hash-subjects-v1' },
+    { id: 'topics', contentType: 'topics', rendererType: 'topic_article', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/topics.json', sha256: 'hash-topics-v1' },
+    { id: 'terms', contentType: 'terms', rendererType: 'lexicon_term', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/terms.json', sha256: 'hash-terms-v1' },
+    { id: 'sentences', contentType: 'sentences', rendererType: 'bilingual_sentence', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/sentences.json', sha256: 'hash-sentences-v1' },
+    { id: 'customAffixes', contentType: 'affixes', rendererType: 'morphology_rule', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/custom_affixes.json', sha256: 'hash-affixes-v1' },
+    { id: 'customAbbreviations', contentType: 'abbreviations', rendererType: 'clinical_abbr', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/custom_abbreviations.json', sha256: 'hash-abbr-v1' },
+    { id: 'books', contentType: 'books', rendererType: 'academic_book', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/books.json', sha256: 'hash-books-v1' },
+    { id: 'questions', contentType: 'questions', rendererType: 'quiz_question', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/questions.json', sha256: 'hash-questions-v1' },
+    { id: 'exams', contentType: 'exams', rendererType: 'academic_exam', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/exams.json', sha256: 'hash-exams-v1' },
+    { id: 'mediaAssets', contentType: 'mediaAssets', rendererType: 'media_asset', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/media_assets.json', sha256: 'hash-media-v1' }
+  ];
+
+  const mockUmedtFetch: typeof fetch = async (input: RequestInfo | URL) => {
+    const urlStr = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    if (urlStr === UMEDT_DATA_CATALOG_URL) {
+      return new Response(
+        JSON.stringify({
+          schemaVersion: '1.0',
+          version: '2026.11.0-umedt-data',
+          collections: catalogCollections
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    if (urlStr === mockBookPdfUrl) {
+      return new Response(umedtPdfBytes, {
+        status: 200,
+        headers: { 'Content-Type': 'application/pdf' }
+      });
+    }
+    if (masterPayloads[urlStr]) {
+      return new Response(JSON.stringify(masterPayloads[urlStr]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
+  };
+
+  // 18.1 UMEDT-DATA Repository Sync + Incremental SHA-256 Collection Skip
+  const umedtSyncFirst = await syncFromUmedtDataRepository({
+    customFetch: mockUmedtFetch
+  });
+  assertCondition(
+    umedtSyncFirst.fetched === true &&
+      umedtSyncFirst.updatedCollectionsCount === 11 &&
+      umedtSyncFirst.skippedCollectionsCount === 0 &&
+      (umedtSyncFirst.incoming.books?.length || 0) === 1 &&
+      (umedtSyncFirst.incoming.exams?.length || 0) === 1 &&
+      (umedtSyncFirst.incoming.quizQuestions?.length || 0) === 1 &&
+      (umedtSyncFirst.incoming.topics?.[0]?.sections?.[0]?.contentBlocks?.length || 0) === 4,
+    'syncFromUmedtDataRepository must fetch and parse all 11 UMEDT-DATA master collections including books, exams, questions, and new ContentBlockTypes'
+  );
+
+  const umedtSyncSecond = await syncFromUmedtDataRepository({
+    currentCollectionHashes: umedtSyncFirst.collectionHashes,
+    customFetch: mockUmedtFetch
+  });
+  assertCondition(
+    umedtSyncSecond.fetched === true &&
+      umedtSyncSecond.updatedCollectionsCount === 0 &&
+      umedtSyncSecond.skippedCollectionsCount === 11,
+    'syncFromUmedtDataRepository must skip unchanged collections on subsequent syncs when SHA-256 matches'
+  );
+
+  // 18.2 Full syncWithRemoteCloudLibrary integration with UMEDT-DATA + Offline Book PDF Prefetch
+  const originalFetchForUmedt = globalThis.fetch;
+  try {
+    globalThis.fetch = mockUmedtFetch;
+    const preSyncState = loadAppState();
+    const fullSyncRes = await syncWithRemoteCloudLibrary({
+      localTopics: preSyncState.topics,
+      localTerms: preSyncState.terms,
+      localSentences: preSyncState.sentences,
+      customFetch: mockUmedtFetch
+    });
+    assertCondition(
+      (fullSyncRes.mirror.books?.length || 0) >= 1 &&
+        (fullSyncRes.mirror.exams?.length || 0) >= 1 &&
+        (fullSyncRes.mirror.quizQuestions?.length || 0) >= 1,
+      'syncWithRemoteCloudLibrary must index UMEDT-DATA books, exams, and questions into the cloud mirror catalog'
+    );
+
+    const catalogBeforeBookDownload = buildCloudLibraryCatalogView({
+      localTopics: fullSyncRes.autoMergedTopics,
+      localTerms: fullSyncRes.autoMergedTerms,
+      localSentences: fullSyncRes.autoMergedSentences
+    });
+    assertCondition(
+      catalogBeforeBookDownload.books.some((b) => b.id === 'book-umedt-data-1' && !b.isDownloaded) &&
+        catalogBeforeBookDownload.totalCloudExamsCount >= 1,
+      'Cloud catalog must display UMEDT-DATA book as cloud-available before selective download'
+    );
+
+    const bookDownloadRes = await downloadCloudLibraryTarget({
+      targetType: 'book',
+      targetId: 'book-umedt-data-1',
+      currentTopics: fullSyncRes.autoMergedTopics,
+      currentTerms: fullSyncRes.autoMergedTerms,
+      currentSentences: fullSyncRes.autoMergedSentences,
+      customFetch: mockUmedtFetch
+    });
+    const prefetchedKey = `idb-${computeDeterministicFastHashHex(mockBookPdfUrl).slice(0, 16)}`;
+    const prefetchedPdfRecord = await getLocalMediaRecord(prefetchedKey);
+    assertCondition(
+      bookDownloadRes.success &&
+        loadAcademicBooks().some((b) => b.id === 'book-umedt-data-1') &&
+        bookDownloadRes.downloadedMediaCount >= 1 &&
+        Boolean(prefetchedPdfRecord) &&
+        prefetchedPdfRecord?.mimeType === 'application/pdf',
+      'Downloading a cloud book must persist it locally and prefetch its remote PDF into IndexedDB under its deterministic hashed key'
+    );
+
+    const topicDownloadRes = await downloadCloudLibraryTarget({
+      targetType: 'topic',
+      targetId: 'topic-umedt-data-1',
+      currentTopics: bookDownloadRes.updatedTopics,
+      currentTerms: bookDownloadRes.updatedTerms,
+      currentSentences: bookDownloadRes.updatedSentences,
+      customFetch: mockUmedtFetch
+    });
+    assertCondition(
+      topicDownloadRes.success &&
+        loadAcademicExams().some((e) => e.id === 'exam-umedt-data-1'),
+      'Downloading a cloud topic must also pull its linked UMEDT-DATA exam blueprint locally'
+    );
+
+    const bookDeleteRes = await deleteCloudLibraryTargetLocally({
+      targetType: 'book',
+      targetId: 'book-umedt-data-1',
+      currentTopics: topicDownloadRes.updatedTopics,
+      currentTerms: topicDownloadRes.updatedTerms,
+      currentSentences: topicDownloadRes.updatedSentences
+    });
+    assertCondition(
+      bookDeleteRes.success && !loadAcademicBooks().some((b) => b.id === 'book-umedt-data-1'),
+      'Deleting a downloaded book locally must remove it from local device storage while preserving cloud availability'
+    );
+  } finally {
+    globalThis.fetch = originalFetchForUmedt;
+  }
+
+  // 18.3 Universal AI / Local Content Import (Markdown ```json``` from ChatGPT/Gemini + User-State Preservation)
+  const existingFavoriteTermId = initialStateForCloud.terms[0]?.id;
+  if (existingFavoriteTermId) {
+    const seededTerms = initialStateForCloud.terms.map((t, idx) =>
+      idx === 0
+        ? {
+            ...t,
+            favorite: true,
+            collections: ['custom-star-deck'],
+            srsData: {
+              interval: 14,
+              repetitions: 3,
+              easeFactor: 2.6,
+              nextReviewAt: Date.now() + 86400000
+            }
+          }
+        : t
+    );
+    saveTopics(initialStateForCloud.topics);
+    const { saveTerms } = await import('../src/services/storageService');
+    saveTerms(seededTerms);
+  }
+
+  const aiMarkdownPayload = `إليك المحتوى المولّد بالتوافق مع UMEDT:
+\`\`\`json
+{
+  "blocks": [
+    {
+      "id": "blk-ai-neuro",
+      "code": "BLK-NEURO",
+      "titleEn": "Neurology Block",
+      "titleAr": "بلوك الأعصاب",
+      "descriptionEn": "CNS & PNS",
+      "descriptionAr": "الجهاز العصبي المركزي والطرفي",
+      "order": 20
+    }
+  ],
+  "subjects": [
+    {
+      "id": "subj-ai-neuro",
+      "blockId": "blk-ai-neuro",
+      "code": "NEUR-301",
+      "titleEn": "Neuroanatomy",
+      "titleAr": "التشريح العصبي",
+      "order": 1
+    }
+  ],
+  "topics": [
+    {
+      "id": "topic-ai-stroke",
+      "blockId": "blk-ai-neuro",
+      "subjectId": "subj-ai-neuro",
+      "titleEn": "Ischemic Stroke",
+      "titleAr": "السكتة الدماغية الإقفارية",
+      "sections": [
+        {
+          "id": "sec-ai-1",
+          "title": "Pathway",
+          "body": "Acute stroke evaluation.",
+          "contentBlocks": [
+            {
+              "id": "cb-ai-diag",
+              "type": "diagram",
+              "title": "Brain Perfusion Map",
+              "diagramSvg": "<svg viewBox=\\"0 0 100 50\\"><script>alert('xss')</script><rect width=\\"100\\" height=\\"50\\" fill=\\"#eef\\"/><text x=\\"8\\" y=\\"30\\">Penumbra</text></svg>"
+            },
+            {
+              "id": "cb-ai-pdf",
+              "type": "pdf_viewer",
+              "title": "Stroke Protocol PDF",
+              "url": "${mockBookPdfUrl}"
+            },
+            {
+              "id": "cb-ai-book",
+              "type": "book_reference",
+              "title": "Neuro Atlas",
+              "bookId": "book-ai-neuro-1"
+            },
+            {
+              "id": "cb-ai-exam",
+              "type": "exam_link",
+              "title": "Neuro Quiz",
+              "examId": "exam-ai-neuro-1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "books": [
+    {
+      "id": "book-ai-neuro-1",
+      "titleEn": "Clinical Neuro Atlas",
+      "titleAr": "أطلس الأعصاب السريري",
+      "blockId": "blk-ai-neuro",
+      "subjectId": "subj-ai-neuro",
+      "pdfUrl": "${mockBookPdfUrl}"
+    }
+  ],
+  "exams": [
+    {
+      "id": "exam-ai-neuro-1",
+      "titleEn": "Stroke Quick Check",
+      "titleAr": "اختبار السكتة السريع",
+      "blockId": "blk-ai-neuro",
+      "subjectId": "subj-ai-neuro",
+      "topicIds": ["topic-ai-stroke"],
+      "questionIds": ["q-ai-1", "q-ai-2", "q-ai-3", "q-ai-4", "q-ai-5", "q-ai-6", "q-ai-7"],
+      "timeLimitMinutes": 10,
+      "passingScorePercent": 70
+    }
+  ],
+  "questions": [
+    { "id": "q-ai-1", "type": "single_choice", "questionEn": "First imaging in acute stroke?", "options": [{ "key": "A", "textEn": "Non-contrast head CT" }, { "key": "B", "textEn": "DEXA" }], "correctOptionKeys": ["A"], "topicId": "topic-ai-stroke" },
+    { "id": "q-ai-2", "type": "multiple_select", "questionEn": "Select stroke risk factors", "options": [{ "key": "A", "textEn": "Atrial fibrillation" }, { "key": "B", "textEn": "Hypertension" }], "correctOptionKeys": ["A", "B"], "topicId": "topic-ai-stroke" },
+    { "id": "q-ai-3", "type": "true_false", "questionEn": "Alteplase is indicated after excluding hemorrhage.", "options": [{ "key": "T", "textEn": "True" }, { "key": "F", "textEn": "False" }], "correctOptionKeys": ["T"], "topicId": "topic-ai-stroke" },
+    { "id": "q-ai-4", "type": "matching", "questionEn": "Match stroke syndrome to artery", "matchingPairs": [{ "id": "mp1", "leftEn": "Broca aphasia", "rightEn": "Left MCA" }, { "id": "mp2", "leftEn": "Homonymous hemianopia", "rightEn": "PCA" }], "topicId": "topic-ai-stroke" },
+    { "id": "q-ai-5", "type": "image_based", "questionEn": "Identify the hyperdense MCA sign on non-contrast CT", "imageUrl": "https://example.org/stroke_ct.png", "options": [{ "key": "A", "textEn": "Acute MCA thrombus" }, { "key": "B", "textEn": "Normal calcified falx" }], "correctOptionKeys": ["A"], "topicId": "topic-ai-stroke" },
+    { "id": "q-ai-6", "type": "fill_blank", "questionEn": "Intravenous ____ dissolves acute thrombi.", "acceptableAnswers": ["alteplase"], "topicId": "topic-ai-stroke" },
+    { "id": "q-ai-7", "type": "short_answer", "questionEn": "Standard CT door-to-imaging target in minutes?", "acceptableAnswers": ["25"], "topicId": "topic-ai-stroke" }
+  ],
+  "terms": [
+    ${
+      existingFavoriteTermId
+        ? `{ "id": "${existingFavoriteTermId}", "term": "${initialStateForCloud.terms[0].term}", "arabicTranslation": "محدث", "favorite": false, "collections": [] },`
+        : ''
+    }
+    { "id": "term-ai-penumbra", "term": "Penumbra", "arabicTranslation": "شبه الظل الإقفاري", "category": "Neurology", "definition": "Salvageable tissue surrounding core infarct." }
+  ]
+}
+\`\`\`
+`;
+
+  const aiImportRes = importUniversalAiOrLocalContent({
+    rawText: aiMarkdownPayload,
+    conflictPolicy: 'merge',
+    sourceLabel: 'ChatGPT Markdown Test'
+  });
+  const preservedFirstTerm = aiImportRes.updatedState.terms.find((t) => t.id === existingFavoriteTermId);
+  assertCondition(
+    aiImportRes.success &&
+      aiImportRes.counts.blocks === 1 &&
+      aiImportRes.counts.subjects === 1 &&
+      aiImportRes.counts.topics === 1 &&
+      aiImportRes.counts.books === 1 &&
+      aiImportRes.counts.exams === 1 &&
+      aiImportRes.counts.questions === 7 &&
+      (!existingFavoriteTermId ||
+        (preservedFirstTerm?.favorite === true &&
+          preservedFirstTerm?.collections?.includes('custom-star-deck') &&
+          preservedFirstTerm?.srsData?.interval === 14)),
+    'Universal AI importer must parse Markdown JSON from ChatGPT/Gemini across all entity types while preserving favorite, collections, and SRS progress'
+  );
+
+  // Deduplication re-import check
+  const aiImportRepeatRes = importUniversalAiOrLocalContent({
+    rawText: aiMarkdownPayload,
+    conflictPolicy: 'ignore',
+    sourceLabel: 'Duplicate Test'
+  });
+  assertCondition(
+    aiImportRepeatRes.counts.skippedDuplicates > 0,
+    'Repeated universal AI/local import with conflictPolicy=ignore must deduplicate without duplicating items'
+  );
+
+  // 18.4 Standalone Offline HTML & ZIP Export with Sanitized Diagram SVG, Books, Exams & Hashed Prefetched Media
+  const aiTopic = aiImportRes.updatedState.topics.find((t) => t.id === 'topic-ai-stroke')!;
+  const aiBlock = aiImportRes.updatedState.blocks.find((b) => b.id === 'blk-ai-neuro')!;
+  const aiSubject = aiImportRes.updatedState.subjects.find((s) => s.id === 'subj-ai-neuro')!;
+  const standaloneAiHtml = await generateStandaloneHtmlDocument({
+    scope: 'complete_block',
+    titleEn: aiBlock.titleEn,
+    titleAr: aiBlock.titleAr,
+    block: aiBlock,
+    subjects: [aiSubject],
+    topics: [aiTopic],
+    allTerms: aiImportRes.updatedState.terms,
+    allQuestions: aiImportRes.updatedState.questions.filter((q) => q.topicId === 'topic-ai-stroke'),
+    books: aiImportRes.updatedState.books,
+    exams: aiImportRes.updatedState.exams,
+    includeLocalMedia: true
+  });
+  assertCondition(
+    !standaloneAiHtml.htmlText.includes('<script>alert') &&
+      standaloneAiHtml.htmlText.includes('Penumbra') &&
+      standaloneAiHtml.htmlText.includes('standalone-books') &&
+      standaloneAiHtml.htmlText.includes('Clinical Neuro Atlas') &&
+      standaloneAiHtml.htmlText.includes('Stroke Quick Check') &&
+      standaloneAiHtml.includedLocalMediaCount >= 1,
+    'Standalone HTML export must sanitize SVG diagrams (strip <script>), include books/exams sections, and resolve hashed prefetched remote PDFs offline'
+  );
+
+  const standaloneAiZip = await generateStandaloneZipArchiveBytes({
+    scope: 'complete_block',
+    titleEn: aiBlock.titleEn,
+    titleAr: aiBlock.titleAr,
+    block: aiBlock,
+    subjects: [aiSubject],
+    topics: [aiTopic],
+    allTerms: aiImportRes.updatedState.terms,
+    allQuestions: aiImportRes.updatedState.questions.filter((q) => q.topicId === 'topic-ai-stroke'),
+    books: aiImportRes.updatedState.books,
+    exams: aiImportRes.updatedState.exams,
+    includeLocalMedia: true
+  });
+  const aiZipEntries = inspectZipEntriesList(standaloneAiZip.zipBytes);
+  assertCondition(
+    aiZipEntries.includes('index.html') && aiZipEntries.includes('package-data.json'),
+    'Standalone ZIP export with new block content must produce complete index.html and package-data.json'
+  );
+
+  // 18.5 Telegram Full Unified Backup Completeness Check (books, exams, mediaAssets metadata, no inline binary blobs)
+  const fullUnifiedBackup = createUnifiedBackupPackage(
+    aiImportRes.updatedState.terms,
+    aiImportRes.updatedState.sentences,
+    aiImportRes.updatedState.topics,
+    'Post-AI Import Auto Backup'
+  );
+  assertCondition(
+    Array.isArray(fullUnifiedBackup.payload.data.books) &&
+      fullUnifiedBackup.payload.data.books.length >= 1 &&
+      Array.isArray(fullUnifiedBackup.payload.data.exams) &&
+      fullUnifiedBackup.payload.data.exams.length >= 1 &&
+      Array.isArray(fullUnifiedBackup.payload.data.quizQuestions) &&
+      fullUnifiedBackup.payload.data.quizQuestions.length >= 7 &&
+      fullUnifiedBackup.payload.mediaStoragePolicy === 'metadata_and_urls_only' &&
+      (fullUnifiedBackup.summary.booksCount || 0) >= 1 &&
+      (fullUnifiedBackup.summary.examsCount || 0) >= 1,
+    'createUnifiedBackupPackage must include books, exams, quizQuestions, mediaAssets metadata, and summary counts without inline binary blobs'
+  );
+
+  console.log(
+    '[PASS] 18. UMEDT-DATA Repository Sync & Incremental Hash Skip, Offline Book/Media Prefetch, Universal AI/Local Markdown/JSON Importer with User-State Protection, Sanitized Interactive Standalone HTML/ZIP Export, and Complete Telegram Backup Package Verified'
+  );
   console.log('================================================================');
-  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (17/17 — 100%)');
+  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (18/18 — 100%)');
   console.log('================================================================');
 }
 

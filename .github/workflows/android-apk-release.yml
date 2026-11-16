@@ -72,7 +72,7 @@ jobs:
 
       - name: Build Production Web & PWA Bundle (dist) with Cloud OTA Config
         env:
-          VITE_UMED_MANIFEST_URL: ${{ vars.VITE_UMED_MANIFEST_URL || 'https://raw.githubusercontent.com/Alssaedy50/UMEDT_DATA/main/data/releases/stable/manifest.json' }}
+          VITE_UMED_MANIFEST_URL: ${{ vars.VITE_UMED_MANIFEST_URL || 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/releases/stable/manifest.json' }}
           VITE_UMED_PUBLIC_KEY_PEM: ${{ vars.VITE_UMED_PUBLIC_KEY_PEM }}
         run: npm run build
 

@@ -144,15 +144,19 @@ export const DEFAULT_BACKUP_CONFIG: BackupConfig = {
 };
 
 const DEFAULT_UMEDT_DATA_MANIFEST_URL =
-  'https://raw.githubusercontent.com/Alssaedy50/UMEDT_DATA/main/data/releases/stable/manifest.json';
+  'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/releases/stable/manifest.json';
 const configuredManifestUrl =
   typeof import.meta !== 'undefined' &&
   (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_UMED_MANIFEST_URL
     ? String((import.meta as unknown as { env?: Record<string, string> }).env!.VITE_UMED_MANIFEST_URL).trim()
     : '';
+const normalizedConfiguredManifestUrl = configuredManifestUrl.includes('/UMEDT_DATA/')
+  ? configuredManifestUrl.replace('/UMEDT_DATA/', '/UMEDT-DATA/')
+  : configuredManifestUrl;
 const envManifestUrl =
-  configuredManifestUrl && !configuredManifestUrl.includes('/UMEDT/main/data/releases/')
-    ? configuredManifestUrl
+  normalizedConfiguredManifestUrl &&
+  !normalizedConfiguredManifestUrl.includes('/UMEDT/main/data/releases/')
+    ? normalizedConfiguredManifestUrl
     : DEFAULT_UMEDT_DATA_MANIFEST_URL;
 
 function normalizeEmbeddedPublicKeyPem(rawKey: string | null | undefined): string {
@@ -675,7 +679,9 @@ export function loadOnlineUpdateConfig(): OnlineUpdateConfig {
     STORAGE_KEYS.UPDATE_CONFIG,
     DEFAULT_ONLINE_UPDATE_CONFIG
   );
-  const rawStoredUrl = typeof stored.manifestUrl === 'string' ? stored.manifestUrl.trim() : '';
+  const rawStoredUrl = typeof stored.manifestUrl === 'string'
+    ? stored.manifestUrl.trim().replace('/UMEDT_DATA/', '/UMEDT-DATA/')
+    : '';
   const isFictionalPlaceholder =
     !rawStoredUrl ||
     rawStoredUrl.includes('umed-platform/umed2-data') ||

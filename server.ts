@@ -682,13 +682,34 @@ ${placeholderContext || 'None'}`;
           const mediaRecords = serverCloudSnapshot.mediaRecords.filter(
             (m) => m.topicId && topicIds.has(m.topicId)
           );
+          const books = (serverCloudSnapshot.books || []).filter(
+            (bk) =>
+              bk.blockId === targetId ||
+              (bk.subjectId && subjIds.has(bk.subjectId)) ||
+              (bk.topicIds || []).some((tid) => topicIds.has(tid))
+          );
+          const exams = (serverCloudSnapshot.exams || []).filter(
+            (ex) =>
+              ex.blockId === targetId ||
+              (ex.subjectId && subjIds.has(ex.subjectId)) ||
+              (ex.topicIds || []).some((tid) => topicIds.has(tid))
+          );
+          const quizQuestions = (serverCloudSnapshot.quizQuestions || []).filter(
+            (q) =>
+              q.blockId === targetId ||
+              (q.subjectId && subjIds.has(q.subjectId)) ||
+              (q.topicId && topicIds.has(q.topicId))
+          );
           res.json({
             version: serverCloudSnapshot.version,
             updatedAt: serverCloudSnapshot.updatedAt,
             blocks,
             subjects,
             topics,
-            mediaRecords
+            mediaRecords,
+            books,
+            exams,
+            quizQuestions
           });
           return;
         }
@@ -699,12 +720,28 @@ ${placeholderContext || 'None'}`;
           const mediaRecords = serverCloudSnapshot.mediaRecords.filter(
             (m) => m.topicId && topicIds.has(m.topicId)
           );
+          const books = (serverCloudSnapshot.books || []).filter(
+            (bk) =>
+              bk.subjectId === targetId ||
+              (bk.topicIds || []).some((tid) => topicIds.has(tid))
+          );
+          const exams = (serverCloudSnapshot.exams || []).filter(
+            (ex) =>
+              ex.subjectId === targetId ||
+              (ex.topicIds || []).some((tid) => topicIds.has(tid))
+          );
+          const quizQuestions = (serverCloudSnapshot.quizQuestions || []).filter(
+            (q) => q.subjectId === targetId || (q.topicId && topicIds.has(q.topicId))
+          );
           res.json({
             version: serverCloudSnapshot.version,
             updatedAt: serverCloudSnapshot.updatedAt,
             subjects,
             topics,
-            mediaRecords
+            mediaRecords,
+            books,
+            exams,
+            quizQuestions
           });
           return;
         }
@@ -713,11 +750,32 @@ ${placeholderContext || 'None'}`;
           const mediaRecords = serverCloudSnapshot.mediaRecords.filter(
             (m) => m.topicId === targetId
           );
+          const books = (serverCloudSnapshot.books || []).filter((bk) =>
+            (bk.topicIds || []).includes(targetId)
+          );
+          const exams = (serverCloudSnapshot.exams || []).filter((ex) =>
+            (ex.topicIds || []).includes(targetId)
+          );
+          const quizQuestions = (serverCloudSnapshot.quizQuestions || []).filter(
+            (q) => q.topicId === targetId
+          );
           res.json({
             version: serverCloudSnapshot.version,
             updatedAt: serverCloudSnapshot.updatedAt,
             topics,
-            mediaRecords
+            mediaRecords,
+            books,
+            exams,
+            quizQuestions
+          });
+          return;
+        }
+        if (targetType === 'book') {
+          const books = (serverCloudSnapshot.books || []).filter((bk) => bk.id === targetId);
+          res.json({
+            version: serverCloudSnapshot.version,
+            updatedAt: serverCloudSnapshot.updatedAt,
+            books
           });
           return;
         }
@@ -740,6 +798,12 @@ ${placeholderContext || 'None'}`;
         terms?: UnifiedCloudStoreSnapshot['terms'];
         sentences?: UnifiedCloudStoreSnapshot['sentences'];
         mediaRecords?: UnifiedCloudStoreSnapshot['mediaRecords'];
+        books?: UnifiedCloudStoreSnapshot['books'];
+        exams?: UnifiedCloudStoreSnapshot['exams'];
+        quizQuestions?: UnifiedCloudStoreSnapshot['quizQuestions'];
+        mediaAssets?: UnifiedCloudStoreSnapshot['mediaAssets'];
+        customAffixes?: UnifiedCloudStoreSnapshot['customAffixes'];
+        customAbbreviations?: UnifiedCloudStoreSnapshot['customAbbreviations'];
       };
 
       const merged = mergeRecordsIntoCloudSnapshot(serverCloudSnapshot, {
@@ -748,7 +812,13 @@ ${placeholderContext || 'None'}`;
         topics: body.topics,
         terms: body.terms,
         sentences: body.sentences,
-        mediaRecords: body.mediaRecords
+        mediaRecords: body.mediaRecords,
+        books: body.books,
+        exams: body.exams,
+        quizQuestions: body.quizQuestions,
+        mediaAssets: body.mediaAssets,
+        customAffixes: body.customAffixes,
+        customAbbreviations: body.customAbbreviations
       });
 
       serverCloudSnapshot = merged.snapshot;

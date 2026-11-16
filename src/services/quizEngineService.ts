@@ -987,16 +987,30 @@ export function evaluateQuizQuestionAnswer(
   return false;
 }
 
+const memoryQuizStorage = new Map<string, string>();
+
+function getSafeQuizStorage(): {
+  getItem: (key: string) => string | null;
+  setItem: (key: string, value: string) => void;
+} {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return window.localStorage;
+  }
+  return {
+    getItem: (k: string) => memoryQuizStorage.get(k) ?? null,
+    setItem: (k: string, v: string) => {
+      memoryQuizStorage.set(k, v);
+    }
+  };
+}
+
 export function loadQuizQuestions(
   topics: TopicArticle[],
   terms: DictionaryTerm[]
 ): UnifiedQuizQuestion[] {
   const seedBank = buildInitialSeedQuizBank(topics, terms);
   try {
-    if (typeof window === 'undefined' || !window.localStorage) {
-      return seedBank;
-    }
-    const raw = window.localStorage.getItem(LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS);
+    const raw = getSafeQuizStorage().getItem(LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS);
     if (!raw) return seedBank;
     const parsed = JSON.parse(raw) as UnifiedQuizQuestion[];
     if (!Array.isArray(parsed) || parsed.length === 0) {
@@ -1012,12 +1026,10 @@ export function loadQuizQuestions(
 
 export function saveQuizQuestions(questions: UnifiedQuizQuestion[]): void {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(
-        LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS,
-        JSON.stringify(questions)
-      );
-    }
+    getSafeQuizStorage().setItem(
+      LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS,
+      JSON.stringify(questions)
+    );
   } catch {
     // ignore
   }
@@ -1025,8 +1037,7 @@ export function saveQuizQuestions(questions: UnifiedQuizQuestion[]): void {
 
 export function loadQuizAttempts(): QuizAttemptRecord[] {
   try {
-    if (typeof window === 'undefined' || !window.localStorage) return [];
-    const raw = window.localStorage.getItem(LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS);
+    const raw = getSafeQuizStorage().getItem(LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -1037,12 +1048,10 @@ export function loadQuizAttempts(): QuizAttemptRecord[] {
 
 export function saveQuizAttempts(attempts: QuizAttemptRecord[]): void {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(
-        LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS,
-        JSON.stringify(attempts.slice(0, 100))
-      );
-    }
+    getSafeQuizStorage().setItem(
+      LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS,
+      JSON.stringify(attempts.slice(0, 100))
+    );
   } catch {
     // ignore
   }
@@ -1052,12 +1061,10 @@ export function saveQuizAttempt(attempt: QuizAttemptRecord): QuizAttemptRecord[]
   const current = loadQuizAttempts();
   const updated = [attempt, ...current.filter((a) => a.id !== attempt.id)].slice(0, 100);
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(
-        LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS,
-        JSON.stringify(updated)
-      );
-    }
+    getSafeQuizStorage().setItem(
+      LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS,
+      JSON.stringify(updated)
+    );
   } catch {
     // ignore
   }

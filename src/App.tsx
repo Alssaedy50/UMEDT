@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Search,
   Star,
@@ -95,9 +95,16 @@ import {
 } from './services/telegramBackupService';
 import {
   saveMedicalBlocks,
-  saveMedicalSubjects
+  saveMedicalSubjects,
+  saveAcademicBooks,
+  saveAcademicExams,
+  saveMediaAssetsIndex
 } from './services/learningHierarchyService';
 import { saveQuizQuestions, saveQuizAttempts } from './services/quizEngineService';
+import {
+  importUniversalAiOrLocalContent,
+  UniversalImportReport
+} from './services/aiUniversalImportService';
 import { parseUploadedFile } from './services/fileParserService';
 import { lookupQuickWordOrPhraseAr } from './engine/hybridTranslator';
 import {
@@ -511,6 +518,13 @@ export default function App() {
       setVersionMetadata(updatedState.versionMetadata);
       setBackupHistory(loadBackupHistory());
       setLastBackupTime('نسخ تلقائي قبل التحديث السحابي');
+      triggerTelegramAutoSync(`تحديث سحابي OTA (${updatedState.versionMetadata.dataVersion})`, {
+        terms: updatedState.terms,
+        sentences: updatedState.sentences,
+        topics: updatedState.topics,
+        studyStats: updatedState.studyStats,
+        versionMetadata: updatedState.versionMetadata
+      });
       showToast(
         `تم تثبيت التحديث الطبي السحابي بنجاح (${updatedState.versionMetadata.dataVersion}) مع حفظ النسخة السابقة`
       );
@@ -581,6 +595,13 @@ export default function App() {
         setVersionMetadata(updatedState.versionMetadata);
         setBackupHistory(loadBackupHistory());
         setLastBackupTime(`نسخ تلقائي قبل التحديث الحي (${info.dataVersion})`);
+        triggerTelegramAutoSync(`تحديث خادم OTA (${updatedState.versionMetadata.dataVersion})`, {
+          terms: updatedState.terms,
+          sentences: updatedState.sentences,
+          topics: updatedState.topics,
+          studyStats: updatedState.studyStats,
+          versionMetadata: updatedState.versionMetadata
+        });
         showToast(
           `نجح اختبار التحديث الفعلي من الخادم إلى التطبيق (${updatedState.versionMetadata.dataVersion}) مع التحقق من التوقيع الرقمي ECDSA-P256-SHA256`
         );
@@ -806,38 +827,64 @@ export default function App() {
     };
   }, [simulatedOffline, terms, sentences, topics, studyStats, versionMetadata]);
 
-  // Auto-backup on data change when schedule === 'on_change'
+  const latestDataRef = useRef({
+    terms,
+    sentences,
+    topics,
+    studyStats,
+    versionMetadata,
+    simulatedOffline
+  });
+
   useEffect(() => {
+    latestDataRef.current = {
+      terms,
+      sentences,
+      topics,
+      studyStats,
+      versionMetadata,
+      simulatedOffline
+    };
+  }, [terms, sentences, topics, studyStats, versionMetadata, simulatedOffline]);
+
+  const triggerTelegramAutoSync = (
+    reason: string,
+    overrides?: {
+      terms?: DictionaryTerm[];
+      sentences?: LinkedSentence[];
+      topics?: TopicArticle[];
+      studyStats?: { gotIt: number; needsReview: number };
+      versionMetadata?: VersionMetadata;
+    }
+  ) => {
     const cfg = loadTelegramBackupConfig();
-    if (!cfg.enabled || cfg.schedule !== 'on_change' || simulatedOffline) return;
+    if (!cfg.enabled || cfg.schedule !== 'on_change' || latestDataRef.current.simulatedOffline) {
+      return;
+    }
     if (!cfg.botToken.trim() || !cfg.chatId.trim()) return;
-
-    const timer = setTimeout(async () => {
-      const res = await sendBackupToTelegram(
-        cfg,
-        terms,
-        sentences,
-        topics,
-        'نسخ تلقائي عند تعديل البيانات',
-        studyStats,
-        versionMetadata
-      );
-      if (res.ok && res.summary) {
-        const fresh = loadTelegramBackupConfig();
-        setTelegramConfig((prev) => ({
-          ...prev,
-          ...fresh,
-          botToken: fresh.botToken || prev.botToken || cfg.botToken,
-          chatId: fresh.chatId || prev.chatId || cfg.chatId
-        }));
-        setLastImportedOrCopiedSummary(res.summary);
-        setLastBackupTime('تلقائي إلى تليجرام');
+    scheduleDebouncedTelegramAutoSync({
+      getTerms: () => overrides?.terms ?? latestDataRef.current.terms,
+      getSentences: () => overrides?.sentences ?? latestDataRef.current.sentences,
+      getTopics: () => overrides?.topics ?? latestDataRef.current.topics,
+      getStudyStats: () => overrides?.studyStats ?? latestDataRef.current.studyStats,
+      getVersionMetadata: () => overrides?.versionMetadata ?? latestDataRef.current.versionMetadata,
+      triggerReason: reason,
+      debounceMs: 3500,
+      onSyncCompleted: (res) => {
+        if (res.ok && res.summary) {
+          const fresh = loadTelegramBackupConfig();
+          setTelegramConfig((prev) => ({
+            ...prev,
+            ...fresh,
+            botToken: fresh.botToken || prev.botToken || cfg.botToken,
+            chatId: fresh.chatId || prev.chatId || cfg.chatId
+          }));
+          setLastImportedOrCopiedSummary(res.summary);
+          setLastBackupTime('مزامنة تلقائية لتليجرام');
+        }
       }
-    }, 6000);
-
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [terms.length, topics.length, sentences.length]);
+    });
+  };
 
   const triggerTTS = (text: string, key: string, lang = 'en-US') => {
     setSpeakingKey(key);
@@ -937,8 +984,8 @@ export default function App() {
 
   const toggleFavoriteTerm = (termId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setTerms((prev) =>
-      prev.map((item) => {
+    setTerms((prev) => {
+      const next = prev.map((item) => {
         if (item.id === termId) {
           const nextFav = !item.favorite;
           showToast(
@@ -950,14 +997,16 @@ export default function App() {
           return { ...item, favorite: nextFav };
         }
         return item;
-      })
-    );
+      });
+      triggerTelegramAutoSync('تحديث المفضلة (مصطلح)', { terms: next });
+      return next;
+    });
   };
 
   const toggleFavoriteSentence = (sentenceId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setSentences((prev) =>
-      prev.map((s) => {
+    setSentences((prev) => {
+      const next = prev.map((s) => {
         if (s.id === sentenceId) {
           const nextFav = !s.favorite;
           showToast(
@@ -969,8 +1018,10 @@ export default function App() {
           return { ...s, favorite: nextFav };
         }
         return s;
-      })
-    );
+      });
+      triggerTelegramAutoSync('تحديث المفضلة (جملة)', { sentences: next });
+      return next;
+    });
   };
 
   const handleSaveTopic = (topic: TopicArticle, isEdit: boolean) => {
@@ -1003,26 +1054,10 @@ export default function App() {
 
     setTopics(nextTopicsSnapshot);
     void enqueueEntitiesForCloudSync({ topics: [topic] });
-    if (!simulatedOffline) {
-      scheduleDebouncedTelegramAutoSync({
-        getTerms: () => terms,
-        getSentences: () => sentences,
-        getTopics: () => nextTopicsSnapshot,
-        getStudyStats: () => studyStats,
-        getVersionMetadata: () => versionMetadata,
-        triggerReason: isEdit
-          ? `تعديل موضوع: ${topic.title}`
-          : `إضافة موضوع: ${topic.title}`,
-        debounceMs: 4500,
-        onSyncCompleted: (res) => {
-          if (res.ok && res.summary) {
-            setTelegramConfig(loadTelegramBackupConfig());
-            setLastImportedOrCopiedSummary(res.summary);
-            setLastBackupTime('مزامنة تلقائية لتليجرام');
-          }
-        }
-      });
-    }
+    triggerTelegramAutoSync(
+      isEdit ? `تعديل موضوع: ${topic.title}` : `إضافة موضوع: ${topic.title}`,
+      { topics: nextTopicsSnapshot }
+    );
     showToast(
       isEdit
         ? `تم حفظ التعديلات على الموضوع "${topic.title}"`
@@ -1046,16 +1081,18 @@ export default function App() {
       }
       void deleteLocalMediaRecordsByTopicId(topicId);
     }
-    setTopics((prev) => prev.filter((t) => t.id !== topicId));
+    const nextTopicsSnapshot = topics.filter((t) => t.id !== topicId);
+    setTopics(nextTopicsSnapshot);
     if (target) {
+      triggerTelegramAutoSync(`حذف موضوع: ${target.title}`, { topics: nextTopicsSnapshot });
       showToast(`تم حذف الموضوع "${target.title}" ووسائطه المحلية`);
     }
   };
 
   const toggleFavoriteTopic = (topicId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setTopics((prev) =>
-      prev.map((tp) => {
+    setTopics((prev) => {
+      const next = prev.map((tp) => {
         if (tp.id === topicId) {
           const nextFav = !tp.favorite;
           showToast(
@@ -1067,8 +1104,10 @@ export default function App() {
           return { ...tp, favorite: nextFav };
         }
         return tp;
-      })
-    );
+      });
+      triggerTelegramAutoSync('تحديث المفضلة (موضوع)', { topics: next });
+      return next;
+    });
   };
 
   const categoryCounts = useMemo(() => {
@@ -1242,6 +1281,10 @@ export default function App() {
       const nextTerms = autoEnrichTermRelations(updatedTerm, replaced);
       const syncedSentences = syncTermExamplesToSentences(nextTerms, sentences);
       setSentences(syncedSentences);
+      triggerTelegramAutoSync(`تعديل مصطلح: ${updatedTerm.term}`, {
+        terms: nextTerms,
+        sentences: syncedSentences
+      });
       return nextTerms;
     });
     void enqueueEntitiesForCloudSync({ terms: [updatedTerm] });
@@ -1253,6 +1296,9 @@ export default function App() {
       const remaining = prev.filter((t) => t.id !== termId);
       if (selectedDesktopTermId === termId && remaining[0]) {
         setSelectedDesktopTermId(remaining[0].id);
+      }
+      if (deleted) {
+        triggerTelegramAutoSync(`حذف مصطلح: ${deleted.term}`, { terms: remaining });
       }
       return remaining;
     });
@@ -1282,6 +1328,7 @@ export default function App() {
         : replaced;
       const synced = syncTermExamplesToSentences(nextTerms, sentences);
       setSentences(synced);
+      triggerTelegramAutoSync('إضافة جملة سياقية', { terms: nextTerms, sentences: synced });
       return nextTerms;
     });
     if (updatedTargetTerm) {
@@ -1333,6 +1380,10 @@ export default function App() {
       const combinedSentences = [...newLinkedSentences, ...sentences];
       const synced = syncTermExamplesToSentences(nextTerms, combinedSentences);
       setSentences(synced);
+      triggerTelegramAutoSync(`حفظ مصطلح: ${newTerm.term}`, {
+        terms: nextTerms,
+        sentences: synced
+      });
       return nextTerms;
     });
     void enqueueEntitiesForCloudSync({
@@ -1364,10 +1415,37 @@ export default function App() {
           importedCount += 1;
         }
       }
+      triggerTelegramAutoSync(`استيراد مواضيع (${importedCount})`, { topics: next });
       return next;
     });
     void enqueueEntitiesForCloudSync({ topics: incomingTopics });
     return importedCount;
+  };
+
+  const handleUniversalImportComplete = (report: UniversalImportReport) => {
+    if (!report.success) {
+      if (report.errors[0]) showToast(report.errors[0], 'info');
+      return;
+    }
+    setTerms(report.updatedTerms);
+    setSentences(report.updatedSentences);
+    setTopics(report.updatedTopics);
+    setCustomAffixes(report.updatedAffixes);
+    setCustomAbbreviations(report.updatedAbbreviations);
+    setBackupHistory(loadBackupHistory());
+    setLastImportedOrCopiedSummary(
+      buildConciseDataSummary({
+        terms: report.updatedTerms,
+        sentences: report.updatedSentences,
+        topics: report.updatedTopics,
+        sourceLabel: report.summaryText
+      })
+    );
+    triggerTelegramAutoSync(`استيراد شامل: ${report.summaryText}`, {
+      terms: report.updatedTerms,
+      sentences: report.updatedSentences,
+      topics: report.updatedTopics
+    });
   };
 
   const handleImportFullBackupJson = (rawJson: string): boolean => {
@@ -1398,6 +1476,15 @@ export default function App() {
         }
         if (Array.isArray(inner.subjects) && inner.subjects.length > 0) {
           saveMedicalSubjects(inner.subjects);
+        }
+        if (Array.isArray(inner.books) && inner.books.length > 0) {
+          saveAcademicBooks(inner.books);
+        }
+        if (Array.isArray(inner.exams) && inner.exams.length > 0) {
+          saveAcademicExams(inner.exams);
+        }
+        if (Array.isArray(inner.mediaAssets) && inner.mediaAssets.length > 0) {
+          saveMediaAssetsIndex(inner.mediaAssets);
         }
         if (Array.isArray(inner.quizQuestions || inner.questions)) {
           const qArr = inner.quizQuestions || inner.questions;
@@ -1444,7 +1531,8 @@ export default function App() {
           handleImportTopicsBatch(inner.topics);
         } else if (
           (Array.isArray(inner.blocks) && inner.blocks.length > 0) ||
-          (Array.isArray(inner.subjects) && inner.subjects.length > 0)
+          (Array.isArray(inner.subjects) && inner.subjects.length > 0) ||
+          (Array.isArray(inner.books) && inner.books.length > 0)
         ) {
           // Trigger TopicsHub hierarchy sync from localStorage
           setTopics((prev) => [...prev]);
@@ -1456,11 +1544,18 @@ export default function App() {
           topics: Array.isArray(inner.topics) ? inner.topics : topics,
           blocks: Array.isArray(inner.blocks) ? inner.blocks : undefined,
           subjects: Array.isArray(inner.subjects) ? inner.subjects : undefined,
+          books: Array.isArray(inner.books) ? inner.books : undefined,
+          exams: Array.isArray(inner.exams) ? inner.exams : undefined,
           sourceLabel: 'استيراد نسخة احتياطية أوفلاين',
           rawSizeBytes: new Blob([rawJson]).size
         });
         setLastImportedOrCopiedSummary(summary);
         setBackupHistory(loadBackupHistory());
+        triggerTelegramAutoSync('استيراد نسخة احتياطية', {
+          terms: Array.isArray(inner.terms) ? inner.terms : undefined,
+          sentences: Array.isArray(inner.sentences) ? inner.sentences : undefined,
+          topics: Array.isArray(inner.topics) ? inner.topics : undefined
+        });
         showToast(`تم استيراد النسخة أوفلاين بنجاح (${summary.shortText})`);
         return true;
       }
@@ -1486,6 +1581,13 @@ export default function App() {
       });
       setLastImportedOrCopiedSummary(summary);
       setBackupHistory(loadBackupHistory());
+      triggerTelegramAutoSync('استيراد قاعدة بيانات كاملة', {
+        terms: importResult.state.terms,
+        sentences: importResult.state.sentences,
+        topics: importResult.state.topics,
+        studyStats: importResult.state.studyStats,
+        versionMetadata: importResult.state.versionMetadata
+      });
       showToast(`تم استيراد البيانات بنجاح (${summary.shortText})`);
       return true;
     }
@@ -1498,7 +1600,7 @@ export default function App() {
   const handleImportPackageFile = async (file: File) => {
     const lowerName = file.name.toLowerCase();
 
-    // If JSON / CSV / TXT / MD, first try unified/topics/terms parsing so any offline file works
+    // If JSON / CSV / TXT / MD, first try universal AI/UMEDT-DATA parser and legacy unified parsers
     if (
       lowerName.endsWith('.json') ||
       lowerName.endsWith('.csv') ||
@@ -1509,26 +1611,18 @@ export default function App() {
       try {
         const parsedFile = await parseUploadedFile(file);
         const text = parsedFile.extractedText.trim();
-        if (text.startsWith('{') || text.startsWith('[')) {
-          const ok = handleImportFullBackupJson(text);
-          if (ok) return;
-
-          const parsedJson = JSON.parse(text);
-          const rawArr = Array.isArray(parsedJson) ? parsedJson : [parsedJson];
-          if (
-            rawArr.length > 0 &&
-            rawArr.every((it) => it && typeof it === 'object' && (it.sections || it.titleEn))
-          ) {
-            const count = handleImportTopicsBatch(rawArr as TopicArticle[]);
-            const summary = buildConciseDataSummary({
-              topics: rawArr as TopicArticle[],
-              sourceLabel: file.name,
-              rawSizeBytes: file.size
-            });
-            setLastImportedOrCopiedSummary(summary);
-            showToast(`تم استيراد ${count} موضوع طبي من الملف (${file.name})`);
+        if (text.startsWith('{') || text.startsWith('[') || /```(?:json)?/i.test(text)) {
+          const universalReport = importUniversalAiOrLocalContent({
+            rawText: text,
+            sourceLabel: file.name
+          });
+          if (universalReport.success) {
+            handleUniversalImportComplete(universalReport);
+            showToast(`تم استيراد الملف (${file.name}): ${universalReport.summaryText}`);
             return;
           }
+          const ok = handleImportFullBackupJson(text);
+          if (ok) return;
         } else if (lowerName.endsWith('.csv') || lowerName.endsWith('.txt') || lowerName.endsWith('.md')) {
           const lines = text
             .split(/\r?\n/)
@@ -1624,6 +1718,13 @@ export default function App() {
       rawSizeBytes: file.size
     });
     setLastImportedOrCopiedSummary(summary);
+    triggerTelegramAutoSync(`استيراد حزمة (${file.name})`, {
+      terms: state.terms,
+      sentences: state.sentences,
+      topics: state.topics,
+      studyStats: state.studyStats,
+      versionMetadata: state.versionMetadata
+    });
 
     showToast(`تم استيراد الحزمة بنجاح (${summary.shortText})`);
   };
@@ -1768,6 +1869,10 @@ export default function App() {
       void enqueueEntitiesForCloudSync({
         terms: enrichedTerms.slice(0, Math.max(stagedTerms.length, 1)),
         sentences: incomingSentences
+      });
+      triggerTelegramAutoSync(`دفعة مستوردة (${addedCount + updatedCount})`, {
+        terms: enrichedTerms,
+        sentences: syncedSentences
       });
       return enrichedTerms;
     });
@@ -2308,7 +2413,14 @@ export default function App() {
               setTopics(nextTopics);
               setTerms(nextTerms);
               setSentences(nextSentences);
+              triggerTelegramAutoSync('تحديث المكتبة السحابية', {
+                topics: nextTopics,
+                terms: nextTerms,
+                sentences: nextSentences
+              });
             }}
+            onUniversalImportComplete={handleUniversalImportComplete}
+            onBackupNowTriggered={(reason) => triggerTelegramAutoSync(reason)}
             showToast={showToast}
           />
         )}

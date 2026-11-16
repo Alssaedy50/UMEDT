@@ -20,13 +20,15 @@ import {
 export const GITHUB_DIRECT_RELEASE_LINKS = {
   latestApkReleasePage: 'https://github.com/Alssaedy50/UMEDT/releases/latest',
   stableManifestJson:
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/stable/manifest.json',
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/releases/stable/manifest.json',
+  catalogJson:
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/catalog.json',
   masterTermsJson:
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/master/terms.json',
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/terms.json',
   masterTopicsJson:
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/master/topics.json',
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/topics.json',
   masterSentencesJson:
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/master/sentences.json'
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/sentences.json'
 } as const;
 
 export interface VerifiedExportResult {

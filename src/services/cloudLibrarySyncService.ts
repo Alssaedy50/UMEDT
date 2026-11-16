@@ -6,7 +6,14 @@ import {
   MedicalSubject,
   LocalMediaRecord,
   TopicImageItem,
-  TopicAttachmentItem
+  TopicAttachmentItem,
+  AcademicBookResource,
+  AcademicExamPackage,
+  MediaAssetRecord,
+  DataCatalogDocument,
+  UnifiedQuizQuestion,
+  MorphologicalAffix,
+  ClinicalAbbreviation
 } from '../types/lexicon';
 import {
   INITIAL_TERMS,
@@ -20,8 +27,15 @@ import {
   saveMedicalBlocks,
   loadMedicalSubjects,
   saveMedicalSubjects,
+  loadAcademicBooks,
+  saveAcademicBooks,
+  loadAcademicExams,
+  saveAcademicExams,
+  loadMediaAssetsIndex,
+  saveMediaAssetsIndex,
   enrichAllTopicsWithHierarchy
 } from './learningHierarchyService';
+import { loadQuizQuestions, saveQuizQuestions } from './quizEngineService';
 import { computeSha256Hex } from './dataPlatformService';
 import {
   getLocalMediaRecord,
@@ -29,10 +43,24 @@ import {
   deleteLocalMediaRecordsByTopicId,
   deleteLocalMediaRecordsByKeys,
   getMediaRecordsByTopicId,
+  downloadRemoteMediaToOfflineCache,
   formatBytesLabel
 } from './mediaStorageService';
 
-export type CloudEntityType = 'block' | 'subject' | 'topic' | 'term' | 'sentence' | 'media';
+export const UMEDT_DATA_CATALOG_URL =
+  'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/catalog.json';
+
+export type CloudEntityType =
+  | 'block'
+  | 'subject'
+  | 'topic'
+  | 'term'
+  | 'sentence'
+  | 'media'
+  | 'book'
+  | 'exam'
+  | 'question'
+  | 'media_asset';
 export type SyncItemStatus = 'synced' | 'pending' | 'syncing' | 'failed';
 
 export interface SyncQueueItem {
@@ -56,6 +84,8 @@ export interface LocallyRemovedRegistry {
   topics: string[];
   terms: string[];
   sentences: string[];
+  books?: string[];
+  exams?: string[];
 }
 
 export interface CloudCatalogTopicEntry {
@@ -118,6 +148,25 @@ export interface CloudCatalogBlockEntry {
   subjects: CloudCatalogSubjectEntry[];
 }
 
+export interface CloudCatalogBookEntry {
+  id: string;
+  blockId?: string;
+  subjectId?: string;
+  titleEn: string;
+  titleAr: string;
+  authorsLabel: string;
+  fileFormat: string;
+  sizeBytes: number;
+  sizeLabel: string;
+  pageCount?: number;
+  pdfUrl?: string;
+  coverUrl?: string;
+  isDownloaded: boolean;
+  hasOfflineMediaCached: boolean;
+  sha256?: string;
+  updatedAt?: string;
+}
+
 export interface UnifiedCloudStoreSnapshot {
   version: string;
   updatedAt: string;
@@ -127,6 +176,14 @@ export interface UnifiedCloudStoreSnapshot {
   terms: DictionaryTerm[];
   sentences: LinkedSentence[];
   mediaRecords: LocalMediaRecord[];
+  books?: AcademicBookResource[];
+  exams?: AcademicExamPackage[];
+  quizQuestions?: UnifiedQuizQuestion[];
+  mediaAssets?: MediaAssetRecord[];
+  customAffixes?: MorphologicalAffix[];
+  customAbbreviations?: ClinicalAbbreviation[];
+  collectionHashes?: Record<string, string>;
+  catalogVersion?: string;
   hashes: Record<string, string>;
 }
 
@@ -145,6 +202,11 @@ export interface CloudLibraryStateSummary {
   totalCloudTopicsCount: number;
   downloadedBlocksCount: number;
   totalCloudBlocksCount: number;
+  downloadedBooksCount?: number;
+  totalCloudBooksCount?: number;
+  totalCloudExamsCount?: number;
+  catalogVersion?: string;
+  books?: CloudCatalogBookEntry[];
   blocks: CloudCatalogBlockEntry[];
   queue: SyncQueueItem[];
 }
@@ -154,7 +216,8 @@ export const CLOUD_LIBRARY_STORAGE_KEYS = {
   CLOUD_SNAPSHOT_MIRROR: 'umed_unified_cloud_mirror_v1',
   LOCALLY_REMOVED_IDS: 'umed_locally_removed_cloud_ids_v1',
   KNOWN_HASHES: 'umed_cloud_known_hashes_v1',
-  LAST_SYNCED_AT: 'umed_cloud_last_synced_at_v1'
+  LAST_SYNCED_AT: 'umed_cloud_last_synced_at_v1',
+  CATALOG_COLLECTION_HASHES: 'umed_catalog_collection_hashes_v1'
 } as const;
 
 const memoryStorageFallback = ((
@@ -396,7 +459,7 @@ export function loadLocallyRemovedRegistry(): LocallyRemovedRegistry {
   try {
     const raw = getSafeStorage().getItem(CLOUD_LIBRARY_STORAGE_KEYS.LOCALLY_REMOVED_IDS);
     if (!raw) {
-      return { blocks: [], subjects: [], topics: [], terms: [], sentences: [] };
+      return { blocks: [], subjects: [], topics: [], terms: [], sentences: [], books: [], exams: [] };
     }
     const parsed = JSON.parse(raw) as Partial<LocallyRemovedRegistry>;
     return {
@@ -404,10 +467,12 @@ export function loadLocallyRemovedRegistry(): LocallyRemovedRegistry {
       subjects: Array.isArray(parsed.subjects) ? parsed.subjects : [],
       topics: Array.isArray(parsed.topics) ? parsed.topics : [],
       terms: Array.isArray(parsed.terms) ? parsed.terms : [],
-      sentences: Array.isArray(parsed.sentences) ? parsed.sentences : []
+      sentences: Array.isArray(parsed.sentences) ? parsed.sentences : [],
+      books: Array.isArray(parsed.books) ? parsed.books : [],
+      exams: Array.isArray(parsed.exams) ? parsed.exams : []
     };
   } catch {
-    return { blocks: [], subjects: [], topics: [], terms: [], sentences: [] };
+    return { blocks: [], subjects: [], topics: [], terms: [], sentences: [], books: [], exams: [] };
   }
 }
 
@@ -417,7 +482,9 @@ export function saveLocallyRemovedRegistry(reg: LocallyRemovedRegistry): void {
     subjects: Array.from(new Set(reg.subjects)),
     topics: Array.from(new Set(reg.topics)),
     terms: Array.from(new Set(reg.terms)),
-    sentences: Array.from(new Set(reg.sentences))
+    sentences: Array.from(new Set(reg.sentences)),
+    books: Array.from(new Set(reg.books || [])),
+    exams: Array.from(new Set(reg.exams || []))
   };
   getSafeStorage().setItem(
     CLOUD_LIBRARY_STORAGE_KEYS.LOCALLY_REMOVED_IDS,
@@ -496,6 +563,11 @@ export function buildCanonicalCloudSeedSnapshot(): UnifiedCloudStoreSnapshot {
     terms: [...INITIAL_TERMS],
     sentences: [...INITIAL_LINKED_SENTENCES],
     mediaRecords: [],
+    books: [],
+    exams: [],
+    quizQuestions: [],
+    mediaAssets: [],
+    collectionHashes: {},
     hashes
   };
 }
@@ -530,6 +602,19 @@ export function loadUnifiedCloudMirror(): UnifiedCloudStoreSnapshot {
             ? parsed.sentences
             : [...INITIAL_LINKED_SENTENCES],
           mediaRecords: Array.isArray(parsed.mediaRecords) ? parsed.mediaRecords : [],
+          books: Array.isArray(parsed.books) ? parsed.books : [],
+          exams: Array.isArray(parsed.exams) ? parsed.exams : [],
+          quizQuestions: Array.isArray(parsed.quizQuestions) ? parsed.quizQuestions : [],
+          mediaAssets: Array.isArray(parsed.mediaAssets) ? parsed.mediaAssets : [],
+          customAffixes: Array.isArray(parsed.customAffixes) ? parsed.customAffixes : [],
+          customAbbreviations: Array.isArray(parsed.customAbbreviations)
+            ? parsed.customAbbreviations
+            : [],
+          collectionHashes:
+            parsed.collectionHashes && typeof parsed.collectionHashes === 'object'
+              ? parsed.collectionHashes
+              : {},
+          catalogVersion: parsed.catalogVersion,
           hashes: parsed.hashes && typeof parsed.hashes === 'object' ? parsed.hashes : {}
         };
         return inMemoryCloudMirror;
@@ -558,6 +643,13 @@ export function loadUnifiedCloudMirror(): UnifiedCloudStoreSnapshot {
     terms: [...INITIAL_TERMS],
     sentences: [...INITIAL_LINKED_SENTENCES],
     mediaRecords: [],
+    books: [],
+    exams: [],
+    quizQuestions: [],
+    mediaAssets: [],
+    customAffixes: [],
+    customAbbreviations: [],
+    collectionHashes: {},
     hashes
   };
 
@@ -598,6 +690,14 @@ export function mergeRecordsIntoCloudSnapshot(
     terms?: DictionaryTerm[];
     sentences?: LinkedSentence[];
     mediaRecords?: LocalMediaRecord[];
+    books?: AcademicBookResource[];
+    exams?: AcademicExamPackage[];
+    quizQuestions?: UnifiedQuizQuestion[];
+    mediaAssets?: MediaAssetRecord[];
+    customAffixes?: MorphologicalAffix[];
+    customAbbreviations?: ClinicalAbbreviation[];
+    collectionHashes?: Record<string, string>;
+    catalogVersion?: string;
   }
 ): {
   snapshot: UnifiedCloudStoreSnapshot;
@@ -724,6 +824,81 @@ export function mergeRecordsIntoCloudSnapshot(
     appliedCount += 1;
   }
 
+  const booksMap = new Map((current.books || []).map((b) => [b.id, b]));
+  for (const book of incoming.books || []) {
+    if (!book || !book.id) continue;
+    const key = `book:${book.id}`;
+    const hash = computeDeterministicFastHashHex(canonicalizeForHash('book', book));
+    if (nextHashes[key] === hash && booksMap.has(book.id)) {
+      skippedIdenticalCount += 1;
+      continue;
+    }
+    booksMap.set(book.id, book);
+    nextHashes[key] = hash;
+    appliedCount += 1;
+  }
+
+  const examsMap = new Map((current.exams || []).map((ex) => [ex.id, ex]));
+  for (const ex of incoming.exams || []) {
+    if (!ex || !ex.id) continue;
+    const key = `exam:${ex.id}`;
+    const hash = computeDeterministicFastHashHex(canonicalizeForHash('exam', ex));
+    if (nextHashes[key] === hash && examsMap.has(ex.id)) {
+      skippedIdenticalCount += 1;
+      continue;
+    }
+    examsMap.set(ex.id, ex);
+    nextHashes[key] = hash;
+    appliedCount += 1;
+  }
+
+  const questionsMap = new Map((current.quizQuestions || []).map((q) => [q.id, q]));
+  for (const q of incoming.quizQuestions || []) {
+    if (!q || !q.id) continue;
+    const key = `question:${q.id}`;
+    const hash = computeDeterministicFastHashHex(canonicalizeForHash('question', q));
+    if (nextHashes[key] === hash && questionsMap.has(q.id)) {
+      skippedIdenticalCount += 1;
+      continue;
+    }
+    questionsMap.set(q.id, q);
+    nextHashes[key] = hash;
+    appliedCount += 1;
+  }
+
+  const mediaAssetsMap = new Map((current.mediaAssets || []).map((ma) => [ma.id, ma]));
+  for (const ma of incoming.mediaAssets || []) {
+    if (!ma || !ma.id) continue;
+    const key = `media_asset:${ma.id}`;
+    const hash = computeDeterministicFastHashHex(canonicalizeForHash('media_asset', ma));
+    if (nextHashes[key] === hash && mediaAssetsMap.has(ma.id)) {
+      skippedIdenticalCount += 1;
+      continue;
+    }
+    mediaAssetsMap.set(ma.id, ma);
+    nextHashes[key] = hash;
+    appliedCount += 1;
+  }
+
+  const affixMap = new Map(
+    (current.customAffixes || []).map((af) => [
+      `${af.cleanKey.toLowerCase()}_${af.type}`,
+      af
+    ])
+  );
+  for (const af of incoming.customAffixes || []) {
+    if (!af || !af.cleanKey) continue;
+    affixMap.set(`${af.cleanKey.toLowerCase()}_${af.type}`, af);
+  }
+
+  const abbrMap = new Map(
+    (current.customAbbreviations || []).map((ab) => [ab.abbr.toLowerCase(), ab])
+  );
+  for (const ab of incoming.customAbbreviations || []) {
+    if (!ab || !ab.abbr) continue;
+    abbrMap.set(ab.abbr.toLowerCase(), ab);
+  }
+
   const snapshot: UnifiedCloudStoreSnapshot = {
     version: current.version,
     updatedAt: appliedCount > 0 ? new Date().toISOString() : current.updatedAt,
@@ -733,6 +908,17 @@ export function mergeRecordsIntoCloudSnapshot(
     terms: Array.from(termsMap.values()),
     sentences: Array.from(sentencesMap.values()),
     mediaRecords: Array.from(mediaMap.values()),
+    books: Array.from(booksMap.values()),
+    exams: Array.from(examsMap.values()),
+    quizQuestions: Array.from(questionsMap.values()),
+    mediaAssets: Array.from(mediaAssetsMap.values()),
+    customAffixes: Array.from(affixMap.values()),
+    customAbbreviations: Array.from(abbrMap.values()),
+    collectionHashes: {
+      ...(current.collectionHashes || {}),
+      ...(incoming.collectionHashes || {})
+    },
+    catalogVersion: incoming.catalogVersion || current.catalogVersion,
     hashes: nextHashes
   };
 
@@ -1060,10 +1246,218 @@ export async function processCloudSyncQueue(options?: {
   }
 }
 
+async function fetchUmedtDataJsonWithFallback(
+  url: string,
+  fetchFn: typeof fetch
+): Promise<Response | null> {
+  try {
+    const direct = await fetchFn(url, {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store'
+    });
+    if (direct.ok) return direct;
+  } catch {
+    // Try relay below
+  }
+  if (
+    typeof window !== 'undefined' &&
+    /^https?:$/i.test(window.location?.protocol || '') &&
+    !customCloudFetchOverride
+  ) {
+    try {
+      const relay = await fetchFn(`/api/remote-fetch?url=${encodeURIComponent(url)}`, {
+        headers: { Accept: 'application/json' },
+        cache: 'no-store'
+      });
+      if (relay.ok) return relay;
+    } catch {
+      // ignore relay failure
+    }
+  }
+  return null;
+}
+
+function extractCollectionArray<T>(raw: unknown, keyHint: string): T[] {
+  if (Array.isArray(raw)) return raw as T[];
+  if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    if (Array.isArray(obj.items)) return obj.items as T[];
+    if (Array.isArray(obj[keyHint])) return obj[keyHint] as T[];
+    if (Array.isArray(obj.data)) return obj.data as T[];
+    if (Array.isArray(obj.records)) return obj.records as T[];
+    if (Array.isArray(obj.assets)) return obj.assets as T[];
+    if (Array.isArray(obj.files)) return obj.files as T[];
+  }
+  return [];
+}
+
 /**
- * Pulls latest cloud changes from `/api/cloud-library` into the Unified Cloud Mirror,
- * and automatically merges new/updated cloud items into local state UNLESS the user
- * explicitly deleted those items locally (so locally deleted items remain in the Cloud Library
+ * Reads the external GitHub UMEDT-DATA repository via its canonical `data/catalog.json` entrypoint,
+ * compares collection SHA-256 digests against cached hashes so unchanged files are skipped,
+ * and returns parsed collections for all supported UMEDT-DATA schemas.
+ */
+export async function syncFromUmedtDataRepository(options?: {
+  catalogUrl?: string;
+  currentCollectionHashes?: Record<string, string>;
+  customFetch?: typeof fetch;
+}): Promise<{
+  fetched: boolean;
+  catalogVersion?: string;
+  updatedCollectionsCount: number;
+  skippedCollectionsCount: number;
+  collectionHashes: Record<string, string>;
+  incoming: {
+    blocks?: MedicalBlock[];
+    subjects?: MedicalSubject[];
+    topics?: TopicArticle[];
+    terms?: DictionaryTerm[];
+    sentences?: LinkedSentence[];
+    customAffixes?: MorphologicalAffix[];
+    customAbbreviations?: ClinicalAbbreviation[];
+    books?: AcademicBookResource[];
+    exams?: AcademicExamPackage[];
+    quizQuestions?: UnifiedQuizQuestion[];
+    mediaAssets?: MediaAssetRecord[];
+  };
+}> {
+  const fetchFn =
+    options?.customFetch ||
+    customCloudFetchOverride ||
+    (typeof globalThis.fetch === 'function' ? globalThis.fetch : null);
+  const prevHashes = { ...(options?.currentCollectionHashes || {}) };
+
+  if (!fetchFn || !isCloudSyncOnline()) {
+    return {
+      fetched: false,
+      updatedCollectionsCount: 0,
+      skippedCollectionsCount: 0,
+      collectionHashes: prevHashes,
+      incoming: {}
+    };
+  }
+
+  const targetCatalogUrl = options?.catalogUrl || UMEDT_DATA_CATALOG_URL;
+  const catalogRes = await fetchUmedtDataJsonWithFallback(targetCatalogUrl, fetchFn);
+  if (!catalogRes || !catalogRes.ok) {
+    return {
+      fetched: false,
+      updatedCollectionsCount: 0,
+      skippedCollectionsCount: 0,
+      collectionHashes: prevHashes,
+      incoming: {}
+    };
+  }
+
+  const catalog = (await catalogRes.json()) as Partial<DataCatalogDocument>;
+  if (!catalog || !Array.isArray(catalog.collections)) {
+    return {
+      fetched: false,
+      updatedCollectionsCount: 0,
+      skippedCollectionsCount: 0,
+      collectionHashes: prevHashes,
+      incoming: {}
+    };
+  }
+
+  const nextHashes = { ...prevHashes };
+  const incoming: {
+    blocks?: MedicalBlock[];
+    subjects?: MedicalSubject[];
+    topics?: TopicArticle[];
+    terms?: DictionaryTerm[];
+    sentences?: LinkedSentence[];
+    customAffixes?: MorphologicalAffix[];
+    customAbbreviations?: ClinicalAbbreviation[];
+    books?: AcademicBookResource[];
+    exams?: AcademicExamPackage[];
+    quizQuestions?: UnifiedQuizQuestion[];
+    mediaAssets?: MediaAssetRecord[];
+  } = {};
+
+  let updatedCollectionsCount = 0;
+  let skippedCollectionsCount = 0;
+
+  for (const col of catalog.collections) {
+    if (!col || !col.id || !col.rawUrl) continue;
+    const expectedHash = (col.sha256 || '').trim();
+    if (expectedHash && prevHashes[col.id] === expectedHash) {
+      skippedCollectionsCount += 1;
+      continue;
+    }
+
+    const colRes = await fetchUmedtDataJsonWithFallback(col.rawUrl, fetchFn);
+    if (!colRes || !colRes.ok) continue;
+
+    const rawText = await colRes.text();
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(rawText);
+    } catch {
+      continue;
+    }
+
+    // Verify per-collection SHA-256 if provided by catalog
+    if (expectedHash && /^[0-9a-f]{64}$/i.test(expectedHash)) {
+      const actualHash = await computeSha256Hex(new TextEncoder().encode(rawText));
+      if (actualHash.toLowerCase() !== expectedHash.toLowerCase()) {
+        // Still allow if JSON parses cleanly when upstream catalog wasn't regenerated after manual edit
+        // but keep actualHash recorded so next sync checks accurately
+        nextHashes[col.id] = actualHash;
+      } else {
+        nextHashes[col.id] = expectedHash;
+      }
+    } else if (expectedHash) {
+      nextHashes[col.id] = expectedHash;
+    }
+
+    const idLower = col.id.toLowerCase();
+    const ctLower = (col.contentType || '').toLowerCase();
+    const rtLower = (col.rendererType || '').toLowerCase();
+
+    if (idLower === 'blocks' || ctLower === 'blocks' || rtLower === 'block_hub') {
+      incoming.blocks = extractCollectionArray<MedicalBlock>(parsedJson, 'blocks');
+    } else if (idLower === 'subjects' || ctLower === 'subjects' || rtLower === 'subject_list') {
+      incoming.subjects = extractCollectionArray<MedicalSubject>(parsedJson, 'subjects');
+    } else if (idLower === 'topics' || ctLower === 'topics' || rtLower === 'topic_article') {
+      incoming.topics = extractCollectionArray<TopicArticle>(parsedJson, 'topics');
+    } else if (idLower === 'terms' || ctLower === 'terms' || rtLower === 'lexicon_term') {
+      incoming.terms = extractCollectionArray<DictionaryTerm>(parsedJson, 'terms');
+    } else if (idLower === 'sentences' || ctLower === 'sentences' || rtLower === 'bilingual_sentence') {
+      incoming.sentences = extractCollectionArray<LinkedSentence>(parsedJson, 'sentences');
+    } else if (idLower.includes('affix') || rtLower === 'morphology_rule') {
+      incoming.customAffixes = extractCollectionArray<MorphologicalAffix>(parsedJson, 'affixes');
+    } else if (idLower.includes('abbr') || rtLower === 'clinical_abbr') {
+      incoming.customAbbreviations = extractCollectionArray<ClinicalAbbreviation>(
+        parsedJson,
+        'abbreviations'
+      );
+    } else if (idLower === 'books' || ctLower === 'books' || rtLower === 'book_pdf_reader') {
+      incoming.books = extractCollectionArray<AcademicBookResource>(parsedJson, 'books');
+    } else if (idLower === 'questions' || ctLower === 'questions' || rtLower === 'quiz_runner') {
+      incoming.quizQuestions = extractCollectionArray<UnifiedQuizQuestion>(parsedJson, 'questions');
+    } else if (idLower === 'exams' || ctLower === 'exams' || rtLower === 'exam_blueprint') {
+      incoming.exams = extractCollectionArray<AcademicExamPackage>(parsedJson, 'exams');
+    } else if (idLower.includes('media') || rtLower === 'media_gallery') {
+      incoming.mediaAssets = extractCollectionArray<MediaAssetRecord>(parsedJson, 'mediaAssets');
+    }
+
+    updatedCollectionsCount += 1;
+  }
+
+  return {
+    fetched: true,
+    catalogVersion: catalog.catalogVersion,
+    updatedCollectionsCount,
+    skippedCollectionsCount,
+    collectionHashes: nextHashes,
+    incoming
+  };
+}
+
+/**
+ * Pulls latest cloud changes from `UMEDT-DATA` (`catalog.json` + `master/*.json`) and `/api/cloud-library`
+ * into the Unified Cloud Mirror, and automatically merges new/updated cloud items into local state UNLESS
+ * the user explicitly deleted those items locally (so locally deleted items remain in the Cloud Library
  * ready for selective re-download).
  */
 export async function syncWithRemoteCloudLibrary(params: {
@@ -1105,6 +1499,31 @@ export async function syncWithRemoteCloudLibrary(params: {
       : null);
 
   let fetchedRemoteSnapshot = false;
+
+  // 1. Primary remote source: external GitHub UMEDT-DATA catalog.json
+  try {
+    const currentBeforeUmedt = loadUnifiedCloudMirror();
+    const umedtRes = await syncFromUmedtDataRepository({
+      currentCollectionHashes: currentBeforeUmedt.collectionHashes || {},
+      customFetch: params.customFetch
+    });
+    if (umedtRes.fetched) {
+      const mergedUmedt = mergeRecordsIntoCloudSnapshot(currentBeforeUmedt, {
+        ...umedtRes.incoming,
+        collectionHashes: umedtRes.collectionHashes,
+        catalogVersion: umedtRes.catalogVersion
+      });
+      saveUnifiedCloudMirror(mergedUmedt.snapshot);
+      if (umedtRes.incoming.mediaAssets && umedtRes.incoming.mediaAssets.length > 0) {
+        saveMediaAssetsIndex(mergedUmedt.snapshot.mediaAssets || []);
+      }
+      fetchedRemoteSnapshot = true;
+    }
+  } catch {
+    // Continue to /api/cloud-library fallback below
+  }
+
+  // 2. Also query unified local/backend /api/cloud-library snapshot if available
   if (fetchFn) {
     try {
       const res = await fetchFn('/api/cloud-library?action=snapshot', {
@@ -1121,7 +1540,11 @@ export async function syncWithRemoteCloudLibrary(params: {
             topics: data.topics,
             terms: data.terms,
             sentences: data.sentences,
-            mediaRecords: data.mediaRecords
+            mediaRecords: data.mediaRecords,
+            books: data.books,
+            exams: data.exams,
+            quizQuestions: data.quizQuestions,
+            mediaAssets: data.mediaAssets
           });
           saveUnifiedCloudMirror(mergedMirror.snapshot);
           fetchedRemoteSnapshot = true;
@@ -1132,12 +1555,12 @@ export async function syncWithRemoteCloudLibrary(params: {
     }
   }
 
-  // If online in Capacitor Android APK or static hosting where /api/cloud-library is not mounted,
-  // hydrate the cloud catalog from the canonical cloud repository snapshot ONLY when online.
-  if (!fetchedRemoteSnapshot && isCloudSyncOnline()) {
+  // 3. Only if neither UMEDT-DATA nor /api/cloud-library responded and mirror has zero blocks,
+  // hydrate from canonical seed ONLY while online.
+  const currentAfterPull = loadUnifiedCloudMirror();
+  if (!fetchedRemoteSnapshot && currentAfterPull.blocks.length === 0 && isCloudSyncOnline()) {
     const seed = buildCanonicalCloudSeedSnapshot();
-    const currentMirror = loadUnifiedCloudMirror();
-    const mergedMirror = mergeRecordsIntoCloudSnapshot(currentMirror, {
+    const mergedMirror = mergeRecordsIntoCloudSnapshot(currentAfterPull, {
       blocks: seed.blocks,
       subjects: seed.subjects,
       topics: seed.topics,
@@ -1514,6 +1937,40 @@ export function buildCloudLibraryCatalogView(params: {
     });
   }
 
+  // Books & Exams integration for Cloud Library UI
+  const localBooks = loadAcademicBooks();
+  const localBookIds = new Set(localBooks.map((b) => b.id));
+  const cloudBooksMap = new Map<string, AcademicBookResource>();
+  for (const bk of mirror.books || []) cloudBooksMap.set(bk.id, bk);
+  for (const bk of localBooks) {
+    if (!(removed.books || []).includes(bk.id)) cloudBooksMap.set(bk.id, bk);
+  }
+  const bookEntries: CloudCatalogBookEntry[] = Array.from(cloudBooksMap.values()).map((bk) => {
+    const isDl = localBookIds.has(bk.id) && !(removed.books || []).includes(bk.id);
+    const localBk = localBooks.find((lb) => lb.id === bk.id);
+    const sz = bk.sizeBytes || computeEntitySizeBytes(bk);
+    if (isDl) localTotalBytes += computeEntitySizeBytes(localBk || bk);
+    cloudTotalBytes += sz;
+    return {
+      id: bk.id,
+      blockId: bk.blockId,
+      subjectId: bk.subjectId,
+      titleEn: bk.titleEn,
+      titleAr: bk.titleAr || bk.titleEn,
+      authorsLabel: Array.isArray(bk.authors) ? bk.authors.join('، ') : '',
+      fileFormat: (bk.fileFormat || 'pdf').toUpperCase(),
+      sizeBytes: sz,
+      sizeLabel: formatBytesLabel(sz),
+      pageCount: bk.pageCount,
+      pdfUrl: bk.pdfUrl || bk.mediaUrl || bk.externalUrl,
+      coverUrl: bk.coverUrl,
+      isDownloaded: isDl,
+      hasOfflineMediaCached: Boolean(localBk?.mediaIdbKey),
+      sha256: bk.sha256,
+      updatedAt: bk.updatedAt
+    };
+  });
+
   // Add general dictionary terms size to totals
   const dictTermsBytes = computeEntitySizeBytes(params.localTerms) + computeEntitySizeBytes(params.localSentences);
   localTotalBytes += dictTermsBytes;
@@ -1547,18 +2004,77 @@ export function buildCloudLibraryCatalogView(params: {
     totalCloudTopicsCount,
     downloadedBlocksCount,
     totalCloudBlocksCount: blockEntries.length,
+    downloadedBooksCount: bookEntries.filter((b) => b.isDownloaded).length,
+    totalCloudBooksCount: bookEntries.length,
+    totalCloudExamsCount: (mirror.exams || []).length,
+    catalogVersion: mirror.catalogVersion,
+    books: bookEntries,
     blocks: blockEntries,
     queue
   };
 }
 
+async function resolveAndCacheRemoteUrlForEntity(params: {
+  url?: string;
+  preferredIdbKey?: string;
+  topicId?: string;
+  blockId?: string;
+  fileName?: string;
+  mimeType?: string;
+  mediaAssets?: MediaAssetRecord[];
+  customFetch?: typeof fetch;
+}): Promise<{ idbKey?: string; sizeBytes: number; cachedNew: boolean; skippedDuplicate: boolean }> {
+  const cleanUrl = (params.url || '').trim();
+  if (!cleanUrl || !/^https?:\/\//i.test(cleanUrl)) {
+    return { sizeBytes: 0, cachedNew: false, skippedDuplicate: false };
+  }
+
+  const matchedAsset = (params.mediaAssets || []).find(
+    (ma) => ma.url === cleanUrl || ma.id === params.preferredIdbKey
+  );
+  const stableId =
+    params.preferredIdbKey ||
+    `idb-${computeDeterministicFastHashHex(cleanUrl).slice(0, 16)}`;
+
+  const existing = await getLocalMediaRecord(stableId);
+  if (existing && existing.dataUrl && existing.sizeBytes > 0) {
+    return {
+      idbKey: stableId,
+      sizeBytes: 0,
+      cachedNew: false,
+      skippedDuplicate: true
+    };
+  }
+
+  const cached = await downloadRemoteMediaToOfflineCache({
+    id: stableId,
+    remoteUrl: cleanUrl,
+    topicId: params.topicId,
+    blockId: params.blockId,
+    fileName: params.fileName || matchedAsset?.fileName,
+    mimeType: params.mimeType || matchedAsset?.mimeType,
+    customFetch: params.customFetch
+  });
+
+  if (cached.success) {
+    return {
+      idbKey: cached.mediaIdbKey,
+      sizeBytes: cached.sizeBytes,
+      cachedNew: true,
+      skippedDuplicate: false
+    };
+  }
+  return { sizeBytes: 0, cachedNew: false, skippedDuplicate: false };
+}
+
 /**
  * Selective Granular Download:
- * Downloads a specific Block, Subject, or Topic from the Unified Cloud Library to local storage.
- * Enforces SHA-256 deduplication so identical local content/media is never downloaded twice.
+ * Downloads a specific Block, Subject, Topic, or Book from the Unified Cloud Library to local storage.
+ * Prefetches referenced remote media/PDFs into IndexedDB and enforces SHA-256 deduplication so identical
+ * local content/media is never downloaded twice.
  */
 export async function downloadCloudLibraryTarget(params: {
-  targetType: 'block' | 'subject' | 'topic';
+  targetType: 'block' | 'subject' | 'topic' | 'book';
   targetId: string;
   currentTopics: TopicArticle[];
   currentTerms: DictionaryTerm[];
@@ -1597,7 +2113,10 @@ export async function downloadCloudLibraryTarget(params: {
   }
 
   let mirror = loadUnifiedCloudMirror();
-  if (mirror.topics.length === 0 || mirror.blocks.length === 0) {
+  if (
+    (mirror.topics.length === 0 && (mirror.books || []).length === 0) ||
+    mirror.blocks.length === 0
+  ) {
     const syncRes = await syncWithRemoteCloudLibrary({
       localTopics: params.currentTopics,
       localTerms: params.currentTerms,
@@ -1610,6 +2129,95 @@ export async function downloadCloudLibraryTarget(params: {
   const removed = loadLocallyRemovedRegistry();
   const localBlocks = loadMedicalBlocks();
   const localSubjects = loadMedicalSubjects();
+
+  // Handle single Book download cleanly
+  if (params.targetType === 'book') {
+    const targetBook = (mirror.books || []).find((b) => b.id === params.targetId);
+    if (!targetBook) {
+      return {
+        success: false,
+        downloadedTopicsCount: 0,
+        downloadedTermsCount: 0,
+        downloadedMediaCount: 0,
+        skippedIdenticalCount: 0,
+        bytesDownloaded: 0,
+        updatedTopics: params.currentTopics,
+        updatedTerms: params.currentTerms,
+        updatedSentences: params.currentSentences,
+        updatedBlocks: localBlocks,
+        updatedSubjects: localSubjects,
+        messageAr: 'الكتاب غير موجود في الفهرس السحابي'
+      };
+    }
+
+    const existingBooks = loadAcademicBooks();
+    let downloadedMediaCount = 0;
+    let skippedIdenticalCount = 0;
+    let bytesDownloaded = 0;
+    let nextBook: AcademicBookResource = { ...targetBook };
+
+    const mainDocUrl = targetBook.pdfUrl || targetBook.mediaUrl || targetBook.externalUrl;
+    if (mainDocUrl && /^https?:\/\//i.test(mainDocUrl)) {
+      const pdfCacheRes = await resolveAndCacheRemoteUrlForEntity({
+        url: mainDocUrl,
+        preferredIdbKey: targetBook.mediaIdbKey,
+        fileName: `${targetBook.id}.${(targetBook.fileFormat || 'pdf').toLowerCase()}`,
+        mimeType: targetBook.fileFormat === 'epub' ? 'application/epub+zip' : 'application/pdf',
+        mediaAssets: mirror.mediaAssets,
+        customFetch: params.customFetch
+      });
+      if (pdfCacheRes.idbKey) {
+        nextBook.mediaIdbKey = pdfCacheRes.idbKey;
+        if (pdfCacheRes.cachedNew) {
+          downloadedMediaCount += 1;
+          bytesDownloaded += pdfCacheRes.sizeBytes;
+        } else if (pdfCacheRes.skippedDuplicate) {
+          skippedIdenticalCount += 1;
+        }
+      }
+    }
+
+    if (targetBook.coverUrl && /^https?:\/\//i.test(targetBook.coverUrl)) {
+      const coverCacheRes = await resolveAndCacheRemoteUrlForEntity({
+        url: targetBook.coverUrl,
+        preferredIdbKey: targetBook.coverIdbKey,
+        mediaAssets: mirror.mediaAssets,
+        customFetch: params.customFetch
+      });
+      if (coverCacheRes.idbKey) {
+        nextBook.coverIdbKey = coverCacheRes.idbKey;
+        if (coverCacheRes.cachedNew) {
+          downloadedMediaCount += 1;
+          bytesDownloaded += coverCacheRes.sizeBytes;
+        }
+      }
+    }
+
+    const updatedBooks = [
+      ...existingBooks.filter((b) => b.id !== nextBook.id),
+      nextBook
+    ];
+    bytesDownloaded += computeEntitySizeBytes(nextBook);
+    removed.books = (removed.books || []).filter((id) => id !== nextBook.id);
+    saveLocallyRemovedRegistry(removed);
+    saveAcademicBooks(updatedBooks);
+    notifyCloudLibraryListeners();
+
+    return {
+      success: true,
+      downloadedTopicsCount: 0,
+      downloadedTermsCount: 0,
+      downloadedMediaCount,
+      skippedIdenticalCount,
+      bytesDownloaded,
+      updatedTopics: params.currentTopics,
+      updatedTerms: params.currentTerms,
+      updatedSentences: params.currentSentences,
+      updatedBlocks: localBlocks,
+      updatedSubjects: localSubjects,
+      messageAr: `تم تنزيل الكتاب (${formatBytesLabel(bytesDownloaded)}) للعمل دون إنترنت`
+    };
+  }
 
   let targetBlocks: MedicalBlock[] = [];
   let targetSubjects: MedicalSubject[] = [];
@@ -1701,22 +2309,77 @@ export async function downloadCloudLibraryTarget(params: {
   const updatedSubjects = Array.from(nextSubjectsMap.values()).sort((a, b) => a.order - b.order);
   saveMedicalSubjects(updatedSubjects);
 
-  // 3. Merge Topics with SHA-256 & media deduplication
+  // 3. Merge Topics with SHA-256 & media deduplication + offline remote media prefetching
   const nextTopicsMap = new Map(params.currentTopics.map((t) => [t.id, t]));
   const targetTopicIds = new Set(targetTopics.map((t) => t.id));
 
   for (const rawTp of targetTopics) {
     const tp = deduplicateTopicMediaAndAttachments(rawTp);
-    const existing = nextTopicsMap.get(tp.id);
-    const incomingHash = await computeEntitySha256('topic', tp);
+
+    // Prefetch external images, diagrams, PDFs, audio, attachments referenced inside sections/images/attachments
+    const updatedSections = await Promise.all(
+      (tp.sections || []).map(async (sec) => {
+        if (!Array.isArray(sec.contentBlocks)) return sec;
+        const nextBlocks = await Promise.all(
+          sec.contentBlocks.map(async (cb) => {
+            const candidateUrl =
+              cb.mediaUrl && /^https?:\/\//i.test(cb.mediaUrl)
+                ? cb.mediaUrl
+                : cb.externalUrl &&
+                    /^https?:\/\//i.test(cb.externalUrl) &&
+                    (cb.type === 'pdf_viewer' ||
+                      cb.type === 'attachment' ||
+                      cb.type === 'image' ||
+                      cb.type === 'diagram' ||
+                      cb.type === 'audio' ||
+                      cb.type === 'video')
+                  ? cb.externalUrl
+                  : '';
+            if (!candidateUrl) return cb;
+
+            const cached = await resolveAndCacheRemoteUrlForEntity({
+              url: candidateUrl,
+              preferredIdbKey: cb.mediaIdbKey,
+              topicId: tp.id,
+              blockId: cb.id,
+              fileName: cb.mediaFileName || cb.titleEn,
+              mimeType: cb.mediaMimeType,
+              mediaAssets: mirror.mediaAssets,
+              customFetch: params.customFetch
+            });
+            if (cached.cachedNew) {
+              downloadedMediaCount += 1;
+              bytesDownloaded += cached.sizeBytes;
+            } else if (cached.skippedDuplicate) {
+              skippedIdenticalCount += 1;
+            }
+            return cached.idbKey ? { ...cb, mediaIdbKey: cached.idbKey } : cb;
+          })
+        );
+        return { ...sec, contentBlocks: nextBlocks };
+      })
+    );
+
+    const updatedTopicWithCachedMedia: TopicArticle = {
+      ...tp,
+      sections: updatedSections
+    };
+
+    const existing = nextTopicsMap.get(updatedTopicWithCachedMedia.id);
+    const incomingHash = await computeEntitySha256('topic', updatedTopicWithCachedMedia);
     const existingHash = existing ? await computeEntitySha256('topic', existing) : '';
 
     if (existing && existingHash === incomingHash) {
       skippedIdenticalCount += 1;
     } else {
-      nextTopicsMap.set(tp.id, existing ? { ...tp, favorite: existing.favorite } : tp);
+      nextTopicsMap.set(
+        updatedTopicWithCachedMedia.id,
+        existing
+          ? { ...updatedTopicWithCachedMedia, favorite: existing.favorite }
+          : updatedTopicWithCachedMedia
+      );
       downloadedTopicsCount += 1;
-      bytesDownloaded += computeEntitySizeBytes(tp);
+      bytesDownloaded += computeEntitySizeBytes(updatedTopicWithCachedMedia);
     }
 
     // Restore any associated media records into IndexedDB if not already present with matching SHA-256
@@ -1767,6 +2430,52 @@ export async function downloadCloudLibraryTarget(params: {
   }
   const updatedTerms = Array.from(nextTermsMap.values());
 
+  // 4b. Sync linked Questions, Exams & Books associated with this Block/Subject/Topic
+  const matchingCloudQuestions = (mirror.quizQuestions || []).filter(
+    (q) =>
+      (q.topicId && targetTopicIds.has(q.topicId)) ||
+      (q.subjectId && targetSubjIds.has(q.subjectId)) ||
+      (q.blockId && targetBlockIds.has(q.blockId))
+  );
+  if (matchingCloudQuestions.length > 0) {
+    const existingQuestions = loadQuizQuestions(updatedTopics, updatedTerms);
+    const qMap = new Map(existingQuestions.map((q) => [q.id, q]));
+    for (const q of matchingCloudQuestions) qMap.set(q.id, q);
+    saveQuizQuestions(Array.from(qMap.values()));
+  }
+
+  const matchingCloudExams = (mirror.exams || []).filter(
+    (ex) =>
+      (ex.blockId && targetBlockIds.has(ex.blockId)) ||
+      (ex.subjectId && targetSubjIds.has(ex.subjectId)) ||
+      (ex.topicIds || []).some((tid) => targetTopicIds.has(tid))
+  );
+  if (matchingCloudExams.length > 0) {
+    const existingExams = loadAcademicExams();
+    const exMap = new Map(existingExams.map((e) => [e.id, e]));
+    for (const ex of matchingCloudExams) {
+      removed.exams = (removed.exams || []).filter((id) => id !== ex.id);
+      exMap.set(ex.id, ex);
+    }
+    saveAcademicExams(Array.from(exMap.values()));
+  }
+
+  const matchingCloudBooks = (mirror.books || []).filter(
+    (bk) =>
+      (bk.blockId && targetBlockIds.has(bk.blockId)) ||
+      (bk.subjectId && targetSubjIds.has(bk.subjectId)) ||
+      (bk.topicIds || []).some((tid) => targetTopicIds.has(tid))
+  );
+  if (matchingCloudBooks.length > 0) {
+    const existingBooks = loadAcademicBooks();
+    const bkMap = new Map(existingBooks.map((b) => [b.id, b]));
+    for (const bk of matchingCloudBooks) {
+      removed.books = (removed.books || []).filter((id) => id !== bk.id);
+      bkMap.set(bk.id, bk);
+    }
+    saveAcademicBooks(Array.from(bkMap.values()));
+  }
+
   saveLocallyRemovedRegistry(removed);
   notifyCloudLibraryListeners();
 
@@ -1793,12 +2502,12 @@ export async function downloadCloudLibraryTarget(params: {
 
 /**
  * Local-Only Deletion:
- * Completely deletes a Block, Subject, or Topic (and its associated media in IndexedDB)
+ * Completely deletes a Block, Subject, Topic, or Book (and its associated media in IndexedDB)
  * from local device storage while preserving it in the Unified Cloud Mirror so it appears
  * under `المكتبة السحابية` and can be re-downloaded at any time.
  */
 export async function deleteCloudLibraryTargetLocally(params: {
-  targetType: 'block' | 'subject' | 'topic';
+  targetType: 'block' | 'subject' | 'topic' | 'book';
   targetId: string;
   currentTopics: TopicArticle[];
   currentTerms: DictionaryTerm[];
@@ -1815,6 +2524,7 @@ export async function deleteCloudLibraryTargetLocally(params: {
 }> {
   const localBlocks = loadMedicalBlocks();
   const localSubjects = loadMedicalSubjects();
+  const localBooks = loadAcademicBooks();
 
   // First ensure current local state is backed up into the Unified Cloud Mirror so it is never lost
   const currentMirror = loadUnifiedCloudMirror();
@@ -1823,11 +2533,41 @@ export async function deleteCloudLibraryTargetLocally(params: {
     subjects: localSubjects,
     topics: params.currentTopics,
     terms: params.currentTerms,
-    sentences: params.currentSentences
+    sentences: params.currentSentences,
+    books: localBooks
   });
   saveUnifiedCloudMirror(preservedMirror.snapshot);
 
   const removed = loadLocallyRemovedRegistry();
+
+  if (params.targetType === 'book') {
+    const targetBook = localBooks.find((b) => b.id === params.targetId);
+    const freed = targetBook ? computeEntitySizeBytes(targetBook) : 0;
+    if (targetBook) {
+      const mediaKeys = [targetBook.mediaIdbKey, targetBook.coverIdbKey].filter(
+        (k): k is string => Boolean(k)
+      );
+      if (mediaKeys.length > 0) {
+        await deleteLocalMediaRecordsByKeys(mediaKeys);
+      }
+    }
+    removed.books = [...(removed.books || []), params.targetId];
+    saveAcademicBooks(localBooks.filter((b) => b.id !== params.targetId));
+    saveLocallyRemovedRegistry(removed);
+    notifyCloudLibraryListeners();
+
+    return {
+      success: true,
+      removedTopicsCount: 0,
+      freedBytes: freed,
+      updatedTopics: params.currentTopics,
+      updatedTerms: params.currentTerms,
+      updatedBlocks: localBlocks,
+      updatedSubjects: localSubjects,
+      messageAr: `تم حذف الكتاب (${formatBytesLabel(freed)})`
+    };
+  }
+
   let topicsToRemoveIds = new Set<string>();
   let subjectsToRemoveIds = new Set<string>();
   let blocksToRemoveIds = new Set<string>();

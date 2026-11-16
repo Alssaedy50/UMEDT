@@ -55,8 +55,17 @@ import {
   syncWithRemoteCloudLibrary,
   subscribeToCloudLibraryChanges,
   isCloudSyncOnline,
-  CloudLibraryStateSummary
+  computeDeterministicFastHashHex,
+  CloudLibraryStateSummary,
+  CloudCatalogBookEntry
 } from '../services/cloudLibrarySyncService';
+import { loadAcademicBooks } from '../services/learningHierarchyService';
+import { getLocalMediaRecord } from '../services/mediaStorageService';
+import {
+  importUniversalAiOrLocalContent,
+  UniversalImportReport
+} from '../services/aiUniversalImportService';
+import { AiContentGuideModal } from './AiContentGuideModal';
 
 export interface StagedTermItem {
   id: string;
@@ -130,6 +139,8 @@ interface LibraryViewProps {
     terms: DictionaryTerm[];
     sentences: LinkedSentence[];
   }) => void;
+  onUniversalImportComplete?: (report: UniversalImportReport) => void;
+  onBackupNowTriggered?: (reason: string) => void;
   showToast?: (message: string, type?: string) => void;
 }
 
@@ -201,6 +212,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   onImportPackageFile,
   onImportTopicsBatch,
   onSyncStateUpdated,
+  onUniversalImportComplete,
+  onBackupNowTriggered,
   showToast
 }) => {
   const [libraryMode, setLibraryMode] = useState<LibrarySubMode>(initialMode || 'hub');
@@ -222,6 +235,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   });
   const [busyTargetKey, setBusyTargetKey] = useState<string | null>(null);
   const [syncRevision, setSyncRevision] = useState(0);
+  const [isAiGuideOpen, setIsAiGuideOpen] = useState(false);
+  const [bookPdfPreview, setBookPdfPreview] = useState<{
+    title: string;
+    url: string;
+  } | null>(null);
 
   useEffect(() => {
     const unsub = subscribeToCloudLibraryChanges(() => {
@@ -522,164 +540,49 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    // 1. Check if JSON (Full Backup, Unified Backup, Granular Export, Topics array, or Terms array)
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    // 1. Universal JSON / Markdown ```json ... ``` / UMEDT-DATA multi-entity bundle / Unified backup
+    const looksStructuredOrMarkdownJson =
+      trimmed.startsWith('{') ||
+      trimmed.startsWith('[') ||
+      /```(?:json)?/i.test(trimmed);
+
+    if (looksStructuredOrMarkdownJson) {
+      const report = importUniversalAiOrLocalContent({
+        rawText: text,
+        sourceLabel: sourceFileName
+      });
+      if (report.success) {
+        onUniversalImportComplete?.(report);
+        setSyncRevision((prev) => prev + 1);
+        const summary = buildConciseDataSummary({
+          terms: report.updatedTerms,
+          sentences: report.updatedSentences,
+          topics: report.updatedTopics,
+          sourceLabel: sourceFileName,
+          rawSizeBytes: new Blob([trimmed]).size
+        });
+        setLastDataSummary(summary);
+        setOfflineFeedback({
+          type: 'success',
+          message: `تم الاستيراد بنجاح (${report.summaryText}).`
+        });
+        setRawBatchInput('');
+        return;
+      }
+
+      // Fallback to legacy unified backup handler if needed
       try {
-        const parsed = JSON.parse(trimmed);
-
-        // Case A: Full Backup, Unified Backup, or Granular Export object
-        if (
-          parsed &&
-          !Array.isArray(parsed) &&
-          (parsed.format === 'umed-unified-backup-v2.3' ||
-            parsed.format === 'umed-granular-export-v1' ||
-            parsed.manifest ||
-            parsed.payload ||
-            parsed.data ||
-            parsed.terms ||
-            parsed.topics)
-        ) {
-          const ok = onImportFullBackupJson(trimmed);
-          if (ok) {
-            const inner = parsed.data || parsed.payload || parsed;
-            const summary = buildConciseDataSummary({
-              terms: Array.isArray(inner.terms) ? inner.terms : [],
-              sentences: Array.isArray(inner.sentences) ? inner.sentences : [],
-              topics: Array.isArray(inner.topics) ? inner.topics : [],
-              blocks: Array.isArray(inner.blocks) ? inner.blocks : [],
-              subjects: Array.isArray(inner.subjects) ? inner.subjects : [],
-              questions: Array.isArray(inner.quizQuestions || inner.questions)
-                ? inner.quizQuestions || inner.questions
-                : [],
-              sourceLabel: sourceFileName,
-              rawSizeBytes: new Blob([trimmed]).size
-            });
-            setLastDataSummary(summary);
-            setOfflineFeedback({
-              type: 'success',
-              message: `تم استيراد البيانات أوفلاين بنجاح (${summary.shortText}).`
-            });
-            setRawBatchInput('');
-            return;
-          }
-        }
-
-        // Case B: Standalone Topic object or Array of Topics
-        const rawArr = Array.isArray(parsed) ? parsed : [parsed];
-        const looksLikeTopics =
-          rawArr.length > 0 &&
-          rawArr.every(
-            (it: Record<string, unknown>) =>
-              it &&
-              typeof it === 'object' &&
-              (Array.isArray(it.sections) ||
-                Boolean(it.titleEn && it.titleAr) ||
-                Boolean(it.title && it.sections))
-          );
-
-        if (looksLikeTopics && onImportTopicsBatch) {
-          const importedTopics: TopicArticle[] = rawArr.map(
-            (it: Record<string, unknown>, idx: number) => ({
-              id: String(it.id || `topic-imp-${Date.now()}-${idx}`),
-              title: String(it.title || it.titleAr || it.titleEn || 'موضوع طبي مستورد'),
-              titleEn: String(it.titleEn || it.title || 'Imported Medical Topic'),
-              titleAr: String(it.titleAr || it.subtitle || it.title || 'موضوع طبي مستورد'),
-              subtitle: String(it.subtitle || it.titleAr || ''),
-              category: (it.category as TopicArticle['category']) || 'Medical',
-              blockId: typeof it.blockId === 'string' ? it.blockId : undefined,
-              subjectId: typeof it.subjectId === 'string' ? it.subjectId : undefined,
-              author: String(it.author || 'استيراد أوفلاين'),
-              publishedAt: String(it.publishedAt || 'الآن'),
-              readingTimeMinutes: Number(it.readingTimeMinutes) || 5,
-              favorite: Boolean(it.favorite),
-              sections: Array.isArray(it.sections)
-                ? (it.sections as TopicArticle['sections'])
-                : [
-                    {
-                      id: `sec-imp-${Date.now()}`,
-                      heading: 'المحتوى الرئيسي',
-                      paragraphs: [String(it.content || it.body || '')]
-                    }
-                  ],
-              images: Array.isArray(it.images) ? (it.images as TopicArticle['images']) : [],
-              links: Array.isArray(it.links) ? (it.links as TopicArticle['links']) : [],
-              attachments: Array.isArray(it.attachments)
-                ? (it.attachments as TopicArticle['attachments'])
-                : []
-            })
-          );
-
-          const count = onImportTopicsBatch(importedTopics);
-          const summary = buildConciseDataSummary({
-            terms: [],
-            sentences: [],
-            topics: importedTopics,
-            blocks: [],
-            subjects: [],
-            questions: [],
-            sourceLabel: sourceFileName,
-            rawSizeBytes: new Blob([trimmed]).size
-          });
-          setLastDataSummary(summary);
+        const ok = onImportFullBackupJson(trimmed);
+        if (ok) {
           setOfflineFeedback({
             type: 'success',
-            message: `تم استيراد ${count} موضوع طبي أوفلاين بنجاح.`
+            message: 'تم استيراد النسخة الاحتياطية بنجاح.'
           });
           setRawBatchInput('');
           return;
         }
-
-        // Case C: Array of Terms
-        const arr = Array.isArray(parsed) ? parsed : parsed.terms || [];
-        if (Array.isArray(arr) && arr.length > 0) {
-          const staged: StagedTermItem[] = arr
-            .map((item: Record<string, unknown>, idx: number) => {
-              const tEn = String(item.term || item.en || item.word || '').trim();
-              if (!tEn) return null;
-              const quickAr = lookupQuickWordOrPhraseAr(tEn, terms)?.translationAr;
-              const morphAr = decomposeMedicalWord(tEn, terms).synthesizedAr;
-              const tAr =
-                String(item.translation || item.ar || item.meaning || '').trim() ||
-                quickAr ||
-                (morphAr && morphAr !== 'مصطلح أحادي الجذر' ? morphAr : '') ||
-                'مصطلح طبي';
-              const defAr =
-                String(item.definitionAr || item.definition || '').trim() ||
-                `مصطلح طبي سريري يشير إلى ${tAr}.`;
-              const defEn =
-                String(item.definitionEn || '').trim() ||
-                `Medical concept referring to ${tEn}.`;
-
-              return {
-                id: `stg-json-${Date.now()}-${idx}`,
-                term: tEn,
-                translation: tAr,
-                phonetic: String(item.phonetic || `/${tEn.toLowerCase()}/`),
-                pos: String(item.pos || 'noun'),
-                category: (item.category as LexiconCategory) || 'Medical',
-                definitionAr: defAr,
-                definitionEn: defEn,
-                examples: Array.isArray(item.examples) ? (item.examples as TermExample[]) : [],
-                relations: {
-                  synonyms: [],
-                  broader: [],
-                  related: []
-                },
-                selected: true,
-                isDuplicate: existingTermSet.has(tEn.toLowerCase())
-              };
-            })
-            .filter(Boolean) as StagedTermItem[];
-
-          setStagedItems(staged);
-          setOfflineFeedback({
-            type: 'success',
-            message: `تم استخراج ${staged.length} مصطلح جاهز للحفظ.`
-          });
-          return;
-        }
       } catch {
-        // Fallback to text parsing
+        // Fallback to text line parsing below
       }
     }
 
@@ -831,7 +734,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   };
 
   const handleDownloadTarget = async (
-    targetType: 'block' | 'subject' | 'topic',
+    targetType: 'block' | 'subject' | 'topic' | 'book',
     targetId: string
   ) => {
     if (!isCloudSyncOnline()) {
@@ -854,6 +757,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           terms: res.updatedTerms,
           sentences: res.updatedSentences
         });
+        setSyncRevision((prev) => prev + 1);
+        onBackupNowTriggered?.(`تنزيل سحابي (${targetType})`);
       }
       showToast?.(res.messageAr, res.success ? 'success' : 'info');
     } finally {
@@ -862,7 +767,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   };
 
   const handleDeleteTargetLocally = async (
-    targetType: 'block' | 'subject' | 'topic',
+    targetType: 'block' | 'subject' | 'topic' | 'book',
     targetId: string
   ) => {
     const key = `${targetType}:${targetId}`;
@@ -880,10 +785,40 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         terms: res.updatedTerms,
         sentences
       });
+      setSyncRevision((prev) => prev + 1);
+      onBackupNowTriggered?.(`حذف محلي (${targetType})`);
       showToast?.(res.messageAr, 'info');
     } finally {
       setBusyTargetKey(null);
     }
+  };
+
+  const handleOpenCloudBook = async (bk: CloudCatalogBookEntry) => {
+    const localBook = loadAcademicBooks().find((item) => item.id === bk.id);
+    const pdfHref = (localBook?.pdfUrl || bk.pdfUrl || '').trim();
+    const idbKey =
+      localBook?.mediaIdbKey ||
+      (pdfHref.startsWith('http://') || pdfHref.startsWith('https://')
+        ? `idb-${computeDeterministicFastHashHex(pdfHref).slice(0, 16)}`
+        : '');
+    if (idbKey) {
+      const cached = await getLocalMediaRecord(idbKey);
+      if (cached?.dataUrl) {
+        setBookPdfPreview({
+          title: bk.titleAr || bk.titleEn,
+          url: cached.dataUrl
+        });
+        return;
+      }
+    }
+    if (pdfHref) {
+      setBookPdfPreview({
+        title: bk.titleAr || bk.titleEn,
+        url: pdfHref
+      });
+      return;
+    }
+    showToast?.('لا يتوفر ملف PDF مرتبط بهذا الكتاب حالياً', 'info');
   };
 
   const handleRefreshCloudCatalog = async () => {
@@ -905,6 +840,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           terms: res.autoMergedTerms,
           sentences: res.autoMergedSentences
         });
+        onBackupNowTriggered?.('تحديث المكتبة السحابية');
       }
       setSyncRevision((prev) => prev + 1);
       showToast?.('تم التحديث');
@@ -919,6 +855,20 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     syncing: 'مزامنة...',
     failed: 'فشل'
   };
+
+  const filteredCloudBooks = useMemo(() => {
+    const q = cloudSearchQuery.trim().toLowerCase();
+    return (cloudSummary.books || []).filter((bk) => {
+      if (cloudFilterTab === 'local' && !bk.isDownloaded) return false;
+      if (cloudFilterTab === 'cloud' && bk.isDownloaded) return false;
+      if (!q) return true;
+      return (
+        bk.titleAr.toLowerCase().includes(q) ||
+        bk.titleEn.toLowerCase().includes(q) ||
+        bk.authorsLabel.toLowerCase().includes(q)
+      );
+    });
+  }, [cloudSummary.books, cloudFilterTab, cloudSearchQuery]);
 
   const filteredCloudBlocks = useMemo(() => {
     const q = cloudSearchQuery.trim().toLowerCase();
@@ -1114,25 +1064,17 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
-                <span
-                  className={`px-2.5 py-1.5 rounded-xl text-[11px] font-extrabold flex items-center gap-1 ${
-                    cloudSummary.overallSyncStatus === 'synced'
-                      ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                      : cloudSummary.overallSyncStatus === 'failed'
-                      ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300'
-                      : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
-                  }`}
-                >
+                <span className="text-[11px] font-extrabold text-slate-600 dark:text-slate-300 flex items-center gap-1 px-1.5 whitespace-nowrap">
                   {cloudSummary.overallSyncStatus === 'synced' && (
-                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                   )}
                   {cloudSummary.overallSyncStatus === 'failed' && (
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                   )}
                   {(cloudSummary.overallSyncStatus === 'pending' ||
                     cloudSummary.overallSyncStatus === 'syncing') && (
                     <RefreshCw
-                      className={`w-3.5 h-3.5 shrink-0 ${
+                      className={`w-3.5 h-3.5 text-amber-500 shrink-0 ${
                         cloudSummary.overallSyncStatus === 'syncing' ? 'animate-spin' : ''
                       }`}
                     />
@@ -1142,9 +1084,18 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
                 <button
                   type="button"
+                  onClick={() => setIsAiGuideOpen(true)}
+                  className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>دليل الذكاء</span>
+                </button>
+
+                <button
+                  type="button"
                   disabled={busyTargetKey === 'catalog:refresh'}
                   onClick={() => void handleRefreshCloudCatalog()}
-                  className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1 transition-colors disabled:opacity-50"
+                  className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1 transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
                 >
                   <RefreshCw
                     className={`w-3.5 h-3.5 ${
@@ -1481,6 +1432,81 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 })
               )}
             </div>
+
+            {/* Academic Books & PDF References Section */}
+            {filteredCloudBooks.length > 0 && (
+              <div className="pt-2 space-y-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between text-xs font-extrabold text-slate-700 dark:text-slate-200">
+                  <span className="flex items-center gap-1.5">
+                    <BookOpen className="w-4 h-4 text-emerald-500" />
+                    <span>الكتب والمراجع ({filteredCloudBooks.length})</span>
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {filteredCloudBooks.map((bk) => {
+                    const bkBusy = busyTargetKey === `book:${bk.id}`;
+                    return (
+                      <div
+                        key={bk.id}
+                        className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 flex items-center justify-between gap-2.5 text-xs"
+                      >
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div className="font-extrabold text-slate-900 dark:text-white leading-snug break-words">
+                            {bk.titleAr || bk.titleEn}
+                          </div>
+                          <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">
+                            {bk.authorsLabel} · {bk.fileFormat.toUpperCase()} · {bk.sizeLabel} ·{' '}
+                            <span
+                              className={
+                                bk.isDownloaded
+                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  : 'text-amber-600 dark:text-amber-400'
+                              }
+                            >
+                              {bk.isDownloaded ? 'محلي' : 'سحابي'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {bk.isDownloaded ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => void handleOpenCloudBook(bk)}
+                                className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold text-xs whitespace-nowrap shrink-0"
+                              >
+                                فتح
+                              </button>
+                              <button
+                                type="button"
+                                disabled={bkBusy}
+                                onClick={() => void handleDeleteTargetLocally('book', bk.id)}
+                                className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 text-rose-700 dark:text-rose-300 font-extrabold text-xs flex items-center gap-1 disabled:opacity-50 whitespace-nowrap shrink-0"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>حذف</span>
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={bkBusy}
+                              onClick={() => void handleDownloadTarget('book', bk.id)}
+                              className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center gap-1 disabled:opacity-50 whitespace-nowrap shrink-0"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>تنزيل</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1815,31 +1841,42 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 </h2>
               </div>
 
-              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setOfflineAddTab('manual')}
-                  className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all ${
-                    offlineAddTab === 'manual'
-                      ? 'bg-emerald-600 text-white shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-300'
-                  }`}
+                  onClick={() => setIsAiGuideOpen(true)}
+                  className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center gap-1.5 whitespace-nowrap shrink-0"
                 >
-                  <PlusCircle className="w-3.5 h-3.5" />
-                  <span>إضافة مصطلح</span>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>دليل الذكاء</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setOfflineAddTab('file_batch')}
-                  className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all ${
-                    offlineAddTab === 'file_batch'
-                      ? 'bg-emerald-600 text-white shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>استيراد ملفات أوفلاين</span>
-                </button>
+
+                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
+                  <button
+                    type="button"
+                    onClick={() => setOfflineAddTab('manual')}
+                    className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
+                      offlineAddTab === 'manual'
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    <span>إضافة مصطلح</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOfflineAddTab('file_batch')}
+                    className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
+                      offlineAddTab === 'file_batch'
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>استيراد ملفات</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -2303,6 +2340,58 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               </div>
             </>
           ) : null}
+        </div>
+      )}
+
+      <AiContentGuideModal
+        isOpen={isAiGuideOpen}
+        onClose={() => setIsAiGuideOpen(false)}
+        onQuickImportReport={(report) => {
+          onUniversalImportComplete?.(report);
+          setSyncRevision((prev) => prev + 1);
+          setLastDataSummary(
+            buildConciseDataSummary({
+              terms: report.updatedTerms,
+              sentences: report.updatedSentences,
+              topics: report.updatedTopics,
+              sourceLabel: 'استيراد من دليل الذكاء'
+            })
+          );
+          setOfflineFeedback({
+            type: 'success',
+            message: `تم الاستيراد بنجاح (${report.summaryText}).`
+          });
+        }}
+        showToast={showToast}
+      />
+
+      {bookPdfPreview && (
+        <div
+          onClick={() => setBookPdfPreview(null)}
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-4xl h-[86dvh] rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden shadow-2xl"
+          >
+            <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+              <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white truncate">
+                {bookPdfPreview.title}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setBookPdfPreview(null)}
+                className="min-h-[44px] min-w-[44px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <iframe
+              src={bookPdfPreview.url}
+              title={bookPdfPreview.title}
+              className="flex-1 w-full bg-slate-100 dark:bg-slate-950 border-0"
+            />
+          </div>
         </div>
       )}
     </div>

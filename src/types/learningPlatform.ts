@@ -3,10 +3,14 @@ export type ContentBlockType =
   | 'paragraph'
   | 'table'
   | 'image'
+  | 'diagram'
   | 'video'
   | 'video_link'
   | 'audio'
   | 'attachment'
+  | 'pdf_viewer'
+  | 'book_reference'
+  | 'exam_link'
   | 'question'
   | 'clinical_note';
 
@@ -80,6 +84,11 @@ export interface TopicContentBlock {
   externalUrl?: string;
   noteSeverity?: 'high-yield' | 'clinical-correlation' | 'warning' | 'exam-trap';
   inlineQuestion?: UnifiedQuizQuestion;
+  bookId?: string;
+  examId?: string;
+  diagramSvg?: string;
+  diagramData?: unknown;
+  sha256?: string;
 }
 
 export interface MedicalBlock {
@@ -197,3 +206,123 @@ export interface LocalMediaRecord {
   dataUrl: string;
   createdAt: string;
 }
+
+export interface AcademicBookChapter {
+  id: string;
+  titleEn: string;
+  titleAr?: string;
+  pageStart?: number;
+  pageEnd?: number;
+}
+
+export interface AcademicBookResource {
+  id: string;
+  titleEn: string;
+  titleAr: string;
+  subtitleEn?: string;
+  subtitleAr?: string;
+  authors?: string[];
+  edition?: string;
+  year?: number;
+  language?: string;
+  blockId?: string;
+  subjectId?: string;
+  topicIds?: string[];
+  fileFormat?: 'pdf' | 'epub' | 'html' | 'link' | string;
+  pdfUrl?: string;
+  epubUrl?: string;
+  coverUrl?: string;
+  mediaUrl?: string;
+  externalUrl?: string;
+  mediaIdbKey?: string;
+  coverIdbKey?: string;
+  sha256?: string;
+  sizeBytes?: number;
+  pageCount?: number;
+  chapters?: AcademicBookChapter[];
+  tags?: string[];
+  descriptionEn?: string;
+  descriptionAr?: string;
+  favorite?: boolean;
+  lastReadPage?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AcademicExamPackage {
+  id: string;
+  titleEn: string;
+  titleAr: string;
+  blockId?: string;
+  subjectId?: string;
+  topicIds?: string[];
+  questionIds?: string[];
+  questions?: UnifiedQuizQuestion[];
+  durationMinutes?: number;
+  passingPercent?: number;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  descriptionEn?: string;
+  descriptionAr?: string;
+  sha256?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface MediaAssetRecord {
+  id: string;
+  mediaType?: 'image' | 'diagram' | 'audio' | 'video' | 'pdf' | 'book' | 'attachment' | string;
+  kind?: string;
+  titleEn?: string;
+  titleAr?: string;
+  fileName?: string;
+  mimeType?: string;
+  url: string;
+  sha256?: string;
+  sizeBytes?: number;
+  topicId?: string;
+  subjectId?: string;
+  blockId?: string;
+  bookId?: string;
+  captionEn?: string;
+  captionAr?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type UmedtDataRendererType =
+  | 'block_hub'
+  | 'subject_list'
+  | 'topic_article'
+  | 'lexicon_term'
+  | 'bilingual_sentence'
+  | 'morphology_rule'
+  | 'clinical_abbr'
+  | 'book_pdf_reader'
+  | 'quiz_runner'
+  | 'exam_blueprint'
+  | 'media_gallery'
+  | string;
+
+export interface CatalogCollectionDescriptor {
+  id: string;
+  name?: string;
+  contentType: string;
+  rendererType: UmedtDataRendererType;
+  rawUrl: string;
+  sha256?: string;
+  recordCount?: number;
+  sizeBytes?: number;
+  mergeStrategy?: 'merge' | 'replace' | 'ignore' | string;
+  userProtectedFields?: string[];
+}
+
+export interface DataCatalogDocument {
+  catalogVersion?: string;
+  repository?: string;
+  branch?: string;
+  updatedAt?: string;
+  latestStableManifestUrl?: string;
+  latestBetaManifestUrl?: string;
+  collections: CatalogCollectionDescriptor[];
+}
+

@@ -8,7 +8,10 @@ import {
   MedicalSubject,
   TopicContentBlock,
   RecentLearningItem,
-  StudiedTermLogEntry
+  StudiedTermLogEntry,
+  AcademicBookResource,
+  AcademicExamPackage,
+  MediaAssetRecord
 } from '../types/lexicon';
 
 export const LEARNING_STORAGE_KEYS = {
@@ -17,7 +20,10 @@ export const LEARNING_STORAGE_KEYS = {
   QUIZ_QUESTIONS: 'dictengine_umd_quiz_questions_v2',
   QUIZ_ATTEMPTS: 'dictengine_umd_quiz_attempts_v2',
   RECENT_LEARNING: 'dictengine_umd_recent_learning_v2',
-  STUDIED_TERMS_LOG: 'dictengine_umd_studied_terms_log_v2'
+  STUDIED_TERMS_LOG: 'dictengine_umd_studied_terms_log_v2',
+  BOOKS: 'dictengine_umd_books_v2',
+  EXAMS: 'dictengine_umd_exams_v2',
+  MEDIA_ASSETS: 'dictengine_umd_media_assets_v1'
 } as const;
 
 export const INITIAL_MEDICAL_BLOCKS: MedicalBlock[] = [
@@ -513,7 +519,7 @@ export function syncContentBlocksToLegacyTopicFields(
         derivedParagraphs.push(
           `Q: ${blk.inlineQuestion.questionEn} — Answer: ${blk.inlineQuestion.correctOptionKeys.join(', ')}`
         );
-      } else if (blk.type === 'image' && blk.mediaUrl) {
+      } else if ((blk.type === 'image' || blk.type === 'diagram') && blk.mediaUrl) {
         if (!seenImgUrls.has(blk.mediaUrl)) {
           seenImgUrls.add(blk.mediaUrl);
           collectedImages.push({
@@ -532,17 +538,23 @@ export function syncContentBlocksToLegacyTopicFields(
             description: blk.text || blk.titleAr
           });
         }
-      } else if (blk.type === 'attachment' && blk.mediaFileName) {
-        if (!seenAttachmentNames.has(blk.mediaFileName)) {
-          seenAttachmentNames.add(blk.mediaFileName);
+      } else if ((blk.type === 'attachment' || blk.type === 'pdf_viewer') && (blk.mediaFileName || blk.mediaUrl || blk.externalUrl)) {
+        const fname = blk.mediaFileName || blk.titleEn || `${blk.id}.pdf`;
+        if (!seenAttachmentNames.has(fname)) {
+          seenAttachmentNames.add(fname);
           collectedAttachments.push({
             id: blk.id,
-            fileName: blk.mediaFileName,
-            fileType: blk.mediaMimeType || 'FILE',
-            fileSizeLabel: blk.text || 'Attachment',
-            contentDataUrlOrText: blk.mediaUrl || ''
+            fileName: fname,
+            fileType: blk.mediaMimeType || (blk.type === 'pdf_viewer' ? 'application/pdf' : 'FILE'),
+            fileSizeLabel: blk.text || (blk.type === 'pdf_viewer' ? 'PDF Document' : 'Attachment'),
+            contentDataUrlOrText: blk.mediaUrl || blk.externalUrl || '',
+            externalUrl: blk.externalUrl,
+            mediaIdbKey: blk.mediaIdbKey
           });
         }
+      } else if (blk.type === 'book_reference' || blk.type === 'exam_link') {
+        const refLabel = [blk.titleEn, blk.titleAr, blk.text].filter(Boolean).join(' — ');
+        if (refLabel) derivedParagraphs.push(refLabel);
       }
     }
 
@@ -720,17 +732,29 @@ function getHierarchyStorage() {
   };
 }
 
-function getLocallyRemovedHierarchyIds(): { blocks: Set<string>; subjects: Set<string> } {
+function getLocallyRemovedHierarchyIds(): {
+  blocks: Set<string>;
+  subjects: Set<string>;
+  books: Set<string>;
+  exams: Set<string>;
+} {
   try {
     const raw = getHierarchyStorage().getItem('umed_locally_removed_cloud_ids_v1');
-    if (!raw) return { blocks: new Set(), subjects: new Set() };
-    const parsed = JSON.parse(raw) as { blocks?: string[]; subjects?: string[] };
+    if (!raw) return { blocks: new Set(), subjects: new Set(), books: new Set(), exams: new Set() };
+    const parsed = JSON.parse(raw) as {
+      blocks?: string[];
+      subjects?: string[];
+      books?: string[];
+      exams?: string[];
+    };
     return {
       blocks: new Set(Array.isArray(parsed?.blocks) ? parsed.blocks : []),
-      subjects: new Set(Array.isArray(parsed?.subjects) ? parsed.subjects : [])
+      subjects: new Set(Array.isArray(parsed?.subjects) ? parsed.subjects : []),
+      books: new Set(Array.isArray(parsed?.books) ? parsed.books : []),
+      exams: new Set(Array.isArray(parsed?.exams) ? parsed.exams : [])
     };
   } catch {
-    return { blocks: new Set(), subjects: new Set() };
+    return { blocks: new Set(), subjects: new Set(), books: new Set(), exams: new Set() };
   }
 }
 
@@ -745,6 +769,8 @@ export function ensurePostInstallLocalTopicsAndBlocksCleaned(): void {
     store.setItem(LEARNING_STORAGE_KEYS.BLOCKS, '[]');
     store.setItem(LEARNING_STORAGE_KEYS.SUBJECTS, '[]');
     store.setItem(LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS, '[]');
+    store.setItem(LEARNING_STORAGE_KEYS.BOOKS, '[]');
+    store.setItem(LEARNING_STORAGE_KEYS.EXAMS, '[]');
     store.setItem('dictengine_umd_topics_v2', '[]');
     store.setItem('umed_unified_cloud_mirror_v1', '');
     store.setItem(POST_INSTALL_CLEAN_FLAG_KEY, 'done');
@@ -820,6 +846,71 @@ export function loadMedicalSubjects(): MedicalSubject[] {
 export function saveMedicalSubjects(subjects: MedicalSubject[]): void {
   try {
     getHierarchyStorage().setItem(LEARNING_STORAGE_KEYS.SUBJECTS, JSON.stringify(subjects));
+  } catch {
+    // ignore
+  }
+}
+
+export function loadAcademicBooks(): AcademicBookResource[] {
+  ensurePostInstallLocalTopicsAndBlocksCleaned();
+  const removed = getLocallyRemovedHierarchyIds().books;
+  try {
+    const raw = getHierarchyStorage().getItem(LEARNING_STORAGE_KEYS.BOOKS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as AcademicBookResource[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((b) => b && b.id && !removed.has(b.id));
+  } catch {
+    return [];
+  }
+}
+
+export function saveAcademicBooks(books: AcademicBookResource[]): void {
+  try {
+    ensurePostInstallLocalTopicsAndBlocksCleaned();
+    getHierarchyStorage().setItem(LEARNING_STORAGE_KEYS.BOOKS, JSON.stringify(books));
+  } catch {
+    // ignore
+  }
+}
+
+export function loadAcademicExams(): AcademicExamPackage[] {
+  ensurePostInstallLocalTopicsAndBlocksCleaned();
+  const removed = getLocallyRemovedHierarchyIds().exams;
+  try {
+    const raw = getHierarchyStorage().getItem(LEARNING_STORAGE_KEYS.EXAMS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as AcademicExamPackage[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((e) => e && e.id && !removed.has(e.id));
+  } catch {
+    return [];
+  }
+}
+
+export function saveAcademicExams(exams: AcademicExamPackage[]): void {
+  try {
+    ensurePostInstallLocalTopicsAndBlocksCleaned();
+    getHierarchyStorage().setItem(LEARNING_STORAGE_KEYS.EXAMS, JSON.stringify(exams));
+  } catch {
+    // ignore
+  }
+}
+
+export function loadMediaAssetsIndex(): MediaAssetRecord[] {
+  try {
+    const raw = getHierarchyStorage().getItem(LEARNING_STORAGE_KEYS.MEDIA_ASSETS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as MediaAssetRecord[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveMediaAssetsIndex(assets: MediaAssetRecord[]): void {
+  try {
+    getHierarchyStorage().setItem(LEARNING_STORAGE_KEYS.MEDIA_ASSETS, JSON.stringify(assets));
   } catch {
     // ignore
   }
