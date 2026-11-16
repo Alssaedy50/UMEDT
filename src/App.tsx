@@ -187,6 +187,26 @@ export default function App() {
   const [fontSizeScale, setFontSizeScale] = useState<AppFontSizeScale>(
     initialPersisted.settings.fontSizeScale || 'md'
   );
+  const [fontScalePercent, setFontScalePercent] = useState<number>(() => {
+    try {
+      const saved = window.localStorage.getItem('umed_font_scale_percent_v1');
+      if (saved) {
+        const parsed = Number(saved);
+        if (Number.isFinite(parsed) && parsed >= 80 && parsed <= 140) {
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    const scaleMap: Record<AppFontSizeScale, number> = {
+      sm: 85,
+      md: 100,
+      lg: 115,
+      xl: 130
+    };
+    return scaleMap[initialPersisted.settings.fontSizeScale || 'md'] || 100;
+  });
   const [colorTheme, setColorTheme] = useState<AppColorTheme>(
     initialPersisted.settings.colorTheme || 'emerald'
   );
@@ -245,20 +265,22 @@ export default function App() {
       ibm: "'IBM Plex Sans Arabic', 'Inter', system-ui, -apple-system, sans-serif",
       system: "system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif"
     };
-    const sizeMap: Record<AppFontSizeScale, string> = {
-      sm: '14px',
-      md: '16px',
-      lg: '18px',
-      xl: '20px'
-    };
+    const clampedPercent = Math.max(80, Math.min(140, fontScalePercent));
+    const scaleRatio = Number((clampedPercent / 100).toFixed(3));
     root.style.setProperty('--app-font-family', fontMap[fontFamily]);
-    root.style.fontSize = sizeMap[fontSizeScale];
+    root.style.setProperty('--app-font-scale', String(scaleRatio));
+    root.style.fontSize = `${Number((16 * scaleRatio).toFixed(2))}px`;
+    try {
+      window.localStorage.setItem('umed_font_scale_percent_v1', String(clampedPercent));
+    } catch {
+      // ignore
+    }
     if (colorTheme === 'emerald') {
       root.removeAttribute('data-theme');
     } else {
       root.setAttribute('data-theme', colorTheme);
     }
-  }, [fontFamily, fontSizeScale, colorTheme]);
+  }, [fontFamily, fontSizeScale, fontScalePercent, colorTheme]);
 
   // Screen 1: Search & Home State
   const [searchQuery, setSearchQuery] = useState('');
@@ -741,15 +763,6 @@ export default function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simulatedOffline]);
-
-  // Non-blocking startup online update check
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      void handleCheckForUpdates({ isStartup: true });
-    }, 250);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Periodic Telegram Auto-Backup Check (Runs on startup and every 5 minutes)
   useEffect(() => {
@@ -2070,7 +2083,7 @@ export default function App() {
       </header>
 
       {/* ====================================================================
-          CENTERED POPUP NAVIGATION CARD (البطاقة المنبثقة للتنقل السريع بدل القائمة الجانبية)
+          CENTERED POPUP NAVIGATION CARD
          ==================================================================== */}
       {isSidebarOpen && (
         <div
@@ -2083,7 +2096,7 @@ export default function App() {
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                التنقل السريع بين أقسام المنظومة
+                الأقسام
               </span>
               <button
                 type="button"
@@ -2097,10 +2110,10 @@ export default function App() {
 
             <nav className="grid grid-cols-2 gap-2.5">
               {[
-                { id: 'home' as MainTab, label: 'القاموس الطبي', sub: `${terms.length} مصطلح`, icon: Search },
-                { id: 'topics' as MainTab, label: 'المواضيع الطبية', sub: `${topics.length} موضوع`, icon: BookOpen },
-                { id: 'library' as MainTab, label: 'مكتبتي والمفضلة', sub: `${favoriteTerms.length} محفوظ`, icon: Star },
-                { id: 'settings' as MainTab, label: 'الإعدادات والنسخ', sub: `${dbMetrics.actualSizeKb} KB`, icon: Settings }
+                { id: 'home' as MainTab, label: 'القاموس', sub: `${terms.length}`, icon: Search },
+                { id: 'topics' as MainTab, label: 'المواضيع', sub: `${topics.length}`, icon: BookOpen },
+                { id: 'library' as MainTab, label: 'مكتبتي', sub: `${favoriteTerms.length}`, icon: Star },
+                { id: 'settings' as MainTab, label: 'الإعدادات', sub: `${dbMetrics.actualSizeKb} KB`, icon: Settings }
               ].map((item) => {
                 const IconComp = item.icon;
                 const isActive = activeTab === item.id;
@@ -2148,31 +2161,6 @@ export default function App() {
           MAIN APPLICATION WORKSPACE
          ==================================================================== */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 pt-4 box-border">
-        {onlineUpdateStatus.phase === 'update-available' && (
-          <div className="mb-4 p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-xs font-bold text-emerald-800 dark:text-emerald-200">
-              <span>
-                يتوفر تحديث سحابي جديد للبيانات الطبية ({onlineUpdateStatus.availableDataVersion}) موقّع رقمياً وجاهز للتنزيل.
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void handleCheckForUpdates({ forceInstall: true })}
-                className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold"
-              >
-                تنزيل وتثبيت التحديث الآن
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('settings')}
-                className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white/80 dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-800"
-              >
-                الإعدادات
-              </button>
-            </div>
-          </div>
-        )}
 
         {activeTab === 'home' && (
           <SearchHub
@@ -2291,12 +2279,23 @@ export default function App() {
             fontFamily={fontFamily}
             onChangeFontFamily={(nextFont) => {
               setFontFamily(nextFont);
-              showToast('تم تغيير نوع الخط بنجاح');
             }}
             fontSizeScale={fontSizeScale}
             onChangeFontSizeScale={(nextScale) => {
               setFontSizeScale(nextScale);
-              showToast('تم تحديث حجم الخط في التطبيق');
+              const pctMap: Record<AppFontSizeScale, number> = {
+                sm: 85,
+                md: 100,
+                lg: 115,
+                xl: 130
+              };
+              if (Math.abs(fontScalePercent - pctMap[nextScale]) > 8) {
+                setFontScalePercent(pctMap[nextScale]);
+              }
+            }}
+            fontScalePercent={fontScalePercent}
+            onChangeFontScalePercent={(nextPct) => {
+              setFontScalePercent(nextPct);
             }}
             colorTheme={colorTheme}
             onChangeColorTheme={(nextTheme) => {

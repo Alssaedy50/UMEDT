@@ -56,6 +56,8 @@ interface SettingsViewProps {
   onChangeFontFamily: (next: AppFontFamily) => void;
   fontSizeScale: AppFontSizeScale;
   onChangeFontSizeScale: (next: AppFontSizeScale) => void;
+  fontScalePercent?: number;
+  onChangeFontScalePercent?: (nextPercent: number) => void;
   colorTheme: AppColorTheme;
   onChangeColorTheme: (next: AppColorTheme) => void;
   conflictPolicy: 'ignore' | 'overwrite' | 'merge';
@@ -118,26 +120,26 @@ const FONT_FAMILY_OPTIONS: Array<{
 }> = [
   {
     id: 'cairo',
-    label: 'Cairo (افتراضي)',
-    preview: 'خط واضح ومتوازن للمصطلحات الطبية',
+    label: 'Cairo',
+    preview: 'خط متوازن للمصطلحات',
     cssFamily: "'Cairo', 'Inter', system-ui, sans-serif"
   },
   {
     id: 'tajawal',
     label: 'Tajawal',
-    preview: 'خط عربي حديث وسلس للقراءة الطويلة',
+    preview: 'خط حديث وسلس',
     cssFamily: "'Tajawal', 'Cairo', system-ui, sans-serif"
   },
   {
     id: 'ibm',
-    label: 'IBM Plex Sans Arabic',
-    preview: 'خط أكاديمي دقيق للجداول والمواضيع',
+    label: 'IBM Plex',
+    preview: 'خط أكاديمي دقيق',
     cssFamily: "'IBM Plex Sans Arabic', 'Inter', system-ui, sans-serif"
   },
   {
     id: 'system',
-    label: 'خط النظام',
-    preview: 'استخدام خط الجهاز الافتراضي للأداء الأقصى',
+    label: 'النظام',
+    preview: 'خط الجهاز الافتراضي',
     cssFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
   }
 ];
@@ -145,12 +147,13 @@ const FONT_FAMILY_OPTIONS: Array<{
 const FONT_SIZE_OPTIONS: Array<{
   id: AppFontSizeScale;
   label: string;
+  percent: number;
   pxLabel: string;
 }> = [
-  { id: 'sm', label: 'صغير', pxLabel: '14px' },
-  { id: 'md', label: 'متوسط', pxLabel: '16px' },
-  { id: 'lg', label: 'كبير', pxLabel: '18px' },
-  { id: 'xl', label: 'كبير جداً', pxLabel: '20px' }
+  { id: 'sm', label: 'صغير', percent: 85, pxLabel: '85%' },
+  { id: 'md', label: 'متوسط', percent: 100, pxLabel: '100%' },
+  { id: 'lg', label: 'كبير', percent: 115, pxLabel: '115%' },
+  { id: 'xl', label: 'كبير جداً', percent: 130, pxLabel: '130%' }
 ];
 
 const COLOR_THEME_OPTIONS: Array<{
@@ -158,11 +161,11 @@ const COLOR_THEME_OPTIONS: Array<{
   label: string;
   swatchClass: string;
 }> = [
-  { id: 'emerald', label: 'الزمردي الطبي', swatchClass: 'bg-emerald-500' },
-  { id: 'blue', label: 'الأزرق السريري', swatchClass: 'bg-blue-500' },
-  { id: 'indigo', label: 'النيلي الأكاديمي', swatchClass: 'bg-indigo-500' },
-  { id: 'amber', label: 'الكهرماني الدافئ', swatchClass: 'bg-amber-500' },
-  { id: 'rose', label: 'الوردي الجراحي', swatchClass: 'bg-rose-500' }
+  { id: 'emerald', label: 'زمردي', swatchClass: 'bg-emerald-500' },
+  { id: 'blue', label: 'أزرق', swatchClass: 'bg-blue-500' },
+  { id: 'indigo', label: 'نيلي', swatchClass: 'bg-indigo-500' },
+  { id: 'amber', label: 'كهرماني', swatchClass: 'bg-amber-500' },
+  { id: 'rose', label: 'وردي', swatchClass: 'bg-rose-500' }
 ];
 
 const CONFLICT_LABELS: Record<'merge' | 'overwrite' | 'ignore', string> = {
@@ -178,6 +181,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onChangeFontFamily,
   fontSizeScale,
   onChangeFontSizeScale,
+  fontScalePercent,
+  onChangeFontScalePercent,
   colorTheme,
   onChangeColorTheme,
   conflictPolicy,
@@ -232,6 +237,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   );
   const [previewDownloadedFile, setPreviewDownloadedFile] =
     useState<LocalDownloadRecord | null>(null);
+
+  const effectiveScalePercent =
+    typeof fontScalePercent === 'number'
+      ? fontScalePercent
+      : FONT_SIZE_OPTIONS.find((s) => s.id === fontSizeScale)?.percent || 100;
+
+  const applyDynamicScalePercent = (nextPct: number) => {
+    const clamped = Math.max(80, Math.min(140, Math.round(nextPct)));
+    onChangeFontScalePercent?.(clamped);
+    if (clamped <= 90) {
+      onChangeFontSizeScale('sm');
+    } else if (clamped <= 107) {
+      onChangeFontSizeScale('md');
+    } else if (clamped <= 122) {
+      onChangeFontSizeScale('lg');
+    } else {
+      onChangeFontSizeScale('xl');
+    }
+  };
 
   useEffect(() => {
     const refreshDownloads = () => {
@@ -351,7 +375,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       savedBeforeTest.botToken,
       savedBeforeTest.chatId
     );
-    // Ensure credentials remain persisted in state and storage after test finishes
     syncAndPersistTelegramDraft({
       botToken: currentToken,
       chatId: currentChatId
@@ -414,11 +437,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         className="hidden"
       />
 
-      {/* Concise Data Definition Strip (تعريف البيانات الحالية أو المستوردة باختصار) */}
+      {/* Concise Data Definition Strip */}
       <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">
-            {summaryToShow?.sourceLabel || 'تعريف بيانات التطبيق الحالية'}
+            البيانات المحلية
           </div>
           <div className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-0.5 leading-relaxed break-words">
             {summaryToShow
@@ -431,7 +454,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </span>
       </div>
 
-      {/* Single Compact List Card */}
+      {/* Single Compact List Card (1-2 Word Labels) */}
       <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/80 overflow-hidden">
         {/* 1. Dark / Light Appearance */}
         <div className="px-4 py-3.5 flex items-center justify-between gap-3">
@@ -453,7 +476,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </button>
         </div>
 
-        {/* 1b. Font Family & Font Size */}
+        {/* 1b. Font Family & Dynamic Font Size */}
         <button
           type="button"
           onClick={() => setActiveModal('typography')}
@@ -461,13 +484,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         >
           <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
             <Type className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span>الخط وحجم الخط</span>
+            <span>حجم الخط</span>
           </div>
 
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400 min-w-0">
-            <span className="truncate">
-              {FONT_FAMILY_OPTIONS.find((f) => f.id === fontFamily)?.label.split(' ')[0] || 'Cairo'} ·{' '}
-              {FONT_SIZE_OPTIONS.find((s) => s.id === fontSizeScale)?.label || 'متوسط'}
+            <span className="truncate font-mono">
+              {FONT_FAMILY_OPTIONS.find((f) => f.id === fontFamily)?.label || 'Cairo'} ·{' '}
+              {effectiveScalePercent}%
             </span>
             <ChevronLeft className="w-4 h-4 shrink-0" />
           </div>
@@ -481,7 +504,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         >
           <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
             <Palette className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span>ثيم التطبيق</span>
+            <span>الألوان</span>
           </div>
 
           <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
@@ -491,7 +514,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               }`}
             />
             <span>
-              {COLOR_THEME_OPTIONS.find((t) => t.id === colorTheme)?.label || 'الزمردي الطبي'}
+              {COLOR_THEME_OPTIONS.find((t) => t.id === colorTheme)?.label || 'زمردي'}
             </span>
             <ChevronLeft className="w-4 h-4 shrink-0" />
           </div>
@@ -505,7 +528,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             ) : (
               <WifiOff className="w-4 h-4 text-amber-500 shrink-0" />
             )}
-            <span>وضع الاتصال</span>
+            <span>الاتصال</span>
           </div>
 
           <button
@@ -517,11 +540,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
             }`}
           >
-            {effectiveOnline ? 'متصل' : 'دون إنترنت'}
+            {effectiveOnline ? 'متصل' : 'أوفلاين'}
           </button>
         </div>
 
-        {/* 3. Telegram Backup & Periodic Schedule (Opens Modal) */}
+        {/* 3. Telegram Backup */}
         <button
           type="button"
           onClick={() => {
@@ -539,7 +562,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         >
           <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
             <Send className="w-4 h-4 text-sky-500 shrink-0" />
-            <span>النسخ الاحتياطي إلى تليجرام</span>
+            <span>تليجرام</span>
           </div>
 
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
@@ -560,7 +583,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </button>
 
-        {/* 4. Backup & Restore Offline (Opens Modal) */}
+        {/* 4. Backup & Restore */}
         <button
           type="button"
           onClick={() => setActiveModal('backup')}
@@ -568,16 +591,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         >
           <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
             <FolderSync className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span>النسخ الاحتياطي والاستعادة أوفلاين</span>
+            <span>النسخ الاحتياطي</span>
           </div>
 
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
-            <span>{backupHistory.length} نقطة</span>
+            <span>{backupHistory.length}</span>
             <ChevronLeft className="w-4 h-4" />
           </div>
         </button>
 
-        {/* 5. Duplicate Policy (Opens Modal) */}
+        {/* 5. Duplicate Policy */}
         <button
           type="button"
           onClick={() => setActiveModal('conflict')}
@@ -585,7 +608,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         >
           <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
             <Layers className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span>تكرار المصطلحات</span>
+            <span>التكرار</span>
           </div>
 
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
@@ -594,7 +617,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </button>
 
-        {/* 6. Cloud Updates (Opens Modal) */}
+        {/* 6. Cloud Updates */}
         <button
           type="button"
           onClick={() => setActiveModal('updates')}
@@ -633,7 +656,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="px-4 py-3.5 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
               <Smartphone className="w-4 h-4 text-emerald-500 shrink-0" />
-              <span>تثبيت التطبيق</span>
+              <span>التثبيت</span>
             </div>
 
             <div className="flex items-center gap-1.5">
@@ -667,7 +690,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         )}
 
-        {/* 9. Factory Reset (Opens Modal) */}
+        {/* 9. Factory Reset */}
         <button
           type="button"
           onClick={() => setActiveModal('reset')}
@@ -694,14 +717,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl max-h-[86dvh] overflow-y-auto"
           >
-            {/* Modal A: Typography (Font Family & Font Size) */}
+            {/* Modal A: Typography (Font Family & Dynamic Font Size) */}
             {activeModal === 'typography' && (
               <>
                 <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-2">
                     <Type className="w-4 h-4 text-emerald-500" />
                     <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                      الخط وحجم الخط
+                      حجم الخط
                     </span>
                   </div>
                   <button
@@ -714,11 +737,76 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 <div className="space-y-4 text-xs">
+                  {/* Dynamic Font Scale Slider + Stepper */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-slate-800 dark:text-slate-100">
+                        المقياس الديناميكي
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-mono font-extrabold">
+                        {effectiveScalePercent}% ({Math.round((16 * effectiveScalePercent) / 100)}px)
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => applyDynamicScalePercent(effectiveScalePercent - 5)}
+                        className="min-h-[38px] min-w-[38px] rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-extrabold text-sm flex items-center justify-center hover:border-emerald-500"
+                        aria-label="تصغير الخط"
+                      >
+                        A-
+                      </button>
+
+                      <input
+                        type="range"
+                        min={80}
+                        max={140}
+                        step={5}
+                        value={effectiveScalePercent}
+                        onChange={(e) => applyDynamicScalePercent(Number(e.target.value))}
+                        className="flex-1 accent-emerald-600 cursor-pointer h-2 rounded-lg"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => applyDynamicScalePercent(effectiveScalePercent + 5)}
+                        className="min-h-[38px] min-w-[38px] rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-extrabold text-base flex items-center justify-center hover:border-emerald-500"
+                        aria-label="تكبير الخط"
+                      >
+                        A+
+                      </button>
+                    </div>
+
+                    {/* Quick Presets */}
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {FONT_SIZE_OPTIONS.map((sizeOpt) => {
+                        const active = Math.abs(effectiveScalePercent - sizeOpt.percent) <= 3;
+                        return (
+                          <button
+                            key={sizeOpt.id}
+                            type="button"
+                            onClick={() => applyDynamicScalePercent(sizeOpt.percent)}
+                            className={`min-h-[38px] px-2 py-1.5 rounded-xl border font-bold flex flex-col items-center justify-center transition-colors ${
+                              active
+                                ? 'bg-emerald-600 border-emerald-600 text-white'
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            <span className="text-[11px] leading-tight">{sizeOpt.label}</span>
+                            <span className="font-mono text-[10px] opacity-80">{sizeOpt.pxLabel}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Font Family */}
                   <div className="space-y-2">
                     <span className="font-extrabold text-slate-700 dark:text-slate-200 block">
-                      نوع الخط:
+                      نوع الخط
                     </span>
-                    <div className="space-y-1.5">
+                    <div className="grid grid-cols-2 gap-2">
                       {FONT_FAMILY_OPTIONS.map((fontOpt) => {
                         const active = fontFamily === fontOpt.id;
                         return (
@@ -727,18 +815,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             type="button"
                             onClick={() => onChangeFontFamily(fontOpt.id)}
                             style={{ fontFamily: fontOpt.cssFamily }}
-                            className={`w-full px-3.5 py-2.5 rounded-xl border text-right flex items-center justify-between gap-2 transition-colors ${
+                            className={`px-3 py-2.5 rounded-xl border text-right flex items-center justify-between gap-2 transition-colors ${
                               active
                                 ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300'
                                 : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200'
                             }`}
                           >
-                            <div className="min-w-0">
-                              <div className="font-extrabold text-sm">{fontOpt.label}</div>
-                              <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                                {fontOpt.preview}
-                              </div>
-                            </div>
+                            <span className="font-extrabold text-xs truncate">{fontOpt.label}</span>
                             {active && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
                           </button>
                         );
@@ -746,36 +829,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <span className="font-extrabold text-slate-700 dark:text-slate-200 block">
-                      حجم الخط العام:
-                    </span>
-                    <div className="grid grid-cols-2 gap-2">
-                      {FONT_SIZE_OPTIONS.map((sizeOpt) => {
-                        const active = fontSizeScale === sizeOpt.id;
-                        return (
-                          <button
-                            key={sizeOpt.id}
-                            type="button"
-                            onClick={() => onChangeFontSizeScale(sizeOpt.id)}
-                            className={`min-h-[44px] px-3 py-2 rounded-xl border font-bold flex items-center justify-between transition-colors ${
-                              active
-                                ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300'
-                                : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                            }`}
-                          >
-                            <span>{sizeOpt.label}</span>
-                            <span className="font-mono text-[11px] opacity-75">{sizeOpt.pxLabel}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
                   <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
-                    <div className="text-[11px] font-bold text-slate-400">معاينة مباشرة:</div>
+                    <div className="text-[11px] font-bold text-slate-400">معاينة:</div>
                     <div className="text-sm font-bold text-slate-900 dark:text-white leading-relaxed">
-                      فقر الدم بعوز الحديد (Iron Deficiency Anemia) — فحص مخزون الفيريتين.
+                      فقر الدم بعوز الحديد (Iron Deficiency Anemia)
                     </div>
                   </div>
                 </div>

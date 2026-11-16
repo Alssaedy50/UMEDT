@@ -1062,6 +1062,15 @@ export function loadAppState(): PersistedAppState {
   // Section 4: Run safe, versioned, idempotent storage migration with backup & rollback
   runSafeVersionedStorageMigration();
 
+  // Clean pre-bundled topics & blocks on first boot after installation while keeping dictionary terms
+  if (getStorageRawItem('umed_post_install_clean_topics_blocks_v2') !== 'done') {
+    setStorageRawItem(STORAGE_KEYS.TOPICS, '[]');
+    setStorageRawItem('dictengine_umd_blocks_v2', '[]');
+    setStorageRawItem('dictengine_umd_subjects_v2', '[]');
+    setStorageRawItem('dictengine_umd_quiz_questions_v2', '[]');
+    setStorageRawItem('umed_post_install_clean_topics_blocks_v2', 'done');
+  }
+
   const storedTerms = safeReadJson<DictionaryTerm[] | null>(STORAGE_KEYS.TERMS, null);
   const storedSentences = safeReadJson<LinkedSentence[] | null>(STORAGE_KEYS.SENTENCES, null);
   const storedTopics = safeReadJson<TopicArticle[] | null>(STORAGE_KEYS.TOPICS, null);
@@ -1144,17 +1153,9 @@ export function loadAppState(): PersistedAppState {
     Array.isArray(removedCloudRegistry.topics) ? removedCloudRegistry.topics : []
   );
 
-  let topics: TopicArticle[];
-  if (Array.isArray(storedTopics)) {
-    const filteredStored = storedTopics.filter((tp) => !removedTopicIds.has(tp.id));
-    const existingTopicIds = new Set(filteredStored.map((tp) => tp.id));
-    const missingTopicSeeds = INITIAL_TOPICS.filter(
-      (seed) => !existingTopicIds.has(seed.id) && !removedTopicIds.has(seed.id)
-    );
-    topics = [...filteredStored, ...missingTopicSeeds];
-  } else {
-    topics = INITIAL_TOPICS.filter((seed) => !removedTopicIds.has(seed.id));
-  }
+  const topics: TopicArticle[] = Array.isArray(storedTopics)
+    ? storedTopics.filter((tp) => !removedTopicIds.has(tp.id))
+    : [];
 
   const sentences = deduplicateAndEnsureUniqueSentenceIds(rawSentences);
   const synced = syncBidirectionalLinks(terms, sentences);
@@ -2077,6 +2078,10 @@ export function resetToDefaults(): PersistedAppState {
   try {
     Object.values(STORAGE_KEYS).forEach((k) => removeStorageRawItem(k));
     removeStorageRawItem('umed_locally_removed_cloud_ids_v1');
+    setStorageRawItem('dictengine_umd_blocks_v2', '[]');
+    setStorageRawItem('dictengine_umd_subjects_v2', '[]');
+    setStorageRawItem('dictengine_umd_quiz_questions_v2', '[]');
+    setStorageRawItem('umed_post_install_clean_topics_blocks_v2', 'done');
   } catch (err) {
     console.warn('[StorageService] Error clearing localStorage:', err);
   }
@@ -2088,7 +2093,7 @@ export function resetToDefaults(): PersistedAppState {
     versionMetadata: defaultVersionMeta,
     terms: [...INITIAL_TERMS],
     sentences: [...INITIAL_LINKED_SENTENCES],
-    topics: [...INITIAL_TOPICS],
+    topics: [],
     customAffixes: [],
     customAbbreviations: [],
     studyStats: { ...DEFAULT_STUDY_STATS },

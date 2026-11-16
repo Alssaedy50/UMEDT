@@ -1118,21 +1118,17 @@ export async function syncWithRemoteCloudLibrary(params: {
 
   let newUpdatesApplied = 0;
 
-  // Merge cloud updates into local state for items that were NOT explicitly uninstalled locally
+  // Merge cloud updates into local state ONLY for blocks/subjects/topics already downloaded locally
   const localBlockMap = new Map(localBlocks.map((b) => [b.id, b]));
   for (const cb of mirror.blocks) {
     if (removedBlocksSet.has(cb.id)) continue;
     const existing = localBlockMap.get(cb.id);
-    if (!existing) {
+    if (!existing) continue;
+    const localHash = computeDeterministicFastHashHex(canonicalizeForHash('block', existing));
+    const cloudHash = computeDeterministicFastHashHex(canonicalizeForHash('block', cb));
+    if (localHash !== cloudHash && (cb.updatedAt || '') > (existing.updatedAt || '')) {
       localBlockMap.set(cb.id, cb);
       newUpdatesApplied += 1;
-    } else {
-      const localHash = computeDeterministicFastHashHex(canonicalizeForHash('block', existing));
-      const cloudHash = computeDeterministicFastHashHex(canonicalizeForHash('block', cb));
-      if (localHash !== cloudHash && (cb.updatedAt || '') > (existing.updatedAt || '')) {
-        localBlockMap.set(cb.id, cb);
-        newUpdatesApplied += 1;
-      }
     }
   }
   const autoMergedBlocks = Array.from(localBlockMap.values()).sort((a, b) => a.order - b.order);
@@ -1141,16 +1137,12 @@ export async function syncWithRemoteCloudLibrary(params: {
   for (const cs of mirror.subjects) {
     if (removedSubjectsSet.has(cs.id) || removedBlocksSet.has(cs.blockId || '')) continue;
     const existing = localSubjMap.get(cs.id);
-    if (!existing) {
+    if (!existing) continue;
+    const localHash = computeDeterministicFastHashHex(canonicalizeForHash('subject', existing));
+    const cloudHash = computeDeterministicFastHashHex(canonicalizeForHash('subject', cs));
+    if (localHash !== cloudHash && (cs.updatedAt || '') > (existing.updatedAt || '')) {
       localSubjMap.set(cs.id, cs);
       newUpdatesApplied += 1;
-    } else {
-      const localHash = computeDeterministicFastHashHex(canonicalizeForHash('subject', existing));
-      const cloudHash = computeDeterministicFastHashHex(canonicalizeForHash('subject', cs));
-      if (localHash !== cloudHash && (cs.updatedAt || '') > (existing.updatedAt || '')) {
-        localSubjMap.set(cs.id, cs);
-        newUpdatesApplied += 1;
-      }
     }
   }
   const autoMergedSubjects = Array.from(localSubjMap.values()).sort((a, b) => a.order - b.order);
@@ -1165,16 +1157,12 @@ export async function syncWithRemoteCloudLibrary(params: {
       continue;
     }
     const existing = localTopicMap.get(ct.id);
-    if (!existing) {
-      localTopicMap.set(ct.id, ct);
+    if (!existing) continue;
+    const localHash = computeDeterministicFastHashHex(canonicalizeForHash('topic', existing));
+    const cloudHash = computeDeterministicFastHashHex(canonicalizeForHash('topic', ct));
+    if (localHash !== cloudHash) {
+      localTopicMap.set(ct.id, { ...ct, favorite: existing.favorite });
       newUpdatesApplied += 1;
-    } else {
-      const localHash = computeDeterministicFastHashHex(canonicalizeForHash('topic', existing));
-      const cloudHash = computeDeterministicFastHashHex(canonicalizeForHash('topic', ct));
-      if (localHash !== cloudHash) {
-        localTopicMap.set(ct.id, { ...ct, favorite: existing.favorite });
-        newUpdatesApplied += 1;
-      }
     }
   }
   const autoMergedTopics = Array.from(localTopicMap.values());
@@ -1698,10 +1686,8 @@ export async function downloadCloudLibraryTarget(params: {
 
   const messageAr =
     downloadedTopicsCount === 0 && downloadedTermsCount === 0 && skippedIdenticalCount > 0
-      ? `المحتوى مطابق لبصمة SHA-256 وموجود بالفعل في المكتبة المحلية (تم تخطي ${skippedIdenticalCount} عنصر مكرر).`
-      : `تم تنزيل المحتوى إلى المكتبة المحلية (${downloadedTopicsCount} موضوع · ${formatBytesLabel(
-          bytesDownloaded
-        )}) مع التحقق من بصمة SHA-256.`;
+      ? 'منزّل مسبقاً'
+      : `تم التنزيل (${formatBytesLabel(bytesDownloaded)})`;
 
   return {
     success: true,
@@ -1849,8 +1835,6 @@ export async function deleteCloudLibraryTargetLocally(params: {
     updatedTerms: params.currentTerms,
     updatedBlocks,
     updatedSubjects,
-    messageAr: `تم حذف العنصر من التخزين المحلي بالكامل وتفريغ ${formatBytesLabel(
-      freedBytes
-    )} — يمكنك إعادة تنزيله في أي وقت من «المكتبة السحابية».`
+    messageAr: `تم الحذف (${formatBytesLabel(freedBytes)})`
   };
 }

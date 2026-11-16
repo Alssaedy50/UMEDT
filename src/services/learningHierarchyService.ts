@@ -249,7 +249,10 @@ function inferBlockAndSubjectForTopic(topic: TopicArticle): {
   blockId: string;
   subjectId: string;
 } {
-  const activeBlockIds = new Set(loadMedicalBlocks().map((b) => b.id));
+  const activeBlockIds = new Set([
+    ...INITIAL_MEDICAL_BLOCKS.map((b) => b.id),
+    ...loadMedicalBlocks().map((b) => b.id)
+  ]);
 
   if (topic.blockId !== undefined && topic.subjectId !== undefined) {
     return {
@@ -731,16 +734,35 @@ function getLocallyRemovedHierarchyIds(): { blocks: Set<string>; subjects: Set<s
   }
 }
 
+const POST_INSTALL_CLEAN_FLAG_KEY = 'umed_post_install_clean_topics_blocks_v2';
+
+export function ensurePostInstallLocalTopicsAndBlocksCleaned(): void {
+  try {
+    const store = getHierarchyStorage();
+    if (store.getItem(POST_INSTALL_CLEAN_FLAG_KEY) === 'done') {
+      return;
+    }
+    store.setItem(LEARNING_STORAGE_KEYS.BLOCKS, '[]');
+    store.setItem(LEARNING_STORAGE_KEYS.SUBJECTS, '[]');
+    store.setItem(LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS, '[]');
+    store.setItem('dictengine_umd_topics_v2', '[]');
+    store.setItem(POST_INSTALL_CLEAN_FLAG_KEY, 'done');
+  } catch {
+    // ignore storage errors
+  }
+}
+
 export function loadMedicalBlocks(): MedicalBlock[] {
+  ensurePostInstallLocalTopicsAndBlocksCleaned();
   const removed = getLocallyRemovedHierarchyIds().blocks;
   try {
     const raw = getHierarchyStorage().getItem(LEARNING_STORAGE_KEYS.BLOCKS);
     if (raw === null) {
-      return INITIAL_MEDICAL_BLOCKS.filter((b) => !removed.has(b.id));
+      return [];
     }
     const parsed = JSON.parse(raw) as MedicalBlock[];
     if (!Array.isArray(parsed)) {
-      return INITIAL_MEDICAL_BLOCKS.filter((b) => !removed.has(b.id));
+      return [];
     }
     return parsed
       .filter((b) => !removed.has(b.id))
@@ -750,12 +772,13 @@ export function loadMedicalBlocks(): MedicalBlock[] {
       }))
       .sort((a, b) => a.order - b.order);
   } catch {
-    return INITIAL_MEDICAL_BLOCKS.filter((b) => !removed.has(b.id));
+    return [];
   }
 }
 
 export function saveMedicalBlocks(blocks: MedicalBlock[]): void {
   try {
+    ensurePostInstallLocalTopicsAndBlocksCleaned();
     const normalized = blocks.map((b) => ({
       ...b,
       titleAr: sanitizeEntityTitleAr(b.titleAr, b.titleEn, b.code, b.id)
@@ -770,19 +793,16 @@ export function saveMedicalBlocks(blocks: MedicalBlock[]): void {
 }
 
 export function loadMedicalSubjects(): MedicalSubject[] {
+  ensurePostInstallLocalTopicsAndBlocksCleaned();
   const removed = getLocallyRemovedHierarchyIds();
   try {
     const raw = getHierarchyStorage().getItem(LEARNING_STORAGE_KEYS.SUBJECTS);
     if (raw === null) {
-      return INITIAL_MEDICAL_SUBJECTS.filter(
-        (s) => !removed.subjects.has(s.id) && !removed.blocks.has(s.blockId || '')
-      );
+      return [];
     }
     const parsed = JSON.parse(raw) as MedicalSubject[];
     if (!Array.isArray(parsed)) {
-      return INITIAL_MEDICAL_SUBJECTS.filter(
-        (s) => !removed.subjects.has(s.id) && !removed.blocks.has(s.blockId || '')
-      );
+      return [];
     }
     return parsed
       .filter((s) => !removed.subjects.has(s.id) && !removed.blocks.has(s.blockId || ''))
@@ -792,9 +812,7 @@ export function loadMedicalSubjects(): MedicalSubject[] {
       }))
       .sort((a, b) => a.order - b.order);
   } catch {
-    return INITIAL_MEDICAL_SUBJECTS.filter(
-      (s) => !removed.subjects.has(s.id) && !removed.blocks.has(s.blockId || '')
-    );
+    return [];
   }
 }
 

@@ -313,9 +313,13 @@ export function buildInitialSeedQuizBank(
     }
   ];
 
-  // Combine without duplicate IDs
+  // Combine without duplicate IDs — only include seed questions for locally downloaded topics
+  const localTopicIds = new Set(topics.map((t) => t.id));
   const byId = new Map<string, UnifiedQuizQuestion>();
   for (const q of [...seedQuestions, ...curatedMultiType]) {
+    if (q.topicId && !localTopicIds.has(q.topicId)) {
+      continue;
+    }
     byId.set(q.id, q);
   }
   return Array.from(byId.values());

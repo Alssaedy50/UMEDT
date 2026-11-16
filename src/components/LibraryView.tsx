@@ -220,7 +220,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     'subj-hematology': true
   });
   const [busyTargetKey, setBusyTargetKey] = useState<string | null>(null);
-  const [cloudFeedback, setCloudFeedback] = useState<string | null>(null);
   const [syncRevision, setSyncRevision] = useState(0);
 
   useEffect(() => {
@@ -836,7 +835,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   ) => {
     const key = `${targetType}:${targetId}`;
     setBusyTargetKey(key);
-    setCloudFeedback(null);
     try {
       const res = await downloadCloudLibraryTarget({
         targetType,
@@ -850,7 +848,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         terms: res.updatedTerms,
         sentences: res.updatedSentences
       });
-      setCloudFeedback(res.messageAr);
       showToast?.(res.messageAr);
     } finally {
       setBusyTargetKey(null);
@@ -863,7 +860,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   ) => {
     const key = `${targetType}:${targetId}`;
     setBusyTargetKey(key);
-    setCloudFeedback(null);
     try {
       const res = await deleteCloudLibraryTargetLocally({
         targetType,
@@ -877,7 +873,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         terms: res.updatedTerms,
         sentences
       });
-      setCloudFeedback(res.messageAr);
       showToast?.(res.messageAr, 'info');
     } finally {
       setBusyTargetKey(null);
@@ -886,7 +881,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
   const handleRefreshCloudCatalog = async () => {
     setBusyTargetKey('catalog:refresh');
-    setCloudFeedback(null);
     try {
       await processCloudSyncQueue({ forceRetryFailed: true });
       const res = await syncWithRemoteCloudLibrary({
@@ -902,17 +896,17 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         });
       }
       setSyncRevision((prev) => prev + 1);
-      setCloudFeedback('تمت مزامنة الفهرس السحابي والتحقق من البصمات الرقمية SHA-256.');
+      showToast?.('تم التحديث');
     } finally {
       setBusyTargetKey(null);
     }
   };
 
   const syncStatusLabelAr: Record<string, string> = {
-    synced: 'متزامن (Synced)',
-    pending: 'بانتظار الرفع (Pending)',
-    syncing: 'جاري المزامنة...',
-    failed: 'فشل — إعادة محاولة تلقائية (Failed)'
+    synced: 'متزامن',
+    pending: 'قيد الرفع',
+    syncing: 'مزامنة...',
+    failed: 'فشل'
   };
 
   const filteredCloudBlocks = useMemo(() => {
@@ -976,151 +970,111 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   return (
     <div className="space-y-4 pb-8">
       {/* ====================================================================
-          MODE 1: LIBRARY MAIN HUB (COMPACT CARDS - NO FILLER BANNER CARD)
+          MODE 1: LIBRARY MAIN HUB (COMPACT CARDS - 1 TO 2 WORDS)
          ==================================================================== */}
       {libraryMode === 'hub' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          {/* CARD 1: UNIFIED CLOUD LIBRARY & SELECTIVE DOWNLOAD MANAGER */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* CARD 1: UNIFIED CLOUD LIBRARY */}
           <button
             type="button"
             onClick={() => setLibraryMode('cloud_library')}
-            className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-5 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4"
+            className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-4 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-3"
           >
-            <div className="flex items-center justify-between gap-3 w-full">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
-                  <Cloud className="w-5 h-5" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
-                    المكتبة السحابية والتنزيل
-                  </h3>
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                    {syncStatusLabelAr[cloudSummary.overallSyncStatus]}
-                  </span>
-                </div>
+            <div className="flex items-center justify-between gap-2 w-full">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                <Cloud className="w-5 h-5" />
               </div>
-              <span className="px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold font-mono tabular-nums shrink-0">
-                {cloudSummary.downloadedTopicsCount}/{cloudSummary.totalCloudTopicsCount} موضوع
+              <span className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[11px] font-extrabold font-mono tabular-nums">
+                {cloudSummary.downloadedTopicsCount}/{cloudSummary.totalCloudTopicsCount}
               </span>
             </div>
 
-            <div className="w-full pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
-              <span className="font-mono tabular-nums">
-                محلي: {cloudSummary.localTotalLabel} · سحابي: {cloudSummary.cloudTotalLabel}
-              </span>
-              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold">
-                <span>إدارة</span>
-                <ChevronLeft className="w-4 h-4" />
-              </span>
+            <div className="space-y-0.5 min-w-0">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
+                المكتبة السحابية
+              </h3>
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                <span>{syncStatusLabelAr[cloudSummary.overallSyncStatus]}</span>
+                <ChevronLeft className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              </div>
             </div>
           </button>
 
-          {/* CARD 2: FAVORITES PAGE LAUNCHER */}
+          {/* CARD 2: FAVORITES */}
           <button
             type="button"
             onClick={() => setLibraryMode('favorites')}
-            className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-5 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4"
+            className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-4 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-3"
           >
-            <div className="flex items-center justify-between gap-3 w-full">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
-                  <Bookmark className="w-5 h-5 fill-current" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
-                    صفحة الكلمات والمفضلة
-                  </h3>
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                    المجلد: {activeCollection}
-                  </span>
-                </div>
+            <div className="flex items-center justify-between gap-2 w-full">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                <Bookmark className="w-5 h-5 fill-current" />
               </div>
-              <span className="px-3 py-1 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs font-extrabold font-mono tabular-nums shrink-0">
-                {totalFavoritesCount} محفوظ
+              <span className="px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[11px] font-extrabold font-mono tabular-nums">
+                {totalFavoritesCount}
               </span>
             </div>
 
-            <div className="w-full pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
-              <span>
-                {terms.filter((t) => t.favorite).length} كلمة ·{' '}
-                {sentences.filter((s) => s.favorite).length} جملة ·{' '}
-                {topics.filter((t) => t.favorite).length} موضوع
-              </span>
-              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold">
-                <span>فتح</span>
-                <ChevronLeft className="w-4 h-4" />
-              </span>
+            <div className="space-y-0.5 min-w-0">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
+                المفضلة
+              </h3>
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                <span className="truncate">{activeCollection}</span>
+                <ChevronLeft className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              </div>
             </div>
           </button>
 
-          {/* CARD 3: OFFLINE ADD & IMPORT TERMS/TOPICS/BACKUPS */}
+          {/* CARD 3: ADD & IMPORT */}
           <button
             type="button"
             onClick={() => setLibraryMode('add_offline')}
-            className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-5 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4"
+            className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-4 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-3"
           >
-            <div className="flex items-center justify-between gap-3 w-full">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
-                  <PlusCircle className="w-5 h-5" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
-                    إضافة واستيراد أوفلاين
-                  </h3>
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                    مصطلحات · مواضيع طبية
-                  </span>
-                </div>
+            <div className="flex items-center justify-between gap-2 w-full">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                <PlusCircle className="w-5 h-5" />
               </div>
-              <span className="px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold font-mono tabular-nums shrink-0">
-                {customAddedTerms.length} محلي
+              <span className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[11px] font-extrabold font-mono tabular-nums">
+                {customAddedTerms.length}
               </span>
             </div>
 
-            <div className="w-full pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
-              <span>JSON · CSV · TXT</span>
-              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold">
-                <span>فتح</span>
-                <ChevronLeft className="w-4 h-4" />
-              </span>
+            <div className="space-y-0.5 min-w-0">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
+                استيراد وإضافة
+              </h3>
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                <span>ملفات · يدوي</span>
+                <ChevronLeft className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              </div>
             </div>
           </button>
 
-          {/* CARD 4: SM-2 SPACED REPETITION FLASHCARDS */}
+          {/* CARD 4: FLASHCARDS */}
           <button
             type="button"
             onClick={() => setLibraryMode('flashcards')}
-            className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-5 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4"
+            className="group text-right bg-white dark:bg-slate-900 hover:border-emerald-500/60 dark:hover:border-emerald-500/50 rounded-3xl p-4 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-3"
           >
-            <div className="flex items-center justify-between gap-3 w-full">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-11 h-11 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
-                  <Layers className="w-5 h-5" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
-                    بطاقات الاستذكار (SM-2)
-                  </h3>
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                    التكرار المتباعد للمصطلحات
-                  </span>
-                </div>
+            <div className="flex items-center justify-between gap-2 w-full">
+              <div className="w-10 h-10 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
+                <Layers className="w-5 h-5" />
               </div>
-              <span className="px-3 py-1 rounded-xl bg-sky-500/10 text-sky-700 dark:text-sky-300 text-xs font-extrabold font-mono tabular-nums shrink-0">
-                {flashcardPool.length} بطاقة
+              <span className="px-2 py-0.5 rounded-lg bg-sky-500/10 text-sky-700 dark:text-sky-300 text-[11px] font-extrabold font-mono tabular-nums">
+                {flashcardPool.length}
               </span>
             </div>
 
-            <div className="w-full pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
-              <span>
-                إتقان: {studyStats.gotIt} · مراجعة: {studyStats.needsReview}
-              </span>
-              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold">
-                <span>مراجعة</span>
-                <ChevronLeft className="w-4 h-4" />
-              </span>
+            <div className="space-y-0.5 min-w-0">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
+                المراجعة
+              </h3>
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                <span>بطاقات ذكية</span>
+                <ChevronLeft className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              </div>
             </div>
           </button>
         </div>
@@ -1130,32 +1084,27 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           MODE 1B: UNIFIED CLOUD LIBRARY & SELECTIVE DOWNLOAD MANAGER
          ==================================================================== */}
       {libraryMode === 'cloud_library' && (
-        <div className="space-y-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
-            {/* Top Bar: Back + Title + Automatic Sync Status */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 min-w-0">
+        <div className="space-y-3">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-3.5 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3.5">
+            {/* Top Bar: Back + Concise Title + Status + Refresh */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <button
                   type="button"
                   onClick={() => setLibraryMode('hub')}
-                  className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors shrink-0"
+                  className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1 transition-colors shrink-0"
                 >
                   <ArrowRight className="w-4 h-4" />
                   <span>رجوع</span>
                 </button>
-                <div className="min-w-0">
-                  <h2 className="text-base font-extrabold text-slate-900 dark:text-white truncate">
-                    إدارة المكتبة السحابية والتنزيل الانتقائي
-                  </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    مكتبة سحابية واحدة · منع التكرار ببصمة SHA-256 · مزامنة تلقائية
-                  </p>
-                </div>
+                <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white truncate">
+                  المكتبة السحابية
+                </h2>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <span
-                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 ${
+                  className={`px-2.5 py-1.5 rounded-xl text-[11px] font-extrabold flex items-center gap-1 ${
                     cloudSummary.overallSyncStatus === 'synced'
                       ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
                       : cloudSummary.overallSyncStatus === 'failed'
@@ -1184,114 +1133,82 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   type="button"
                   disabled={busyTargetKey === 'catalog:refresh'}
                   onClick={() => void handleRefreshCloudCatalog()}
-                  className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1 transition-colors disabled:opacity-50"
                 >
                   <RefreshCw
                     className={`w-3.5 h-3.5 ${
                       busyTargetKey === 'catalog:refresh' ? 'animate-spin' : ''
                     }`}
                   />
-                  <span>مزامنة الفهرس</span>
+                  <span>تحديث</span>
                 </button>
               </div>
             </div>
 
-            {/* Storage & Sync Queue Summary Strip */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div className="flex flex-wrap items-center gap-2 font-bold text-slate-700 dark:text-slate-300">
-                <HardDrive className="w-4 h-4 text-emerald-500 shrink-0" />
+            {/* Compact Storage Strip */}
+            <div className="px-3 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+              <div className="flex items-center gap-2">
+                <HardDrive className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                 <span>
-                  المكتبة المحلية: <strong className="font-mono tabular-nums">{cloudSummary.localTotalLabel}</strong> ({cloudSummary.downloadedTopicsCount} موضوع)
+                  المحلية: <strong className="font-mono tabular-nums">{cloudSummary.localTotalLabel}</strong>
                 </span>
                 <span aria-hidden="true">·</span>
                 <span>
-                  المكتبة السحابية: <strong className="font-mono tabular-nums">{cloudSummary.cloudTotalLabel}</strong> ({cloudSummary.totalCloudTopicsCount} موضوع)
+                  السحابية: <strong className="font-mono tabular-nums">{cloudSummary.cloudTotalLabel}</strong>
                 </span>
               </div>
 
-              <div className="text-xs font-bold text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-                طابور المزامنة: {cloudSummary.pendingCount} بانتظار الرفع · {cloudSummary.failedCount} فشل
-              </div>
+              {(cloudSummary.pendingCount > 0 || cloudSummary.failedCount > 0) && (
+                <span className="font-mono tabular-nums text-amber-600 dark:text-amber-400">
+                  قيد الرفع: {cloudSummary.pendingCount}
+                </span>
+              )}
             </div>
 
-            {/* Active Sync Queue List (when Pending or Failed items exist) */}
-            {cloudSummary.queue.length > 0 && (
-              <div className="p-3.5 rounded-2xl bg-amber-500/5 border border-amber-500/20 space-y-2">
-                <div className="flex items-center justify-between text-xs font-extrabold text-amber-800 dark:text-amber-300">
-                  <span>طابور المزامنة التلقائية (Sync Queue — {cloudSummary.queue.length})</span>
-                  <span>يُرفع تلقائياً فور توفر الاتصال</span>
-                </div>
-                <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                  {cloudSummary.queue.map((q) => (
-                    <div
-                      key={q.id}
-                      className="px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2 text-xs"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <span className="font-bold text-slate-900 dark:text-white truncate block">
-                          {q.title}
-                        </span>
-                        <span className="text-[11px] font-mono text-slate-500">
-                          {q.entityType} · SHA-256: {q.sha256.slice(0, 12)}
-                          {q.lastError ? ` · ${q.lastError}` : ''}
-                        </span>
-                      </div>
-                      <span
-                        className={`px-2 py-0.5 rounded-lg text-[11px] font-extrabold shrink-0 ${
-                          q.status === 'failed'
-                            ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                            : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
-                        }`}
-                      >
-                        {q.status === 'failed' ? 'Failed' : 'Pending'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {cloudFeedback && (
-              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-200 text-xs font-bold">
-                {cloudFeedback}
-              </div>
-            )}
-
-            {/* Filter Tabs (الكل · المكتبة المحلية · المكتبة السحابية) & Search */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/90">
+            {/* Responsive 3-Column Filter Tabs (No Overlap on Narrow Screens) */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+              <div className="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/90 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setCloudFilterTab('all')}
-                  className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-extrabold transition-colors whitespace-nowrap ${
+                  className={`min-h-[40px] px-1.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-extrabold transition-colors flex items-center justify-center gap-1 leading-tight text-center ${
                     cloudFilterTab === 'all'
                       ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
                       : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  الكل ({cloudSummary.totalCloudTopicsCount})
+                  <span className="truncate">الكل</span>
+                  <span className="font-mono text-[10px] opacity-80">
+                    ({cloudSummary.totalCloudTopicsCount})
+                  </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setCloudFilterTab('local')}
-                  className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-extrabold transition-colors whitespace-nowrap ${
+                  className={`min-h-[40px] px-1.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-extrabold transition-colors flex items-center justify-center gap-1 leading-tight text-center ${
                     cloudFilterTab === 'local'
                       ? 'bg-emerald-600 text-white shadow-xs'
                       : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  المكتبة المحلية ({cloudSummary.downloadedTopicsCount})
+                  <span className="truncate">المكتبة المحلية</span>
+                  <span className="font-mono text-[10px] opacity-85">
+                    ({cloudSummary.downloadedTopicsCount})
+                  </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setCloudFilterTab('cloud')}
-                  className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-extrabold transition-colors whitespace-nowrap ${
+                  className={`min-h-[40px] px-1.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-extrabold transition-colors flex items-center justify-center gap-1 leading-tight text-center ${
                     cloudFilterTab === 'cloud'
                       ? 'bg-emerald-600 text-white shadow-xs'
                       : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  المكتبة السحابية ({Math.max(0, cloudSummary.totalCloudTopicsCount - cloudSummary.downloadedTopicsCount)})
+                  <span className="truncate">المكتبة السحابية</span>
+                  <span className="font-mono text-[10px] opacity-85">
+                    ({Math.max(0, cloudSummary.totalCloudTopicsCount - cloudSummary.downloadedTopicsCount)})
+                  </span>
                 </button>
               </div>
 
@@ -1301,19 +1218,19 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   type="text"
                   value={cloudSearchQuery}
                   onChange={(e) => setCloudSearchQuery(e.target.value)}
-                  placeholder="ابحث في البلوكات أو المواد أو المواضيع..."
-                  className="w-full min-h-[40px] pr-10 pl-4 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-medium focus:outline-none focus:border-emerald-500"
+                  placeholder="بحث..."
+                  className="w-full min-h-[38px] pr-9 pl-3 py-1.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-medium focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
 
             {/* Hierarchical Tree: Blocks -> Subjects -> Topics */}
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {filteredCloudBlocks.length === 0 ? (
-                <div className="p-8 text-center rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/70 dark:border-slate-800 text-xs font-bold text-slate-500">
-                  {cloudFilterTab === 'cloud'
-                    ? 'جميع البلوكات والمواد والمواضيع السحابية منزّلة بالكامل في المكتبة المحلية على جهازك.'
-                    : 'لا توجد عناصر مطابقة للبحث الحالي.'}
+                <div className="p-6 text-center rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/70 dark:border-slate-800 text-xs font-bold text-slate-500">
+                  {cloudFilterTab === 'local'
+                    ? 'المكتبة المحلية فارغة — نزّل من المكتبة السحابية'
+                    : 'لا توجد نتائج'}
                 </div>
               ) : (
                 filteredCloudBlocks.map((blk) => {
@@ -1326,7 +1243,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 overflow-hidden"
                     >
                       {/* Block Row Header */}
-                      <div className="p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900">
+                      <div className="p-3 sm:p-3.5 flex items-center justify-between gap-2.5 bg-white dark:bg-slate-900">
                         <button
                           type="button"
                           onClick={() =>
@@ -1335,7 +1252,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                               [blk.id]: !prev[blk.id]
                             }))
                           }
-                          className="flex items-start gap-2.5 text-right min-w-0 flex-1"
+                          className="flex items-start gap-2 text-right min-w-0 flex-1"
                         >
                           <ChevronDown
                             className={`w-4 h-4 mt-1 text-slate-400 shrink-0 transition-transform ${
@@ -1343,25 +1260,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                             }`}
                           />
                           <div className="min-w-0 flex-1 space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span
-                                dir="ltr"
-                                className="font-mono text-xs font-extrabold text-emerald-600 dark:text-emerald-400"
-                              >
-                                {blk.code}
-                              </span>
-                              <h3 className="text-sm font-extrabold text-slate-900 dark:text-white break-words">
-                                {blk.titleAr}
-                              </h3>
-                            </div>
-                            <div className="text-xs text-slate-500 dark:text-slate-400 font-medium break-words">
-                              {blk.titleEn}
-                            </div>
+                            <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white leading-snug break-words">
+                              {blk.titleAr}
+                            </h3>
                             <div className="text-[11px] text-slate-500 dark:text-slate-400 font-bold flex flex-wrap items-center gap-1.5 font-mono tabular-nums">
-                              <span>{blk.subjectsCount} مادة</span>
-                              <span aria-hidden="true">·</span>
                               <span>
-                                {blk.downloadedTopicsCount}/{blk.totalTopicsCount} موضوع منزّل
+                                {blk.downloadedTopicsCount}/{blk.totalTopicsCount} موضوع
                               </span>
                               <span aria-hidden="true">·</span>
                               <span>{blk.sizeLabel}</span>
@@ -1374,26 +1278,26 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                 }
                               >
                                 {blk.isDownloaded
-                                  ? 'المكتبة المحلية'
+                                  ? 'محلي'
                                   : blk.isPartiallyDownloaded
-                                  ? 'منزّل جزئياً'
-                                  : 'المكتبة السحابية'}
+                                  ? 'جزئي'
+                                  : 'سحابي'}
                               </span>
                             </div>
                           </div>
                         </button>
 
-                        {/* Block Action Buttons: Download Block or Delete Block Locally */}
-                        <div className="flex items-center gap-2 shrink-0">
+                        {/* Block Action Buttons: 1-Word Labels */}
+                        <div className="flex items-center gap-1.5 shrink-0">
                           {!blk.isDownloaded && (
                             <button
                               type="button"
                               disabled={blockBusy}
                               onClick={() => void handleDownloadTarget('block', blk.id)}
-                              className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center gap-1.5 disabled:opacity-50"
+                              className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center gap-1 disabled:opacity-50"
                             >
                               <Download className="w-3.5 h-3.5" />
-                              <span>تنزيل البلوك</span>
+                              <span>تنزيل</span>
                             </button>
                           )}
 
@@ -1402,10 +1306,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                               type="button"
                               disabled={blockBusy}
                               onClick={() => void handleDeleteTargetLocally('block', blk.id)}
-                              className="min-h-[40px] px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-extrabold flex items-center gap-1.5 disabled:opacity-50"
+                              className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-extrabold flex items-center gap-1 disabled:opacity-50"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
-                              <span>حذف محلي</span>
+                              <span>حذف</span>
                             </button>
                           )}
                         </div>
@@ -1413,7 +1317,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
                       {/* Subjects inside Block */}
                       {isBlockExpanded && (
-                        <div className="p-3 space-y-2.5 border-t border-slate-100 dark:border-slate-800">
+                        <div className="p-2.5 space-y-2 border-t border-slate-100 dark:border-slate-800">
                           {blk.subjects.map((subj) => {
                             const isSubjExpanded = Boolean(expandedSubjectIds[subj.id]);
                             const subjBusy = busyTargetKey === `subject:${subj.id}`;
@@ -1423,7 +1327,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                 key={subj.id}
                                 className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden"
                               >
-                                <div className="p-3 flex flex-wrap items-center justify-between gap-2.5">
+                                <div className="p-2.5 sm:p-3 flex items-center justify-between gap-2">
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -1440,21 +1344,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                       }`}
                                     />
                                     <div className="min-w-0 flex-1 space-y-0.5">
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <span
-                                          dir="ltr"
-                                          className="font-mono text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400"
-                                        >
-                                          {subj.code}
-                                        </span>
-                                        <span className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white break-words">
-                                          {subj.titleAr}
-                                        </span>
+                                      <div className="text-xs font-extrabold text-slate-900 dark:text-white leading-snug break-words">
+                                        {subj.titleAr}
                                       </div>
                                       <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
                                         {subj.downloadedTopicsCount}/{subj.totalTopicsCount} موضوع ·{' '}
                                         {subj.sizeLabel} ·{' '}
-                                        {subj.isDownloaded ? 'المكتبة المحلية' : 'المكتبة السحابية'}
+                                        {subj.isDownloaded ? 'محلي' : 'سحابي'}
                                       </div>
                                     </div>
                                   </button>
@@ -1467,10 +1363,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                         onClick={() =>
                                           void handleDownloadTarget('subject', subj.id)
                                         }
-                                        className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center gap-1 disabled:opacity-50"
+                                        className="min-h-[34px] px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-extrabold flex items-center gap-1 disabled:opacity-50"
                                       >
-                                        <Download className="w-3.5 h-3.5" />
-                                        <span>تنزيل المادة</span>
+                                        <Download className="w-3 h-3" />
+                                        <span>تنزيل</span>
                                       </button>
                                     )}
 
@@ -1481,10 +1377,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                         onClick={() =>
                                           void handleDeleteTargetLocally('subject', subj.id)
                                         }
-                                        className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-extrabold flex items-center gap-1 disabled:opacity-50"
+                                        className="min-h-[34px] px-2.5 py-1 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 text-[11px] font-extrabold flex items-center gap-1 disabled:opacity-50"
                                       >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                        <span>حذف محلي</span>
+                                        <Trash2 className="w-3 h-3" />
+                                        <span>حذف</span>
                                       </button>
                                     )}
                                   </div>
@@ -1498,22 +1394,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                       return (
                                         <div
                                           key={tp.id}
-                                          className="p-3 flex flex-wrap items-center justify-between gap-2.5 text-xs"
+                                          className="px-3 py-2.5 flex items-center justify-between gap-2 text-xs"
                                         >
                                           <div className="min-w-0 flex-1 space-y-0.5">
-                                            <div className="font-extrabold text-slate-900 dark:text-white break-words">
+                                            <div className="font-extrabold text-slate-900 dark:text-white leading-snug break-words">
                                               {tp.titleAr}
                                             </div>
-                                            <div
-                                              dir="ltr"
-                                              className="text-[11px] text-slate-500 dark:text-slate-400 text-right break-words"
-                                            >
-                                              {tp.titleEn}
-                                            </div>
-                                            <div className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-1.5">
+                                            <div className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                                               <span>{tp.sizeLabel}</span>
-                                              <span aria-hidden="true">·</span>
-                                              <span>SHA-256: {tp.sha256.slice(0, 8)}</span>
                                               <span aria-hidden="true">·</span>
                                               <span
                                                 className={
@@ -1522,9 +1410,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                                     : 'text-amber-600 dark:text-amber-400 font-bold'
                                                 }
                                               >
-                                                {tp.isDownloaded
-                                                  ? 'المكتبة المحلية'
-                                                  : 'المكتبة السحابية'}
+                                                {tp.isDownloaded ? 'محلي' : 'سحابي'}
                                               </span>
                                             </div>
                                           </div>
@@ -1536,7 +1422,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                                   <button
                                                     type="button"
                                                     onClick={() => onOpenTopicFromLibrary(tp.id)}
-                                                    className="min-h-[36px] px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold text-[11px]"
+                                                    className="min-h-[34px] px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold text-[11px]"
                                                   >
                                                     فتح
                                                   </button>
@@ -1547,10 +1433,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                                   onClick={() =>
                                                     void handleDeleteTargetLocally('topic', tp.id)
                                                   }
-                                                  className="min-h-[36px] px-2.5 py-1 rounded-lg bg-rose-500/10 text-rose-700 dark:text-rose-300 font-extrabold text-[11px] flex items-center gap-1 disabled:opacity-50"
+                                                  className="min-h-[34px] px-2 py-1 rounded-lg bg-rose-500/10 text-rose-700 dark:text-rose-300 font-extrabold text-[11px] flex items-center gap-1 disabled:opacity-50"
                                                 >
                                                   <Trash2 className="w-3 h-3" />
-                                                  <span>حذف محلي</span>
+                                                  <span>حذف</span>
                                                 </button>
                                               </>
                                             ) : (
@@ -1560,10 +1446,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                                 onClick={() =>
                                                   void handleDownloadTarget('topic', tp.id)
                                                 }
-                                                className="min-h-[36px] px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[11px] flex items-center gap-1 disabled:opacity-50"
+                                                className="min-h-[34px] px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[11px] flex items-center gap-1 disabled:opacity-50"
                                               >
                                                 <Download className="w-3 h-3" />
-                                                <span>تنزيل الموضوع</span>
+                                                <span>تنزيل</span>
                                               </button>
                                             )}
                                           </div>
