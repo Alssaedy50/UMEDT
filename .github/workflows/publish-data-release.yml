@@ -1,4 +1,4 @@
-name: UMEDT Medical Data Release (GitHub Releases)
+name: LEGACY DISABLED - Data publishing moved to UMEDT_DATA
 
 on:
   push:
@@ -42,7 +42,7 @@ permissions:
 
 jobs:
   publish-data:
-    if: github.ref == 'refs/heads/main'
+    if: false # Publishing is now owned by Alssaedy50/UMEDT_DATA
     name: Build, Sign, and Publish Medical Data Release
     runs-on: ubuntu-latest
 
