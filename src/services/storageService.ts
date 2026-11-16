@@ -143,7 +143,7 @@ const envManifestUrl =
   typeof import.meta !== 'undefined' &&
   (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_UMED_MANIFEST_URL
     ? String((import.meta as unknown as { env?: Record<string, string> }).env!.VITE_UMED_MANIFEST_URL).trim()
-    : '';
+    : 'https://raw.githubusercontent.com/Alssaedy50/UMEDT_DATA/main/data/releases/stable/manifest.json';
 
 function normalizeEmbeddedPublicKeyPem(rawKey: string | null | undefined): string {
   let cleaned = String(rawKey || '')
@@ -669,7 +669,8 @@ export function loadOnlineUpdateConfig(): OnlineUpdateConfig {
     !rawStoredUrl ||
     rawStoredUrl.includes('umed-platform/umed2-data') ||
     rawStoredUrl.includes('org/umed2-data') ||
-    rawStoredUrl.includes('cdn.umed2.medical.org');
+    rawStoredUrl.includes('cdn.umed2.medical.org') ||
+    rawStoredUrl.includes('/UMEDT/main/data/releases/');
 
   const embeddedPublicKeyPem = getEmbeddedTrustedPublicKeyPem();
   const storedPublicKeyPem =
