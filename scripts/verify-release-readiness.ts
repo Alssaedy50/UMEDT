@@ -66,6 +66,7 @@ import {
   processCloudSyncQueue,
   loadSyncQueue,
   setCloudSyncSimulatedOffline,
+  syncWithRemoteCloudLibrary,
   buildCloudLibraryCatalogView,
   downloadCloudLibraryTarget,
   deleteCloudLibraryTargetLocally,
@@ -1260,13 +1261,27 @@ async function main() {
     `Expected post-install state to contain only dictionary terms (terms=${initialStateForCloud.terms.length}) with local topics=0 and blocks=0, got topics=${initialStateForCloud.topics.length}, blocks=${loadMedicalBlocks().length}`
   );
 
-  // Verify update notification banner is removed from App.tsx and dynamic font scaling is present
+  // Verify update notification banner is removed from App.tsx, Updates modal is removed from SettingsView.tsx,
+  // dynamic font scale is 75-125, multiple fonts exist, and full-system themes override --color-slate-*
   const appTsxContent = fs.readFileSync(path.join(ROOT_DIR, 'src', 'App.tsx'), 'utf8');
+  const settingsTsxContent = fs.readFileSync(
+    path.join(ROOT_DIR, 'src', 'components', 'SettingsView.tsx'),
+    'utf8'
+  );
+  const indexCssContent = fs.readFileSync(path.join(ROOT_DIR, 'src', 'index.css'), 'utf8');
   assertCondition(
     !appTsxContent.includes('تنزيل وتثبيت التحديث الآن') &&
       appTsxContent.includes('fontScalePercent') &&
-      appTsxContent.includes('--app-font-scale'),
-    'App.tsx must not render the legacy update notification banner and must support dynamic fontScalePercent (--app-font-scale)'
+      appTsxContent.includes('--app-font-scale') &&
+      !settingsTsxContent.includes("setActiveModal('updates')") &&
+      !settingsTsxContent.includes("activeModal === 'updates'") &&
+      settingsTsxContent.includes('min={75}') &&
+      settingsTsxContent.includes('max={125}') &&
+      settingsTsxContent.includes("id: 'almarai'") &&
+      settingsTsxContent.includes("id: 'readex'") &&
+      settingsTsxContent.includes("id: 'kufi'") &&
+      indexCssContent.includes('--color-slate-950'),
+    'App.tsx, SettingsView.tsx, and index.css must enforce no Updates modal in Settings, 75-125 font scale, multiple fonts, and full-system themes'
   );
 
   const testCloudTopic = {
@@ -1355,9 +1370,24 @@ async function main() {
   assertCondition(
     offlineCatalogView.overallSyncStatus === 'pending' &&
       offlineCatalogView.pendingCount >= 1 &&
-      offlineCatalogView.totalCloudTopicsCount >= 25 &&
+      offlineCatalogView.totalCloudTopicsCount === 0 &&
       offlineCatalogView.downloadedTopicsCount === 0,
-    `Expected Sync Engine status 'pending' with 0 downloaded topics on fresh install and >=25 cloud topics available, got status=${offlineCatalogView.overallSyncStatus}, downloaded=${offlineCatalogView.downloadedTopicsCount}`
+    `Expected Sync Engine status 'pending' with 0 pre-loaded cloud topics offline and 0 downloaded topics on fresh install, got status=${offlineCatalogView.overallSyncStatus}, cloudTopics=${offlineCatalogView.totalCloudTopicsCount}, downloaded=${offlineCatalogView.downloadedTopicsCount}`
+  );
+
+  // Attempting to download from Cloud Library while offline MUST fail immediately
+  const blockedOfflineDownloadRes = await downloadCloudLibraryTarget({
+    targetType: 'block',
+    targetId: 'block-hematology',
+    currentTopics: [],
+    currentTerms: initialStateForCloud.terms,
+    currentSentences: initialStateForCloud.sentences
+  });
+  assertCondition(
+    blockedOfflineDownloadRes.success === false &&
+      blockedOfflineDownloadRes.downloadedTopicsCount === 0 &&
+      loadMedicalBlocks().length === 0,
+    'Cloud Library download MUST be blocked when offline (no internet connection)'
   );
 
   // Enqueue the exact same topic again -> must be skipped by SHA-256 hash comparison
@@ -1396,8 +1426,24 @@ async function main() {
     `Expected SyncQueue to recover to 'synced' status when connectivity returns, got ${recoveredFlushRes.status}`
   );
 
-  // 16.4 Selective Download of Individual Topic from Cloud Library + SHA-256 Deduplication Check
-  const firstCloudTopicId = offlineCatalogView.blocks[0].subjects[0].topics[0].id;
+  // Sync catalog online and verify >= 25 cloud topics are now fetched over the internet
+  await syncWithRemoteCloudLibrary({
+    localTopics: [],
+    localTerms: initialStateForCloud.terms,
+    localSentences: initialStateForCloud.sentences
+  });
+  const onlineCatalogView = buildCloudLibraryCatalogView({
+    localTopics: [],
+    localTerms: initialStateForCloud.terms,
+    localSentences: initialStateForCloud.sentences
+  });
+  assertCondition(
+    onlineCatalogView.totalCloudTopicsCount >= 25 && onlineCatalogView.blocks.length >= 4,
+    `Expected online synced catalog to have >= 25 topics and >= 4 blocks, got topics=${onlineCatalogView.totalCloudTopicsCount}, blocks=${onlineCatalogView.blocks.length}`
+  );
+
+  // 16.4 Selective Download of Individual Topic from Cloud Library (Online) + SHA-256 Deduplication Check
+  const firstCloudTopicId = onlineCatalogView.blocks[0].subjects[0].topics[0].id;
   const downloadSingleTopicRes = await downloadCloudLibraryTarget({
     targetType: 'topic',
     targetId: firstCloudTopicId,
@@ -1463,7 +1509,7 @@ async function main() {
   );
 
   // 16.6 Selective Download & Local Deletion of an Entire Block (with its Subjects & Topics)
-  const targetBlockId = offlineCatalogView.blocks[0].id;
+  const targetBlockId = onlineCatalogView.blocks[0].id;
   const downloadBlockRes = await downloadCloudLibraryTarget({
     targetType: 'block',
     targetId: targetBlockId,

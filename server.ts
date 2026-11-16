@@ -17,7 +17,7 @@ import {
 import { INITIAL_TOPICS } from './src/data/topicsSeedData';
 import { autoEnrichAllTermsRelations } from './src/engine/knowledgeLinker';
 import {
-  loadUnifiedCloudMirror,
+  buildCanonicalCloudSeedSnapshot,
   saveUnifiedCloudMirror,
   mergeRecordsIntoCloudSnapshot,
   UnifiedCloudStoreSnapshot
@@ -662,7 +662,7 @@ ${placeholderContext || 'None'}`;
   //    Supports automatic background sync (push/pull), SHA-256 deduplication,
   //    and optional GitHub Contents API persistence when GITHUB_TOKEN is set.
   // ==========================================================================
-  let serverCloudSnapshot: UnifiedCloudStoreSnapshot = loadUnifiedCloudMirror();
+  let serverCloudSnapshot: UnifiedCloudStoreSnapshot = buildCanonicalCloudSeedSnapshot();
 
   app.get('/api/cloud-library', async (req, res) => {
     try {

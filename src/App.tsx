@@ -192,18 +192,18 @@ export default function App() {
       const saved = window.localStorage.getItem('umed_font_scale_percent_v1');
       if (saved) {
         const parsed = Number(saved);
-        if (Number.isFinite(parsed) && parsed >= 80 && parsed <= 140) {
-          return parsed;
+        if (Number.isFinite(parsed)) {
+          return Math.max(75, Math.min(125, parsed));
         }
       }
     } catch {
       // ignore
     }
     const scaleMap: Record<AppFontSizeScale, number> = {
-      sm: 85,
+      sm: 75,
       md: 100,
       lg: 115,
-      xl: 130
+      xl: 125
     };
     return scaleMap[initialPersisted.settings.fontSizeScale || 'md'] || 100;
   });
@@ -263,11 +263,16 @@ export default function App() {
       cairo: "'Cairo', 'Inter', system-ui, -apple-system, sans-serif",
       tajawal: "'Tajawal', 'Inter', system-ui, -apple-system, sans-serif",
       ibm: "'IBM Plex Sans Arabic', 'Inter', system-ui, -apple-system, sans-serif",
+      almarai: "'Almarai', 'Cairo', system-ui, -apple-system, sans-serif",
+      readex: "'Readex Pro', 'Inter', system-ui, -apple-system, sans-serif",
+      kufi: "'Noto Kufi Arabic', 'Inter', system-ui, -apple-system, sans-serif",
+      changa: "'Changa', 'Cairo', system-ui, -apple-system, sans-serif",
+      amiri: "'Amiri', Georgia, serif",
       system: "system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif"
     };
-    const clampedPercent = Math.max(80, Math.min(140, fontScalePercent));
+    const clampedPercent = Math.max(75, Math.min(125, fontScalePercent));
     const scaleRatio = Number((clampedPercent / 100).toFixed(3));
-    root.style.setProperty('--app-font-family', fontMap[fontFamily]);
+    root.style.setProperty('--app-font-family', fontMap[fontFamily] || fontMap.cairo);
     root.style.setProperty('--app-font-scale', String(scaleRatio));
     root.style.fontSize = `${Number((16 * scaleRatio).toFixed(2))}px`;
     try {
@@ -275,11 +280,7 @@ export default function App() {
     } catch {
       // ignore
     }
-    if (colorTheme === 'emerald') {
-      root.removeAttribute('data-theme');
-    } else {
-      root.setAttribute('data-theme', colorTheme);
-    }
+    root.setAttribute('data-theme', colorTheme || 'emerald');
   }, [fontFamily, fontSizeScale, fontScalePercent, colorTheme]);
 
   // Screen 1: Search & Home State
@@ -2284,18 +2285,18 @@ export default function App() {
             onChangeFontSizeScale={(nextScale) => {
               setFontSizeScale(nextScale);
               const pctMap: Record<AppFontSizeScale, number> = {
-                sm: 85,
+                sm: 75,
                 md: 100,
                 lg: 115,
-                xl: 130
+                xl: 125
               };
-              if (Math.abs(fontScalePercent - pctMap[nextScale]) > 8) {
+              if (Math.abs(fontScalePercent - pctMap[nextScale]) > 6) {
                 setFontScalePercent(pctMap[nextScale]);
               }
             }}
             fontScalePercent={fontScalePercent}
             onChangeFontScalePercent={(nextPct) => {
-              setFontScalePercent(nextPct);
+              setFontScalePercent(Math.max(75, Math.min(125, nextPct)));
             }}
             colorTheme={colorTheme}
             onChangeColorTheme={(nextTheme) => {

@@ -3,12 +3,43 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
-  :root {
+  :root,
+  :root[data-theme="emerald"] {
     --app-font-family: 'Cairo', 'Inter', system-ui, -apple-system, sans-serif;
     --app-font-scale: 1;
+    --theme-accent-rgb: 16, 185, 129;
+
+    /* Emerald Accent Scale */
+    --color-emerald-50: oklch(0.979 0.021 166.113);
+    --color-emerald-100: oklch(0.95 0.052 163.051);
+    --color-emerald-200: oklch(0.905 0.093 164.15);
+    --color-emerald-300: oklch(0.845 0.143 164.978);
+    --color-emerald-400: oklch(0.765 0.177 163.223);
+    --color-emerald-500: oklch(0.696 0.17 162.48);
+    --color-emerald-600: oklch(0.596 0.145 163.225);
+    --color-emerald-700: oklch(0.508 0.118 165.612);
+    --color-emerald-800: oklch(0.432 0.095 166.913);
+    --color-emerald-900: oklch(0.378 0.077 168.94);
+    --color-emerald-950: oklch(0.262 0.051 172.552);
+
+    /* Full-System Emerald-Tinted Surface Scale (replaces neutral slate across entire UI) */
+    --color-slate-50: oklch(0.984 0.008 165);
+    --color-slate-100: oklch(0.962 0.014 165);
+    --color-slate-200: oklch(0.922 0.022 165);
+    --color-slate-300: oklch(0.865 0.032 165);
+    --color-slate-400: oklch(0.705 0.038 165);
+    --color-slate-500: oklch(0.555 0.042 166);
+    --color-slate-600: oklch(0.445 0.042 167);
+    --color-slate-700: oklch(0.365 0.038 168);
+    --color-slate-800: oklch(0.272 0.034 169);
+    --color-slate-900: oklch(0.205 0.028 170);
+    --color-slate-950: oklch(0.138 0.022 171);
   }
 
   :root[data-theme="blue"] {
+    --theme-accent-rgb: 59, 130, 246;
+
+    /* Blue Accent Scale */
     --color-emerald-50: oklch(0.97 0.014 254.604);
     --color-emerald-100: oklch(0.932 0.032 255.585);
     --color-emerald-200: oklch(0.882 0.059 254.128);
@@ -20,9 +51,25 @@
     --color-emerald-800: oklch(0.424 0.199 265.638);
     --color-emerald-900: oklch(0.379 0.146 265.522);
     --color-emerald-950: oklch(0.282 0.091 267.935);
+
+    /* Full-System Royal Blue Surface Scale */
+    --color-slate-50: oklch(0.982 0.01 255);
+    --color-slate-100: oklch(0.958 0.018 255);
+    --color-slate-200: oklch(0.916 0.028 256);
+    --color-slate-300: oklch(0.858 0.04 256);
+    --color-slate-400: oklch(0.698 0.048 257);
+    --color-slate-500: oklch(0.548 0.052 258);
+    --color-slate-600: oklch(0.44 0.052 259);
+    --color-slate-700: oklch(0.358 0.048 260);
+    --color-slate-800: oklch(0.268 0.042 261);
+    --color-slate-900: oklch(0.202 0.036 262);
+    --color-slate-950: oklch(0.136 0.028 263);
   }
 
   :root[data-theme="indigo"] {
+    --theme-accent-rgb: 99, 102, 241;
+
+    /* Indigo Accent Scale */
     --color-emerald-50: oklch(0.962 0.018 272.314);
     --color-emerald-100: oklch(0.93 0.034 272.788);
     --color-emerald-200: oklch(0.87 0.065 274.039);
@@ -34,9 +81,85 @@
     --color-emerald-800: oklch(0.398 0.195 277.366);
     --color-emerald-900: oklch(0.359 0.144 278.697);
     --color-emerald-950: oklch(0.257 0.09 281.288);
+
+    /* Full-System Deep Indigo Surface Scale */
+    --color-slate-50: oklch(0.98 0.011 276);
+    --color-slate-100: oklch(0.955 0.02 276);
+    --color-slate-200: oklch(0.912 0.032 277);
+    --color-slate-300: oklch(0.852 0.045 277);
+    --color-slate-400: oklch(0.692 0.052 278);
+    --color-slate-500: oklch(0.542 0.056 279);
+    --color-slate-600: oklch(0.435 0.056 280);
+    --color-slate-700: oklch(0.354 0.052 281);
+    --color-slate-800: oklch(0.264 0.046 282);
+    --color-slate-900: oklch(0.198 0.038 283);
+    --color-slate-950: oklch(0.132 0.03 284);
+  }
+
+  :root[data-theme="teal"] {
+    --theme-accent-rgb: 20, 184, 166;
+
+    /* Teal / Cyan Clinical Accent Scale */
+    --color-emerald-50: oklch(0.984 0.014 180.72);
+    --color-emerald-100: oklch(0.953 0.051 180.801);
+    --color-emerald-200: oklch(0.91 0.096 180.426);
+    --color-emerald-300: oklch(0.855 0.138 181.071);
+    --color-emerald-400: oklch(0.777 0.152 181.912);
+    --color-emerald-500: oklch(0.704 0.14 182.503);
+    --color-emerald-600: oklch(0.6 0.118 184.704);
+    --color-emerald-700: oklch(0.511 0.096 186.391);
+    --color-emerald-800: oklch(0.437 0.078 188.216);
+    --color-emerald-900: oklch(0.386 0.063 188.416);
+    --color-emerald-950: oklch(0.277 0.046 192.524);
+
+    /* Full-System Teal / Ocean Surface Scale */
+    --color-slate-50: oklch(0.983 0.01 190);
+    --color-slate-100: oklch(0.958 0.018 190);
+    --color-slate-200: oklch(0.918 0.028 191);
+    --color-slate-300: oklch(0.86 0.038 191);
+    --color-slate-400: oklch(0.7 0.045 192);
+    --color-slate-500: oklch(0.55 0.048 193);
+    --color-slate-600: oklch(0.442 0.048 194);
+    --color-slate-700: oklch(0.36 0.044 195);
+    --color-slate-800: oklch(0.27 0.038 196);
+    --color-slate-900: oklch(0.204 0.032 197);
+    --color-slate-950: oklch(0.138 0.025 198);
+  }
+
+  :root[data-theme="violet"] {
+    --theme-accent-rgb: 139, 92, 246;
+
+    /* Violet Accent Scale */
+    --color-emerald-50: oklch(0.969 0.016 293.756);
+    --color-emerald-100: oklch(0.943 0.029 294.588);
+    --color-emerald-200: oklch(0.894 0.057 293.283);
+    --color-emerald-300: oklch(0.811 0.111 293.571);
+    --color-emerald-400: oklch(0.702 0.183 293.541);
+    --color-emerald-500: oklch(0.606 0.25 292.717);
+    --color-emerald-600: oklch(0.541 0.281 293.009);
+    --color-emerald-700: oklch(0.491 0.27 292.581);
+    --color-emerald-800: oklch(0.432 0.232 292.759);
+    --color-emerald-900: oklch(0.38 0.189 293.745);
+    --color-emerald-950: oklch(0.283 0.141 291.089);
+
+    /* Full-System Violet / Plum Surface Scale */
+    --color-slate-50: oklch(0.981 0.011 295);
+    --color-slate-100: oklch(0.956 0.02 295);
+    --color-slate-200: oklch(0.914 0.032 296);
+    --color-slate-300: oklch(0.854 0.044 296);
+    --color-slate-400: oklch(0.695 0.05 297);
+    --color-slate-500: oklch(0.545 0.054 298);
+    --color-slate-600: oklch(0.438 0.054 299);
+    --color-slate-700: oklch(0.356 0.05 300);
+    --color-slate-800: oklch(0.266 0.044 301);
+    --color-slate-900: oklch(0.2 0.036 302);
+    --color-slate-950: oklch(0.134 0.028 303);
   }
 
   :root[data-theme="amber"] {
+    --theme-accent-rgb: 245, 158, 11;
+
+    /* Amber / Warm Gold Accent Scale */
     --color-emerald-50: oklch(0.987 0.022 95.277);
     --color-emerald-100: oklch(0.962 0.059 95.617);
     --color-emerald-200: oklch(0.924 0.12 95.746);
@@ -48,9 +171,25 @@
     --color-emerald-800: oklch(0.473 0.137 46.201);
     --color-emerald-900: oklch(0.414 0.112 45.904);
     --color-emerald-950: oklch(0.279 0.077 45.635);
+
+    /* Full-System Warm Sand / Espresso Surface Scale */
+    --color-slate-50: oklch(0.984 0.012 80);
+    --color-slate-100: oklch(0.96 0.02 78);
+    --color-slate-200: oklch(0.92 0.03 76);
+    --color-slate-300: oklch(0.862 0.04 74);
+    --color-slate-400: oklch(0.702 0.044 70);
+    --color-slate-500: oklch(0.552 0.046 66);
+    --color-slate-600: oklch(0.444 0.044 62);
+    --color-slate-700: oklch(0.362 0.04 58);
+    --color-slate-800: oklch(0.272 0.035 55);
+    --color-slate-900: oklch(0.205 0.028 52);
+    --color-slate-950: oklch(0.14 0.022 50);
   }
 
   :root[data-theme="rose"] {
+    --theme-accent-rgb: 244, 63, 94;
+
+    /* Rose / Crimson Accent Scale */
     --color-emerald-50: oklch(0.969 0.015 12.422);
     --color-emerald-100: oklch(0.941 0.03 12.58);
     --color-emerald-200: oklch(0.892 0.058 10.001);
@@ -62,6 +201,19 @@
     --color-emerald-800: oklch(0.455 0.188 13.697);
     --color-emerald-900: oklch(0.41 0.159 10.272);
     --color-emerald-950: oklch(0.271 0.105 12.094);
+
+    /* Full-System Rose / Burgundy Surface Scale */
+    --color-slate-50: oklch(0.982 0.01 15);
+    --color-slate-100: oklch(0.958 0.018 15);
+    --color-slate-200: oklch(0.916 0.028 15);
+    --color-slate-300: oklch(0.858 0.038 15);
+    --color-slate-400: oklch(0.698 0.044 15);
+    --color-slate-500: oklch(0.548 0.048 15);
+    --color-slate-600: oklch(0.44 0.046 15);
+    --color-slate-700: oklch(0.358 0.042 15);
+    --color-slate-800: oklch(0.268 0.036 15);
+    --color-slate-900: oklch(0.202 0.03 15);
+    --color-slate-950: oklch(0.136 0.024 15);
   }
 
   *,
@@ -71,8 +223,16 @@
   }
 
   html,
-  body {
+  body,
+  button,
+  input,
+  select,
+  textarea {
     font-family: var(--app-font-family);
+  }
+
+  html,
+  body {
     width: 100%;
     max-width: 100%;
     min-height: 100%;
@@ -82,6 +242,7 @@
     -webkit-tap-highlight-color: transparent;
     text-size-adjust: 100%;
     -webkit-text-size-adjust: 100%;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   body {
@@ -150,5 +311,5 @@
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(16, 185, 129, 0.5);
+  background: rgba(var(--theme-accent-rgb, 16, 185, 129), 0.55);
 }

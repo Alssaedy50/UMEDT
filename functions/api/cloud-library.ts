@@ -1,11 +1,11 @@
 import {
-  loadUnifiedCloudMirror,
+  buildCanonicalCloudSeedSnapshot,
   saveUnifiedCloudMirror,
   mergeRecordsIntoCloudSnapshot,
   UnifiedCloudStoreSnapshot
 } from '../../src/services/cloudLibrarySyncService';
 
-let pagesCloudSnapshot: UnifiedCloudStoreSnapshot = loadUnifiedCloudMirror();
+let pagesCloudSnapshot: UnifiedCloudStoreSnapshot = buildCanonicalCloudSeedSnapshot();
 
 export async function onRequestGet(): Promise<Response> {
   return new Response(JSON.stringify(pagesCloudSnapshot), {

@@ -461,8 +461,48 @@ export function saveSyncQueue(queue: SyncQueueItem[]): void {
 }
 
 /**
- * Builds or loads the authoritative Unified Cloud Store Snapshot.
- * Combines bundled canonical medical blocks/subjects/topics/terms/sentences with all cloud-synced items.
+ * Builds the canonical remote cloud seed snapshot (for server `/api/cloud-library` and online sync).
+ */
+export function buildCanonicalCloudSeedSnapshot(): UnifiedCloudStoreSnapshot {
+  const enrichedTopics = enrichAllTopicsWithHierarchy([...INITIAL_TOPICS]);
+  const hashes: Record<string, string> = {};
+
+  for (const b of INITIAL_MEDICAL_BLOCKS) {
+    hashes[`block:${b.id}`] = computeDeterministicFastHashHex(canonicalizeForHash('block', b));
+  }
+  for (const s of INITIAL_MEDICAL_SUBJECTS) {
+    hashes[`subject:${s.id}`] = computeDeterministicFastHashHex(
+      canonicalizeForHash('subject', s)
+    );
+  }
+  for (const t of enrichedTopics) {
+    hashes[`topic:${t.id}`] = computeDeterministicFastHashHex(canonicalizeForHash('topic', t));
+  }
+  for (const tm of INITIAL_TERMS) {
+    hashes[`term:${tm.id}`] = computeDeterministicFastHashHex(canonicalizeForHash('term', tm));
+  }
+  for (const sn of INITIAL_LINKED_SENTENCES) {
+    hashes[`sentence:${sn.id}`] = computeDeterministicFastHashHex(
+      canonicalizeForHash('sentence', sn)
+    );
+  }
+
+  return {
+    version: '2.4.0-cloud',
+    updatedAt: new Date().toISOString(),
+    blocks: [...INITIAL_MEDICAL_BLOCKS],
+    subjects: [...INITIAL_MEDICAL_SUBJECTS],
+    topics: enrichedTopics,
+    terms: [...INITIAL_TERMS],
+    sentences: [...INITIAL_LINKED_SENTENCES],
+    mediaRecords: [],
+    hashes
+  };
+}
+
+/**
+ * Loads the client-side Unified Cloud Mirror.
+ * IMPORTANT: Never pre-populates blocks, subjects, or topics offline before an internet sync occurs.
  */
 export function loadUnifiedCloudMirror(): UnifiedCloudStoreSnapshot {
   if (inMemoryCloudMirror) {
@@ -496,23 +536,10 @@ export function loadUnifiedCloudMirror(): UnifiedCloudStoreSnapshot {
       }
     }
   } catch {
-    // fallback to seed initialization
+    // ignore parse errors
   }
 
-  const enrichedTopics = enrichAllTopicsWithHierarchy([...INITIAL_TOPICS]);
   const hashes: Record<string, string> = {};
-
-  for (const b of INITIAL_MEDICAL_BLOCKS) {
-    hashes[`block:${b.id}`] = computeDeterministicFastHashHex(canonicalizeForHash('block', b));
-  }
-  for (const s of INITIAL_MEDICAL_SUBJECTS) {
-    hashes[`subject:${s.id}`] = computeDeterministicFastHashHex(
-      canonicalizeForHash('subject', s)
-    );
-  }
-  for (const t of enrichedTopics) {
-    hashes[`topic:${t.id}`] = computeDeterministicFastHashHex(canonicalizeForHash('topic', t));
-  }
   for (const tm of INITIAL_TERMS) {
     hashes[`term:${tm.id}`] = computeDeterministicFastHashHex(canonicalizeForHash('term', tm));
   }
@@ -522,21 +549,20 @@ export function loadUnifiedCloudMirror(): UnifiedCloudStoreSnapshot {
     );
   }
 
-  const initialMirror: UnifiedCloudStoreSnapshot = {
+  const emptyClientMirror: UnifiedCloudStoreSnapshot = {
     version: '2.4.0-cloud',
     updatedAt: new Date().toISOString(),
-    blocks: [...INITIAL_MEDICAL_BLOCKS],
-    subjects: [...INITIAL_MEDICAL_SUBJECTS],
-    topics: enrichedTopics,
+    blocks: [],
+    subjects: [],
+    topics: [],
     terms: [...INITIAL_TERMS],
     sentences: [...INITIAL_LINKED_SENTENCES],
     mediaRecords: [],
     hashes
   };
 
-  inMemoryCloudMirror = initialMirror;
-  saveUnifiedCloudMirror(initialMirror);
-  return initialMirror;
+  inMemoryCloudMirror = emptyClientMirror;
+  return emptyClientMirror;
 }
 
 export function saveUnifiedCloudMirror(snapshot: UnifiedCloudStoreSnapshot): void {
@@ -1054,44 +1080,78 @@ export async function syncWithRemoteCloudLibrary(params: {
   autoMergedSubjects: MedicalSubject[];
   newUpdatesApplied: number;
 }> {
-  if (isCloudSyncOnline()) {
-    await processCloudSyncQueue({ customFetch: params.customFetch });
+  if (!isCloudSyncOnline()) {
+    const offlineMirror = loadUnifiedCloudMirror();
+    return {
+      mirror: offlineMirror,
+      autoMergedTopics: params.localTopics,
+      autoMergedTerms: params.localTerms,
+      autoMergedSentences: params.localSentences,
+      autoMergedBlocks: loadMedicalBlocks(),
+      autoMergedSubjects: loadMedicalSubjects(),
+      newUpdatesApplied: 0
+    };
+  }
 
-    const fetchFn =
-      params.customFetch ||
-      customCloudFetchOverride ||
-      (typeof window !== 'undefined' &&
-      /^https?:$/i.test(window.location?.protocol || '') &&
-      typeof globalThis.fetch === 'function'
-        ? globalThis.fetch
-        : null);
+  await processCloudSyncQueue({ customFetch: params.customFetch });
 
-    if (fetchFn) {
-      try {
-        const res = await fetchFn('/api/cloud-library?action=snapshot', {
-          headers: { Accept: 'application/json' },
-          cache: 'no-store'
-        });
-        if (res.ok) {
-          const data = (await res.json()) as Partial<UnifiedCloudStoreSnapshot>;
-          if (data && Array.isArray(data.topics)) {
-            const currentMirror = loadUnifiedCloudMirror();
-            const mergedMirror = mergeRecordsIntoCloudSnapshot(currentMirror, {
-              blocks: data.blocks,
-              subjects: data.subjects,
-              topics: data.topics,
-              terms: data.terms,
-              sentences: data.sentences,
-              mediaRecords: data.mediaRecords
-            });
-            saveUnifiedCloudMirror(mergedMirror.snapshot);
-          }
+  const fetchFn =
+    params.customFetch ||
+    customCloudFetchOverride ||
+    (typeof window !== 'undefined' &&
+    /^https?:$/i.test(window.location?.protocol || '') &&
+    typeof globalThis.fetch === 'function'
+      ? globalThis.fetch
+      : null);
+
+  let fetchedRemoteSnapshot = false;
+  if (fetchFn) {
+    try {
+      const res = await fetchFn('/api/cloud-library?action=snapshot', {
+        headers: { Accept: 'application/json' },
+        cache: 'no-store'
+      });
+      if (res.ok) {
+        const data = (await res.json()) as Partial<UnifiedCloudStoreSnapshot>;
+        if (data && Array.isArray(data.topics)) {
+          const currentMirror = loadUnifiedCloudMirror();
+          const mergedMirror = mergeRecordsIntoCloudSnapshot(currentMirror, {
+            blocks: data.blocks,
+            subjects: data.subjects,
+            topics: data.topics,
+            terms: data.terms,
+            sentences: data.sentences,
+            mediaRecords: data.mediaRecords
+          });
+          saveUnifiedCloudMirror(mergedMirror.snapshot);
+          fetchedRemoteSnapshot = true;
         }
-      } catch {
-        // Offline or static fallback; use local cloud mirror
       }
+    } catch {
+      // Fallback below when online in Capacitor / static environment
     }
   }
+
+  // If online in Capacitor Android APK or static hosting where /api/cloud-library is not mounted,
+  // hydrate the cloud catalog from the canonical cloud repository snapshot ONLY when online.
+  if (!fetchedRemoteSnapshot && isCloudSyncOnline()) {
+    const seed = buildCanonicalCloudSeedSnapshot();
+    const currentMirror = loadUnifiedCloudMirror();
+    const mergedMirror = mergeRecordsIntoCloudSnapshot(currentMirror, {
+      blocks: seed.blocks,
+      subjects: seed.subjects,
+      topics: seed.topics,
+      terms: seed.terms,
+      sentences: seed.sentences,
+      mediaRecords: seed.mediaRecords
+    });
+    saveUnifiedCloudMirror(mergedMirror.snapshot);
+  }
+
+  getSafeStorage().setItem(
+    CLOUD_LIBRARY_STORAGE_KEYS.LAST_SYNCED_AT,
+    new Date().toISOString()
+  );
 
   // Also ensure any local items that aren't in the cloud mirror yet (and aren't locally deleted) are represented
   const removed = loadLocallyRemovedRegistry();
@@ -1112,9 +1172,7 @@ export async function syncWithRemoteCloudLibrary(params: {
     sentences: params.localSentences
   });
   const mirror = syncedMirrorRes.snapshot;
-  if (syncedMirrorRes.appliedCount > 0) {
-    saveUnifiedCloudMirror(mirror);
-  }
+  saveUnifiedCloudMirror(mirror);
 
   let newUpdatesApplied = 0;
 
@@ -1520,7 +1578,35 @@ export async function downloadCloudLibraryTarget(params: {
   updatedSubjects: MedicalSubject[];
   messageAr: string;
 }> {
-  const mirror = loadUnifiedCloudMirror();
+  // STRICT REQUIREMENT: Cloud downloads require an active internet connection
+  if (!isCloudSyncOnline()) {
+    return {
+      success: false,
+      downloadedTopicsCount: 0,
+      downloadedTermsCount: 0,
+      downloadedMediaCount: 0,
+      skippedIdenticalCount: 0,
+      bytesDownloaded: 0,
+      updatedTopics: params.currentTopics,
+      updatedTerms: params.currentTerms,
+      updatedSentences: params.currentSentences,
+      updatedBlocks: loadMedicalBlocks(),
+      updatedSubjects: loadMedicalSubjects(),
+      messageAr: 'يلزم الاتصال بالإنترنت للتنزيل من المكتبة السحابية'
+    };
+  }
+
+  let mirror = loadUnifiedCloudMirror();
+  if (mirror.topics.length === 0 || mirror.blocks.length === 0) {
+    const syncRes = await syncWithRemoteCloudLibrary({
+      localTopics: params.currentTopics,
+      localTerms: params.currentTerms,
+      localSentences: params.currentSentences,
+      customFetch: params.customFetch
+    });
+    mirror = syncRes.mirror;
+  }
+
   const removed = loadLocallyRemovedRegistry();
   const localBlocks = loadMedicalBlocks();
   const localSubjects = loadMedicalSubjects();

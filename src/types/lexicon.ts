@@ -119,9 +119,25 @@ export interface StudyStats {
   lastStudiedAt?: string;
 }
 
-export type AppFontFamily = 'cairo' | 'tajawal' | 'ibm' | 'system';
+export type AppFontFamily =
+  | 'cairo'
+  | 'tajawal'
+  | 'ibm'
+  | 'almarai'
+  | 'readex'
+  | 'kufi'
+  | 'amiri'
+  | 'changa'
+  | 'system';
 export type AppFontSizeScale = 'sm' | 'md' | 'lg' | 'xl';
-export type AppColorTheme = 'emerald' | 'blue' | 'indigo' | 'amber' | 'rose';
+export type AppColorTheme =
+  | 'emerald'
+  | 'blue'
+  | 'indigo'
+  | 'teal'
+  | 'violet'
+  | 'amber'
+  | 'rose';
 
 export interface AppSettings {
   isDark: boolean;

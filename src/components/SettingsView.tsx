@@ -11,7 +11,6 @@ import {
   Trash2,
   ChevronLeft,
   Share2,
-  CloudDownload,
   RefreshCw,
   Smartphone,
   Copy,
@@ -107,7 +106,6 @@ type SettingsModalType =
   | 'typography'
   | 'theme'
   | 'conflict'
-  | 'updates'
   | 'backup'
   | 'telegram'
   | 'reset';
@@ -121,20 +119,50 @@ const FONT_FAMILY_OPTIONS: Array<{
   {
     id: 'cairo',
     label: 'Cairo',
-    preview: 'خط متوازن للمصطلحات',
+    preview: 'خط القاهرة الطبي',
     cssFamily: "'Cairo', 'Inter', system-ui, sans-serif"
   },
   {
     id: 'tajawal',
     label: 'Tajawal',
-    preview: 'خط حديث وسلس',
+    preview: 'خط تجوال الحديث',
     cssFamily: "'Tajawal', 'Cairo', system-ui, sans-serif"
   },
   {
     id: 'ibm',
     label: 'IBM Plex',
-    preview: 'خط أكاديمي دقيق',
+    preview: 'خط أكاديمي هندسي',
     cssFamily: "'IBM Plex Sans Arabic', 'Inter', system-ui, sans-serif"
+  },
+  {
+    id: 'almarai',
+    label: 'Almarai',
+    preview: 'خط المراعي الواضح',
+    cssFamily: "'Almarai', 'Cairo', system-ui, sans-serif"
+  },
+  {
+    id: 'readex',
+    label: 'Readex Pro',
+    preview: 'خط القراءة السريعة',
+    cssFamily: "'Readex Pro', 'Inter', system-ui, sans-serif"
+  },
+  {
+    id: 'kufi',
+    label: 'Noto Kufi',
+    preview: 'خط نوتو الكوفي',
+    cssFamily: "'Noto Kufi Arabic', 'Inter', system-ui, sans-serif"
+  },
+  {
+    id: 'changa',
+    label: 'Changa',
+    preview: 'خط تشانجا العريض',
+    cssFamily: "'Changa', 'Cairo', system-ui, sans-serif"
+  },
+  {
+    id: 'amiri',
+    label: 'Amiri',
+    preview: 'خط أميري الكلاسيكي',
+    cssFamily: "'Amiri', Georgia, serif"
   },
   {
     id: 'system',
@@ -150,22 +178,60 @@ const FONT_SIZE_OPTIONS: Array<{
   percent: number;
   pxLabel: string;
 }> = [
-  { id: 'sm', label: 'صغير', percent: 85, pxLabel: '85%' },
+  { id: 'sm', label: 'صغير', percent: 75, pxLabel: '75%' },
   { id: 'md', label: 'متوسط', percent: 100, pxLabel: '100%' },
   { id: 'lg', label: 'كبير', percent: 115, pxLabel: '115%' },
-  { id: 'xl', label: 'كبير جداً', percent: 130, pxLabel: '130%' }
+  { id: 'xl', label: 'أكبر', percent: 125, pxLabel: '125%' }
 ];
 
 const COLOR_THEME_OPTIONS: Array<{
   id: AppColorTheme;
   label: string;
   swatchClass: string;
+  surfacePreviewClass: string;
 }> = [
-  { id: 'emerald', label: 'زمردي', swatchClass: 'bg-emerald-500' },
-  { id: 'blue', label: 'أزرق', swatchClass: 'bg-blue-500' },
-  { id: 'indigo', label: 'نيلي', swatchClass: 'bg-indigo-500' },
-  { id: 'amber', label: 'كهرماني', swatchClass: 'bg-amber-500' },
-  { id: 'rose', label: 'وردي', swatchClass: 'bg-rose-500' }
+  {
+    id: 'emerald',
+    label: 'زمردي',
+    swatchClass: 'bg-emerald-500',
+    surfacePreviewClass: 'bg-[#0c211b] border-emerald-500/40'
+  },
+  {
+    id: 'blue',
+    label: 'أزرق',
+    swatchClass: 'bg-blue-500',
+    surfacePreviewClass: 'bg-[#0b192e] border-blue-500/40'
+  },
+  {
+    id: 'indigo',
+    label: 'نيلي',
+    swatchClass: 'bg-indigo-500',
+    surfacePreviewClass: 'bg-[#12132e] border-indigo-500/40'
+  },
+  {
+    id: 'teal',
+    label: 'تركوازي',
+    swatchClass: 'bg-teal-500',
+    surfacePreviewClass: 'bg-[#0a2124] border-teal-500/40'
+  },
+  {
+    id: 'violet',
+    label: 'بنفسجي',
+    swatchClass: 'bg-violet-500',
+    surfacePreviewClass: 'bg-[#1a112e] border-violet-500/40'
+  },
+  {
+    id: 'amber',
+    label: 'كهرماني',
+    swatchClass: 'bg-amber-500',
+    surfacePreviewClass: 'bg-[#241a0b] border-amber-500/40'
+  },
+  {
+    id: 'rose',
+    label: 'وردي',
+    swatchClass: 'bg-rose-500',
+    surfacePreviewClass: 'bg-[#260e16] border-rose-500/40'
+  }
 ];
 
 const CONFLICT_LABELS: Record<'merge' | 'overwrite' | 'ignore', string> = {
@@ -192,12 +258,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   recentTermsCount,
   onClearRecentTerms,
   dbMetrics,
-  versionMetadata,
-  onlineUpdateConfig,
-  onlineUpdateStatus,
-  onUpdateOnlineConfig,
-  onCheckForUpdates,
-  onRollbackToPreviousVersion,
   backupHistory,
   onCreateManualBackup,
   onRestoreBackupById,
@@ -238,19 +298,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [previewDownloadedFile, setPreviewDownloadedFile] =
     useState<LocalDownloadRecord | null>(null);
 
-  const effectiveScalePercent =
-    typeof fontScalePercent === 'number'
-      ? fontScalePercent
-      : FONT_SIZE_OPTIONS.find((s) => s.id === fontSizeScale)?.percent || 100;
+  const effectiveScalePercent = Math.max(
+    75,
+    Math.min(
+      125,
+      typeof fontScalePercent === 'number'
+        ? fontScalePercent
+        : FONT_SIZE_OPTIONS.find((s) => s.id === fontSizeScale)?.percent || 100
+    )
+  );
 
   const applyDynamicScalePercent = (nextPct: number) => {
-    const clamped = Math.max(80, Math.min(140, Math.round(nextPct)));
+    const clamped = Math.max(75, Math.min(125, Math.round(nextPct)));
     onChangeFontScalePercent?.(clamped);
-    if (clamped <= 90) {
+    if (clamped <= 85) {
       onChangeFontSizeScale('sm');
-    } else if (clamped <= 107) {
+    } else if (clamped <= 105) {
       onChangeFontSizeScale('md');
-    } else if (clamped <= 122) {
+    } else if (clamped <= 118) {
       onChangeFontSizeScale('lg');
     } else {
       onChangeFontSizeScale('xl');
@@ -415,12 +480,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setTelegramFeedback({ ok: res.ok, message: res.message });
     setIsSendingTelegram(false);
   };
-
-  const isBusyUpdating =
-    onlineUpdateStatus.phase === 'checking' ||
-    onlineUpdateStatus.phase === 'downloading' ||
-    onlineUpdateStatus.phase === 'verifying' ||
-    onlineUpdateStatus.phase === 'installing';
 
   const summaryToShow =
     lastImportedOrCopiedSummary ||
@@ -617,23 +676,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </button>
 
-        {/* 6. Cloud Updates */}
-        <button
-          type="button"
-          onClick={() => setActiveModal('updates')}
-          className="w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-right"
-        >
-          <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
-            <CloudDownload className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span>التحديثات</span>
-          </div>
-
-          <div className="flex items-center gap-1.5 text-xs font-mono text-slate-500 dark:text-slate-400">
-            <span dir="ltr">{versionMetadata.dataVersion}</span>
-            <ChevronLeft className="w-4 h-4" />
-          </div>
-        </button>
-
         {/* 7. Search History */}
         <div className="px-4 py-3.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
@@ -760,8 +802,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                       <input
                         type="range"
-                        min={80}
-                        max={140}
+                        min={75}
+                        max={125}
                         step={5}
                         value={effectiveScalePercent}
                         onChange={(e) => applyDynamicScalePercent(Number(e.target.value))}
@@ -804,9 +846,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {/* Font Family */}
                   <div className="space-y-2">
                     <span className="font-extrabold text-slate-700 dark:text-slate-200 block">
-                      نوع الخط
+                      نوع الخط ({FONT_FAMILY_OPTIONS.length})
                     </span>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {FONT_FAMILY_OPTIONS.map((fontOpt) => {
                         const active = fontFamily === fontOpt.id;
                         return (
@@ -815,14 +857,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             type="button"
                             onClick={() => onChangeFontFamily(fontOpt.id)}
                             style={{ fontFamily: fontOpt.cssFamily }}
-                            className={`px-3 py-2.5 rounded-xl border text-right flex items-center justify-between gap-2 transition-colors ${
+                            className={`px-3 py-2.5 rounded-xl border text-right flex flex-col justify-between gap-1 transition-colors ${
                               active
                                 ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300'
                                 : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200'
                             }`}
                           >
-                            <span className="font-extrabold text-xs truncate">{fontOpt.label}</span>
-                            {active && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
+                            <div className="flex items-center justify-between gap-1.5 w-full">
+                              <span className="font-extrabold text-xs truncate">{fontOpt.label}</span>
+                              {active && <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
+                            </div>
+                            <span className="text-[10px] opacity-75 truncate">{fontOpt.preview}</span>
                           </button>
                         );
                       })}
@@ -858,7 +903,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </button>
                 </div>
 
-                <div className="space-y-2 text-xs">
+                <div className="grid grid-cols-2 gap-2 text-xs">
                   {COLOR_THEME_OPTIONS.map((themeOpt) => {
                     const active = colorTheme === themeOpt.id;
                     return (
@@ -869,15 +914,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           onChangeColorTheme(themeOpt.id);
                           setActiveModal(null);
                         }}
-                        className={`w-full min-h-[48px] px-3.5 py-2.5 rounded-xl border font-bold flex items-center justify-between transition-colors ${
+                        className={`min-h-[52px] px-3 py-2.5 rounded-xl border font-bold flex items-center justify-between gap-2 transition-colors ${
                           active
                             ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300'
                             : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
                         }`}
                       >
-                        <div className="flex items-center gap-2.5">
-                          <span className={`w-4 h-4 rounded-full ${themeOpt.swatchClass} shadow-xs`} />
-                          <span>{themeOpt.label}</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className={`w-6 h-6 rounded-lg border flex items-center justify-center shrink-0 ${themeOpt.surfacePreviewClass}`}
+                          >
+                            <span className={`w-3 h-3 rounded-full ${themeOpt.swatchClass}`} />
+                          </span>
+                          <span className="truncate">{themeOpt.label}</span>
                         </div>
                         {active && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
                       </button>
@@ -1110,133 +1159,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       )}
                     </button>
                   ))}
-                </div>
-              </>
-            )}
-
-            {/* Modal 2: Cloud Updates */}
-            {activeModal === 'updates' && (
-              <>
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                    التحديثات
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setActiveModal(null)}
-                    className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="space-y-2.5 text-xs">
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                    <span className="text-slate-500 font-bold">الإصدار الحالي</span>
-                    <span dir="ltr" className="font-mono font-extrabold">
-                      {versionMetadata.dataVersion}
-                    </span>
-                  </div>
-
-                  <input
-                    type="url"
-                    dir="ltr"
-                    value={onlineUpdateConfig.manifestUrl}
-                    onChange={(e) =>
-                      onUpdateOnlineConfig({
-                        ...onlineUpdateConfig,
-                        manifestUrl: e.target.value
-                      })
-                    }
-                    placeholder="Manifest URL (GitHub)"
-                    className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono text-left focus:outline-none focus:border-emerald-500"
-                  />
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-                    <span className="text-[11px] text-slate-400">مستودع التحديثات:</span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onUpdateOnlineConfig({
-                          ...onlineUpdateConfig,
-                          manifestUrl:
-                            'https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/stable/manifest.json'
-                        })
-                      }
-                      className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold hover:underline"
-                    >
-                      تعيين الرابط الرسمي لـ UMEDT
-                    </button>
-                  </div>
-
-                  {onlineUpdateStatus.message && (
-                    <div
-                      className={`p-3 rounded-2xl border text-xs space-y-2 transition-all ${
-                        onlineUpdateStatus.phase === 'completed'
-                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
-                          : onlineUpdateStatus.phase === 'error' ||
-                            onlineUpdateStatus.phase === 'incompatible'
-                          ? 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
-                          : onlineUpdateStatus.phase === 'update-available'
-                          ? 'bg-blue-500/10 border-blue-500/30 text-blue-800 dark:text-blue-300'
-                          : isBusyUpdating
-                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300'
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2 min-w-0">
-                        <div className="flex items-center gap-2 font-bold min-w-0">
-                          {isBusyUpdating && (
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600 dark:text-amber-400 shrink-0" />
-                          )}
-                          {onlineUpdateStatus.phase === 'completed' && (
-                            <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                          )}
-                          <span className="leading-snug break-words min-w-0">{onlineUpdateStatus.message}</span>
-                        </div>
-                        {onlineUpdateStatus.progressPercent !== null && (
-                          <span className="font-mono text-[11px] font-extrabold shrink-0">
-                            {onlineUpdateStatus.progressPercent}%
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      disabled={isBusyUpdating}
-                      onClick={() => void onCheckForUpdates({ forceInstall: false })}
-                      className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
-                    >
-                      <RefreshCw
-                        className={`w-3.5 h-3.5 ${isBusyUpdating ? 'animate-spin' : ''}`}
-                      />
-                      <span>فحص</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={!onlineUpdateConfig.manifestUrl.trim() || isBusyUpdating}
-                      onClick={() => void onCheckForUpdates({ forceInstall: true })}
-                      className="min-h-[42px] px-3 py-2 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 font-extrabold flex items-center justify-center gap-1.5 disabled:opacity-50"
-                    >
-                      <CloudDownload className="w-3.5 h-3.5" />
-                      <span>تثبيت التحديث</span>
-                    </button>
-                  </div>
-
-                  {backupHistory.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => void onRollbackToPreviousVersion()}
-                      className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5 text-amber-500" />
-                      <span>تراجع للإصدار السابق</span>
-                    </button>
-                  )}
                 </div>
               </>
             )}

@@ -54,6 +54,7 @@ import {
   processCloudSyncQueue,
   syncWithRemoteCloudLibrary,
   subscribeToCloudLibraryChanges,
+  isCloudSyncOnline,
   CloudLibraryStateSummary
 } from '../services/cloudLibrarySyncService';
 
@@ -833,6 +834,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     targetType: 'block' | 'subject' | 'topic',
     targetId: string
   ) => {
+    if (!isCloudSyncOnline()) {
+      showToast?.('يلزم الاتصال بالإنترنت للتنزيل من المكتبة السحابية', 'info');
+      return;
+    }
     const key = `${targetType}:${targetId}`;
     setBusyTargetKey(key);
     try {
@@ -843,12 +848,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         currentTerms: terms,
         currentSentences: sentences
       });
-      onSyncStateUpdated?.({
-        topics: res.updatedTopics,
-        terms: res.updatedTerms,
-        sentences: res.updatedSentences
-      });
-      showToast?.(res.messageAr);
+      if (res.success) {
+        onSyncStateUpdated?.({
+          topics: res.updatedTopics,
+          terms: res.updatedTerms,
+          sentences: res.updatedSentences
+        });
+      }
+      showToast?.(res.messageAr, res.success ? 'success' : 'info');
     } finally {
       setBusyTargetKey(null);
     }
@@ -880,6 +887,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   };
 
   const handleRefreshCloudCatalog = async () => {
+    if (!isCloudSyncOnline()) {
+      showToast?.('يلزم الاتصال بالإنترنت لتحديث المكتبة السحابية', 'info');
+      return;
+    }
     setBusyTargetKey('catalog:refresh');
     try {
       await processCloudSyncQueue({ forceRetryFailed: true });
@@ -1228,9 +1239,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             <div className="space-y-2.5">
               {filteredCloudBlocks.length === 0 ? (
                 <div className="p-6 text-center rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/70 dark:border-slate-800 text-xs font-bold text-slate-500">
-                  {cloudFilterTab === 'local'
+                  {!isCloudSyncOnline()
+                    ? 'يلزم الاتصال بالإنترنت لتحميل المكتبة السحابية'
+                    : cloudFilterTab === 'local'
                     ? 'المكتبة المحلية فارغة — نزّل من المكتبة السحابية'
-                    : 'لا توجد نتائج'}
+                    : 'اضغط "تحديث" لجلب المكتبة السحابية'}
                 </div>
               ) : (
                 filteredCloudBlocks.map((blk) => {

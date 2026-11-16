@@ -734,7 +734,7 @@ function getLocallyRemovedHierarchyIds(): { blocks: Set<string>; subjects: Set<s
   }
 }
 
-const POST_INSTALL_CLEAN_FLAG_KEY = 'umed_post_install_clean_topics_blocks_v2';
+const POST_INSTALL_CLEAN_FLAG_KEY = 'umed_post_install_clean_topics_blocks_v3';
 
 export function ensurePostInstallLocalTopicsAndBlocksCleaned(): void {
   try {
@@ -746,6 +746,7 @@ export function ensurePostInstallLocalTopicsAndBlocksCleaned(): void {
     store.setItem(LEARNING_STORAGE_KEYS.SUBJECTS, '[]');
     store.setItem(LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS, '[]');
     store.setItem('dictengine_umd_topics_v2', '[]');
+    store.setItem('umed_unified_cloud_mirror_v1', '');
     store.setItem(POST_INSTALL_CLEAN_FLAG_KEY, 'done');
   } catch {
     // ignore storage errors
