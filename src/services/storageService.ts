@@ -139,11 +139,17 @@ export const DEFAULT_BACKUP_CONFIG: BackupConfig = {
   preservePersonalDataOnRestore: true
 };
 
-const envManifestUrl =
+const DEFAULT_UMEDT_DATA_MANIFEST_URL =
+  'https://raw.githubusercontent.com/Alssaedy50/UMEDT_DATA/main/data/releases/stable/manifest.json';
+const configuredManifestUrl =
   typeof import.meta !== 'undefined' &&
   (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_UMED_MANIFEST_URL
     ? String((import.meta as unknown as { env?: Record<string, string> }).env!.VITE_UMED_MANIFEST_URL).trim()
-    : 'https://raw.githubusercontent.com/Alssaedy50/UMEDT_DATA/main/data/releases/stable/manifest.json';
+    : '';
+const envManifestUrl =
+  configuredManifestUrl && !configuredManifestUrl.includes('/UMEDT/main/data/releases/')
+    ? configuredManifestUrl
+    : DEFAULT_UMEDT_DATA_MANIFEST_URL;
 
 function normalizeEmbeddedPublicKeyPem(rawKey: string | null | undefined): string {
   let cleaned = String(rawKey || '')
