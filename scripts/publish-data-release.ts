@@ -121,7 +121,7 @@ export async function executeProductionDataReleasePublish(
   const cdnBaseUrl = (
     options.cdnBaseUrl ||
     env.UMED_RELEASE_BASE_URL ||
-    DEFAULT_CDN_RELEASE_BASE_URL.replace(/\\/stable$/, `/${channel}`)
+    DEFAULT_CDN_RELEASE_BASE_URL.replace(/\/stable$/, `/${channel}`)
   ).trim();
 
   const summary =
@@ -229,9 +229,9 @@ export async function executeProductionDataReleasePublish(
 
   const dataRepository = (env.UMED_DATA_REPOSITORY || 'Alssaedy50/UMEDT_DATA')
     .trim()
-    .replace(/^https?:\\/\\/github\\.com\\//i, '')
-    .replace(/\\.git$/i, '')
-    .replace(/\\/+$/, '');
+    .replace(/^https?:\/\/github\.com\//i, '')
+    .replace(/\.git$/i, '')
+    .replace(/\/+$/, '');
   const [dataOwner, dataRepoName] = dataRepository.split('/');
   if (!dataOwner || !dataRepoName) {
     throw new Error(`[UMEDT Publisher] Invalid UMED_DATA_REPOSITORY: ${dataRepository}`);
