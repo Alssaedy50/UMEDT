@@ -65,6 +65,7 @@ export async function executeProductionDataReleasePublish(
   r2Result?: R2UploadResult;
 }> {
   const env = options.env || process.env;
+  const dataRoot = path.resolve((env.UMED_DATA_REPOSITORY_ROOT || process.cwd()).trim());
 
   const channel: 'stable' | 'beta' =
     (options.channel || env.UMED_RELEASE_CHANNEL) === 'beta' ? 'beta' : 'stable';
@@ -72,7 +73,7 @@ export async function executeProductionDataReleasePublish(
   // Continue from the latest published channel manifest, not only the bundled app version.
   // This prevents automatic releases from reusing a version already published through OTA.
   const currentManifestPath = path.resolve(
-    process.cwd(),
+    dataRoot,
     'data/releases/' + channel + '/manifest.json'
   );
   let currentPublishedVersion = BUNDLED_DATA_VERSION;
@@ -94,7 +95,7 @@ export async function executeProductionDataReleasePublish(
   // Keep OTA versions monotonic even if the stable manifest was accidentally rolled back.
   // The floor is a lower bound only; a newer published manifest always takes precedence.
   const versionFloorPath = path.resolve(
-    process.cwd(),
+    dataRoot,
     'data/releases/' + channel + '/version-floor.json'
   );
   let versionFloor: string | undefined;
@@ -117,7 +118,11 @@ export async function executeProductionDataReleasePublish(
       ...(versionFloor ? [versionFloor] : [])
     ]);
 
-  const cdnBaseUrl = (options.cdnBaseUrl || DEFAULT_CDN_RELEASE_BASE_URL).trim();
+  const cdnBaseUrl = (
+    options.cdnBaseUrl ||
+    env.UMED_RELEASE_BASE_URL ||
+    DEFAULT_CDN_RELEASE_BASE_URL.replace(/\\/stable$/, `/${channel}`)
+  ).trim();
 
   const summary =
     (options.summary || env.UMED_RELEASE_SUMMARY || '').trim() ||
@@ -178,7 +183,16 @@ export async function executeProductionDataReleasePublish(
     );
   }
 
-  const masterRepo = loadMasterMedicalRepository(process.cwd());
+  const masterRepo = loadMasterMedicalRepository(dataRoot);
+  const totalMasterRecords =
+    masterRepo.terms.length +
+    masterRepo.sentences.length +
+    masterRepo.topics.length +
+    masterRepo.customAffixes.length +
+    masterRepo.customAbbreviations.length;
+  if (totalMasterRecords === 0) {
+    throw new Error('[UMEDT Publisher] Refusing to publish an empty medical data repository. Add at least one record to data/master/*.json first.');
+  }
   const enrichedTerms = autoEnrichAllTermsRelations([...masterRepo.terms]);
   const syncedSentences = [...masterRepo.sentences];
   const topics = [...masterRepo.topics];
@@ -213,8 +227,18 @@ export async function executeProductionDataReleasePublish(
   const channelPrefix = channel === 'beta' ? 'beta' : 'stable';
   const defaultPackageFileName = `umed2-data-${targetVersion}.zip`;
 
-  const defaultGithubDownloadUrl = `https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/${channelPrefix}/${defaultPackageFileName}`;
-  const defaultGithubManifestUrl = `https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/${channelPrefix}/manifest.json`;
+  const dataRepository = (env.UMED_DATA_REPOSITORY || 'Alssaedy50/UMEDT_DATA')
+    .trim()
+    .replace(/^https?:\\/\\/github\\.com\\//i, '')
+    .replace(/\\.git$/i, '')
+    .replace(/\\/+$/, '');
+  const [dataOwner, dataRepoName] = dataRepository.split('/');
+  if (!dataOwner || !dataRepoName) {
+    throw new Error(`[UMEDT Publisher] Invalid UMED_DATA_REPOSITORY: ${dataRepository}`);
+  }
+  const rawReleaseBase = `https://raw.githubusercontent.com/${dataOwner}/${dataRepoName}/main/data/releases/${channelPrefix}`;
+  const defaultGithubDownloadUrl = `${rawReleaseBase}/${defaultPackageFileName}`;
+  const defaultGithubManifestUrl = `${rawReleaseBase}/manifest.json`;
 
   const packageDownloadUrl =
     options.packageDownloadUrl ||
@@ -251,7 +275,11 @@ export async function executeProductionDataReleasePublish(
     );
   }
 
-  const outDir = path.resolve(process.cwd(), options.outputDir || 'releases');
+  const outDir = path.resolve(
+    options.outputDir ||
+    env.UMED_RELEASE_OUTPUT_DIR ||
+    path.join(dataRoot, 'data/releases', channelPrefix)
+  );
   const packageOutPath = path.join(outDir, bundle.packageFileName);
   const manifestOutPath = path.join(outDir, 'manifest.json');
   const changelogOutPath = path.join(outDir, 'CHANGELOG.md');
