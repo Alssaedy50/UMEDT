@@ -3,6 +3,7 @@ export type ContentBlockType =
   | 'paragraph'
   | 'table'
   | 'image'
+  | 'video'
   | 'video_link'
   | 'audio'
   | 'attachment'
@@ -72,6 +73,8 @@ export interface TopicContentBlock {
   mediaFileName?: string;
   mediaSizeBytes?: number;
   mediaDurationSeconds?: number;
+  mediaSha256?: string;
+  isLocalMediaRef?: boolean;
   captionEn?: string;
   captionAr?: string;
   externalUrl?: string;
@@ -179,11 +182,18 @@ export interface LocalMediaRecord {
   topicId?: string;
   sectionId?: string;
   blockId?: string;
-  mediaType: 'audio_recording' | 'audio_file' | 'pdf_document' | 'image' | 'attachment';
+  mediaType:
+    | 'audio_recording'
+    | 'audio_file'
+    | 'video_file'
+    | 'pdf_document'
+    | 'image'
+    | 'attachment';
   fileName: string;
   mimeType: string;
   sizeBytes: number;
   durationSeconds?: number;
+  sourceExternalUrl?: string;
   dataUrl: string;
   createdAt: string;
 }

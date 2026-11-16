@@ -115,6 +115,7 @@ interface TopicsHubProps {
   ) => void;
   onAddSentenceToExistingTerm: (termId: string, example: TermExample) => void;
   onTriggerTTS: (text: string, key: string, lang?: string) => void;
+  onHierarchyChanged?: (reason: string) => void;
   showToast: (message: string, type?: string) => void;
 }
 
@@ -205,6 +206,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   onSaveNewTermFromTopic,
   onAddSentenceToExistingTerm,
   onTriggerTTS,
+  onHierarchyChanged,
   showToast
 }) => {
   // 1. Hierarchical Platform State
@@ -780,6 +782,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           ? `تم تحديث البلوك "${cleanAr}"`
           : `تم إنشاء البلوك "${cleanAr}"`
       );
+      onHierarchyChanged?.(
+        editingHierarchyId
+          ? `تعديل بلوك: ${cleanAr}`
+          : `إضافة بلوك: ${cleanAr}`
+      );
     } else if (hierarchyModalMode === 'subject') {
       const nextSubj: MedicalSubject = {
         id: editingHierarchyId || `subj-custom-${Date.now()}`,
@@ -810,6 +817,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         editingHierarchyId
           ? `تم تحديث المادة "${cleanAr}"`
           : `تم إنشاء المادة "${cleanAr}"`
+      );
+      onHierarchyChanged?.(
+        editingHierarchyId
+          ? `تعديل مادة: ${cleanAr}`
+          : `إضافة مادة: ${cleanAr}`
       );
     }
 

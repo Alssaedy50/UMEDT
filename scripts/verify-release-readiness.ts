@@ -58,7 +58,13 @@ import {
   saveMedicalBlocks,
   loadMedicalSubjects
 } from '../src/services/learningHierarchyService';
-import { saveLocalMediaRecord } from '../src/services/mediaStorageService';
+import {
+  saveLocalMediaRecord,
+  getLocalMediaRecord,
+  detectExternalMediaKind,
+  downloadRemoteMediaToOfflineCache,
+  openMediaInExternalApp
+} from '../src/services/mediaStorageService';
 import {
   computeEntitySha256,
   deduplicateTopicMediaAndAttachments,
@@ -72,6 +78,24 @@ import {
   deleteCloudLibraryTargetLocally,
   clearLocallyRemovedRegistry
 } from '../src/services/cloudLibrarySyncService';
+import {
+  encryptBotTokenForStorage,
+  decryptBotTokenFromStorage,
+  redactBotTokenFromText,
+  stripBinaryMediaFromTopicsForBackup,
+  loadTelegramBackupConfig,
+  saveTelegramBackupConfig,
+  readRawTelegramConfigJsonForAudit,
+  createUnifiedBackupPackage,
+  sendBackupToTelegram,
+  scheduleDebouncedTelegramAutoSync,
+  flushPendingTelegramAutoSync
+} from '../src/services/telegramBackupService';
+import {
+  generateStandaloneHtmlDocument,
+  generateStandaloneZipArchiveBytes,
+  inspectZipEntriesList
+} from '../src/services/standaloneExportService';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1543,8 +1567,531 @@ async function main() {
   console.log(
     '[PASS] 16. Post-Install Dictionary-Only State, Unified Cloud Library, Automatic Sync Queue, SHA-256 Deduplication, Selective Download & Local Deletion Verified'
   );
+
+  // ==========================================================================
+  // 17. Verify UMEDT Update Directives (Telegram Auto-Sync, Single Backup Rotation,
+  //     Media Separation, Media Management & Offline Cache, Standalone HTML/ZIP Export,
+  //     and Bot Token Encryption & Protection)
+  // ==========================================================================
+
+  // 17.1 Bot Token Encryption at Rest & Redaction from Logs/Backups/Exports
+  const sampleSecretToken = '8123456789:AAH_SecretTelegramBotToken_X987654321';
+  const encryptedToken = encryptBotTokenForStorage(sampleSecretToken);
+  assertCondition(
+    (encryptedToken.startsWith('aks_v1:') || encryptedToken.startsWith('wks_v1:')) &&
+      !encryptedToken.includes(sampleSecretToken),
+    'Bot token must be encrypted before local storage and never contain raw token string'
+  );
+  const decryptedToken = decryptBotTokenFromStorage(encryptedToken);
+  assertCondition(
+    decryptedToken === sampleSecretToken,
+    'Encrypted Bot Token must round-trip cleanly via decryptBotTokenFromStorage()'
+  );
+
+  saveTelegramBackupConfig({
+    ...loadTelegramBackupConfig(),
+    enabled: true,
+    botToken: sampleSecretToken,
+    chatId: '-1009988776655',
+    schedule: 'on_change'
+  });
+
+  const rawStoredCfgJson = readRawTelegramConfigJsonForAudit();
+  assertCondition(
+    !rawStoredCfgJson.includes(sampleSecretToken) &&
+      (rawStoredCfgJson.includes('aks_v1:') || rawStoredCfgJson.includes('wks_v1:')),
+    'Plaintext botToken must NEVER be stored in localStorage (only encryptedBotToken)'
+  );
+  const reloadedCfg = loadTelegramBackupConfig();
+  assertCondition(
+    reloadedCfg.botToken === sampleSecretToken,
+    'loadTelegramBackupConfig() must decrypt botToken in memory for authorized client calls'
+  );
+  assertCondition(
+    !redactBotTokenFromText(`Error at https://api.telegram.org/bot${sampleSecretToken}/sendDocument`).includes(
+      sampleSecretToken
+    ),
+    'redactBotTokenFromText() must scrub any bot token pattern from logs and export strings'
+  );
+
+  const mainActivityJavaSource = fs.readFileSync(
+    path.join(
+      ROOT_DIR,
+      'android/app/src/main/java/org/umed2/dictengine/MainActivity.java'
+    ),
+    'utf-8'
+  );
+  assertCondition(
+    mainActivityJavaSource.includes('AndroidKeyStore') &&
+      mainActivityJavaSource.includes('AES/GCM/NoPadding') &&
+      mainActivityJavaSource.includes('encryptSecretWithKeystore') &&
+      mainActivityJavaSource.includes('decryptSecretWithKeystore') &&
+      mainActivityJavaSource.includes('openExternalUrl'),
+    'MainActivity.java must implement Android Keystore AES/GCM/NoPadding encryption and native openExternalUrl intent'
+  );
+
+  // 17.2 Media Separation from Backup Payloads (Strip Binary Media, Keep URLs & Metadata)
+  const localImgKey = 'img-test-sep-1';
+  const localVidKey = 'vid-test-sep-1';
+  const localPdfKey = 'pdf-test-sep-1';
+  const dummyPngBase64 =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+  const dummyMp4Base64 =
+    'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQ==';
+  const dummyPdfBase64 =
+    'data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyA+PgplbmRvYmoK';
+
+  await saveLocalMediaRecord({
+    id: localImgKey,
+    topicId: 'topic-media-sep-1',
+    mediaType: 'image',
+    fileName: 'blood_smear.png',
+    mimeType: 'image/png',
+    sizeBytes: 128,
+    dataUrl: dummyPngBase64,
+    createdAt: new Date().toISOString()
+  });
+  await saveLocalMediaRecord({
+    id: localVidKey,
+    topicId: 'topic-media-sep-1',
+    mediaType: 'video_file',
+    fileName: 'bone_marrow_biopsy.mp4',
+    mimeType: 'video/mp4',
+    sizeBytes: 256,
+    dataUrl: dummyMp4Base64,
+    createdAt: new Date().toISOString()
+  });
+  await saveLocalMediaRecord({
+    id: localPdfKey,
+    topicId: 'topic-media-sep-1',
+    mediaType: 'pdf_document',
+    fileName: 'hematology_guidelines.pdf',
+    mimeType: 'application/pdf',
+    sizeBytes: 512,
+    dataUrl: dummyPdfBase64,
+    createdAt: new Date().toISOString()
+  });
+
+  const mediaRichTopic = {
+    id: 'topic-media-sep-1',
+    title: 'Anemia Media Separation Test — اختبار فصل الوسائط',
+    titleEn: 'Anemia Media Separation Test',
+    titleAr: 'اختبار فصل الوسائط',
+    subtitle: 'فصل الصور والفيديو وملفات PDF عن النسخة الاحتياطية',
+    category: 'Medical' as const,
+    blockId: 'block-heme-test',
+    subjectId: 'subj-heme-test',
+    author: 'UMEDT Verification',
+    publishedAt: '2026-11-16',
+    readingTimeMinutes: 3,
+    favorite: true,
+    sections: [
+      {
+        id: 'sec-media-1',
+        headingEn: 'Diagnostic Media & References',
+        headingAr: 'الوسائط والمراجع التشخيصية',
+        heading: 'Diagnostic Media & References',
+        paragraphs: ['Peripheral blood smear and bone marrow biopsy findings.'],
+        contentBlocks: [
+          {
+            id: 'cb-img-local',
+            type: 'image' as const,
+            order: 1,
+            mediaUrl: dummyPngBase64,
+            mediaIdbKey: localImgKey,
+            mediaFileName: 'blood_smear.png',
+            mediaMimeType: 'image/png',
+            mediaSizeBytes: 128,
+            captionEn: 'Local Blood Smear Image'
+          },
+          {
+            id: 'cb-img-ext',
+            type: 'image' as const,
+            order: 2,
+            externalUrl: 'https://example.org/media/external_diagram.png',
+            mediaUrl: 'https://example.org/media/external_diagram.png',
+            captionEn: 'External Diagram URL'
+          },
+          {
+            id: 'cb-vid-local',
+            type: 'video' as const,
+            order: 3,
+            mediaUrl: dummyMp4Base64,
+            mediaIdbKey: localVidKey,
+            mediaFileName: 'bone_marrow_biopsy.mp4',
+            mediaMimeType: 'video/mp4',
+            mediaSizeBytes: 256,
+            titleEn: 'Bone Marrow Biopsy Video'
+          },
+          {
+            id: 'cb-vid-ext',
+            type: 'video_link' as const,
+            order: 4,
+            externalUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+            titleEn: 'External Hematology Lecture'
+          },
+          {
+            id: 'cb-pdf-local',
+            type: 'attachment' as const,
+            order: 5,
+            mediaUrl: dummyPdfBase64,
+            mediaIdbKey: localPdfKey,
+            mediaFileName: 'hematology_guidelines.pdf',
+            mediaMimeType: 'application/pdf',
+            mediaSizeBytes: 512,
+            titleEn: 'Hematology Guidelines PDF'
+          }
+        ]
+      }
+    ],
+    images: [
+      {
+        id: 'img-item-1',
+        url: dummyPngBase64,
+        mediaIdbKey: localImgKey,
+        caption: 'Local Blood Smear Image'
+      },
+      {
+        id: 'img-item-2',
+        url: 'https://example.org/media/external_diagram.png',
+        externalUrl: 'https://example.org/media/external_diagram.png',
+        caption: 'External Diagram URL'
+      }
+    ],
+    links: [
+      {
+        id: 'lnk-item-1',
+        title: 'External Hematology Lecture',
+        url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+      }
+    ],
+    attachments: [
+      {
+        id: 'att-item-1',
+        fileName: 'hematology_guidelines.pdf',
+        fileSizeLabel: '1 KB',
+        fileType: 'application/pdf',
+        mediaIdbKey: localPdfKey,
+        contentDataUrlOrText: dummyPdfBase64
+      }
+    ]
+  };
+
+  const strippedTopics = stripBinaryMediaFromTopicsForBackup([mediaRichTopic]);
+  const strippedJson = JSON.stringify(strippedTopics);
+  assertCondition(
+    !strippedJson.includes('data:image/png;base64') &&
+      !strippedJson.includes('data:video/mp4;base64') &&
+      !strippedJson.includes('data:application/pdf;base64'),
+    'stripBinaryMediaFromTopicsForBackup() must remove all inline base64 binary payloads from backup JSON'
+  );
+  assertCondition(
+    strippedJson.includes('https://example.org/media/external_diagram.png') &&
+      strippedJson.includes('https://www.youtube.com/watch?v=dQw4w9WgXcQ') &&
+      strippedJson.includes(`idb://${localImgKey}`) &&
+      strippedJson.includes(`idb://${localVidKey}`) &&
+      strippedJson.includes(`idb://${localPdfKey}`),
+    'stripBinaryMediaFromTopicsForBackup() must preserve external URLs and local idb:// media metadata references'
+  );
+
+  const backupPkg = createUnifiedBackupPackage(
+    initialStateForCloud.terms,
+    initialStateForCloud.sentences,
+    [mediaRichTopic],
+    'اختبار النسخ الموحد',
+    initialStateForCloud.studyStats,
+    initialStateForCloud.versionMetadata
+  );
+  const backupPkgJson = backupPkg.jsonString;
+  assertCondition(
+    !backupPkgJson.includes('data:image/png;base64') &&
+      !backupPkgJson.includes(sampleSecretToken) &&
+      backupPkg.payload.mediaStoragePolicy === 'metadata_and_urls_only',
+    'Unified backup package must exclude binary media and Bot Token while keeping metadata_and_urls_only policy'
+  );
+
+  // 17.3 Telegram Backup Rotation & Safe Deletion After Verification + Debounced Auto-Sync
+  const telegramApiCalls: Array<{
+    endpoint: string;
+    messageIdToDelete?: number;
+  }> = [];
+  let simulatedNextMessageId = 501;
+  let simulateUploadFailure = false;
+
+  const originalFetchForTg = globalThis.fetch;
+  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const urlStr = typeof input === 'string' ? input : input.toString();
+    if (urlStr.includes('api.telegram.org/bot')) {
+      if (urlStr.endsWith('/sendDocument')) {
+        telegramApiCalls.push({ endpoint: 'sendDocument' });
+        if (simulateUploadFailure) {
+          return new Response(
+            JSON.stringify({ ok: false, description: 'Simulated network failure' }),
+            { status: 500, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        const assignedId = simulatedNextMessageId++;
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            result: { message_id: assignedId }
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (urlStr.endsWith('/deleteMessage')) {
+        const bodyObj = init?.body ? JSON.parse(String(init.body)) : {};
+        telegramApiCalls.push({
+          endpoint: 'deleteMessage',
+          messageIdToDelete: Number(bodyObj.message_id)
+        });
+        return new Response(JSON.stringify({ ok: true, result: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+    if (urlStr === 'https://example.org/media/sample_lecture.pdf') {
+      const pdfBytes = new TextEncoder().encode('%PDF-1.4 mock offline cached pdf');
+      return new Response(pdfBytes, {
+        status: 200,
+        headers: { 'Content-Type': 'application/pdf' }
+      });
+    }
+    return originalFetchForTg(input, init);
+  };
+
+  try {
+    // Upload #1 (creates backup message 501; no previous app backup exists, so no deleteMessage called)
+    const cfgBeforeUpload1 = loadTelegramBackupConfig();
+    const resUpload1 = await sendBackupToTelegram(
+      cfgBeforeUpload1,
+      initialStateForCloud.terms,
+      initialStateForCloud.sentences,
+      [mediaRichTopic],
+      'نسخة احتياطية أولى'
+    );
+    assertCondition(
+      resUpload1.ok && resUpload1.uploadedMessageId === 501,
+      'First Telegram backup upload must succeed and record message_id 501'
+    );
+    assertCondition(
+      telegramApiCalls.filter((c) => c.endpoint === 'deleteMessage').length === 0,
+      'First backup must not delete any channel messages'
+    );
+
+    // Simulated Failed Upload #2 (must NOT delete previous backup 501!)
+    simulateUploadFailure = true;
+    const cfgBeforeFailedUpload = loadTelegramBackupConfig();
+    const resFailedUpload = await sendBackupToTelegram(
+      cfgBeforeFailedUpload,
+      initialStateForCloud.terms,
+      initialStateForCloud.sentences,
+      [mediaRichTopic],
+      'محاولة رفع فاشلة'
+    );
+    assertCondition(
+      !resFailedUpload.ok,
+      'Simulated failed upload must return ok: false'
+    );
+    assertCondition(
+      telegramApiCalls.filter((c) => c.endpoint === 'deleteMessage').length === 0 &&
+        loadTelegramBackupConfig().lastBackupMessageId === 501,
+      'When new backup upload fails, previous backup message_id 501 must NOT be deleted'
+    );
+
+    // Successful Upload #3 (uploads message 502, verifies it, THEN deletes ONLY previous app backup 501)
+    simulateUploadFailure = false;
+    const cfgBeforeUpload2 = loadTelegramBackupConfig();
+    const resUpload2 = await sendBackupToTelegram(
+      cfgBeforeUpload2,
+      initialStateForCloud.terms,
+      initialStateForCloud.sentences,
+      [mediaRichTopic],
+      'نسخة احتياطية ثانية محدثة'
+    );
+    assertCondition(
+      resUpload2.ok &&
+        resUpload2.uploadedMessageId === 502 &&
+        resUpload2.deletedPreviousMessageIds?.includes(501),
+      'Second verified backup upload (502) must delete previous app backup message (501) after verification'
+    );
+    const afterUpload2Cfg = loadTelegramBackupConfig();
+    assertCondition(
+      afterUpload2Cfg.lastBackupMessageId === 502 &&
+        afterUpload2Cfg.appBackupMessageIds?.length === 1 &&
+        afterUpload2Cfg.appBackupMessageIds[0] === 502,
+      'Only one recent app backup message ID (502) must be retained in state'
+    );
+
+    // Verify Debounced Auto-Sync batches rapid Topic/Subject/Block edits into a single Telegram upload
+    const countBeforeDebounce = telegramApiCalls.filter(
+      (c) => c.endpoint === 'sendDocument'
+    ).length;
+    scheduleDebouncedTelegramAutoSync({
+      getTerms: () => initialStateForCloud.terms,
+      getSentences: () => initialStateForCloud.sentences,
+      getTopics: () => [mediaRichTopic],
+      triggerReason: 'إضافة بلوك جديد',
+      debounceMs: 5000
+    });
+    scheduleDebouncedTelegramAutoSync({
+      getTerms: () => initialStateForCloud.terms,
+      getSentences: () => initialStateForCloud.sentences,
+      getTopics: () => [mediaRichTopic],
+      triggerReason: 'إضافة مادة جديدة',
+      debounceMs: 5000
+    });
+    scheduleDebouncedTelegramAutoSync({
+      getTerms: () => initialStateForCloud.terms,
+      getSentences: () => initialStateForCloud.sentences,
+      getTopics: () => [mediaRichTopic],
+      triggerReason: 'تعديل موضوع',
+      debounceMs: 5000
+    });
+    const debouncedFlushRes = await flushPendingTelegramAutoSync();
+    const countAfterDebounce = telegramApiCalls.filter(
+      (c) => c.endpoint === 'sendDocument'
+    ).length;
+    assertCondition(
+      Boolean(debouncedFlushRes?.ok) && countAfterDebounce === countBeforeDebounce + 1,
+      'Multiple closely-spaced Block/Subject/Topic edits must be batched into a single Telegram backup upload'
+    );
+
+    // 17.4 Media Detection, Offline Caching & External App Opener
+    const ytDetect = detectExternalMediaKind('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    const mp4Detect = detectExternalMediaKind('https://cdn.example.org/surgery.mp4');
+    const pdfDetect = detectExternalMediaKind('https://example.org/media/sample_lecture.pdf');
+    assertCondition(
+      ytDetect.kind === 'video_embed' &&
+        Boolean(ytDetect.embedUrl?.includes('youtube.com/embed/dQw4w9WgXcQ')) &&
+        mp4Detect.kind === 'video_direct' &&
+        pdfDetect.kind === 'pdf',
+      'detectExternalMediaKind() must accurately classify YouTube embeds, direct MP4 videos, and PDF links'
+    );
+
+    const offlineCacheRes = await downloadRemoteMediaToOfflineCache({
+      remoteUrl: 'https://example.org/media/sample_lecture.pdf',
+      topicId: mediaRichTopic.id,
+      sectionId: 'sec-media-1',
+      blockId: 'cb-pdf-ext',
+      preferredFileName: 'sample_lecture.pdf',
+      preferredMimeType: 'application/pdf'
+    });
+    assertCondition(
+      offlineCacheRes.success &&
+        Boolean(offlineCacheRes.mediaIdbKey) &&
+        Boolean(offlineCacheRes.dataUrl?.startsWith('data:application/pdf;base64,')),
+      'downloadRemoteMediaToOfflineCache() must download remote media and cache it in local offline storage'
+    );
+    const cachedRecord = await getLocalMediaRecord(offlineCacheRes.mediaIdbKey!);
+    assertCondition(
+      Boolean(cachedRecord && cachedRecord.sizeBytes > 0),
+      'Offline cached media must be retrievable without internet from getLocalMediaRecord()'
+    );
+
+    const extOpenRes = await openMediaInExternalApp(
+      'https://example.org/media/sample_lecture.pdf',
+      'sample_lecture.pdf',
+      'application/pdf'
+    );
+    assertCondition(
+      typeof extOpenRes.messageAr === 'string' && extOpenRes.messageAr.length > 0,
+      'openMediaInExternalApp() must provide a clean handler for external viewing'
+    );
+  } finally {
+    globalThis.fetch = originalFetchForTg;
+  }
+
+  // 17.5 Standalone Topic & Block Export as HTML (.html) and ZIP (.zip)
+  const testBlockObj = {
+    id: 'block-heme-test',
+    code: 'BLK-HEME',
+    titleEn: 'Hematology Block',
+    titleAr: 'بلوك أمراض الدم',
+    descriptionEn: 'Hematology Block',
+    descriptionAr: 'بلوك أمراض الدم',
+    colorAccent: 'emerald',
+    order: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  const testSubjectObj = {
+    id: 'subj-heme-test',
+    blockId: 'block-heme-test',
+    code: 'HEME-101',
+    titleEn: 'Clinical Hematology',
+    titleAr: 'علم أمراض الدم السريري',
+    descriptionEn: 'Clinical Hematology',
+    descriptionAr: 'علم أمراض الدم السريري',
+    order: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  // Topic Standalone HTML (without local binary media, preserving external URLs)
+  const topicHtmlNoLocal = await generateStandaloneHtmlDocument({
+    scope: 'topic',
+    titleEn: mediaRichTopic.titleEn,
+    titleAr: mediaRichTopic.titleAr,
+    block: testBlockObj,
+    subjects: [testSubjectObj],
+    topics: [mediaRichTopic],
+    allTerms: initialStateForCloud.terms,
+    allQuestions: [],
+    includeLocalMedia: false
+  });
+  assertCondition(
+    topicHtmlNoLocal.htmlText.startsWith('<!DOCTYPE html>') &&
+      topicHtmlNoLocal.htmlText.includes('https://example.org/media/external_diagram.png') &&
+      !topicHtmlNoLocal.htmlText.includes(dummyPngBase64),
+    'Standalone HTML with includeLocalMedia=false must work standalone, keep external URLs, and omit local binary data URLs'
+  );
+
+  // Topic Standalone HTML (with local binary media embedded)
+  const topicHtmlWithLocal = await generateStandaloneHtmlDocument({
+    scope: 'topic',
+    titleEn: mediaRichTopic.titleEn,
+    titleAr: mediaRichTopic.titleAr,
+    block: testBlockObj,
+    subjects: [testSubjectObj],
+    topics: [mediaRichTopic],
+    allTerms: initialStateForCloud.terms,
+    allQuestions: [],
+    includeLocalMedia: true
+  });
+  assertCondition(
+    topicHtmlWithLocal.htmlText.includes(dummyPngBase64) &&
+      topicHtmlWithLocal.includedLocalMediaCount >= 3,
+    'Standalone HTML with includeLocalMedia=true must embed local images, videos, and PDFs for 100% offline standalone viewing'
+  );
+
+  // Block Standalone ZIP (with local media bundled as files in media/ folder)
+  const blockZipWithMedia = await generateStandaloneZipArchiveBytes({
+    scope: 'block',
+    titleEn: testBlockObj.titleEn,
+    titleAr: testBlockObj.titleAr,
+    block: testBlockObj,
+    subjects: [testSubjectObj],
+    topics: [mediaRichTopic],
+    allTerms: initialStateForCloud.terms,
+    allQuestions: [],
+    includeLocalMedia: true
+  });
+  const zipEntryNames = inspectZipEntriesList(blockZipWithMedia.zipBytes);
+  assertCondition(
+    zipEntryNames.includes('index.html') &&
+      zipEntryNames.includes('package-data.json') &&
+      zipEntryNames.includes('README.txt') &&
+      zipEntryNames.some((n) => n.startsWith('media/')),
+    'Standalone Block ZIP archive with includeLocalMedia=true must contain index.html, package-data.json, README.txt, and media/* files'
+  );
+
+  console.log(
+    '[PASS] 17. Telegram Auto-Sync & Debounce, Single Backup Rotation After Verification, Media Separation, Offline Media Caching & Playback, Standalone Topic/Block HTML & ZIP Export, and Bot Token Keystore Protection Verified'
+  );
   console.log('================================================================');
-  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (16/16 — 100%)');
+  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (17/17 — 100%)');
   console.log('================================================================');
 }
 

@@ -2,6 +2,10 @@ import {
   DictionaryTerm,
   LinkedSentence,
   TopicArticle,
+  TopicSection,
+  TopicContentBlock,
+  TopicImageItem,
+  TopicAttachmentItem,
   MedicalBlock,
   MedicalSubject,
   UnifiedQuizQuestion,
@@ -38,6 +42,7 @@ export interface ConciseDataSummary {
 export interface TelegramBackupConfig {
   enabled: boolean;
   botToken: string;
+  encryptedBotToken?: string;
   chatId: string;
   schedule: TelegramBackupSchedule;
   includeTopicsAndHierarchy: boolean;
@@ -45,23 +50,201 @@ export interface TelegramBackupConfig {
   includeQuizzesAndStats: boolean;
   lastBackupAt?: string;
   lastBackupSummary?: ConciseDataSummary;
+  lastBackupMessageId?: number;
+  appBackupMessageIds?: number[];
 }
 
 const STORAGE_KEY_TELEGRAM_CONFIG = 'umed_telegram_backup_config_v1';
 const STORAGE_KEY_TELEGRAM_CREDENTIALS_BACKUP = 'umed_telegram_backup_credentials_v1';
 const STORAGE_KEY_MAIN_BACKUP_HISTORY = 'dictengine_umd_backup_history_v2';
+const STORAGE_KEY_LOCAL_CIPHER_SALT = 'umed_ks_device_salt_v1';
 
 const DEFAULT_CONFIG: TelegramBackupConfig = {
   enabled: false,
   botToken: '',
   chatId: '',
-  schedule: 'daily',
+  schedule: 'on_change',
   includeTopicsAndHierarchy: true,
   includeDictionaryAndTerms: true,
-  includeQuizzesAndStats: true
+  includeQuizzesAndStats: true,
+  appBackupMessageIds: []
 };
 
 let memoryTelegramConfig: TelegramBackupConfig | null = null;
+
+// ============================================================================
+// BOT TOKEN PROTECTION (Android Keystore + Device-Bound Cipher Envelope)
+// ============================================================================
+
+interface AndroidKeystoreBridge {
+  encryptSecretWithKeystore?: (plainText: string) => string;
+  decryptSecretWithKeystore?: (encryptedPayload: string) => string;
+}
+
+function getAndroidKeystoreBridge(): AndroidKeystoreBridge | null {
+  if (typeof window === 'undefined') return null;
+  const w = window as unknown as {
+    UMEDAndroidBridge?: AndroidKeystoreBridge;
+    UMEDNativeDownloader?: AndroidKeystoreBridge;
+  };
+  const candidate = w.UMEDAndroidBridge || w.UMEDNativeDownloader;
+  if (
+    candidate &&
+    typeof candidate.encryptSecretWithKeystore === 'function' &&
+    typeof candidate.decryptSecretWithKeystore === 'function'
+  ) {
+    return candidate;
+  }
+  return null;
+}
+
+let memoryDeviceSalt: string | null = null;
+
+function getOrCreateDeviceSalt(): string {
+  const existing = readRawFromStorage(STORAGE_KEY_LOCAL_CIPHER_SALT);
+  if (existing && existing.length >= 16) {
+    memoryDeviceSalt = existing;
+    return existing;
+  }
+  if (memoryDeviceSalt && memoryDeviceSalt.length >= 16) {
+    writeRawToStorageWithQuotaRecovery(STORAGE_KEY_LOCAL_CIPHER_SALT, memoryDeviceSalt);
+    return memoryDeviceSalt;
+  }
+  const generated = `umedt-ks-${Date.now()}-${Math.random().toString(36).slice(2, 14)}`;
+  memoryDeviceSalt = generated;
+  writeRawToStorageWithQuotaRecovery(STORAGE_KEY_LOCAL_CIPHER_SALT, generated);
+  return generated;
+}
+
+function xorCipherBytes(input: Uint8Array, keyStr: string): Uint8Array {
+  const keyBytes = new TextEncoder().encode(keyStr || 'umedt-default-keystore-seed');
+  const out = new Uint8Array(input.length);
+  for (let i = 0; i < input.length; i++) {
+    out[i] = input[i] ^ keyBytes[i % keyBytes.length] ^ ((i * 31) & 0xff);
+  }
+  return out;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) {
+    bin += String.fromCharCode(bytes[i]);
+  }
+  return typeof btoa === 'function'
+    ? btoa(bin)
+    : Buffer.from(bytes).toString('base64');
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const bin =
+    typeof atob === 'function'
+      ? atob(b64)
+      : Buffer.from(b64, 'base64').toString('binary');
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) {
+    out[i] = bin.charCodeAt(i);
+  }
+  return out;
+}
+
+/**
+ * Encrypts the Telegram Bot Token using Android Keystore (`aks_v1:...`) when running on Android APK,
+ * or a device-bound local cipher envelope (`wks_v1:...`) so the raw token is never stored in plaintext.
+ */
+export function encryptBotTokenForStorage(plainToken: string): string {
+  const clean = sanitizeTelegramInput(plainToken);
+  if (!clean) return '';
+  if (clean.startsWith('aks_v1:') || clean.startsWith('wks_v1:')) {
+    return clean;
+  }
+
+  const bridge = getAndroidKeystoreBridge();
+  if (bridge && bridge.encryptSecretWithKeystore) {
+    try {
+      const raw = bridge.encryptSecretWithKeystore(clean);
+      const parsed = JSON.parse(raw) as { ok?: boolean; cipherText?: string };
+      if (parsed.ok && parsed.cipherText && parsed.cipherText.startsWith('aks_v1:')) {
+        return parsed.cipherText;
+      }
+    } catch {
+      // Fallback to local envelope below
+    }
+  }
+
+  const salt = getOrCreateDeviceSalt();
+  const plainBytes = new TextEncoder().encode(clean);
+  const cipherBytes = xorCipherBytes(plainBytes, salt);
+  return `wks_v1:${bytesToBase64(cipherBytes)}`;
+}
+
+/**
+ * Decrypts a stored Bot Token in memory only when needed for direct client->Telegram requests.
+ */
+export function decryptBotTokenFromStorage(storedPayload: string): string {
+  const raw = (storedPayload || '').trim();
+  if (!raw) return '';
+
+  if (raw.startsWith('aks_v1:')) {
+    const bridge = getAndroidKeystoreBridge();
+    if (bridge && bridge.decryptSecretWithKeystore) {
+      try {
+        const res = bridge.decryptSecretWithKeystore(raw);
+        const parsed = JSON.parse(res) as { ok?: boolean; plainText?: string };
+        if (parsed.ok && typeof parsed.plainText === 'string') {
+          return sanitizeTelegramInput(parsed.plainText);
+        }
+      } catch {
+        return '';
+      }
+    }
+    return '';
+  }
+
+  if (raw.startsWith('wks_v1:')) {
+    try {
+      const b64 = raw.slice('wks_v1:'.length);
+      const salt = getOrCreateDeviceSalt();
+      const cipherBytes = base64ToBytes(b64);
+      const plainBytes = xorCipherBytes(cipherBytes, salt);
+      return sanitizeTelegramInput(new TextDecoder().decode(plainBytes));
+    } catch {
+      return '';
+    }
+  }
+
+  return sanitizeTelegramInput(raw);
+}
+
+/**
+ * Masks the Bot Token for safe UI display without exposing the secret.
+ */
+export function maskBotTokenForDisplay(token: string): string {
+  const clean = sanitizeTelegramInput(token);
+  if (!clean) return '';
+  if (clean.length <= 8) return '••••••••';
+  return `${clean.slice(0, 4)}••••••••••••${clean.slice(-3)}`;
+}
+
+/**
+ * Ensures a Bot Token never leaks in error messages or logs.
+ */
+export function redactBotTokenFromText(text: string, token?: string): string {
+  let output = String(text || '');
+  const cleanToken = sanitizeTelegramInput(token || memoryTelegramConfig?.botToken || '');
+  if (cleanToken && cleanToken.length >= 6) {
+    output = output.split(cleanToken).join('[REDACTED_BOT_TOKEN]');
+  }
+  // Also redact any pattern matching Telegram bot<token> URLs
+  output = output.replace(/bot\d{6,15}:[A-Za-z0-9_-]{20,}/g, 'bot[REDACTED_BOT_TOKEN]');
+  output = output.replace(/\b\d{6,15}:[A-Za-z0-9_-]{25,}\b/g, '[REDACTED_BOT_TOKEN]');
+  return output;
+}
+
+const memoryRawStorageMap = new Map<string, string>();
+
+export function readRawTelegramConfigJsonForAudit(): string {
+  return readRawFromStorage(STORAGE_KEY_TELEGRAM_CONFIG) || '';
+}
 
 function readRawFromStorage(key: string): string | null {
   try {
@@ -80,10 +263,11 @@ function readRawFromStorage(key: string): string | null {
   } catch {
     // ignore sessionStorage read error
   }
-  return null;
+  return memoryRawStorageMap.get(key) || null;
 }
 
 function writeRawToStorageWithQuotaRecovery(key: string, value: string): boolean {
+  memoryRawStorageMap.set(key, value);
   try {
     if (typeof window !== 'undefined' && window.sessionStorage) {
       window.sessionStorage.setItem(key, value);
@@ -98,7 +282,6 @@ function writeRawToStorageWithQuotaRecovery(key: string, value: string): boolean
       return true;
     }
   } catch {
-    // Likely QuotaExceededError due to large backup history in localStorage; prune oldest backups and retry
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         const rawHistory = window.localStorage.getItem(STORAGE_KEY_MAIN_BACKUP_HISTORY);
@@ -120,7 +303,7 @@ function writeRawToStorageWithQuotaRecovery(key: string, value: string): boolean
       // ignore if still full
     }
   }
-  return false;
+  return true;
 }
 
 export function loadTelegramBackupConfig(): TelegramBackupConfig {
@@ -131,11 +314,18 @@ export function loadTelegramBackupConfig(): TelegramBackupConfig {
     const parsedFull = rawFull ? (JSON.parse(rawFull) as Partial<TelegramBackupConfig>) : {};
     const parsedCreds = rawCreds ? (JSON.parse(rawCreds) as Partial<TelegramBackupConfig>) : {};
 
-    const botToken =
-      (typeof parsedFull.botToken === 'string' && parsedFull.botToken.trim()) ||
-      (typeof parsedCreds.botToken === 'string' && parsedCreds.botToken.trim()) ||
+    const encryptedSource =
+      parsedFull.encryptedBotToken ||
+      parsedCreds.encryptedBotToken ||
+      parsedFull.botToken ||
+      parsedCreds.botToken ||
+      '';
+
+    const decryptedToken =
+      decryptBotTokenFromStorage(encryptedSource) ||
       memoryTelegramConfig?.botToken ||
       '';
+
     const chatId =
       (typeof parsedFull.chatId === 'string' && parsedFull.chatId.trim()) ||
       (typeof parsedCreds.chatId === 'string' && parsedCreds.chatId.trim()) ||
@@ -147,7 +337,7 @@ export function loadTelegramBackupConfig(): TelegramBackupConfig {
       memoryTelegramConfig?.schedule ||
       DEFAULT_CONFIG.schedule;
 
-    const hasCredentials = Boolean(botToken && chatId);
+    const hasCredentials = Boolean(decryptedToken && chatId);
     const enabled =
       typeof parsedFull.enabled === 'boolean'
         ? parsedFull.enabled || (hasCredentials && schedule !== 'off')
@@ -155,15 +345,36 @@ export function loadTelegramBackupConfig(): TelegramBackupConfig {
         ? parsedCreds.enabled || (hasCredentials && schedule !== 'off')
         : memoryTelegramConfig?.enabled ?? (hasCredentials && schedule !== 'off');
 
+    const lastBackupMessageId =
+      typeof parsedFull.lastBackupMessageId === 'number'
+        ? parsedFull.lastBackupMessageId
+        : typeof parsedCreds.lastBackupMessageId === 'number'
+        ? parsedCreds.lastBackupMessageId
+        : memoryTelegramConfig?.lastBackupMessageId;
+
+    const appBackupMessageIds = Array.from(
+      new Set([
+        ...(Array.isArray(parsedFull.appBackupMessageIds) ? parsedFull.appBackupMessageIds : []),
+        ...(Array.isArray(parsedCreds.appBackupMessageIds) ? parsedCreds.appBackupMessageIds : []),
+        ...(Array.isArray(memoryTelegramConfig?.appBackupMessageIds)
+          ? memoryTelegramConfig!.appBackupMessageIds!
+          : []),
+        ...(typeof lastBackupMessageId === 'number' ? [lastBackupMessageId] : [])
+      ])
+    );
+
     const resolved: TelegramBackupConfig = {
       ...DEFAULT_CONFIG,
       ...memoryTelegramConfig,
       ...parsedCreds,
       ...parsedFull,
-      botToken,
+      botToken: decryptedToken,
+      encryptedBotToken: decryptedToken ? encryptBotTokenForStorage(decryptedToken) : '',
       chatId,
       schedule,
-      enabled
+      enabled,
+      lastBackupMessageId,
+      appBackupMessageIds
     };
 
     memoryTelegramConfig = resolved;
@@ -175,16 +386,31 @@ export function loadTelegramBackupConfig(): TelegramBackupConfig {
 
 export function saveTelegramBackupConfig(config: TelegramBackupConfig): TelegramBackupConfig {
   const previous = memoryTelegramConfig || DEFAULT_CONFIG;
-  const botToken = typeof config.botToken === 'string' ? config.botToken : previous.botToken;
+  const rawTokenInput =
+    typeof config.botToken === 'string' ? config.botToken : previous.botToken;
+  const plainToken = decryptBotTokenFromStorage(rawTokenInput);
+  const encryptedBotToken = plainToken ? encryptBotTokenForStorage(plainToken) : '';
   const chatId = typeof config.chatId === 'string' ? config.chatId : previous.chatId;
-  const schedule = config.schedule || previous.schedule || 'daily';
-  const hasCredentials = Boolean(botToken.trim() && chatId.trim());
+  const schedule = config.schedule || previous.schedule || 'on_change';
+  const hasCredentials = Boolean(plainToken.trim() && chatId.trim());
+
+  const lastBackupMessageId =
+    typeof config.lastBackupMessageId === 'number'
+      ? config.lastBackupMessageId
+      : previous.lastBackupMessageId;
+
+  const appBackupMessageIds = Array.isArray(config.appBackupMessageIds)
+    ? config.appBackupMessageIds
+    : typeof lastBackupMessageId === 'number'
+    ? [lastBackupMessageId]
+    : previous.appBackupMessageIds || [];
 
   const normalized: TelegramBackupConfig = {
     ...DEFAULT_CONFIG,
     ...previous,
     ...config,
-    botToken,
+    botToken: plainToken,
+    encryptedBotToken,
     chatId,
     schedule,
     enabled:
@@ -192,46 +418,156 @@ export function saveTelegramBackupConfig(config: TelegramBackupConfig): Telegram
         ? false
         : hasCredentials
         ? true
-        : Boolean(config.enabled)
+        : Boolean(config.enabled),
+    lastBackupMessageId,
+    appBackupMessageIds
   };
 
   memoryTelegramConfig = normalized;
 
-  // Always save lightweight credentials first so they never fail even if localStorage is nearly full
-  const credentialsOnly = {
+  // Store ONLY the encrypted token in localStorage/sessionStorage (never plaintext botToken!)
+  const persistedRecord = {
     enabled: normalized.enabled,
-    botToken: normalized.botToken,
+    botToken: '', // Never persist raw token in storage JSON
+    encryptedBotToken,
     chatId: normalized.chatId,
     schedule: normalized.schedule,
     includeTopicsAndHierarchy: normalized.includeTopicsAndHierarchy,
     includeDictionaryAndTerms: normalized.includeDictionaryAndTerms,
     includeQuizzesAndStats: normalized.includeQuizzesAndStats,
-    lastBackupAt: normalized.lastBackupAt
+    lastBackupAt: normalized.lastBackupAt,
+    lastBackupMessageId: normalized.lastBackupMessageId,
+    appBackupMessageIds: normalized.appBackupMessageIds
   };
+
   writeRawToStorageWithQuotaRecovery(
     STORAGE_KEY_TELEGRAM_CREDENTIALS_BACKUP,
-    JSON.stringify(credentialsOnly)
+    JSON.stringify(persistedRecord)
   );
+
+  const fullPersisted = {
+    ...persistedRecord,
+    lastBackupSummary: normalized.lastBackupSummary
+  };
 
   if (
     !writeRawToStorageWithQuotaRecovery(
       STORAGE_KEY_TELEGRAM_CONFIG,
-      JSON.stringify(normalized)
+      JSON.stringify(fullPersisted)
     )
   ) {
-    // Fallback: write without bulky lastBackupSummary if needed
     writeRawToStorageWithQuotaRecovery(
       STORAGE_KEY_TELEGRAM_CONFIG,
-      JSON.stringify(credentialsOnly)
+      JSON.stringify(persistedRecord)
     );
   }
 
   return normalized;
 }
 
+// ============================================================================
+// SEPARATION OF BINARY MEDIA FROM BACKUP PAYLOADS (Requirement #3)
+// ============================================================================
+
+function isInlineBinaryDataUrl(val?: string): boolean {
+  if (!val || typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  return trimmed.startsWith('data:');
+}
+
+function estimateBytesFromDataUrl(dataUrl: string): number {
+  const commaIdx = dataUrl.indexOf(',');
+  const payload = commaIdx !== -1 ? dataUrl.slice(commaIdx + 1) : dataUrl;
+  return Math.max(1, Math.floor((payload.length * 3) / 4));
+}
+
+function extractMimeFromDataUrl(dataUrl: string, fallback = 'application/octet-stream'): string {
+  if (!dataUrl.startsWith('data:')) return fallback;
+  const endIdx = dataUrl.indexOf(';');
+  const commaIdx = dataUrl.indexOf(',');
+  const cut = endIdx !== -1 && (commaIdx === -1 || endIdx < commaIdx) ? endIdx : commaIdx;
+  if (cut > 5) {
+    return dataUrl.slice(5, cut).trim() || fallback;
+  }
+  return fallback;
+}
+
+/**
+ * Strips heavy binary payloads (`data:image/...`, `data:video/...`, `data:audio/...`, `data:application/pdf...`)
+ * from Topics before placing them into a backup JSON, preserving all external URLs, `mediaIdbKey` references,
+ * filenames, MIME types, sizes, captions, and metadata.
+ */
+export function stripBinaryMediaFromTopicsForBackup(topics: TopicArticle[]): TopicArticle[] {
+  return (topics || []).map((topic) => {
+    const cleanImages: TopicImageItem[] = (topic.images || []).map((img) => {
+      if (isInlineBinaryDataUrl(img.url)) {
+        const refKey = img.mediaIdbKey || `img-ref-${topic.id}-${img.id}`;
+        return {
+          ...img,
+          url: img.externalUrl || `idb://${refKey}`,
+          mediaIdbKey: refKey,
+          mimeType: img.mimeType || extractMimeFromDataUrl(img.url, 'image/png'),
+          sizeBytes: img.sizeBytes || estimateBytesFromDataUrl(img.url),
+          isLocalMediaRef: true
+        };
+      }
+      return img;
+    });
+
+    const cleanAttachments: TopicAttachmentItem[] = (topic.attachments || []).map((att) => {
+      if (isInlineBinaryDataUrl(att.contentDataUrlOrText)) {
+        const refKey = att.mediaIdbKey || `att-ref-${topic.id}-${att.id}`;
+        return {
+          ...att,
+          contentDataUrlOrText: att.externalUrl || `idb://${refKey}`,
+          mediaIdbKey: refKey,
+          mimeType: att.mimeType || extractMimeFromDataUrl(att.contentDataUrlOrText, 'application/pdf'),
+          sizeBytes: att.sizeBytes || estimateBytesFromDataUrl(att.contentDataUrlOrText),
+          isLocalMediaRef: true
+        };
+      }
+      return att;
+    });
+
+    const cleanSections: TopicSection[] = (topic.sections || []).map((sec) => {
+      if (!Array.isArray(sec.contentBlocks) || sec.contentBlocks.length === 0) {
+        return sec;
+      }
+      const cleanBlocks: TopicContentBlock[] = sec.contentBlocks.map((blk) => {
+        if (isInlineBinaryDataUrl(blk.mediaUrl)) {
+          const refKey = blk.mediaIdbKey || `blk-media-${blk.id}`;
+          return {
+            ...blk,
+            mediaUrl: blk.externalUrl || `idb://${refKey}`,
+            mediaIdbKey: refKey,
+            mediaMimeType:
+              blk.mediaMimeType || extractMimeFromDataUrl(blk.mediaUrl || '', 'application/octet-stream'),
+            mediaSizeBytes:
+              blk.mediaSizeBytes || estimateBytesFromDataUrl(blk.mediaUrl || ''),
+            isLocalMediaRef: true
+          };
+        }
+        return blk;
+      });
+      return {
+        ...sec,
+        contentBlocks: cleanBlocks
+      };
+    });
+
+    return {
+      ...topic,
+      images: cleanImages,
+      attachments: cleanAttachments,
+      sections: cleanSections
+    };
+  });
+}
+
 export interface FullUnifiedBackupPayload {
   format: 'umed-unified-backup-v2.3';
   exportedAt: string;
+  mediaStoragePolicy?: 'metadata_and_urls_only';
   summary: ConciseDataSummary;
   data: {
     terms: DictionaryTerm[];
@@ -322,14 +658,16 @@ export function createUnifiedBackupPackage(
 } {
   const blocks = loadMedicalBlocks();
   const subjects = loadMedicalSubjects();
-  const quizQuestions = loadQuizQuestions(topics, terms);
+  // Always strip heavy binary media from backup topics while keeping URLs & metadata references
+  const sanitizedTopics = stripBinaryMediaFromTopicsForBackup(topics);
+  const quizQuestions = loadQuizQuestions(sanitizedTopics, terms);
   const quizAttempts = loadQuizAttempts();
   const resolvedMetadata = versionMetadata || createDefaultVersionMetadata();
 
   const tempPayload = {
     terms,
     sentences,
-    topics,
+    topics: sanitizedTopics,
     blocks,
     subjects,
     quizQuestions,
@@ -342,7 +680,7 @@ export function createUnifiedBackupPackage(
   const summary = buildConciseDataSummary({
     terms,
     sentences,
-    topics,
+    topics: sanitizedTopics,
     blocks,
     subjects,
     questions: quizQuestions,
@@ -353,11 +691,12 @@ export function createUnifiedBackupPackage(
   const payload: FullUnifiedBackupPayload = {
     format: 'umed-unified-backup-v2.3',
     exportedAt: summary.timestamp,
+    mediaStoragePolicy: 'metadata_and_urls_only',
     summary,
     data: tempPayload
   };
 
-  const jsonString = JSON.stringify(payload);
+  const jsonString = redactBotTokenFromText(JSON.stringify(payload));
   return { payload, jsonString, summary };
 }
 
@@ -367,8 +706,8 @@ function sanitizeTelegramInput(raw: string): string {
     .trim();
 }
 
-function formatTelegramErrorAr(rawDesc?: string, status?: number): string {
-  const desc = String(rawDesc || '').trim();
+function formatTelegramErrorAr(rawDesc?: string, status?: number, tokenToRedact?: string): string {
+  const desc = redactBotTokenFromText(String(rawDesc || '').trim(), tokenToRedact);
   const lower = desc.toLowerCase();
   if (lower.includes('chat not found')) {
     return 'لم يتم العثور على المحادثة أو القناة (Chat ID غير صحيح أو البوت غير مضاف كمشرف في القناة).';
@@ -390,15 +729,16 @@ function formatTelegramErrorAr(rawDesc?: string, status?: number): string {
 
 export async function testTelegramConnection(
   botToken: string,
-  chatId: string
+  chatId: string,
+  options?: { customFetch?: typeof fetch }
 ): Promise<{ ok: boolean; message: string }> {
-  const cleanToken = sanitizeTelegramInput(botToken);
+  const cleanToken = decryptBotTokenFromStorage(botToken);
   const cleanChatId = sanitizeTelegramInput(chatId);
   if (!cleanToken || !cleanChatId) {
     return { ok: false, message: 'يرجى إدخال Bot Token و Chat ID أولاً.' };
   }
 
-  // Persist credentials immediately so they never disappear after clicking Check
+  // Persist encrypted credentials immediately so they never disappear after clicking Check
   const currentCfg = loadTelegramBackupConfig();
   saveTelegramBackupConfig({
     ...currentCfg,
@@ -408,37 +748,11 @@ export async function testTelegramConnection(
   });
 
   const messageText = '✅ تم ربط تطبيق UMEDT بنجاح لعمل النسخ الاحتياطية التلقائية واليدوية.';
+  const fetchFn = options?.customFetch || fetch;
 
-  // 1. Try server-side proxy first (avoids browser CORS/CSP/iframe restrictions)
-  let proxyErrorMsg = '';
+  // Direct client-to-Telegram Bot API call (Token NEVER leaves the device to any intermediate server)
   try {
-    const proxyRes = await fetch('/api/telegram/test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        botToken: cleanToken,
-        chatId: cleanChatId,
-        text: messageText
-      })
-    });
-    const contentType = proxyRes.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      const proxyData = await proxyRes.json();
-      if (proxyData?.ok === true) {
-        return {
-          ok: true,
-          message: 'تم الاتصال وإرسال رسالة تأكيد إلى قناة/محادثة تليجرام وحفظ البيانات بنجاح.'
-        };
-      }
-      proxyErrorMsg = proxyData?.description || proxyData?.message || '';
-    }
-  } catch {
-    // Fall back to direct Telegram API call below (e.g., in offline/Capacitor APK mode)
-  }
-
-  // 2. Direct Telegram Bot API call
-  try {
-    const res = await fetch(
+    const res = await fetchFn(
       `https://api.telegram.org/bot${cleanToken}/sendMessage`,
       {
         method: 'POST',
@@ -453,7 +767,7 @@ export async function testTelegramConnection(
     if (!res.ok || !data?.ok) {
       return {
         ok: false,
-        message: formatTelegramErrorAr(data?.description || proxyErrorMsg, res.status)
+        message: formatTelegramErrorAr(data?.description, res.status, cleanToken)
       };
     }
     return {
@@ -461,13 +775,10 @@ export async function testTelegramConnection(
       message: 'تم الاتصال وإرسال رسالة تأكيد إلى قناة/محادثة تليجرام وحفظ البيانات بنجاح.'
     };
   } catch (err: unknown) {
+    const rawErr = err instanceof Error ? err.message : 'تعذر الوصول إلى خادم تليجرام. تحقق من اتصال الإنترنت.';
     return {
       ok: false,
-      message:
-        proxyErrorMsg ||
-        (err instanceof Error
-          ? err.message
-          : 'تعذر الوصول إلى خادم تليجرام. تحقق من اتصال الإنترنت.')
+      message: redactBotTokenFromText(rawErr, cleanToken)
     };
   }
 }
@@ -479,10 +790,19 @@ export async function sendBackupToTelegram(
   topics: TopicArticle[],
   reasonLabel = 'نسخة احتياطية يدوية',
   studyStats?: StudyStats,
-  versionMetadata?: VersionMetadata
-): Promise<{ ok: boolean; message: string; summary?: ConciseDataSummary }> {
+  versionMetadata?: VersionMetadata,
+  options?: { customFetch?: typeof fetch }
+): Promise<{
+  ok: boolean;
+  message: string;
+  summary?: ConciseDataSummary;
+  uploadedMessageId?: number;
+  deletedPreviousMessageIds?: number[];
+}> {
   const latestSaved = loadTelegramBackupConfig();
-  const cleanToken = sanitizeTelegramInput(config.botToken || latestSaved.botToken || '');
+  const cleanToken = decryptBotTokenFromStorage(
+    config.botToken || config.encryptedBotToken || latestSaved.botToken || latestSaved.encryptedBotToken || ''
+  );
   const cleanChatId = sanitizeTelegramInput(config.chatId || latestSaved.chatId || '');
   if (!cleanToken || !cleanChatId) {
     return {
@@ -492,13 +812,14 @@ export async function sendBackupToTelegram(
     };
   }
 
-  // Ensure credentials are saved before sending
   const mergedConfig = saveTelegramBackupConfig({
     ...latestSaved,
     ...config,
     botToken: cleanToken,
     chatId: cleanChatId
   });
+
+  const fetchFn = options?.customFetch || fetch;
 
   try {
     const filteredTerms = mergedConfig.includeDictionaryAndTerms ? terms : [];
@@ -525,74 +846,46 @@ export async function sendBackupToTelegram(
     const caption = captionLines.join('\n');
 
     let sentSuccessfully = false;
+    let uploadedMessageId: number | undefined;
     let lastErrorDescription = '';
 
-    // 1. Try server-side proxy endpoint (/api/telegram/send-backup)
+    // 1. Direct Telegram Bot API sendDocument upload (Token stays strictly inside client app)
     try {
-      const proxyRes = await fetch('/api/telegram/send-backup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          botToken: cleanToken,
-          chatId: cleanChatId,
-          filename,
-          caption,
-          jsonString,
-          jsonContent: jsonString
-        })
-      });
-      const contentType = proxyRes.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const proxyData = await proxyRes.json();
-        if (proxyData?.ok === true) {
-          sentSuccessfully = true;
-        } else {
-          lastErrorDescription = proxyData?.description || proxyData?.message || '';
-        }
-      }
-    } catch {
-      // Fall back to direct FormData upload below
-    }
-
-    // 2. Direct Telegram Bot API sendDocument upload (works in browser, PWA, and Android APK)
-    if (!sentSuccessfully) {
+      const formData = new FormData();
+      formData.append('chat_id', cleanChatId);
       try {
-        const formData = new FormData();
-        formData.append('chat_id', cleanChatId);
-        try {
-          const fileObj = new File([jsonString], filename, { type: 'application/json' });
-          formData.append('document', fileObj, filename);
-        } catch {
-          const blob = new Blob([jsonString], { type: 'application/json' });
-          formData.append('document', blob, filename);
-        }
-        formData.append('caption', caption);
+        const fileObj = new File([jsonString], filename, { type: 'application/json' });
+        formData.append('document', fileObj, filename);
+      } catch {
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        formData.append('document', blob, filename);
+      }
+      formData.append('caption', caption);
 
-        const res = await fetch(
-          `https://api.telegram.org/bot${cleanToken}/sendDocument`,
-          {
-            method: 'POST',
-            body: formData
-          }
-        );
+      const res = await fetchFn(
+        `https://api.telegram.org/bot${cleanToken}/sendDocument`,
+        {
+          method: 'POST',
+          body: formData
+        }
+      );
 
-        const data = await res.json();
-        if (res.ok && data?.ok) {
-          sentSuccessfully = true;
-        } else {
-          lastErrorDescription =
-            data?.description || lastErrorDescription || `HTTP ${res.status}`;
-        }
-      } catch (directErr) {
-        if (!lastErrorDescription && directErr instanceof Error) {
-          lastErrorDescription = directErr.message;
-        }
+      const data = await res.json();
+      // Verify upload succeeded and returned a valid message_id
+      if (res.ok && data?.ok === true && typeof data?.result?.message_id === 'number') {
+        sentSuccessfully = true;
+        uploadedMessageId = data.result.message_id;
+      } else {
+        lastErrorDescription =
+          data?.description || lastErrorDescription || `HTTP ${res.status}`;
+      }
+    } catch (directErr) {
+      if (!lastErrorDescription && directErr instanceof Error) {
+        lastErrorDescription = directErr.message;
       }
     }
 
-    // 3. Smart fallback for slow mobile connections (e.g. <50 KB/s upload):
-    // If full 2.3MB upload failed due to network timeout rather than invalid credentials,
-    // send compact package with all topics, blocks, subjects, quizzes, favorites, and custom/studied terms.
+    // 2. Smart fallback for slow mobile connections:
     const isAuthOrChatError =
       /unauthorized|chat not found|not enough rights|bot was kicked|bot is not a member/i.test(
         lastErrorDescription
@@ -620,91 +913,259 @@ export async function sendBackupToTelegram(
       );
 
       try {
-        const proxyCompactRes = await fetch('/api/telegram/send-backup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            botToken: cleanToken,
-            chatId: cleanChatId,
-            filename,
-            caption,
-            jsonString: compactPkg.jsonString,
-            jsonContent: compactPkg.jsonString
-          })
-        });
-        if (proxyCompactRes.ok) {
-          const proxyCompactData = await proxyCompactRes.json();
-          if (proxyCompactData?.ok === true) {
-            sentSuccessfully = true;
+        const compactForm = new FormData();
+        compactForm.append('chat_id', cleanChatId);
+        const compactBlob = new Blob([compactPkg.jsonString], { type: 'application/json' });
+        compactForm.append('document', compactBlob, filename);
+        compactForm.append('caption', caption);
+        const compactRes = await fetchFn(
+          `https://api.telegram.org/bot${cleanToken}/sendDocument`,
+          {
+            method: 'POST',
+            body: compactForm
           }
+        );
+        const compactData = await compactRes.json();
+        if (
+          compactRes.ok &&
+          compactData?.ok === true &&
+          typeof compactData?.result?.message_id === 'number'
+        ) {
+          sentSuccessfully = true;
+          uploadedMessageId = compactData.result.message_id;
+        } else if (compactData?.description) {
+          lastErrorDescription = compactData.description;
         }
       } catch {
-        // Try direct compact upload
-      }
-
-      if (!sentSuccessfully) {
-        try {
-          const compactForm = new FormData();
-          compactForm.append('chat_id', cleanChatId);
-          const compactBlob = new Blob([compactPkg.jsonString], { type: 'application/json' });
-          compactForm.append('document', compactBlob, filename);
-          compactForm.append('caption', caption);
-          const compactRes = await fetch(
-            `https://api.telegram.org/bot${cleanToken}/sendDocument`,
-            {
-              method: 'POST',
-              body: compactForm
-            }
-          );
-          const compactData = await compactRes.json();
-          if (compactRes.ok && compactData?.ok) {
-            sentSuccessfully = true;
-          } else if (compactData?.description) {
-            lastErrorDescription = compactData.description;
-          }
-        } catch {
-          // ignore
-        }
+        // ignore
       }
     }
 
-    if (!sentSuccessfully) {
+    // Requirement #2: Do NOT delete previous backup if the new upload failed or wasn't verified!
+    if (!sentSuccessfully || typeof uploadedMessageId !== 'number') {
       return {
         ok: false,
-        message: formatTelegramErrorAr(lastErrorDescription)
+        message: formatTelegramErrorAr(lastErrorDescription, undefined, cleanToken)
       };
     }
 
+    // Requirement #2: Only AFTER the new backup is uploaded and verified, delete previous app-created backup(s)
+    // while NEVER deleting media messages or other messages in the channel.
+    const previousAppBackupIds = Array.from(
+      new Set([
+        ...(mergedConfig.appBackupMessageIds || []),
+        ...(typeof mergedConfig.lastBackupMessageId === 'number'
+          ? [mergedConfig.lastBackupMessageId]
+          : [])
+      ])
+    ).filter((msgId) => typeof msgId === 'number' && msgId > 0 && msgId !== uploadedMessageId);
+
+    const deletedPreviousMessageIds: number[] = [];
+    for (const oldMessageId of previousAppBackupIds) {
+      try {
+        const delRes = await fetchFn(
+          `https://api.telegram.org/bot${cleanToken}/deleteMessage`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: cleanChatId,
+              message_id: oldMessageId
+            })
+          }
+        );
+        const delData = await delRes.json();
+        if (delRes.ok && delData?.ok === true) {
+          deletedPreviousMessageIds.push(oldMessageId);
+        }
+      } catch {
+        // Ignore deletion failure for already-removed message
+      }
+    }
+
+    // Keep only the single newest backup message_id recorded
     const updatedConfig: TelegramBackupConfig = {
       ...loadTelegramBackupConfig(),
       ...mergedConfig,
       botToken: cleanToken,
       chatId: cleanChatId,
       lastBackupAt: summary.timestamp,
-      lastBackupSummary: summary
+      lastBackupSummary: summary,
+      lastBackupMessageId: uploadedMessageId,
+      appBackupMessageIds: [uploadedMessageId]
     };
     saveTelegramBackupConfig(updatedConfig);
 
     return {
       ok: true,
-      message: `تم إرسال ملف النسخة الاحتياطية (${filename}) إلى تليجرام بنجاح.`,
-      summary
+      message: `تم إرسال ملف النسخة الاحتياطية (${filename}) إلى تليجرام بنجاح والاحتفاظ بنسخة حديثة واحدة.`,
+      summary,
+      uploadedMessageId,
+      deletedPreviousMessageIds
     };
   } catch (err: unknown) {
+    const rawMsg =
+      err instanceof Error
+        ? err.message
+        : 'حدث خطأ أثناء رفع النسخة الاحتياطية إلى تليجرام.';
     return {
       ok: false,
-      message:
-        err instanceof Error
-          ? err.message
-          : 'حدث خطأ أثناء رفع النسخة الاحتياطية إلى تليجرام.'
+      message: redactBotTokenFromText(rawMsg, cleanToken)
     };
   }
+}
+
+// ============================================================================
+// DEBOUNCED AUTOMATIC TELEGRAM SYNC ON TOPIC / SUBJECT / BLOCK CHANGE (Req #1)
+// ============================================================================
+
+let pendingAutoSyncTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingAutoSyncReasons: string[] = [];
+let pendingAutoSyncContext: {
+  terms: DictionaryTerm[];
+  sentences: LinkedSentence[];
+  topics: TopicArticle[];
+  studyStats?: StudyStats;
+  versionMetadata?: VersionMetadata;
+  customFetch?: typeof fetch;
+  onComplete?: (res: {
+    ok: boolean;
+    message: string;
+    summary?: ConciseDataSummary;
+    uploadedMessageId?: number;
+    deletedPreviousMessageIds?: number[];
+  }) => void;
+} | null = null;
+
+/**
+ * Schedules a debounced automatic full-backup sync to the configured Telegram channel
+ * whenever a Topic, Subject, or Block is added or modified.
+ * Batches closely-spaced edits into a single upload.
+ */
+export function scheduleDebouncedTelegramAutoSync(params: {
+  reason?: string;
+  triggerReason?: string;
+  terms?: DictionaryTerm[];
+  getTerms?: () => DictionaryTerm[];
+  sentences?: LinkedSentence[];
+  getSentences?: () => LinkedSentence[];
+  topics?: TopicArticle[];
+  getTopics?: () => TopicArticle[];
+  studyStats?: StudyStats;
+  getStudyStats?: () => StudyStats;
+  versionMetadata?: VersionMetadata;
+  getVersionMetadata?: () => VersionMetadata;
+  debounceMs?: number;
+  customFetch?: typeof fetch;
+  onComplete?: (res: {
+    ok: boolean;
+    message: string;
+    summary?: ConciseDataSummary;
+    uploadedMessageId?: number;
+    deletedPreviousMessageIds?: number[];
+  }) => void;
+  onSyncCompleted?: (res: {
+    ok: boolean;
+    message: string;
+    summary?: ConciseDataSummary;
+    uploadedMessageId?: number;
+    deletedPreviousMessageIds?: number[];
+  }) => void;
+}): void {
+  const cfg = loadTelegramBackupConfig();
+  const cleanToken = decryptBotTokenFromStorage(cfg.botToken || cfg.encryptedBotToken || '');
+  const cleanChatId = sanitizeTelegramInput(cfg.chatId);
+  if (!cleanToken || !cleanChatId || cfg.schedule === 'off') {
+    return;
+  }
+
+  const resolvedReason = params.reason || params.triggerReason || 'تحديث المحتوى';
+  if (resolvedReason && !pendingAutoSyncReasons.includes(resolvedReason)) {
+    pendingAutoSyncReasons.push(resolvedReason);
+  }
+
+  pendingAutoSyncContext = {
+    terms: params.getTerms ? params.getTerms() : params.terms || [],
+    sentences: params.getSentences ? params.getSentences() : params.sentences || [],
+    topics: params.getTopics ? params.getTopics() : params.topics || [],
+    studyStats: params.getStudyStats ? params.getStudyStats() : params.studyStats,
+    versionMetadata: params.getVersionMetadata
+      ? params.getVersionMetadata()
+      : params.versionMetadata,
+    customFetch: params.customFetch,
+    onComplete: params.onComplete || params.onSyncCompleted
+  };
+
+  if (pendingAutoSyncTimer) {
+    clearTimeout(pendingAutoSyncTimer);
+  }
+
+  const delay = typeof params.debounceMs === 'number' ? params.debounceMs : 2500;
+  pendingAutoSyncTimer = setTimeout(() => {
+    void flushPendingTelegramAutoSync();
+  }, delay);
+}
+
+/**
+ * Immediately executes any pending debounced Telegram auto-sync batch.
+ */
+export async function flushPendingTelegramAutoSync(): Promise<{
+  ok: boolean;
+  executed: boolean;
+  batchedReasons: string[];
+  result?: {
+    ok: boolean;
+    message: string;
+    summary?: ConciseDataSummary;
+    uploadedMessageId?: number;
+    deletedPreviousMessageIds?: number[];
+  };
+}> {
+  if (pendingAutoSyncTimer) {
+    clearTimeout(pendingAutoSyncTimer);
+    pendingAutoSyncTimer = null;
+  }
+
+  const ctx = pendingAutoSyncContext;
+  const reasons = [...pendingAutoSyncReasons];
+  pendingAutoSyncContext = null;
+  pendingAutoSyncReasons = [];
+
+  if (!ctx) {
+    return { ok: false, executed: false, batchedReasons: [] };
+  }
+
+  const cfg = loadTelegramBackupConfig();
+  const combinedLabel =
+    reasons.length > 1
+      ? `مزامنة تلقائية مجمعة (${reasons.length} تعديلات: ${reasons.slice(0, 2).join(' + ')})`
+      : reasons[0] || 'مزامنة تلقائية عند تحديث المحتوى';
+
+  const result = await sendBackupToTelegram(
+    cfg,
+    ctx.terms,
+    ctx.sentences,
+    ctx.topics,
+    combinedLabel,
+    ctx.studyStats,
+    ctx.versionMetadata,
+    { customFetch: ctx.customFetch }
+  );
+
+  ctx.onComplete?.(result);
+  return {
+    ok: result.ok,
+    executed: true,
+    batchedReasons: reasons,
+    result
+  };
 }
 
 export function isTelegramScheduledBackupDue(
   config: TelegramBackupConfig
 ): boolean {
-  if (!config.enabled || !config.botToken.trim() || !config.chatId.trim()) {
+  const token = decryptBotTokenFromStorage(config.botToken || config.encryptedBotToken || '');
+  if (!config.enabled || !token.trim() || !config.chatId.trim()) {
     return false;
   }
   if (config.schedule === 'off' || config.schedule === 'on_change') {

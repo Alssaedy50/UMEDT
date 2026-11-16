@@ -291,6 +291,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [draftChatId, setDraftChatId] = useState<string>(
     () => telegramConfig?.chatId || loadTelegramBackupConfig().chatId || ''
   );
+  const [showBotTokenPlain, setShowBotTokenPlain] = useState<boolean>(false);
   const [localVerifyFeedback, setLocalVerifyFeedback] = useState<string | null>(null);
   const [downloadedFilesList, setDownloadedFilesList] = useState<LocalDownloadRecord[]>(
     () => getDownloadedFilesHistory()
@@ -975,29 +976,43 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                 <div className="space-y-3 text-xs">
                   <div className="space-y-1">
-                    <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
-                      رمز البوت (Telegram Bot Token) *
-                    </label>
-                    <input
-                      ref={botTokenInputRef}
-                      type="text"
-                      dir="ltr"
-                      autoComplete="off"
-                      spellCheck={false}
-                      value={draftBotToken}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setDraftBotToken(val);
-                        syncAndPersistTelegramDraft({ botToken: val });
-                      }}
-                      onBlur={(e) => {
-                        const val = e.currentTarget.value;
-                        setDraftBotToken(val);
-                        syncAndPersistTelegramDraft({ botToken: val });
-                      }}
-                      placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
-                      className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-left focus:outline-none focus:border-emerald-500"
-                    />
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
+                        رمز البوت (Telegram Bot Token) *
+                      </label>
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                        محمي ومشفر محلياً (Keystore)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        ref={botTokenInputRef}
+                        type={showBotTokenPlain ? 'text' : 'password'}
+                        dir="ltr"
+                        autoComplete="off"
+                        spellCheck={false}
+                        value={draftBotToken}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setDraftBotToken(val);
+                          syncAndPersistTelegramDraft({ botToken: val });
+                        }}
+                        onBlur={(e) => {
+                          const val = e.currentTarget.value;
+                          setDraftBotToken(val);
+                          syncAndPersistTelegramDraft({ botToken: val });
+                        }}
+                        placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                        className="flex-1 min-w-0 min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-left focus:outline-none focus:border-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowBotTokenPlain((prev) => !prev)}
+                        className="min-h-[40px] px-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-300 shrink-0"
+                      >
+                        {showBotTokenPlain ? 'إخفاء' : 'إظهار'}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-1">

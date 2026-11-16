@@ -90,7 +90,8 @@ import {
   sendBackupToTelegram,
   isTelegramScheduledBackupDue,
   buildConciseDataSummary,
-  createUnifiedBackupPackage
+  createUnifiedBackupPackage,
+  scheduleDebouncedTelegramAutoSync
 } from './services/telegramBackupService';
 import {
   saveMedicalBlocks,
@@ -996,13 +997,32 @@ export default function App() {
       }
     }
 
-    setTopics((prev) => {
-      if (isEdit) {
-        return prev.map((t) => (t.id === topic.id ? topic : t));
-      }
-      return [topic, ...prev];
-    });
+    const nextTopicsSnapshot = isEdit
+      ? topics.map((t) => (t.id === topic.id ? topic : t))
+      : [topic, ...topics];
+
+    setTopics(nextTopicsSnapshot);
     void enqueueEntitiesForCloudSync({ topics: [topic] });
+    if (!simulatedOffline) {
+      scheduleDebouncedTelegramAutoSync({
+        getTerms: () => terms,
+        getSentences: () => sentences,
+        getTopics: () => nextTopicsSnapshot,
+        getStudyStats: () => studyStats,
+        getVersionMetadata: () => versionMetadata,
+        triggerReason: isEdit
+          ? `تعديل موضوع: ${topic.title}`
+          : `إضافة موضوع: ${topic.title}`,
+        debounceMs: 4500,
+        onSyncCompleted: (res) => {
+          if (res.ok && res.summary) {
+            setTelegramConfig(loadTelegramBackupConfig());
+            setLastImportedOrCopiedSummary(res.summary);
+            setLastBackupTime('مزامنة تلقائية لتليجرام');
+          }
+        }
+      });
+    }
     showToast(
       isEdit
         ? `تم حفظ التعديلات على الموضوع "${topic.title}"`
@@ -2225,6 +2245,26 @@ export default function App() {
             onSaveNewTermFromTopic={handleSaveManualTerm}
             onAddSentenceToExistingTerm={handleAddSentenceToTerm}
             onTriggerTTS={triggerTTS}
+            onHierarchyChanged={(reason) => {
+              if (!simulatedOffline) {
+                scheduleDebouncedTelegramAutoSync({
+                  getTerms: () => terms,
+                  getSentences: () => sentences,
+                  getTopics: () => topics,
+                  getStudyStats: () => studyStats,
+                  getVersionMetadata: () => versionMetadata,
+                  triggerReason: reason,
+                  debounceMs: 4500,
+                  onSyncCompleted: (res) => {
+                    if (res.ok && res.summary) {
+                      setTelegramConfig(loadTelegramBackupConfig());
+                      setLastImportedOrCopiedSummary(res.summary);
+                      setLastBackupTime('مزامنة تلقائية لتليجرام');
+                    }
+                  }
+                });
+              }
+            }}
             showToast={showToast}
           />
         )}

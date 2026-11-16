@@ -164,6 +164,13 @@ export interface TopicImageItem {
   id: string;
   url: string;
   caption: string;
+  mediaIdbKey?: string;
+  externalUrl?: string;
+  fileName?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  sha256?: string;
+  isLocalMediaRef?: boolean;
 }
 
 export interface TopicLinkItem {
@@ -171,6 +178,8 @@ export interface TopicLinkItem {
   title: string;
   url: string;
   description?: string;
+  mediaType?: 'video' | 'audio' | 'pdf' | 'image' | 'link';
+  mediaIdbKey?: string;
 }
 
 export interface TopicAttachmentItem {
@@ -179,6 +188,13 @@ export interface TopicAttachmentItem {
   fileType: string;
   fileSizeLabel: string;
   contentDataUrlOrText: string;
+  mediaIdbKey?: string;
+  externalUrl?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  sha256?: string;
+  isLocalMediaRef?: boolean;
+  addedAt?: string;
 }
 
 export interface TopicArticle {

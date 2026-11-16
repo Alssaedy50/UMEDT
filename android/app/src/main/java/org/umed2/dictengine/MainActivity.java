@@ -41,10 +41,23 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
+
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
+
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
 
 public class MainActivity extends BridgeActivity {
 
     private static final int REQ_RECORD_AUDIO_CODE = 7101;
+    private static final String KEYSTORE_ALIAS = "UMEDT_BOT_TOKEN_KEY_V1";
+    private static final String ANDROID_KEYSTORE = "AndroidKeyStore";
+    private static final String AES_GCM_TRANSFORMATION = "AES/GCM/NoPadding";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -98,11 +111,14 @@ public class MainActivity extends BridgeActivity {
             webView.getSettings().setDomStorageEnabled(true);
             webView.getSettings().setMediaPlaybackRequiresUserGesture(false);
 
+            UMEDNativeDownloader bridgeInstance = new UMEDNativeDownloader();
             try {
                 webView.removeJavascriptInterface("UMEDNativeDownloader");
+                webView.removeJavascriptInterface("UMEDAndroidBridge");
             } catch (Exception ignored) {
             }
-            webView.addJavascriptInterface(new UMEDNativeDownloader(), "UMEDNativeDownloader");
+            webView.addJavascriptInterface(bridgeInstance, "UMEDNativeDownloader");
+            webView.addJavascriptInterface(bridgeInstance, "UMEDAndroidBridge");
 
             webView.setDownloadListener(new DownloadListener() {
                 @Override
@@ -550,6 +566,126 @@ public class MainActivity extends BridgeActivity {
             } catch (Exception ignored) {
             }
             return arr.toString();
+        }
+
+        private SecretKey getOrCreateKeystoreSecretKey() throws Exception {
+            KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
+            keyStore.load(null);
+            if (!keyStore.containsAlias(KEYSTORE_ALIAS)) {
+                KeyGenerator keyGenerator = KeyGenerator.getInstance(
+                        KeyProperties.KEY_ALGORITHM_AES,
+                        ANDROID_KEYSTORE
+                );
+                KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(
+                        KEYSTORE_ALIAS,
+                        KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT
+                )
+                        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                        .setKeySize(256)
+                        .build();
+                keyGenerator.init(spec);
+                return keyGenerator.generateKey();
+            }
+            return ((KeyStore.SecretKeyEntry) keyStore.getEntry(KEYSTORE_ALIAS, null)).getSecretKey();
+        }
+
+        @JavascriptInterface
+        public String encryptSecretWithKeystore(String plainText) {
+            JSONObject res = new JSONObject();
+            try {
+                if (plainText == null || plainText.isEmpty()) {
+                    res.put("ok", true);
+                    res.put("cipherText", "");
+                    return res.toString();
+                }
+                SecretKey secretKey = getOrCreateKeystoreSecretKey();
+                Cipher cipher = Cipher.getInstance(AES_GCM_TRANSFORMATION);
+                cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+                byte[] iv = cipher.getIV();
+                byte[] encryptedBytes = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
+                String ivBase64 = Base64.encodeToString(iv, Base64.NO_WRAP);
+                String ctBase64 = Base64.encodeToString(encryptedBytes, Base64.NO_WRAP);
+                res.put("ok", true);
+                res.put("cipherText", "aks_v1:" + ivBase64 + ":" + ctBase64);
+            } catch (Exception e) {
+                try {
+                    res.put("ok", false);
+                    res.put("error", "Keystore encryption error");
+                } catch (Exception ignored) {
+                }
+            }
+            return res.toString();
+        }
+
+        @JavascriptInterface
+        public String decryptSecretWithKeystore(String encryptedPayload) {
+            JSONObject res = new JSONObject();
+            try {
+                if (encryptedPayload == null || encryptedPayload.isEmpty()) {
+                    res.put("ok", true);
+                    res.put("plainText", "");
+                    return res.toString();
+                }
+                if (!encryptedPayload.startsWith("aks_v1:")) {
+                    res.put("ok", false);
+                    res.put("error", "Invalid Keystore envelope");
+                    return res.toString();
+                }
+                String[] parts = encryptedPayload.split(":", 3);
+                if (parts.length != 3) {
+                    res.put("ok", false);
+                    res.put("error", "Malformed Keystore payload");
+                    return res.toString();
+                }
+                byte[] iv = Base64.decode(parts[1], Base64.NO_WRAP);
+                byte[] cipherBytes = Base64.decode(parts[2], Base64.NO_WRAP);
+                SecretKey secretKey = getOrCreateKeystoreSecretKey();
+                Cipher cipher = Cipher.getInstance(AES_GCM_TRANSFORMATION);
+                GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+                cipher.init(Cipher.DECRYPT_MODE, secretKey, spec);
+                byte[] plainBytes = cipher.doFinal(cipherBytes);
+                res.put("ok", true);
+                res.put("plainText", new String(plainBytes, StandardCharsets.UTF_8));
+            } catch (Exception e) {
+                try {
+                    res.put("ok", false);
+                    res.put("error", "Keystore decryption error");
+                } catch (Exception ignored) {
+                }
+            }
+            return res.toString();
+        }
+
+        @JavascriptInterface
+        public String openExternalUrl(String urlString, String mimeType) {
+            JSONObject res = new JSONObject();
+            try {
+                if (urlString == null || urlString.trim().isEmpty()) {
+                    res.put("ok", false);
+                    res.put("error", "الرابط فارغ");
+                    return res.toString();
+                }
+                Uri uri = Uri.parse(urlString.trim());
+                Intent viewIntent = new Intent(Intent.ACTION_VIEW);
+                if (mimeType != null && !mimeType.trim().isEmpty() && !urlString.startsWith("http")) {
+                    viewIntent.setDataAndType(uri, mimeType.trim());
+                } else {
+                    viewIntent.setData(uri);
+                }
+                viewIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                Intent chooser = Intent.createChooser(viewIntent, "فتح في تطبيق خارجي");
+                chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(chooser);
+                res.put("ok", true);
+            } catch (Exception e) {
+                try {
+                    res.put("ok", false);
+                    res.put("error", e.getMessage() != null ? e.getMessage() : "تعذر فتح الرابط خارجياً");
+                } catch (Exception ignored) {
+                }
+            }
+            return res.toString();
         }
     }
 }

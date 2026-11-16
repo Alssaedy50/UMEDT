@@ -7,7 +7,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   FileJson,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Globe,
+  Archive
 } from 'lucide-react';
 import {
   DictionaryTerm,
@@ -28,6 +30,10 @@ import {
   buildBlockExportBundle,
   executeVerifiedExportDownload
 } from '../services/exportDownloadService';
+import {
+  generateStandaloneHtmlDocument,
+  generateStandaloneZipArchiveBytes
+} from '../services/standaloneExportService';
 import {
   LocalDownloadRecord,
   getDownloadedFilesHistory,
@@ -73,9 +79,18 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
   showToast
 }) => {
   const [scope, setScope] = useState<ExportScopeOption>(
-    defaultTopicId ? 'single_topic' : 'all_terms'
+    defaultTopicId
+      ? 'single_topic'
+      : defaultBlockId
+        ? 'complete_block'
+        : defaultSubjectId
+          ? 'complete_subject'
+          : 'all_terms'
   );
-  const [format, setFormat] = useState<'json' | 'csv'>('json');
+  const [format, setFormat] = useState<'json' | 'csv' | 'html' | 'zip'>(
+    defaultTopicId || defaultBlockId || defaultSubjectId ? 'html' : 'json'
+  );
+  const [includeLocalMedia, setIncludeLocalMedia] = useState<boolean>(false);
   const [selectedBlockId, setSelectedBlockId] = useState<string>(
     defaultBlockId || blocks[0]?.id || ''
   );
@@ -102,7 +117,18 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
     scope === 'subject_or_block_terms' ||
     scope === 'tests_and_results';
 
-  const effectiveFormat: 'json' | 'csv' = supportsCsv ? format : 'json';
+  const supportsStandaloneHtmlZip =
+    scope === 'single_topic' ||
+    scope === 'complete_subject' ||
+    scope === 'complete_block';
+
+  const effectiveFormat: 'json' | 'csv' | 'html' | 'zip' = useMemo(() => {
+    if (format === 'csv' && supportsCsv) return 'csv';
+    if ((format === 'html' || format === 'zip') && supportsStandaloneHtmlZip) {
+      return format;
+    }
+    return 'json';
+  }, [format, supportsCsv, supportsStandaloneHtmlZip]);
 
   const activeBlock = useMemo(
     () => blocks.find((b) => b.id === selectedBlockId) || blocks[0],
@@ -125,7 +151,7 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
 
     try {
       let fileName = `UMEDT_Export_${Date.now()}.${effectiveFormat}`;
-      let content = '';
+      let content: string | Uint8Array = '';
       let recordsCount = 0;
       let titleAr = 'تصدير بيانات UMEDT';
 
@@ -183,43 +209,150 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
       } else if (scope === 'single_topic' && activeTopic) {
         const topicBlock = blocks.find((b) => b.id === activeTopic.blockId);
         const topicSubject = subjects.find((s) => s.id === activeTopic.subjectId);
-        const built = buildSingleTopicExportBundle(
-          activeTopic,
-          terms,
-          questions,
-          topicBlock,
-          topicSubject
-        );
         titleAr = `موضوع: ${activeTopic.titleEn || activeTopic.title}`;
-        recordsCount = built.recordsCount;
         const safeSlug = activeTopic.id.replace(/[^a-zA-Z0-9_-]/g, '_');
-        fileName = `UMEDT_Topic_${safeSlug}.json`;
-        content = built.jsonText;
+
+        if (effectiveFormat === 'html') {
+          const builtHtml = await generateStandaloneHtmlDocument({
+            scope: 'topic',
+            titleEn: activeTopic.titleEn || activeTopic.title,
+            titleAr: activeTopic.titleAr || activeTopic.subtitle || activeTopic.title,
+            block: topicBlock,
+            subjects: topicSubject ? [topicSubject] : [],
+            topics: [activeTopic],
+            allTerms: terms,
+            allQuestions: questions,
+            includeLocalMedia
+          });
+          fileName = `UMEDT_Topic_${safeSlug}_Standalone.html`;
+          content = builtHtml.htmlText;
+          recordsCount = builtHtml.recordsCount;
+        } else if (effectiveFormat === 'zip') {
+          const builtZip = await generateStandaloneZipArchiveBytes({
+            scope: 'topic',
+            titleEn: activeTopic.titleEn || activeTopic.title,
+            titleAr: activeTopic.titleAr || activeTopic.subtitle || activeTopic.title,
+            block: topicBlock,
+            subjects: topicSubject ? [topicSubject] : [],
+            topics: [activeTopic],
+            allTerms: terms,
+            allQuestions: questions,
+            includeLocalMedia
+          });
+          fileName = `UMEDT_Topic_${safeSlug}_Standalone.zip`;
+          content = builtZip.zipBytes;
+          recordsCount = builtZip.recordsCount;
+        } else {
+          const built = buildSingleTopicExportBundle(
+            activeTopic,
+            terms,
+            questions,
+            topicBlock,
+            topicSubject
+          );
+          recordsCount = built.recordsCount;
+          fileName = `UMEDT_Topic_${safeSlug}.json`;
+          content = built.jsonText;
+        }
       } else if (scope === 'complete_subject' && activeSubject) {
         const subjBlock = blocks.find((b) => b.id === activeSubject.blockId);
-        const built = buildSubjectExportBundle(
-          activeSubject,
-          topics,
-          terms,
-          questions,
-          subjBlock
-        );
+        const subjectTopics = topics.filter((t) => t.subjectId === activeSubject.id);
         titleAr = `مادة كاملة: ${activeSubject.titleEn}`;
-        recordsCount = built.recordsCount;
-        fileName = `UMEDT_Subject_${activeSubject.code || activeSubject.id}.json`;
-        content = built.jsonText;
+        const safeCode = (activeSubject.code || activeSubject.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+
+        if (effectiveFormat === 'html') {
+          const builtHtml = await generateStandaloneHtmlDocument({
+            scope: 'subject',
+            titleEn: activeSubject.titleEn,
+            titleAr: activeSubject.titleAr,
+            block: subjBlock,
+            subjects: [activeSubject],
+            topics: subjectTopics,
+            allTerms: terms,
+            allQuestions: questions,
+            includeLocalMedia
+          });
+          fileName = `UMEDT_Subject_${safeCode}_Standalone.html`;
+          content = builtHtml.htmlText;
+          recordsCount = builtHtml.recordsCount;
+        } else if (effectiveFormat === 'zip') {
+          const builtZip = await generateStandaloneZipArchiveBytes({
+            scope: 'subject',
+            titleEn: activeSubject.titleEn,
+            titleAr: activeSubject.titleAr,
+            block: subjBlock,
+            subjects: [activeSubject],
+            topics: subjectTopics,
+            allTerms: terms,
+            allQuestions: questions,
+            includeLocalMedia
+          });
+          fileName = `UMEDT_Subject_${safeCode}_Standalone.zip`;
+          content = builtZip.zipBytes;
+          recordsCount = builtZip.recordsCount;
+        } else {
+          const built = buildSubjectExportBundle(
+            activeSubject,
+            topics,
+            terms,
+            questions,
+            subjBlock
+          );
+          recordsCount = built.recordsCount;
+          fileName = `UMEDT_Subject_${safeCode}.json`;
+          content = built.jsonText;
+        }
       } else if (scope === 'complete_block' && activeBlock) {
-        const built = buildBlockExportBundle(
-          activeBlock,
-          subjects,
-          topics,
-          terms,
-          questions
+        const blockSubjects = subjects.filter((s) => s.blockId === activeBlock.id);
+        const subjIds = new Set(blockSubjects.map((s) => s.id));
+        const blockTopics = topics.filter(
+          (t) => t.blockId === activeBlock.id || (t.subjectId && subjIds.has(t.subjectId))
         );
         titleAr = `بلوك كامل: ${activeBlock.titleEn}`;
-        recordsCount = built.recordsCount;
-        fileName = `UMEDT_Block_${activeBlock.code || activeBlock.id}.json`;
-        content = built.jsonText;
+        const safeCode = (activeBlock.code || activeBlock.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+
+        if (effectiveFormat === 'html') {
+          const builtHtml = await generateStandaloneHtmlDocument({
+            scope: 'block',
+            titleEn: activeBlock.titleEn,
+            titleAr: activeBlock.titleAr,
+            block: activeBlock,
+            subjects: blockSubjects,
+            topics: blockTopics,
+            allTerms: terms,
+            allQuestions: questions,
+            includeLocalMedia
+          });
+          fileName = `UMEDT_Block_${safeCode}_Standalone.html`;
+          content = builtHtml.htmlText;
+          recordsCount = builtHtml.recordsCount;
+        } else if (effectiveFormat === 'zip') {
+          const builtZip = await generateStandaloneZipArchiveBytes({
+            scope: 'block',
+            titleEn: activeBlock.titleEn,
+            titleAr: activeBlock.titleAr,
+            block: activeBlock,
+            subjects: blockSubjects,
+            topics: blockTopics,
+            allTerms: terms,
+            allQuestions: questions,
+            includeLocalMedia
+          });
+          fileName = `UMEDT_Block_${safeCode}_Standalone.zip`;
+          content = builtZip.zipBytes;
+          recordsCount = builtZip.recordsCount;
+        } else {
+          const built = buildBlockExportBundle(
+            activeBlock,
+            subjects,
+            topics,
+            terms,
+            questions
+          );
+          recordsCount = built.recordsCount;
+          fileName = `UMEDT_Block_${safeCode}.json`;
+          content = built.jsonText;
+        }
       } else if (scope === 'tests_and_results') {
         titleAr = 'بنك الاختبارات التفاعلية وسجل النتائج';
         recordsCount = questions.length + attempts.length;
@@ -275,10 +408,10 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white">
-              مركز التنزيل والتصدير المخصص (Android & Web)
+              مركز المشاركة والتصدير المستقل (HTML / ZIP / JSON / CSV)
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              صدّر أي جزء من المحتوى بشكل مستقل بصيغة JSON أو CSV مع التحقق الفعلي من تكوين الملف
+              شارك موضوعاً كاملاً أو بلوكاً كاملاً كصفحة تفاعلية مستقلة (HTML) أو أرشيف (ZIP) يعمل خارج التطبيق
             </p>
           </div>
           <button
@@ -293,11 +426,26 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
         {/* 1. Scope Selector */}
         <div className="space-y-2">
           <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-            1. اختر نطاق المحتوى المراد تنزيله:
+            1. اختر نطاق المحتوى المراد تنزيله أو مشاركته:
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {(
               [
+                {
+                  key: 'single_topic',
+                  labelAr: 'موضوع واحد كامل (Topic)',
+                  sub: 'مستقل خارج التطبيق · HTML / ZIP / JSON'
+                },
+                {
+                  key: 'complete_block',
+                  labelAr: 'بلوك طبي كامل (Block)',
+                  sub: 'المواد + المواضيع + الأسئلة · HTML / ZIP / JSON'
+                },
+                {
+                  key: 'complete_subject',
+                  labelAr: 'مادة دراسية كاملة (Subject)',
+                  sub: 'المواضيع + المصطلحات + الأسئلة · HTML / ZIP / JSON'
+                },
                 {
                   key: 'all_terms',
                   labelAr: 'جميع المصطلحات في القاموس',
@@ -307,21 +455,6 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
                   key: 'subject_or_block_terms',
                   labelAr: 'مصطلحات مادة أو بلوك محدد',
                   sub: 'فلترة حسب المادة أو البلوك · JSON / CSV'
-                },
-                {
-                  key: 'single_topic',
-                  labelAr: 'موضوع واحد كامل مع وسائطه وأسئلته',
-                  sub: 'حزمة موضوع مستقلة · JSON'
-                },
-                {
-                  key: 'complete_subject',
-                  labelAr: 'مادة دراسية كاملة (Subject)',
-                  sub: 'المواضيع + المصطلحات + الأسئلة · JSON'
-                },
-                {
-                  key: 'complete_block',
-                  labelAr: 'بلوك طبي كامل (Block)',
-                  sub: 'المواد + المواضيع + المصطلحات + الأسئلة · JSON'
                 },
                 {
                   key: 'tests_and_results',
@@ -409,7 +542,7 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
         {scope === 'single_topic' && (
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-              اختر الموضوع المطلوب تنزيله:
+              اختر الموضوع المطلوب مشاركته أو تنزيله:
             </label>
             <select
               value={selectedTopicId}
@@ -463,40 +596,88 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
           </div>
         )}
 
-        {/* 3. Format Selector (JSON vs CSV) */}
-        <div className="space-y-2">
+        {/* 3. Format Selector (HTML / ZIP / JSON / CSV) */}
+        <div className="space-y-2.5">
           <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-            2. صيغة الملف:
+            2. صيغة الملف والتصدير المستقل:
           </label>
           <div className="grid grid-cols-2 gap-2">
+            {supportsStandaloneHtmlZip && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setFormat('html')}
+                  className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 ${
+                    effectiveFormat === 'html'
+                      ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
+                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  <Globe className="w-4 h-4 shrink-0" />
+                  <span>HTML (صفحة مستقلة تفاعلية)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormat('zip')}
+                  className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 ${
+                    effectiveFormat === 'zip'
+                      ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
+                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  <Archive className="w-4 h-4 shrink-0" />
+                  <span>ZIP (أرشيف مستقل متكامل)</span>
+                </button>
+              </>
+            )}
+
             <button
               type="button"
               onClick={() => setFormat('json')}
-              className={`min-h-[44px] px-4 py-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 ${
+              className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 ${
                 effectiveFormat === 'json'
                   ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
                   : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
               }`}
             >
-              <FileJson className="w-4 h-4" />
-              <span>JSON (حفظ واستعادة كاملة)</span>
+              <FileJson className="w-4 h-4 shrink-0" />
+              <span>JSON (حزمة بيانات قياسية)</span>
             </button>
-            <button
-              type="button"
-              disabled={!supportsCsv}
-              onClick={() => setFormat('csv')}
-              className={`min-h-[44px] px-4 py-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 ${
-                !supportsCsv
-                  ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800'
-                  : effectiveFormat === 'csv'
+
+            {supportsCsv && (
+              <button
+                type="button"
+                onClick={() => setFormat('csv')}
+                className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 ${
+                  effectiveFormat === 'csv'
                     ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
                     : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
-              }`}
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>CSV (جداول Excel للمصطلحات والنتائج)</span>
-            </button>
+                }`}
+              >
+                <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                <span>CSV (جداول Excel)</span>
+              </button>
+            )}
           </div>
+
+          {supportsStandaloneHtmlZip && (effectiveFormat === 'html' || effectiveFormat === 'zip') && (
+            <label className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-start gap-2.5 cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                checked={includeLocalMedia}
+                onChange={(e) => setIncludeLocalMedia(e.target.checked)}
+                className="w-4 h-4 mt-0.5 rounded text-emerald-600 shrink-0"
+              />
+              <div className="space-y-0.5">
+                <div className="font-extrabold text-slate-800 dark:text-slate-200">
+                  تضمين الوسائط المحلية داخل الحزمة (اختياري)
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  الروابط الخارجية للصور والفيديو والصوت وملفات PDF تبقى محفوظة دائماً. عند تفعيل هذا الخيار تُرفق الملفات المحلية المرفوعة من الهاتف داخل ملف HTML أو مجلد media/ في أرشيف ZIP.
+                </div>
+              </div>
+            </label>
+          )}
         </div>
 
         {/* 4. Action Buttons (Direct Download + Native Android Share) */}

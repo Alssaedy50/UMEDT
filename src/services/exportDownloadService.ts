@@ -12,6 +12,10 @@ import {
   LocalDownloadRecord
 } from '../utils/downloadHelper';
 import { extractDetailedTermMatchesFromText } from '../engine/knowledgeLinker';
+import {
+  stripBinaryMediaFromTopicsForBackup,
+  redactBotTokenFromText
+} from './telegramBackupService';
 
 export const GITHUB_DIRECT_RELEASE_LINKS = {
   latestApkReleasePage: 'https://github.com/Alssaedy50/UMEDT/releases/latest',
@@ -30,7 +34,7 @@ export interface VerifiedExportResult {
   verifiedOnDisk: boolean;
   fileName: string;
   savedPath?: string;
-  format: 'json' | 'csv';
+  format: 'json' | 'csv' | 'html' | 'zip';
   byteSize: number;
   recordsCount: number;
   sharedViaNativeSheet: boolean;
@@ -205,14 +209,22 @@ export function resolveTermsForTopics(
  */
 export async function executeVerifiedExportDownload(params: {
   fileName: string;
-  content: string;
-  format: 'json' | 'csv';
+  content: string | Uint8Array;
+  format: 'json' | 'csv' | 'html' | 'zip';
   recordsCount: number;
   deliveryMode: 'download' | 'share';
   titleAr: string;
 }): Promise<VerifiedExportResult> {
-  const cleanContent = (params.content || '').trim();
-  if (!cleanContent || cleanContent.length < 2) {
+  const isBinary = params.content instanceof Uint8Array;
+  const sanitizedPayload: string | Uint8Array = isBinary
+    ? (params.content as Uint8Array)
+    : redactBotTokenFromText(String(params.content || ''));
+
+  const byteSize = isBinary
+    ? (sanitizedPayload as Uint8Array).byteLength
+    : new TextEncoder().encode((sanitizedPayload as string).trim()).byteLength;
+
+  if (byteSize < 2) {
     return {
       success: false,
       verifiedOnDisk: false,
@@ -225,25 +237,14 @@ export async function executeVerifiedExportDownload(params: {
     };
   }
 
-  const encodedBytes = new TextEncoder().encode(params.content);
-  const byteSize = encodedBytes.byteLength;
-  if (byteSize === 0) {
-    return {
-      success: false,
-      verifiedOnDisk: false,
-      fileName: params.fileName,
-      format: params.format,
-      byteSize: 0,
-      recordsCount: 0,
-      sharedViaNativeSheet: false,
-      messageAr: 'تعذر إنشاء حزمة البيانات للتنزيل.'
-    };
-  }
-
   const mime =
     params.format === 'csv'
       ? 'text/csv;charset=utf-8'
-      : 'application/json;charset=utf-8';
+      : params.format === 'html'
+        ? 'text/html;charset=utf-8'
+        : params.format === 'zip'
+          ? 'application/zip'
+          : 'application/json;charset=utf-8';
 
   const sizeKb = Math.max(1, Math.round(byteSize / 1024));
 
@@ -251,7 +252,7 @@ export async function executeVerifiedExportDownload(params: {
     if (params.deliveryMode === 'share') {
       const shareRes = await shareFileWithVerification({
         filename: params.fileName,
-        content: params.content,
+        content: sanitizedPayload,
         mime,
         title: params.titleAr,
         text: `${params.titleAr} (${params.recordsCount} سجل · ${sizeKb} KB)`
@@ -272,7 +273,7 @@ export async function executeVerifiedExportDownload(params: {
 
     const res = await prepareAndDownloadFile({
       filename: params.fileName,
-      content: params.content,
+      content: sanitizedPayload,
       mime
     });
 
@@ -328,13 +329,15 @@ export function buildSingleTopicExportBundle(
   block?: MedicalBlock,
   subject?: MedicalSubject
 ): { jsonText: string; recordsCount: number } {
-  const linkedTerms = resolveTermsForTopics([topic], allTerms);
+  const [strippedTopic] = stripBinaryMediaFromTopicsForBackup([topic]);
+  const linkedTerms = resolveTermsForTopics([strippedTopic], allTerms);
   const linkedQuestions = allQuestions.filter((q) => q.topicId === topic.id);
 
   const bundle = {
     exportType: 'UMEDT_SINGLE_TOPIC_PACKAGE',
     exportedAt: new Date().toISOString(),
     schemaVersion: 2,
+    mediaStoragePolicy: 'metadata_and_urls_only',
     hierarchy: {
       block: block
         ? { id: block.id, code: block.code, titleEn: block.titleEn, titleAr: block.titleAr }
@@ -350,17 +353,17 @@ export function buildSingleTopicExportBundle(
     },
     counts: {
       topics: 1,
-      sections: topic.sections.length,
+      sections: strippedTopic.sections.length,
       terms: linkedTerms.length,
       questions: linkedQuestions.length
     },
-    topic,
+    topic: strippedTopic,
     terms: linkedTerms,
     questions: linkedQuestions
   };
 
   return {
-    jsonText: JSON.stringify(bundle, null, 2),
+    jsonText: redactBotTokenFromText(JSON.stringify(bundle, null, 2)),
     recordsCount: 1 + linkedTerms.length + linkedQuestions.length
   };
 }
@@ -372,7 +375,9 @@ export function buildSubjectExportBundle(
   allQuestions: UnifiedQuizQuestion[],
   block?: MedicalBlock
 ): { jsonText: string; recordsCount: number } {
-  const subjectTopics = topics.filter((t) => t.subjectId === subject.id);
+  const subjectTopics = stripBinaryMediaFromTopicsForBackup(
+    topics.filter((t) => t.subjectId === subject.id)
+  );
   const linkedTerms = resolveTermsForTopics(subjectTopics, allTerms);
   const topicIds = new Set(subjectTopics.map((t) => t.id));
   const linkedQuestions = allQuestions.filter(
@@ -383,6 +388,7 @@ export function buildSubjectExportBundle(
     exportType: 'UMEDT_COMPLETE_SUBJECT_PACKAGE',
     exportedAt: new Date().toISOString(),
     schemaVersion: 2,
+    mediaStoragePolicy: 'metadata_and_urls_only',
     block: block || null,
     subject,
     counts: {
@@ -396,7 +402,7 @@ export function buildSubjectExportBundle(
   };
 
   return {
-    jsonText: JSON.stringify(bundle, null, 2),
+    jsonText: redactBotTokenFromText(JSON.stringify(bundle, null, 2)),
     recordsCount: subjectTopics.length + linkedTerms.length + linkedQuestions.length
   };
 }
@@ -410,8 +416,10 @@ export function buildBlockExportBundle(
 ): { jsonText: string; recordsCount: number } {
   const blockSubjects = subjects.filter((s) => s.blockId === block.id);
   const subjectIds = new Set(blockSubjects.map((s) => s.id));
-  const blockTopics = topics.filter(
-    (t) => t.blockId === block.id || (t.subjectId && subjectIds.has(t.subjectId))
+  const blockTopics = stripBinaryMediaFromTopicsForBackup(
+    topics.filter(
+      (t) => t.blockId === block.id || (t.subjectId && subjectIds.has(t.subjectId))
+    )
   );
   const linkedTerms = resolveTermsForTopics(blockTopics, allTerms);
   const topicIds = new Set(blockTopics.map((t) => t.id));
@@ -426,6 +434,7 @@ export function buildBlockExportBundle(
     exportType: 'UMEDT_COMPLETE_BLOCK_PACKAGE',
     exportedAt: new Date().toISOString(),
     schemaVersion: 2,
+    mediaStoragePolicy: 'metadata_and_urls_only',
     block,
     subjects: blockSubjects,
     counts: {
@@ -440,7 +449,7 @@ export function buildBlockExportBundle(
   };
 
   return {
-    jsonText: JSON.stringify(bundle, null, 2),
+    jsonText: redactBotTokenFromText(JSON.stringify(bundle, null, 2)),
     recordsCount:
       blockSubjects.length + blockTopics.length + linkedTerms.length + linkedQuestions.length
   };

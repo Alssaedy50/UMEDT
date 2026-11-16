@@ -54,6 +54,10 @@ import {
 } from '../data/medicalLexiconData';
 import { INITIAL_TOPICS } from '../data/topicsSeedData';
 import {
+  stripBinaryMediaFromTopicsForBackup,
+  redactBotTokenFromText
+} from './telegramBackupService';
+import {
   extractLinkedTermsFromText,
   syncBidirectionalLinks,
   autoEnrichAllTermsRelations
@@ -1755,12 +1759,14 @@ export async function executeAtomicPackageImport(
 /**
  * Exports the entire database state (terms, linked sentences, topics, affixes, abbreviations, stats, settings)
  * as a formatted JSON string including separated VersionMetadata and DataPackageManifest.
+ * Binary media files are separated (only URLs, mediaIdbKey references, and metadata are kept).
  */
 export function exportFullDatabaseJson(state?: Partial<PersistedAppState>): string {
   const current = loadAppState();
   const terms = state?.terms ?? current.terms;
   const sentences = state?.sentences ?? current.sentences;
-  const topics = state?.topics ?? current.topics;
+  const rawTopics = state?.topics ?? current.topics;
+  const topics = stripBinaryMediaFromTopicsForBackup(rawTopics);
   const customAffixes = state?.customAffixes ?? current.customAffixes;
   const customAbbreviations = state?.customAbbreviations ?? current.customAbbreviations;
   const versionMeta: VersionMetadata = {
@@ -1803,18 +1809,20 @@ export function exportFullDatabaseJson(state?: Partial<PersistedAppState>): stri
     totalBuiltInAffixes: MORPHOLOGICAL_AFFIXES.length,
     totalBuiltInAbbreviations: CLINICAL_ABBREVIATIONS.length
   };
-  return JSON.stringify(payload, null, 2);
+  return redactBotTokenFromText(JSON.stringify(payload, null, 2));
 }
 
 /**
  * Exports the complete UMED-2 database as a modular `.zip` package containing
  * `manifest.json`, `terms.json`, `sentences.json`, `topics.json`, `affixes.json`, and `abbreviations.json`.
+ * Binary media files are separated (only URLs, mediaIdbKey references, and metadata are kept).
  */
 export function exportFullDatabaseZipBytes(state?: Partial<PersistedAppState>): Uint8Array {
   const current = loadAppState();
   const terms = state?.terms ?? current.terms;
   const sentences = state?.sentences ?? current.sentences;
-  const topics = state?.topics ?? current.topics;
+  const rawTopics = state?.topics ?? current.topics;
+  const topics = stripBinaryMediaFromTopicsForBackup(rawTopics);
   const customAffixes = state?.customAffixes ?? current.customAffixes;
   const customAbbreviations = state?.customAbbreviations ?? current.customAbbreviations;
   const versionMeta = state?.versionMetadata ?? current.versionMetadata;

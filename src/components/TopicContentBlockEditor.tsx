@@ -29,7 +29,10 @@ import {
   saveLocalMediaRecord,
   getLocalMediaRecord,
   deleteLocalMediaRecord,
-  formatBytesLabel
+  formatBytesLabel,
+  detectExternalMediaKind,
+  downloadRemoteMediaToOfflineCache,
+  openMediaInExternalApp
 } from '../services/mediaStorageService';
 import { executeVerifiedExportDownload } from '../services/exportDownloadService';
 import {
@@ -64,6 +67,11 @@ const CONTENT_BLOCK_TYPE_META: Record<
     labelEn: 'Image / Diagram',
     labelAr: 'صورة أو مخطط توضيحي',
     icon: ImageIcon
+  },
+  video: {
+    labelEn: 'Video File / Player',
+    labelAr: 'ملف فيديو أو مشغل مرئي',
+    icon: Video
   },
   video_link: {
     labelEn: 'Video / Reference Link',
@@ -112,6 +120,18 @@ export const SectionContentBlocksRenderer: React.FC<
   const [resolvedMediaUrls, setResolvedMediaUrls] = useState<
     Record<string, string>
   >({});
+  const [downloadingBlockId, setDownloadingBlockId] = useState<string | null>(
+    null
+  );
+  const [zoomedImage, setZoomedImage] = useState<{
+    src: string;
+    caption: string;
+  } | null>(null);
+  const [inlinePdfModal, setInlinePdfModal] = useState<{
+    url: string;
+    title: string;
+    mimeType?: string;
+  } | null>(null);
 
   const sortedBlocks = [...blocks].sort((a, b) => a.order - b.order);
 
@@ -120,13 +140,10 @@ export const SectionContentBlocksRenderer: React.FC<
     const resolveStoredMedia = async () => {
       const nextMap: Record<string, string> = {};
       for (const blk of blocks) {
-        if (blk.type === 'audio') continue; // Handled directly by VoiceRecorderBlock
         const rawUrl = blk.mediaUrl || '';
         const idbKey = rawUrl.startsWith('idb://')
           ? rawUrl.slice(6)
-          : !rawUrl && blk.mediaIdbKey
-            ? blk.mediaIdbKey
-            : '';
+          : blk.mediaIdbKey || '';
         if (idbKey) {
           const rec = await getLocalMediaRecord(idbKey);
           if (rec?.dataUrl && !cancelled) {
@@ -144,9 +161,59 @@ export const SectionContentBlocksRenderer: React.FC<
     };
   }, [blocks]);
 
+  const handleCacheExternalMediaOffline = async (
+    blk: TopicContentBlock,
+    externalUrl: string
+  ) => {
+    if (!externalUrl || !/^https?:\/\//i.test(externalUrl)) {
+      showToast('الرابط غير صالح للتنزيل المباشر', 'info');
+      return;
+    }
+    setDownloadingBlockId(blk.id);
+    try {
+      const res = await downloadRemoteMediaToOfflineCache({
+        remoteUrl: externalUrl,
+        topicId,
+        sectionId,
+        blockId: blk.id,
+        preferredFileName: blk.mediaFileName || blk.titleEn,
+        preferredMimeType: blk.mediaMimeType
+      });
+      if (res.success && res.dataUrl) {
+        setResolvedMediaUrls((prev) => ({ ...prev, [blk.id]: res.dataUrl! }));
+      }
+      showToast(res.messageAr, res.success ? 'success' : 'info');
+    } finally {
+      setDownloadingBlockId(null);
+    }
+  };
+
+  const handleOpenInExternalApp = async (
+    blk: TopicContentBlock,
+    fallbackUrl?: string
+  ) => {
+    const targetUrl =
+      resolvedMediaUrls[blk.id] ||
+      (blk.mediaUrl && !blk.mediaUrl.startsWith('idb://') ? blk.mediaUrl : '') ||
+      blk.externalUrl ||
+      fallbackUrl ||
+      '';
+    const res = await openMediaInExternalApp(
+      targetUrl,
+      blk.mediaFileName || blk.titleEn || 'UMEDT_Media',
+      blk.mediaMimeType
+    );
+    showToast(res.messageAr, res.opened ? 'success' : 'info');
+  };
+
   const handleDownloadInlineAttachment = async (blk: TopicContentBlock) => {
-    const fileName = blk.mediaFileName || blk.titleEn || 'Attachment.txt';
-    let contentOrUrl = resolvedMediaUrls[blk.id] || blk.mediaUrl || blk.text || '';
+    const fileName = blk.mediaFileName || blk.titleEn || 'Attachment.pdf';
+    let contentOrUrl =
+      resolvedMediaUrls[blk.id] ||
+      (blk.mediaUrl && !blk.mediaUrl.startsWith('idb://') ? blk.mediaUrl : '') ||
+      blk.externalUrl ||
+      blk.text ||
+      '';
 
     if (contentOrUrl.startsWith('idb://') || (!contentOrUrl && blk.mediaIdbKey)) {
       const key = contentOrUrl.startsWith('idb://')
@@ -158,6 +225,11 @@ export const SectionContentBlocksRenderer: React.FC<
 
     if (!contentOrUrl) {
       showToast('الملف المرفق فارغ أو تعذر العثور عليه في التخزين المحلي', 'info');
+      return;
+    }
+
+    if (/^https?:\/\//i.test(contentOrUrl)) {
+      await handleCacheExternalMediaOffline(blk, contentOrUrl);
       return;
     }
 
@@ -313,11 +385,19 @@ export const SectionContentBlocksRenderer: React.FC<
           );
         }
 
-        if (blk.type === 'image' && (resolvedMediaUrls[blk.id] || blk.mediaUrl)) {
+        if (blk.type === 'image') {
+          const remoteUrl =
+            blk.externalUrl ||
+            (blk.mediaUrl && /^https?:\/\//i.test(blk.mediaUrl) ? blk.mediaUrl : '');
           const imgSrc =
             resolvedMediaUrls[blk.id] ||
-            (blk.mediaUrl && !blk.mediaUrl.startsWith('idb://') ? blk.mediaUrl : '');
+            (blk.mediaUrl && !blk.mediaUrl.startsWith('idb://') ? blk.mediaUrl : '') ||
+            remoteUrl;
           if (!imgSrc) return null;
+          const isCachedLocally = Boolean(
+            resolvedMediaUrls[blk.id] || imgSrc.startsWith('data:')
+          );
+
           return (
             <figure
               key={blk.id}
@@ -327,67 +407,218 @@ export const SectionContentBlocksRenderer: React.FC<
                 src={imgSrc}
                 alt={blk.captionEn || blk.captionAr || 'Medical diagram'}
                 referrerPolicy="no-referrer"
+                onClick={() =>
+                  setZoomedImage({
+                    src: imgSrc,
+                    caption: blk.captionEn || blk.captionAr || ''
+                  })
+                }
                 onError={(e) => {
                   const target = e.currentTarget;
                   target.style.display = 'none';
                 }}
-                className="w-full max-w-full h-auto max-h-[420px] object-contain mx-auto bg-slate-950"
+                className="w-full max-w-full h-auto max-h-[420px] object-contain mx-auto bg-slate-950 cursor-zoom-in"
               />
-              {(blk.captionEn || blk.captionAr) && (
-                <figcaption className="p-3 bg-slate-900 text-slate-200 text-xs leading-relaxed text-center break-words">
-                  {blk.captionEn || blk.captionAr}
-                </figcaption>
-              )}
+              <figcaption className="p-3 bg-slate-900 text-slate-200 text-xs flex flex-wrap items-center justify-between gap-2">
+                <span className="leading-relaxed break-words">
+                  {blk.captionEn || blk.captionAr || blk.mediaFileName || 'صورة توضيحية'}
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {remoteUrl && !isCachedLocally && (
+                    <button
+                      type="button"
+                      disabled={downloadingBlockId === blk.id}
+                      onClick={() => void handleCacheExternalMediaOffline(blk, remoteUrl)}
+                      className="min-h-[32px] px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1"
+                    >
+                      <Download className="w-3 h-3" />
+                      <span>
+                        {downloadingBlockId === blk.id ? 'جاري الحفظ...' : 'تنزيل أوفلاين'}
+                      </span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void handleOpenInExternalApp(blk, imgSrc)}
+                    className="min-h-[32px] px-2.5 py-1 rounded-lg bg-slate-800 text-slate-200 text-[11px] font-bold flex items-center gap-1"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    <span>فتح خارجياً</span>
+                  </button>
+                </div>
+              </figcaption>
             </figure>
           );
         }
 
-        if (blk.type === 'video_link' && blk.externalUrl) {
+        if (blk.type === 'video' || blk.type === 'video_link') {
+          const remoteUrl =
+            blk.externalUrl ||
+            (blk.mediaUrl && /^https?:\/\//i.test(blk.mediaUrl) ? blk.mediaUrl : '');
+          const localOrDirectSrc =
+            resolvedMediaUrls[blk.id] ||
+            (blk.mediaUrl && !blk.mediaUrl.startsWith('idb://') ? blk.mediaUrl : '') ||
+            remoteUrl;
+          if (!localOrDirectSrc) return null;
+
+          const detected = detectExternalMediaKind(
+            remoteUrl || localOrDirectSrc,
+            blk.mediaMimeType,
+            blk.mediaFileName
+          );
+          const isPlayableVideoFile =
+            Boolean(resolvedMediaUrls[blk.id]) ||
+            localOrDirectSrc.startsWith('data:video/') ||
+            detected.kind === 'video_direct' ||
+            blk.type === 'video';
+          const isCachedLocally = Boolean(
+            resolvedMediaUrls[blk.id] || localOrDirectSrc.startsWith('data:')
+          );
+
           return (
-            <a
+            <div
               key={blk.id}
-              href={blk.externalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 flex items-center justify-between gap-3 transition-colors"
+              className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3"
             >
-              <div className="min-w-0">
-                <p
-                  dir="ltr"
-                  className="text-xs sm:text-sm font-extrabold text-emerald-700 dark:text-emerald-400 truncate text-left"
-                >
-                  {blk.titleEn || blk.externalUrl}
-                </p>
-                {(blk.titleAr || blk.text) && (
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">
-                    {blk.titleAr || blk.text}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p
+                    dir="ltr"
+                    className="text-xs sm:text-sm font-extrabold text-emerald-700 dark:text-emerald-400 truncate text-left"
+                  >
+                    {blk.titleEn || blk.mediaFileName || remoteUrl || 'Medical Video'}
                   </p>
-                )}
+                  {(blk.titleAr || blk.text) && (
+                    <p className="text-xs text-slate-500 mt-0.5 break-words">
+                      {blk.titleAr || blk.text}
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  {remoteUrl && !isCachedLocally && (
+                    <button
+                      type="button"
+                      disabled={downloadingBlockId === blk.id}
+                      onClick={() => void handleCacheExternalMediaOffline(blk, remoteUrl)}
+                      className="min-h-[34px] px-2.5 py-1 rounded-xl bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>
+                        {downloadingBlockId === blk.id ? 'جاري التنزيل...' : 'حفظ أوفلاين'}
+                      </span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void handleOpenInExternalApp(blk, localOrDirectSrc)}
+                    className="min-h-[34px] px-2.5 py-1 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-[11px] font-bold flex items-center gap-1"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>فتح في تطبيق خارجي</span>
+                  </button>
+                </div>
               </div>
-              <ExternalLink className="w-4 h-4 text-emerald-500 shrink-0" />
-            </a>
+
+              {isPlayableVideoFile ? (
+                <video
+                  controls
+                  playsInline
+                  preload="metadata"
+                  src={localOrDirectSrc}
+                  className="w-full max-h-[380px] rounded-xl bg-black"
+                />
+              ) : detected.embedUrl ? (
+                <div className="w-full aspect-video rounded-xl overflow-hidden bg-black border border-slate-800">
+                  <iframe
+                    src={detected.embedUrl}
+                    title={blk.titleEn || 'Embedded Video'}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="w-full h-full border-0"
+                  />
+                </div>
+              ) : null}
+            </div>
           );
         }
 
         if (blk.type === 'audio') {
+          const remoteAudioUrl =
+            blk.externalUrl ||
+            (blk.mediaUrl && /^https?:\/\//i.test(blk.mediaUrl) ? blk.mediaUrl : '');
+          const activeAudioSrc =
+            resolvedMediaUrls[blk.id] ||
+            (blk.mediaUrl && !blk.mediaUrl.startsWith('idb://') ? blk.mediaUrl : '') ||
+            remoteAudioUrl;
+          const isCachedLocally = Boolean(
+            resolvedMediaUrls[blk.id] ||
+              (activeAudioSrc && activeAudioSrc.startsWith('data:'))
+          );
+
           return (
-            <VoiceRecorderBlock
-              key={blk.id}
-              topicId={topicId}
-              sectionId={sectionId}
-              blockId={blk.id}
-              initialAudioUrl={blk.mediaUrl}
-              initialMediaIdbKey={blk.mediaIdbKey}
-              initialDurationSeconds={blk.mediaDurationSeconds}
-              initialTitleEn={blk.titleEn}
-              initialTitleAr={blk.titleAr}
-              readOnly={true}
-              showToast={showToast}
-            />
+            <div key={blk.id} className="space-y-2">
+              <VoiceRecorderBlock
+                topicId={topicId}
+                sectionId={sectionId}
+                blockId={blk.id}
+                initialAudioUrl={activeAudioSrc || blk.mediaUrl}
+                initialMediaIdbKey={blk.mediaIdbKey}
+                initialDurationSeconds={blk.mediaDurationSeconds}
+                initialTitleEn={blk.titleEn}
+                initialTitleAr={blk.titleAr}
+                readOnly={true}
+                showToast={showToast}
+              />
+              {(remoteAudioUrl || activeAudioSrc) && (
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                  {remoteAudioUrl && !isCachedLocally && (
+                    <button
+                      type="button"
+                      disabled={downloadingBlockId === blk.id}
+                      onClick={() =>
+                        void handleCacheExternalMediaOffline(blk, remoteAudioUrl)
+                      }
+                      className="min-h-[32px] px-2.5 py-1 rounded-xl bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1"
+                    >
+                      <Download className="w-3 h-3" />
+                      <span>
+                        {downloadingBlockId === blk.id
+                          ? 'جاري التنزيل...'
+                          : 'تنزيل الصوت أوفلاين'}
+                      </span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void handleOpenInExternalApp(blk, activeAudioSrc)}
+                    className="min-h-[32px] px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] font-bold flex items-center gap-1"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    <span>فتح في مشغل خارجي</span>
+                  </button>
+                </div>
+              )}
+            </div>
           );
         }
 
         if (blk.type === 'attachment') {
+          const remoteUrl =
+            blk.externalUrl ||
+            (blk.mediaUrl && /^https?:\/\//i.test(blk.mediaUrl) ? blk.mediaUrl : '');
+          const resolvedSrc =
+            resolvedMediaUrls[blk.id] ||
+            (blk.mediaUrl && !blk.mediaUrl.startsWith('idb://') ? blk.mediaUrl : '') ||
+            remoteUrl;
+          const isPdf =
+            (blk.mediaMimeType || '').toLowerCase().includes('pdf') ||
+            (blk.mediaFileName || '').toLowerCase().endsWith('.pdf') ||
+            resolvedSrc.toLowerCase().includes('.pdf') ||
+            resolvedSrc.startsWith('data:application/pdf');
+          const isCachedLocally = Boolean(
+            resolvedMediaUrls[blk.id] || resolvedSrc.startsWith('data:')
+          );
+
           return (
             <div
               key={blk.id}
@@ -406,18 +637,56 @@ export const SectionContentBlocksRenderer: React.FC<
                     {blk.mediaMimeType || blk.titleAr || 'Document'} ·{' '}
                     {blk.mediaSizeBytes
                       ? formatBytesLabel(blk.mediaSizeBytes)
-                      : blk.text || 'Local Attachment'}
+                      : blk.text || (isCachedLocally ? 'محفوظ أوفلاين' : 'رابط خارجي')}
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => void handleDownloadInlineAttachment(blk)}
-                className="min-h-[44px] px-3.5 py-2 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5 shrink-0"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>تنزيل / فتح</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                {isPdf && resolvedSrc && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setInlinePdfModal({
+                        url: resolvedSrc,
+                        title: blk.mediaFileName || blk.titleEn || 'PDF Viewer',
+                        mimeType: blk.mediaMimeType || 'application/pdf'
+                      })
+                    }
+                    className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-900 text-white dark:bg-slate-800 text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <span>معاينة PDF</span>
+                  </button>
+                )}
+                {remoteUrl && !isCachedLocally && (
+                  <button
+                    type="button"
+                    disabled={downloadingBlockId === blk.id}
+                    onClick={() => void handleCacheExternalMediaOffline(blk, remoteUrl)}
+                    className="min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-1"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>
+                      {downloadingBlockId === blk.id ? 'جاري التنزيل...' : 'حفظ أوفلاين'}
+                    </span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void handleDownloadInlineAttachment(blk)}
+                  className="min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>تنزيل</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleOpenInExternalApp(blk, resolvedSrc)}
+                  className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>تطبيق خارجي</span>
+                </button>
+              </div>
             </div>
           );
         }
@@ -498,12 +767,96 @@ export const SectionContentBlocksRenderer: React.FC<
 
         return null;
       })}
+
+      {/* Image Zoom Lightbox Modal */}
+      {zoomedImage && (
+        <div
+          onClick={() => setZoomedImage(null)}
+          className="fixed inset-0 z-50 bg-black/85 flex flex-col items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-4xl w-full space-y-3 text-center"
+          >
+            <img
+              src={zoomedImage.src}
+              alt={zoomedImage.caption || 'Zoomed image'}
+              className="max-h-[78dvh] w-auto mx-auto rounded-2xl object-contain bg-slate-950"
+            />
+            <div className="flex items-center justify-center gap-3">
+              {zoomedImage.caption && (
+                <span className="text-xs text-slate-200 font-bold">
+                  {zoomedImage.caption}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setZoomedImage(null)}
+                className="px-4 py-1.5 rounded-xl bg-white text-slate-900 text-xs font-extrabold"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Inline PDF Viewer Modal */}
+      {inlinePdfModal && (
+        <div
+          onClick={() => setInlinePdfModal(null)}
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-3 sm:p-5"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-4xl h-[85dvh] rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden shadow-2xl"
+          >
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+              <span
+                dir="ltr"
+                className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white truncate"
+              >
+                {inlinePdfModal.title}
+              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const r = openMediaInExternalApp(
+                      inlinePdfModal.url,
+                      inlinePdfModal.title,
+                      inlinePdfModal.mimeType || 'application/pdf'
+                    );
+                    showToast(r.messageAr);
+                  }}
+                  className="min-h-[34px] px-3 py-1 rounded-xl bg-emerald-600 text-white text-xs font-bold flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>فتح في تطبيق خارجي</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInlinePdfModal(null)}
+                  className="min-h-[34px] px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold"
+                >
+                  إغلاق
+                </button>
+              </div>
+            </div>
+            <iframe
+              src={inlinePdfModal.url}
+              title={inlinePdfModal.title}
+              className="w-full flex-1 border-0 bg-slate-100 dark:bg-slate-950"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 // ============================================================================
-// 2. REORDERABLE CONTENT BLOCKS EDITOR (Supports all 9 ContentBlock types)
+// 2. REORDERABLE CONTENT BLOCKS EDITOR (Supports all 10 ContentBlock types)
 // ============================================================================
 
 interface SectionContentBlocksEditorProps {
@@ -519,6 +872,7 @@ export const SectionContentBlocksEditor: React.FC<
 > = ({ topicId, sectionId, blocks, onChangeBlocks, showToast }) => {
   const [showAddBlockPicker, setShowAddBlockPicker] = useState<boolean>(false);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const [activeUploadBlockId, setActiveUploadBlockId] = useState<string | null>(
     null
@@ -603,26 +957,29 @@ export const SectionContentBlocksEditor: React.FC<
         captionEn: '',
         captionAr: ''
       };
-    } else if (type === 'video_link') {
+    } else if (type === 'video' || type === 'video_link') {
       newBlock = {
         ...newBlock,
         titleEn: '',
         titleAr: '',
-        externalUrl: ''
+        externalUrl: '',
+        mediaUrl: ''
       };
     } else if (type === 'audio') {
       newBlock = {
         ...newBlock,
         titleEn: 'Clinical Audio / Voice Recording',
         titleAr: 'تسجيل صوتي للشرح الطبي',
-        mediaUrl: ''
+        mediaUrl: '',
+        externalUrl: ''
       };
     } else if (type === 'attachment') {
       newBlock = {
         ...newBlock,
         titleEn: '',
         mediaFileName: '',
-        mediaUrl: ''
+        mediaUrl: '',
+        externalUrl: ''
       };
     } else if (type === 'question') {
       const inlineQ: UnifiedQuizQuestion = {
@@ -683,10 +1040,55 @@ export const SectionContentBlocksEditor: React.FC<
         mediaUrl: dataUrl,
         mediaIdbKey: idbKey,
         mediaFileName: file.name,
+        mediaMimeType: file.type || 'image/png',
         mediaSizeBytes: file.size,
         captionEn: file.name.replace(/\.[^/.]+$/, '')
       });
       showToast(`تم حفظ الصورة "${file.name}" في IndexedDB وإدراجها داخل الشرح`);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleUploadInlineVideo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeUploadBlockId) return;
+    const prevBlock = sortedBlocks.find((b) => b.id === activeUploadBlockId);
+    const prevKey = prevBlock?.mediaIdbKey;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (!dataUrl) return;
+      const idbKey = `vid-${activeUploadBlockId}-${Date.now()}`;
+      const saved = await saveLocalMediaRecord({
+        id: idbKey,
+        topicId,
+        sectionId,
+        blockId: activeUploadBlockId,
+        mediaType: 'video_file',
+        fileName: file.name,
+        mimeType: file.type || 'video/mp4',
+        sizeBytes: file.size,
+        dataUrl,
+        createdAt: new Date().toISOString()
+      });
+      if (!saved.success || !saved.verifiedInIdb) {
+        showToast(saved.errorAr || 'حجم الفيديو يتجاوز الحد المسموح أو تعذر الحفظ محلياً', 'info');
+        return;
+      }
+      if (prevKey && prevKey !== idbKey) {
+        void deleteLocalMediaRecord(prevKey);
+      }
+      updateBlockById(activeUploadBlockId, {
+        mediaUrl: dataUrl,
+        mediaIdbKey: idbKey,
+        mediaFileName: file.name,
+        mediaMimeType: file.type || 'video/mp4',
+        mediaSizeBytes: file.size,
+        titleEn: prevBlock?.titleEn || file.name,
+        text: formatBytesLabel(file.size)
+      });
+      showToast(`تم رفع الفيديو "${file.name}" (${formatBytesLabel(file.size)}) وحفظه محلياً`);
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -748,6 +1150,13 @@ export const SectionContentBlocksEditor: React.FC<
         className="hidden"
       />
       <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/*"
+        onChange={handleUploadInlineVideo}
+        className="hidden"
+      />
+      <input
         ref={attachmentInputRef}
         type="file"
         accept=".pdf,.doc,.docx,.txt,.md,.json,.csv,application/pdf"
@@ -756,7 +1165,7 @@ export const SectionContentBlocksEditor: React.FC<
       />
 
       {sortedBlocks.map((blk, idx) => {
-        const meta = CONTENT_BLOCK_TYPE_META[blk.type];
+        const meta = CONTENT_BLOCK_TYPE_META[blk.type] || CONTENT_BLOCK_TYPE_META.paragraph;
         const IconComp = meta.icon;
 
         return (
@@ -940,14 +1349,22 @@ export const SectionContentBlocksEditor: React.FC<
                     className="min-h-[44px] px-3.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-1.5"
                   >
                     <Upload className="w-3.5 h-3.5" />
-                    <span>رفع صورة من الجهاز</span>
+                    <span>رفع صورة من الهاتف</span>
                   </button>
                   <input
                     type="text"
                     dir="ltr"
-                    value={blk.mediaUrl || ''}
+                    value={
+                      blk.externalUrl ||
+                      (blk.mediaUrl && !blk.mediaUrl.startsWith('data:') && !blk.mediaUrl.startsWith('idb://')
+                        ? blk.mediaUrl
+                        : '')
+                    }
                     onChange={(e) =>
-                      updateBlockById(blk.id, { mediaUrl: e.target.value })
+                      updateBlockById(blk.id, {
+                        externalUrl: e.target.value,
+                        mediaUrl: e.target.value
+                      })
                     }
                     placeholder="أو الصق رابط الصورة المباشر (https://...)"
                     className="w-full sm:w-auto sm:flex-1 min-w-0 min-h-[44px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
@@ -977,75 +1394,138 @@ export const SectionContentBlocksEditor: React.FC<
               </div>
             )}
 
-            {blk.type === 'video_link' && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <input
-                  type="text"
-                  dir="ltr"
-                  value={blk.titleEn || ''}
-                  onChange={(e) =>
-                    updateBlockById(blk.id, { titleEn: e.target.value })
-                  }
-                  placeholder="Link / Video Title (EN)..."
-                  className="w-full min-w-0 min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+            {(blk.type === 'video' || blk.type === 'video_link') && (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveUploadBlockId(blk.id);
+                      videoInputRef.current?.click();
+                    }}
+                    className="min-h-[42px] px-3.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>رفع فيديو من الهاتف</span>
+                  </button>
+                  <input
+                    type="url"
+                    dir="ltr"
+                    value={blk.externalUrl || ''}
+                    onChange={(e) =>
+                      updateBlockById(blk.id, { externalUrl: e.target.value })
+                    }
+                    placeholder="أو الصق رابط فيديو (YouTube / Drive / MP4 https://...)"
+                    className="w-full sm:w-auto sm:flex-1 min-w-0 min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={blk.titleEn || ''}
+                    onChange={(e) =>
+                      updateBlockById(blk.id, { titleEn: e.target.value })
+                    }
+                    placeholder="Video Title (EN)..."
+                    className="w-full min-w-0 min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                  />
+                  <input
+                    type="text"
+                    value={blk.titleAr || ''}
+                    onChange={(e) =>
+                      updateBlockById(blk.id, {
+                        titleAr: e.target.value,
+                        text: e.target.value
+                      })
+                    }
+                    placeholder="وصف مختصر بالعربية..."
+                    className="w-full min-w-0 min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                  />
+                </div>
+                {blk.mediaFileName && (
+                  <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                    تم إرفاق ملف الفيديو: {blk.mediaFileName} ({blk.text})
+                  </p>
+                )}
+              </div>
+            )}
+
+            {blk.type === 'audio' && (
+              <div className="space-y-2">
+                <VoiceRecorderBlock
+                  topicId={topicId}
+                  sectionId={sectionId}
+                  blockId={blk.id}
+                  initialAudioUrl={blk.mediaUrl}
+                  initialMediaIdbKey={blk.mediaIdbKey}
+                  initialDurationSeconds={blk.mediaDurationSeconds}
+                  initialTitleEn={blk.titleEn}
+                  initialTitleAr={blk.titleAr}
+                  readOnly={false}
+                  onChange={(updated) => updateBlockById(blk.id, updated)}
+                  showToast={showToast}
                 />
                 <input
                   type="url"
                   dir="ltr"
                   value={blk.externalUrl || ''}
                   onChange={(e) =>
-                    updateBlockById(blk.id, { externalUrl: e.target.value })
-                  }
-                  placeholder="https://..."
-                  className="w-full min-w-0 min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
-                />
-                <input
-                  type="text"
-                  value={blk.titleAr || ''}
-                  onChange={(e) =>
                     updateBlockById(blk.id, {
-                      titleAr: e.target.value,
-                      text: e.target.value
+                      externalUrl: e.target.value,
+                      mediaUrl: e.target.value || blk.mediaUrl
                     })
                   }
-                  placeholder="وصف مختصر بالعربية..."
-                  className="w-full min-w-0 min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                  placeholder="أو الصق رابط ملف صوتي خارجي (MP3 / WAV / M4A https://...)"
+                  className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                 />
               </div>
             )}
 
-            {blk.type === 'audio' && (
-              <VoiceRecorderBlock
-                topicId={topicId}
-                sectionId={sectionId}
-                blockId={blk.id}
-                initialAudioUrl={blk.mediaUrl}
-                initialMediaIdbKey={blk.mediaIdbKey}
-                initialDurationSeconds={blk.mediaDurationSeconds}
-                initialTitleEn={blk.titleEn}
-                initialTitleAr={blk.titleAr}
-                readOnly={false}
-                onChange={(updated) => updateBlockById(blk.id, updated)}
-                showToast={showToast}
-              />
-            )}
-
             {blk.type === 'attachment' && (
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveUploadBlockId(blk.id);
-                    attachmentInputRef.current?.click();
-                  }}
-                  className="min-h-[40px] px-3.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-1.5"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>رفع ملف PDF أو مستند من الجهاز</span>
-                </button>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveUploadBlockId(blk.id);
+                      attachmentInputRef.current?.click();
+                    }}
+                    className="min-h-[40px] px-3.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>رفع ملف PDF أو مستند من الهاتف</span>
+                  </button>
+                  <input
+                    type="url"
+                    dir="ltr"
+                    value={blk.externalUrl || ''}
+                    onChange={(e) =>
+                      updateBlockById(blk.id, {
+                        externalUrl: e.target.value,
+                        mediaUrl: e.target.value || blk.mediaUrl
+                      })
+                    }
+                    placeholder="أو الصق رابط ملف PDF خارجي (https://...)"
+                    className="w-full sm:w-auto sm:flex-1 min-w-0 min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                  />
+                </div>
+                <input
+                  type="text"
+                  dir="auto"
+                  value={blk.titleEn || blk.mediaFileName || ''}
+                  onChange={(e) =>
+                    updateBlockById(blk.id, {
+                      titleEn: e.target.value,
+                      mediaFileName: e.target.value
+                    })
+                  }
+                  placeholder="اسم الملف أو عنوان المرجع (PDF Title)..."
+                  className="w-full min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                />
                 {blk.mediaFileName && (
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    تم إرفاق: {blk.mediaFileName} ({blk.text})
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                    تم إرفاق: {blk.mediaFileName} {blk.text ? `(${blk.text})` : ''}
                   </span>
                 )}
               </div>
