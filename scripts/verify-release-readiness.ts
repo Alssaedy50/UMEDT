@@ -8,6 +8,8 @@ import {
   DB_SCHEMA_VERSION,
   SUPPORTED_IMPORT_EXTENSIONS,
   assertNotSqlitePayload,
+  checkRemoteDataManifest,
+  downloadRemotePackageBytes,
   verifyPublisherKeyPairMatch,
   signPackageBytesWithPrivateKey,
   verifyPackageSignature
@@ -1085,8 +1087,149 @@ async function main() {
     'TopicContentBlockEditor.tsx inline option inputs must enforce flex-1 min-w-0 w-full to avoid mobile clipping'
   );
 
+  // 15b. Verify Android fetchRemoteUrlBase64, Express & Cloudflare Pages /api/remote-fetch relays,
+  // and automatic GitHub Releases API 404 fallback for UMEDT cloud updates
+  assertCondition(
+    mainActivityJava.includes('fetchRemoteUrlBase64'),
+    'MainActivity.java UMEDNativeDownloader must expose fetchRemoteUrlBase64 for CORS-free GitHub Release downloads'
+  );
+
+  const serverTsPath = path.join(ROOT_DIR, 'server.ts');
+  const cfRemoteFetchPath = path.join(ROOT_DIR, 'functions', 'api', 'remote-fetch.ts');
+  assertCondition(
+    fs.existsSync(serverTsPath) &&
+      fs.readFileSync(serverTsPath, 'utf8').includes("'/api/remote-fetch'") &&
+      fs.readFileSync(serverTsPath, 'utf8').includes('release-assets.githubusercontent.com'),
+    'server.ts must expose /api/remote-fetch relay allowlisting GitHub Release asset hosts'
+  );
+  assertCondition(
+    fs.existsSync(cfRemoteFetchPath) &&
+      fs.readFileSync(cfRemoteFetchPath, 'utf8').includes('onRequestGet') &&
+      fs.readFileSync(cfRemoteFetchPath, 'utf8').includes('release-assets.githubusercontent.com'),
+    'functions/api/remote-fetch.ts must expose Cloudflare Pages CORS relay for GitHub Releases'
+  );
+
+  const ghFallbackVersion = '2026.12.5-umd';
+  const ghPublishedBundle = await executeProductionDataReleasePublish({
+    targetVersion: ghFallbackVersion,
+    cdnBaseUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/stable',
+    privateKeyPem: keyGenA.privateKeyPem,
+    publicKeyPem: keyGenA.publicKeyPem,
+    writeArtifacts: false
+  });
+  const ghMockCustomFetch: typeof fetch = async (input) => {
+    const urlStr = String(input);
+    if (urlStr.startsWith('https://raw.githubusercontent.com/Alssaedy50/UMEDT/')) {
+      return new Response('404: Not Found', { status: 404, statusText: 'Not Found' });
+    }
+    if (urlStr.startsWith('https://api.github.com/repos/Alssaedy50/UMEDT/releases')) {
+      return new Response(
+        JSON.stringify([
+          {
+            tag_name: `data-v${ghFallbackVersion}`,
+            draft: false,
+            prerelease: false,
+            published_at: '2026-11-15T00:00:00Z',
+            assets: [
+              {
+                name: 'manifest.json',
+                url: 'https://api.github.com/repos/Alssaedy50/UMEDT/releases/assets/1001',
+                browser_download_url: `https://github.com/Alssaedy50/UMEDT/releases/download/data-v${ghFallbackVersion}/manifest.json`
+              },
+              {
+                name: ghPublishedBundle.bundle.packageFileName,
+                url: 'https://api.github.com/repos/Alssaedy50/UMEDT/releases/assets/1002',
+                browser_download_url: `https://github.com/Alssaedy50/UMEDT/releases/download/data-v${ghFallbackVersion}/${ghPublishedBundle.bundle.packageFileName}`
+              }
+            ]
+          }
+        ]),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    if (urlStr.endsWith('/manifest.json') && urlStr.includes('/releases/download/')) {
+      return new Response(ghPublishedBundle.bundle.manifestJsonText, {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    if (
+      urlStr.includes(ghPublishedBundle.bundle.packageFileName) &&
+      urlStr.includes('/releases/download/')
+    ) {
+      return new Response(Buffer.from(ghPublishedBundle.bundle.packageBytes), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/zip',
+          'Content-Length': String(ghPublishedBundle.bundle.packageBytes.byteLength)
+        }
+      });
+    }
+    return new Response('Not Found', { status: 404 });
+  };
+
+  const ghFallbackManifestRes = await checkRemoteDataManifest(
+    'https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/stable/manifest.json',
+    {
+      installedDataVersion: BUNDLED_DATA_VERSION,
+      channel: 'stable',
+      customFetch: ghMockCustomFetch
+    }
+  );
+  assertCondition(
+    ghFallbackManifestRes.updateAvailable &&
+      ghFallbackManifestRes.compatible &&
+      ghFallbackManifestRes.manifest.dataVersion === ghFallbackVersion,
+    `Expected checkRemoteDataManifest 404 fallback to discover GitHub Release ${ghFallbackVersion}`
+  );
+
+  // Also test direct raw ZIP URL 404 fallback in downloadRemotePackageBytes
+  const ghDownloadedBytes = await downloadRemotePackageBytes(
+    `https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/stable/${ghPublishedBundle.bundle.packageFileName}`,
+    { customFetch: ghMockCustomFetch }
+  );
+  assertCondition(
+    ghDownloadedBytes.byteLength === ghPublishedBundle.bundle.packageBytes.byteLength,
+    'downloadRemotePackageBytes must fall back from 404 raw.githubusercontent.com ZIP URL to GitHub Release asset bytes'
+  );
+
+  // Full end-to-end signed OTA cycle through 404 raw URL -> GitHub Releases fallback -> ECDSA verify -> atomic install -> rollback
+  setEmbeddedTrustedPublicKeyOverrideForTesting(keyGenA.publicKeyPem);
+  try {
+    const preFallbackVersion = loadAppState().versionMetadata.dataVersion;
+    const ghOtaInstall = await runOnlineUpdateCycle({
+      config: {
+        ...DEFAULT_ONLINE_UPDATE_CONFIG,
+        manifestUrl:
+          'https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/stable/manifest.json',
+        publicKeyPem: keyGenA.publicKeyPem,
+        requireSignature: true,
+        signatureAlgorithm: 'ECDSA-P256-SHA256',
+        autoUpdatePolicy: 'notify-only'
+      },
+      forceInstall: true,
+      customFetch: ghMockCustomFetch
+    });
+    assertCondition(
+      ghOtaInstall.status.phase === 'completed' &&
+        ghOtaInstall.status.checksumVerified === true &&
+        ghOtaInstall.status.signatureVerified === true &&
+        loadAppState().versionMetadata.dataVersion === ghFallbackVersion,
+      `Expected GitHub Releases fallback OTA install to complete cleanly, got ${ghOtaInstall.status.phase}: ${ghOtaInstall.status.message}`
+    );
+    const ghRollback = await rollbackToPreviousDataVersion();
+    assertCondition(
+      ghRollback.result.success &&
+        ghRollback.state.versionMetadata.dataVersion === preFallbackVersion,
+      'Rollback after GitHub Releases fallback OTA test must restore previous dataVersion'
+    );
+  } finally {
+    setEmbeddedTrustedPublicKeyOverrideForTesting(null);
+    saveOnlineUpdateConfig(DEFAULT_ONLINE_UPDATE_CONFIG);
+  }
+
   console.log(
-    '[PASS] 15. Mic Permissions, PWA Manifest Link, Media IDB Failure Honesty, Download Honesty, Android Safe Area & Mobile Input Layout Verified'
+    '[PASS] 15. Mic Permissions, PWA Manifest Link, Media IDB Failure Honesty, Download Honesty, Android Safe Area, Mobile Input Layout & GitHub Releases 404 Fallback Verified'
   );
   console.log('================================================================');
   console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (15/15 — 100%)');

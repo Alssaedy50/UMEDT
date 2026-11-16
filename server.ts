@@ -433,6 +433,59 @@ ${placeholderContext || 'None'}`;
   });
 
   // ==========================================================================
+  // 4b. CORS-Safe GitHub Releases / Manifest Relay (/api/remote-fetch)
+  // ==========================================================================
+  const ALLOWED_REMOTE_HOSTS = new Set([
+    'raw.githubusercontent.com',
+    'github.com',
+    'api.github.com',
+    'release-assets.githubusercontent.com',
+    'objects.githubusercontent.com',
+    'codeload.github.com'
+  ]);
+
+  app.get('/api/remote-fetch', async (req, res) => {
+    try {
+      const target = typeof req.query.url === 'string' ? req.query.url.trim() : '';
+      if (!target) {
+        res.status(400).json({ error: 'Missing url parameter' });
+        return;
+      }
+      const parsed = new URL(target);
+      if (parsed.protocol !== 'https:' || !ALLOWED_REMOTE_HOSTS.has(parsed.hostname)) {
+        res.status(403).json({ error: 'Host not permitted for remote-fetch' });
+        return;
+      }
+
+      const upstream = await fetch(parsed.toString(), {
+        headers: {
+          'User-Agent': 'UMEDT-Server/2.4.0',
+          Accept: 'application/json, application/octet-stream, */*'
+        },
+        redirect: 'follow'
+      });
+
+      const arrayBuf = await upstream.arrayBuffer();
+      if (arrayBuf.byteLength > 25 * 1024 * 1024) {
+        res.status(413).json({ error: 'Remote payload exceeds 25 MB safety limit' });
+        return;
+      }
+
+      res.status(upstream.status);
+      res.setHeader(
+        'Content-Type',
+        upstream.headers.get('content-type') || 'application/octet-stream'
+      );
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(Buffer.from(arrayBuf));
+    } catch (err) {
+      res.status(502).json({
+        error: err instanceof Error ? err.message : 'Remote fetch relay failed'
+      });
+    }
+  });
+
+  // ==========================================================================
   // 5. Stage 7 Live Server-to-App Signed Cloud OTA Release Endpoint
   // ==========================================================================
   let cachedLiveOtaRelease: {

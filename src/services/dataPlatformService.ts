@@ -2165,6 +2165,332 @@ export async function verifyPackageSignature(options: {
   }
 }
 
+function isCorsRestrictedAssetUrl(url: string): boolean {
+  return (
+    /^https?:\/\/(release-assets|objects|codeload)\.githubusercontent\.com\//i.test(url) ||
+    /^https?:\/\/github\.com\/[^/]+\/[^/]+\/releases\/download\//i.test(url) ||
+    /^https?:\/\/api\.github\.com\/repos\/[^/]+\/[^/]+\/releases\/assets\//i.test(url)
+  );
+}
+
+async function tryNativeOrRelayFetch(url: string, init?: RequestInit): Promise<Response | null> {
+  // 1. Android Capacitor Native Bridge (completely bypasses WebView CORS)
+  if (typeof window !== 'undefined') {
+    const win = window as unknown as {
+      UMEDNativeDownloader?: {
+        fetchRemoteUrlBase64?: (targetUrl: string) => string;
+      };
+    };
+    if (typeof win.UMEDNativeDownloader?.fetchRemoteUrlBase64 === 'function') {
+      const rawJson = win.UMEDNativeDownloader.fetchRemoteUrlBase64(url);
+      const parsed = JSON.parse(rawJson || '{}') as {
+        ok?: boolean;
+        status?: number;
+        statusText?: string;
+        contentType?: string;
+        base64?: string;
+        error?: string;
+      };
+      if (parsed && typeof parsed.status === 'number' && parsed.status > 0) {
+        const bytes = decodeBase64ToBytes(parsed.base64 || '');
+        const body =
+          parsed.status === 204 || parsed.status === 304
+            ? null
+            : new Blob([bytes.buffer as ArrayBuffer], {
+                type: parsed.contentType || 'application/octet-stream'
+              });
+        return new Response(body, {
+          status: parsed.status,
+          statusText: parsed.statusText || '',
+          headers: parsed.contentType ? { 'Content-Type': parsed.contentType } : undefined
+        });
+      }
+      if (parsed?.error) {
+        throw new Error(parsed.error);
+      }
+    }
+  }
+
+  // 2. Web / Cloudflare Pages / Local Express Relay (/api/remote-fetch)
+  if (
+    typeof window !== 'undefined' &&
+    typeof window.location?.origin === 'string' &&
+    /^https?:$/i.test(window.location.protocol) &&
+    typeof globalThis.fetch === 'function'
+  ) {
+    try {
+      const relayUrl = `/api/remote-fetch?url=${encodeURIComponent(url)}`;
+      const relayRes = await globalThis.fetch(relayUrl, {
+        headers: init?.headers,
+        cache: 'no-store'
+      });
+      const contentType = relayRes.headers.get('content-type') || '';
+      const isHtmlFallback = contentType.includes('text/html');
+      if (relayRes.ok || (!isHtmlFallback && relayRes.status !== 404)) {
+        return relayRes;
+      }
+    } catch {
+      // Relay endpoint not available (e.g., pure static preview); fall through to direct fetch
+    }
+  }
+
+  return null;
+}
+
+async function performRemoteFetch(
+  url: string,
+  init?: RequestInit,
+  customFetch?: typeof fetch
+): Promise<Response> {
+  if (customFetch) {
+    return customFetch(url, init);
+  }
+
+  // Prefer Android native HTTP or /api/remote-fetch relay for known CORS-blocked GitHub asset endpoints
+  if (isCorsRestrictedAssetUrl(url)) {
+    const bridged = await tryNativeOrRelayFetch(url, init).catch(() => null);
+    if (bridged) {
+      return bridged;
+    }
+  }
+
+  try {
+    const directRes = await globalThis.fetch(url, init);
+    if (directRes.status !== 0) {
+      return directRes;
+    }
+  } catch (directErr) {
+    const bridged = await tryNativeOrRelayFetch(url, init).catch(() => null);
+    if (bridged) {
+      return bridged;
+    }
+    throw directErr;
+  }
+
+  const fallbackRes = await tryNativeOrRelayFetch(url, init);
+  if (fallbackRes) {
+    return fallbackRes;
+  }
+  throw new Error('تعذر الاتصال بخادم التحديثات السحابية.');
+}
+
+interface ParsedGitHubLocation {
+  owner: string;
+  repo: string;
+  branch?: string;
+  channel?: 'stable' | 'beta';
+  tag?: string;
+  fileName?: string;
+}
+
+function parseGitHubRepoLocation(url: string): ParsedGitHubLocation | null {
+  const rawMatch = url.match(
+    /^https?:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)(?:\/(.*))?$/i
+  );
+  if (rawMatch) {
+    const [, owner, repo, branch, rest = ''] = rawMatch;
+    const channelMatch = rest.match(/^data\/releases\/(stable|beta)\/([^/?#]+)/i);
+    const fileName = rest.split('/').pop()?.split('?')[0] || undefined;
+    return {
+      owner,
+      repo,
+      branch,
+      channel: channelMatch?.[1]?.toLowerCase() === 'beta' ? 'beta' : 'stable',
+      fileName: channelMatch?.[2] || fileName
+    };
+  }
+
+  const releaseDownloadMatch = url.match(
+    /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/releases\/download\/([^/]+)\/([^/?#]+)/i
+  );
+  if (releaseDownloadMatch) {
+    const [, owner, repo, tag, fileName] = releaseDownloadMatch;
+    return {
+      owner,
+      repo,
+      tag,
+      channel: /beta/i.test(tag) ? 'beta' : 'stable',
+      fileName
+    };
+  }
+
+  const ghRepoMatch = url.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(\.git)?(\/.*)?$/i);
+  if (ghRepoMatch) {
+    const [, owner, repo] = ghRepoMatch;
+    return { owner, repo, channel: 'stable' };
+  }
+
+  return null;
+}
+
+interface GitHubReleaseAssetPair {
+  tagName: string;
+  version: string;
+  manifestAsset?: {
+    name: string;
+    browserDownloadUrl: string;
+    apiAssetUrl: string;
+  };
+  packageAsset?: {
+    name: string;
+    browserDownloadUrl: string;
+    apiAssetUrl: string;
+  };
+}
+
+interface GitHubApiReleaseItem {
+  tag_name?: string;
+  draft?: boolean;
+  prerelease?: boolean;
+  published_at?: string;
+  assets?: Array<{
+    name?: string;
+    url?: string;
+    browser_download_url?: string;
+  }>;
+}
+
+async function findGitHubReleaseAssets(params: {
+  owner: string;
+  repo: string;
+  channel?: 'stable' | 'beta';
+  preferredFileOrVersion?: string;
+  customFetch?: typeof fetch;
+}): Promise<GitHubReleaseAssetPair | null> {
+  const { owner, repo, channel = 'stable', preferredFileOrVersion, customFetch } = params;
+  const releasesApiUrl = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=25`;
+
+  let releasesRes: Response;
+  try {
+    releasesRes = await performRemoteFetch(
+      releasesApiUrl,
+      {
+        headers: { Accept: 'application/vnd.github+json' },
+        cache: 'no-store'
+      },
+      customFetch
+    );
+  } catch {
+    return null;
+  }
+
+  if (!releasesRes.ok) {
+    return null;
+  }
+
+  const rawList = (await releasesRes.json()) as unknown;
+  if (!Array.isArray(rawList)) return null;
+
+  const releases = rawList.filter((item): item is GitHubApiReleaseItem => {
+    if (!item || typeof item !== 'object') return false;
+    const rel = item as GitHubApiReleaseItem;
+    if (rel.draft) return false;
+    return Array.isArray(rel.assets) && rel.assets.length > 0;
+  });
+
+  if (releases.length === 0) return null;
+
+  const extractVersion = (tag: string): string =>
+    tag
+      .trim()
+      .replace(/^data-v/i, '')
+      .replace(/^v/i, '');
+
+  const normalizedPref = (preferredFileOrVersion || '').trim().toLowerCase();
+
+  // Prefer explicit asset/tag match when downloading a specific versioned ZIP
+  if (normalizedPref) {
+    const exactMatch = releases.find((rel) => {
+      const tagLower = (rel.tag_name || '').toLowerCase();
+      if (tagLower === normalizedPref || extractVersion(tagLower) === normalizedPref) {
+        return true;
+      }
+      return (rel.assets || []).some((a) => (a.name || '').toLowerCase() === normalizedPref);
+    });
+    if (exactMatch) {
+      const manifestAssetRaw = (exactMatch.assets || []).find(
+        (a) => (a.name || '').toLowerCase() === 'manifest.json'
+      );
+      const packageAssetRaw =
+        (exactMatch.assets || []).find((a) => (a.name || '').toLowerCase() === normalizedPref) ||
+        (exactMatch.assets || []).find((a) => (a.name || '').toLowerCase().endsWith('.zip'));
+      return {
+        tagName: exactMatch.tag_name || '',
+        version: extractVersion(exactMatch.tag_name || ''),
+        manifestAsset: manifestAssetRaw?.browser_download_url
+          ? {
+              name: manifestAssetRaw.name || 'manifest.json',
+              browserDownloadUrl: manifestAssetRaw.browser_download_url,
+              apiAssetUrl: manifestAssetRaw.url || manifestAssetRaw.browser_download_url
+            }
+          : undefined,
+        packageAsset: packageAssetRaw?.browser_download_url
+          ? {
+              name: packageAssetRaw.name || 'package.zip',
+              browserDownloadUrl: packageAssetRaw.browser_download_url,
+              apiAssetUrl: packageAssetRaw.url || packageAssetRaw.browser_download_url
+            }
+          : undefined
+      };
+    }
+  }
+
+  // Otherwise choose newest release with manifest.json for the target channel
+  const channelCandidates = releases.filter((rel) => {
+    const hasManifest = (rel.assets || []).some(
+      (a) => (a.name || '').toLowerCase() === 'manifest.json'
+    );
+    if (!hasManifest) return false;
+    const tagLower = (rel.tag_name || '').toLowerCase();
+    const isBeta = Boolean(rel.prerelease) || tagLower.includes('beta');
+    return channel === 'beta' ? true : !isBeta;
+  });
+
+  const pool =
+    channelCandidates.length > 0
+      ? channelCandidates
+      : releases.filter((rel) =>
+          (rel.assets || []).some((a) => (a.name || '').toLowerCase() === 'manifest.json')
+        );
+
+  if (pool.length === 0) return null;
+
+  pool.sort((a, b) => {
+    const va = extractVersion(a.tag_name || '0.0.0');
+    const vb = extractVersion(b.tag_name || '0.0.0');
+    const cmp = compareDataVersions(vb, va);
+    if (cmp !== 0) return cmp;
+    return String(b.published_at || '').localeCompare(String(a.published_at || ''));
+  });
+
+  const latest = pool[0];
+  const manifestAssetRaw = (latest.assets || []).find(
+    (a) => (a.name || '').toLowerCase() === 'manifest.json'
+  );
+  const packageAssetRaw = (latest.assets || []).find((a) =>
+    (a.name || '').toLowerCase().endsWith('.zip')
+  );
+
+  return {
+    tagName: latest.tag_name || '',
+    version: extractVersion(latest.tag_name || ''),
+    manifestAsset: manifestAssetRaw?.browser_download_url
+      ? {
+          name: manifestAssetRaw.name || 'manifest.json',
+          browserDownloadUrl: manifestAssetRaw.browser_download_url,
+          apiAssetUrl: manifestAssetRaw.url || manifestAssetRaw.browser_download_url
+        }
+      : undefined,
+    packageAsset: packageAssetRaw?.browser_download_url
+      ? {
+          name: packageAssetRaw.name || 'package.zip',
+          browserDownloadUrl: packageAssetRaw.browser_download_url,
+          apiAssetUrl: packageAssetRaw.url || packageAssetRaw.browser_download_url
+        }
+      : undefined
+  };
+}
+
 function resolveDownloadUrl(manifestUrl: string, downloadUrl?: string): string | undefined {
   if (!downloadUrl || !downloadUrl.trim()) return undefined;
   const trimmed = downloadUrl.trim();
@@ -2225,6 +2551,7 @@ export function normalizeManifestUrl(inputUrl: string): string {
 /**
  * Connects to a configurable GitHub/CDN manifest endpoint, validates App & Schema compatibility,
  * and compares the remote `dataVersion` against the currently installed `dataVersion`.
+ * Automatically falls back to the repository's GitHub Releases API when raw `manifest.json` returns 404.
  */
 export async function checkRemoteDataManifest(
   manifestUrl: string,
@@ -2245,11 +2572,60 @@ export async function checkRemoteDataManifest(
     throw new Error('لم يتم تحديد رابط بيان التحديث السحابي (Manifest URL).');
   }
 
-  const fetchFn = options?.customFetch || globalThis.fetch;
-  const response = await fetchFn(cleanUrl, {
-    headers: { Accept: 'application/json' },
-    cache: 'no-store'
-  });
+  let effectiveManifestUrl = cleanUrl;
+  let fallbackReleaseAssets: GitHubReleaseAssetPair | null = null;
+  let response = await performRemoteFetch(
+    cleanUrl,
+    {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store'
+    },
+    options?.customFetch
+  );
+
+  // Fallback to GitHub Releases API if raw.githubusercontent.com path returns 404
+  if (!response.ok && (response.status === 404 || response.status === 0)) {
+    const ghLoc = parseGitHubRepoLocation(cleanUrl);
+    if (ghLoc) {
+      fallbackReleaseAssets = await findGitHubReleaseAssets({
+        owner: ghLoc.owner,
+        repo: ghLoc.repo,
+        channel: options?.channel || ghLoc.channel || 'stable',
+        customFetch: options?.customFetch
+      });
+
+      if (fallbackReleaseAssets?.manifestAsset) {
+        const assetCandidates = [
+          fallbackReleaseAssets.manifestAsset.browserDownloadUrl,
+          fallbackReleaseAssets.manifestAsset.apiAssetUrl
+        ].filter((u, idx, arr) => Boolean(u) && arr.indexOf(u) === idx);
+
+        for (let i = 0; i < assetCandidates.length; i++) {
+          const candidateUrl = assetCandidates[i];
+          const isApiAsset = candidateUrl.includes('api.github.com/repos/');
+          try {
+            const relManifestRes = await performRemoteFetch(
+              candidateUrl,
+              {
+                headers: {
+                  Accept: isApiAsset ? 'application/octet-stream' : 'application/json'
+                },
+                cache: 'no-store'
+              },
+              options?.customFetch
+            );
+            if (relManifestRes.ok) {
+              response = relManifestRes;
+              effectiveManifestUrl = candidateUrl;
+              break;
+            }
+          } catch {
+            // Try next asset candidate URL
+          }
+        }
+      }
+    }
+  }
 
   if (!response.ok) {
     const statusDesc = [String(response.status), response.statusText?.trim()]
@@ -2282,6 +2658,17 @@ export async function checkRemoteDataManifest(
       ? raw.signatureAlgorithm
       : undefined;
 
+  let resolvedDownloadUrl = resolveDownloadUrl(effectiveManifestUrl, raw.downloadUrl);
+  if (
+    fallbackReleaseAssets?.packageAsset?.browserDownloadUrl &&
+    (!resolvedDownloadUrl || resolvedDownloadUrl.includes('raw.githubusercontent.com/'))
+  ) {
+    const expectedName = resolvedDownloadUrl?.split('/').pop()?.split('?')[0]?.toLowerCase();
+    if (!expectedName || fallbackReleaseAssets.packageAsset.name.toLowerCase() === expectedName) {
+      resolvedDownloadUrl = fallbackReleaseAssets.packageAsset.browserDownloadUrl;
+    }
+  }
+
   const manifest: DataPackageManifest = {
     packageId: isNonEmptyString(raw.packageId)
       ? raw.packageId.trim()
@@ -2298,7 +2685,7 @@ export async function checkRemoteDataManifest(
     signature: isNonEmptyString(raw.signature) ? raw.signature.trim() : undefined,
     signatureAlgorithm: sigAlgo,
     description: isNonEmptyString(raw.description) ? raw.description.trim() : undefined,
-    downloadUrl: resolveDownloadUrl(cleanUrl, raw.downloadUrl),
+    downloadUrl: resolvedDownloadUrl,
     counts:
       raw.counts && typeof raw.counts === 'object'
         ? {
@@ -2348,65 +2735,81 @@ export async function downloadRemotePackageBytes(
 
   assertNotSqlitePayload(new Uint8Array(0), cleanUrl.split('?')[0]);
 
-  const fetchFn = options?.customFetch || globalThis.fetch;
-
   let response: Response | null = null;
   let lastError: Error | null = null;
 
-  // 1. If it's a GitHub Release download URL, prefer the GitHub Releases API which provides full CORS headers
   const ghReleaseMatch = cleanUrl.match(
-    /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/releases\/download\/([^/]+)\/([^/]+)$/i
+    /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/releases\/download\/([^/]+)\/([^/?#]+)/i
   );
+
+  // 1. Try candidate URLs via performRemoteFetch (automatically uses Android native downloader or /api/remote-fetch relay for CORS-blocked URLs)
+  const candidateUrls: string[] = [cleanUrl];
   if (ghReleaseMatch) {
-    const [, owner, repo, tag, filename] = ghReleaseMatch;
-    try {
-      const releaseApiUrl = `https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}`;
-      const relRes = await fetchFn(releaseApiUrl, {
-        headers: { Accept: 'application/json' },
-        cache: 'no-store'
-      });
-      if (relRes.ok) {
-        const relData = (await relRes.json()) as { assets?: Array<{ name: string; url: string }> };
-        const asset = relData.assets?.find((a) => a.name === filename);
-        if (asset?.url) {
-          const assetRes = await fetchFn(asset.url, {
-            headers: { Accept: 'application/octet-stream' },
-            cache: 'no-store'
-          });
-          if (assetRes.ok) {
-            response = assetRes;
-          }
-        }
-      }
-    } catch (apiErr) {
-      lastError = apiErr instanceof Error ? apiErr : new Error(String(apiErr));
+    const [, owner, repo, , filename] = ghReleaseMatch;
+    const rawFallback = `https://raw.githubusercontent.com/${owner}/${repo}/main/data/releases/stable/${filename}`;
+    if (!candidateUrls.includes(rawFallback)) {
+      candidateUrls.push(rawFallback);
     }
   }
 
-  // 2. Fallback to candidate URLs (raw.githubusercontent.com and direct URL)
-  if (!response) {
-    const candidateUrls: string[] = [cleanUrl];
-    if (cleanUrl.includes('github.com/') && cleanUrl.includes('/releases/download/')) {
-      const rawFallback = cleanUrl
-        .replace('https://github.com/', 'https://raw.githubusercontent.com/')
-        .replace(/\/releases\/download\/[^/]+\//, '/main/data/releases/stable/');
-      if (rawFallback !== cleanUrl && !candidateUrls.includes(rawFallback)) {
-        candidateUrls.push(rawFallback);
-      }
-    }
-
-    for (const targetUrl of candidateUrls) {
-      try {
-        const res = await fetchFn(targetUrl, {
+  for (const targetUrl of candidateUrls) {
+    try {
+      const res = await performRemoteFetch(
+        targetUrl,
+        {
           cache: 'no-store'
-        });
-        if (res.ok) {
-          response = res;
-          break;
+        },
+        options?.customFetch
+      );
+      if (res.ok) {
+        response = res;
+        break;
+      }
+      lastError = new Error(`HTTP ${res.status} ${res.statusText}`.trim());
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
+  }
+
+  // 2. If a raw.githubusercontent.com or GitHub Release URL failed (e.g., 404 or asset redirect),
+  // resolve the exact package asset from the repository's GitHub Releases API.
+  if (!response) {
+    const ghLoc = parseGitHubRepoLocation(cleanUrl);
+    if (ghLoc) {
+      const releaseInfo = await findGitHubReleaseAssets({
+        owner: ghLoc.owner,
+        repo: ghLoc.repo,
+        channel: ghLoc.channel || 'stable',
+        preferredFileOrVersion: ghLoc.tag || ghLoc.fileName,
+        customFetch: options?.customFetch
+      });
+
+      if (releaseInfo?.packageAsset) {
+        const assetCandidates = [
+          releaseInfo.packageAsset.browserDownloadUrl,
+          releaseInfo.packageAsset.apiAssetUrl
+        ].filter((u, idx, arr) => Boolean(u) && arr.indexOf(u) === idx);
+
+        for (const assetUrl of assetCandidates) {
+          try {
+            const isApiAsset = assetUrl.includes('api.github.com/repos/');
+            const res = await performRemoteFetch(
+              assetUrl,
+              {
+                headers: isApiAsset ? { Accept: 'application/octet-stream' } : undefined,
+                cache: 'no-store'
+              },
+              options?.customFetch
+            );
+            if (res.ok) {
+              response = res;
+              break;
+            }
+            lastError = new Error(`HTTP ${res.status} ${res.statusText}`.trim());
+          } catch (err) {
+            lastError = err instanceof Error ? err : new Error(String(err));
+          }
         }
-        lastError = new Error(`HTTP ${res.status} ${res.statusText}`);
-      } catch (err) {
-        lastError = err instanceof Error ? err : new Error(String(err));
       }
     }
   }

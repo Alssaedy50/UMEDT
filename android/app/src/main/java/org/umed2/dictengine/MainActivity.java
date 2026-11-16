@@ -34,9 +34,13 @@ import com.getcapacitor.BridgeActivity;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 public class MainActivity extends BridgeActivity {
 
@@ -421,6 +425,107 @@ public class MainActivity extends BridgeActivity {
                 }
             }
             return res.toString();
+        }
+
+        @JavascriptInterface
+        public String fetchRemoteUrlBase64(String urlString) {
+            JSONObject res = new JSONObject();
+            HttpURLConnection conn = null;
+            try {
+                if (urlString == null || (!urlString.startsWith("https://") && !urlString.startsWith("http://"))) {
+                    res.put("ok", false);
+                    res.put("status", 400);
+                    res.put("error", "رابط غير صالح");
+                    return res.toString();
+                }
+
+                String currentUrl = urlString.trim();
+                int statusCode = 0;
+                String statusMsg = "";
+                for (int hop = 0; hop < 6; hop++) {
+                    URL url = new URL(currentUrl);
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setInstanceFollowRedirects(false);
+                    conn.setConnectTimeout(20000);
+                    conn.setReadTimeout(25000);
+                    conn.setRequestProperty("User-Agent", "UMEDT-Android/2.4.0");
+                    conn.setRequestProperty("Accept", "application/json, application/octet-stream, */*");
+                    statusCode = conn.getResponseCode();
+                    statusMsg = conn.getResponseMessage() != null ? conn.getResponseMessage() : "";
+                    if (statusCode == HttpURLConnection.HTTP_MOVED_PERM
+                            || statusCode == HttpURLConnection.HTTP_MOVED_TEMP
+                            || statusCode == HttpURLConnection.HTTP_SEE_OTHER
+                            || statusCode == 307
+                            || statusCode == 308) {
+                        String loc = conn.getHeaderField("Location");
+                        conn.disconnect();
+                        conn = null;
+                        if (loc == null || loc.trim().isEmpty()) {
+                            break;
+                        }
+                        currentUrl = new URL(url, loc.trim()).toString();
+                        continue;
+                    }
+                    break;
+                }
+
+                if (conn == null) {
+                    res.put("ok", false);
+                    res.put("status", 502);
+                    res.put("error", "تعذر تتبع رابط التحويل");
+                    return res.toString();
+                }
+
+                final int MAX_BYTES = 25 * 1024 * 1024;
+                int contentLength = conn.getContentLength();
+                if (contentLength > MAX_BYTES) {
+                    res.put("ok", false);
+                    res.put("status", 413);
+                    res.put("error", "حجم الملف يتجاوز الحد الأقصى المسموح (25 MB)");
+                    return res.toString();
+                }
+
+                InputStream is = statusCode >= 400 ? conn.getErrorStream() : conn.getInputStream();
+                ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                if (is != null) {
+                    byte[] chunk = new byte[16384];
+                    int total = 0;
+                    int read;
+                    while ((read = is.read(chunk)) != -1) {
+                        total += read;
+                        if (total > MAX_BYTES) {
+                            is.close();
+                            res.put("ok", false);
+                            res.put("status", 413);
+                            res.put("error", "حجم الملف يتجاوز الحد الأقصى المسموح (25 MB)");
+                            return res.toString();
+                        }
+                        buffer.write(chunk, 0, read);
+                    }
+                    is.close();
+                }
+
+                byte[] payload = buffer.toByteArray();
+                String contentType = conn.getContentType() != null ? conn.getContentType() : "application/octet-stream";
+                res.put("ok", statusCode >= 200 && statusCode < 300);
+                res.put("status", statusCode);
+                res.put("statusText", statusMsg);
+                res.put("contentType", contentType);
+                res.put("base64", Base64.encodeToString(payload, Base64.NO_WRAP));
+                return res.toString();
+            } catch (Exception e) {
+                try {
+                    res.put("ok", false);
+                    res.put("status", 0);
+                    res.put("error", e.getMessage() != null ? e.getMessage() : "تعذر جلب البيانات من الشبكة");
+                } catch (Exception ignored) {
+                }
+                return res.toString();
+            } finally {
+                if (conn != null) {
+                    conn.disconnect();
+                }
+            }
         }
 
         @JavascriptInterface
