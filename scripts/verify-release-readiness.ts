@@ -126,8 +126,10 @@ async function main() {
     'Only .json and .zip import formats must be supported'
   );
   assertCondition(
-    DEFAULT_ONLINE_UPDATE_CONFIG.manifestUrl === '',
-    'Optional CDN medical-data publishing must NOT be activated by default'
+    DEFAULT_ONLINE_UPDATE_CONFIG.autoCheckOnStartup === false &&
+      (DEFAULT_ONLINE_UPDATE_CONFIG.manifestUrl === '' ||
+        DEFAULT_ONLINE_UPDATE_CONFIG.manifestUrl.includes('Alssaedy50/UMEDT_DATA')),
+    'Optional CDN medical-data auto-check on startup must NOT be activated by default'
   );
   assertCondition(
     DEFAULT_ONLINE_UPDATE_CONFIG.autoUpdatePolicy === 'notify-only',

@@ -94,7 +94,7 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "revision": "6789ab21bd9f1223f37108f2a93301c7"
   }, {
     "url": "index.html",
-    "revision": "4e1eb654a01aa100645e02379dc3b715"
+    "revision": "9b1256d3c89d876ec8cf4d6f979d8176"
   }, {
     "url": "icon.svg",
     "revision": "de3825fdeaffe99000bb989fa4bd5ac5"
@@ -105,10 +105,10 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "assets/workbox-window.prod.es5-BBnX5xw4.js",
     "revision": null
   }, {
-    "url": "assets/virtual_pwa-register-Bug2h3Z5.js",
+    "url": "assets/virtual_pwa-register-bKuakkwv.js",
     "revision": null
   }, {
-    "url": "assets/index-CwZXydL_.js",
+    "url": "assets/index-CzrXTUDM.js",
     "revision": null
   }, {
     "url": "assets/index-Cdnv7iV5.css",
