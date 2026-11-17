@@ -324,6 +324,104 @@ export interface DetectedMediaMeta {
   suggestedFileName: string;
 }
 
+export function normalizeMediaMimeType(
+  explicitMime?: string,
+  fileName?: string,
+  urlOrContent?: string
+): string {
+  const trimmedUrl = (urlOrContent || '').trim();
+  if (trimmedUrl.startsWith('data:')) {
+    const commaIdx = trimmedUrl.indexOf(',');
+    const header = commaIdx !== -1 ? trimmedUrl.slice(5, commaIdx) : trimmedUrl.slice(5);
+    const headerMime = header.split(';')[0].trim().toLowerCase();
+    if (/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(headerMime)) {
+      return headerMime;
+    }
+  }
+
+  const cleanExplicit = (explicitMime || '').split(';')[0].trim().toLowerCase();
+  if (
+    cleanExplicit &&
+    cleanExplicit !== 'application/octet-stream' &&
+    /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(cleanExplicit)
+  ) {
+    return cleanExplicit;
+  }
+
+  const targetName = (fileName || trimmedUrl.split('?')[0].split('#')[0] || '').toLowerCase();
+  if (targetName.endsWith('.pdf')) return 'application/pdf';
+  if (targetName.endsWith('.svg')) return 'image/svg+xml';
+  if (targetName.endsWith('.png')) return 'image/png';
+  if (targetName.endsWith('.jpg') || targetName.endsWith('.jpeg')) return 'image/jpeg';
+  if (targetName.endsWith('.webp')) return 'image/webp';
+  if (targetName.endsWith('.gif')) return 'image/gif';
+  if (targetName.endsWith('.mp4')) return 'video/mp4';
+  if (targetName.endsWith('.webm')) return 'video/webm';
+  if (targetName.endsWith('.mov')) return 'video/quicktime';
+  if (targetName.endsWith('.mp3')) return 'audio/mpeg';
+  if (targetName.endsWith('.wav')) return 'audio/wav';
+  if (targetName.endsWith('.ogg')) return 'audio/ogg';
+  if (targetName.endsWith('.m4a')) return 'audio/mp4';
+  if (targetName.endsWith('.json')) return 'application/json';
+  if (targetName.endsWith('.csv')) return 'text/csv';
+  if (targetName.endsWith('.md')) return 'text/markdown';
+  if (targetName.endsWith('.txt')) return 'text/plain';
+  if (targetName.endsWith('.epub')) return 'application/epub+zip';
+  if (targetName.endsWith('.zip')) return 'application/zip';
+
+  if (cleanExplicit.includes('text') || cleanExplicit.includes('study sheet')) {
+    return 'text/plain';
+  }
+  if (cleanExplicit.includes('json')) {
+    return 'application/json';
+  }
+  if (cleanExplicit.includes('pdf')) {
+    return 'application/pdf';
+  }
+
+  return cleanExplicit && /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(cleanExplicit)
+    ? cleanExplicit
+    : 'application/octet-stream';
+}
+
+export function isDownloadableMediaUrl(
+  rawUrl: string,
+  explicitMime?: string,
+  explicitFileName?: string
+): boolean {
+  const cleanUrl = (rawUrl || '').trim();
+  if (!cleanUrl) return false;
+  if (cleanUrl.startsWith('data:')) {
+    return !cleanUrl.toLowerCase().startsWith('data:text/html');
+  }
+  const detected = detectExternalMediaKind(cleanUrl, explicitMime, explicitFileName);
+  if (detected.kind === 'video_embed') {
+    return false;
+  }
+  if (
+    detected.kind === 'image' ||
+    detected.kind === 'video_direct' ||
+    detected.kind === 'audio' ||
+    detected.kind === 'pdf'
+  ) {
+    return true;
+  }
+  const lowerPath = cleanUrl.toLowerCase().split('?')[0].split('#')[0];
+  if (/\.(txt|json|csv|md|xml|epub|zip|docx?|xlsx?|pptx?)$/i.test(lowerPath)) {
+    return true;
+  }
+  const mimeLower = (explicitMime || '').toLowerCase();
+  if (
+    mimeLower &&
+    mimeLower !== 'text/html' &&
+    mimeLower !== 'application/octet-stream' &&
+    /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(mimeLower.split(';')[0].trim())
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function detectExternalMediaKind(
   rawUrl: string,
   explicitMime?: string,
@@ -346,15 +444,15 @@ export function detectExternalMediaKind(
     }
   }
 
-  // YouTube embed detection
+  // YouTube embed detection (supports watch, embed, shorts, live, youtu.be)
   const ytMatch = url.match(
-    /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{6,15})/i
+    /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{6,15})/i
   );
   if (ytMatch && ytMatch[1]) {
     return {
       kind: 'video_embed',
       mimeType: 'text/html',
-      embedUrl: `https://www.youtube.com/embed/${ytMatch[1]}`,
+      embedUrl: `https://www.youtube.com/embed/${ytMatch[1]}?rel=0`,
       suggestedFileName: fallbackName || `youtube-${ytMatch[1]}.mp4`
     };
   }
@@ -388,8 +486,12 @@ export function detectExternalMediaKind(
   ) {
     return {
       kind: 'image',
-      mimeType: explicitMime || 'image/png',
-      suggestedFileName: fallbackName || `medical-image-${Date.now()}.png`
+      mimeType: normalizeMediaMimeType(explicitMime, fallbackName, url) || 'image/png',
+      suggestedFileName:
+        fallbackName ||
+        (url.includes('svg') || mimeLower.includes('svg')
+          ? `medical-diagram-${Date.now()}.svg`
+          : `medical-image-${Date.now()}.png`)
     };
   }
 
@@ -400,7 +502,7 @@ export function detectExternalMediaKind(
   ) {
     return {
       kind: 'video_direct',
-      mimeType: explicitMime || 'video/mp4',
+      mimeType: normalizeMediaMimeType(explicitMime, fallbackName, url) || 'video/mp4',
       suggestedFileName: fallbackName || `medical-video-${Date.now()}.mp4`
     };
   }
@@ -412,7 +514,7 @@ export function detectExternalMediaKind(
   ) {
     return {
       kind: 'audio',
-      mimeType: explicitMime || 'audio/mpeg',
+      mimeType: normalizeMediaMimeType(explicitMime, fallbackName, url) || 'audio/mpeg',
       suggestedFileName: fallbackName || `medical-audio-${Date.now()}.mp3`
     };
   }
@@ -429,9 +531,20 @@ export function detectExternalMediaKind(
     };
   }
 
+  if (/\.(txt|json|csv|md|xml)$/i.test(lower)) {
+    return {
+      kind: 'link',
+      mimeType: normalizeMediaMimeType(explicitMime, fallbackName, url),
+      suggestedFileName: fallbackName || `resource-${Date.now()}.txt`
+    };
+  }
+
   return {
     kind: 'link',
-    mimeType: explicitMime || 'application/octet-stream',
+    mimeType:
+      explicitMime && /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(explicitMime.split(';')[0].trim())
+        ? explicitMime
+        : 'text/html',
     suggestedFileName: fallbackName || `resource-${Date.now()}`
   };
 }
@@ -503,9 +616,29 @@ export async function downloadRemoteMediaToOfflineCache(params: {
     };
   }
 
+  if (!isDownloadableMediaUrl(cleanUrl, explicitMime, explicitFileName)) {
+    return {
+      success: false,
+      idbKey,
+      mediaIdbKey: idbKey,
+      dataUrl: '',
+      fileName: detected.suggestedFileName,
+      mimeType: detected.mimeType,
+      sizeBytes: 0,
+      verifiedInIdb: false,
+      messageAr:
+        'هذا الرابط صفحة ويب تفاعلية وليس ملف وسائط مباشراً للتنزيل — افتحه مباشرة في المتصفح أو التطبيق الخارجي.',
+      errorAr: 'NON_DOWNLOADABLE_WEBPAGE'
+    };
+  }
+
   try {
     let dataUrl = '';
-    let resolvedMime = explicitMime || detected.mimeType;
+    let resolvedMime = normalizeMediaMimeType(
+      explicitMime || detected.mimeType,
+      explicitFileName || detected.suggestedFileName,
+      cleanUrl
+    );
     let sizeBytes = 0;
 
     if (cleanUrl.startsWith('data:')) {
@@ -535,8 +668,24 @@ export async function downloadRemoteMediaToOfflineCache(params: {
             base64?: string;
           };
           if (parsed.ok && parsed.base64) {
-            if (parsed.contentType && parsed.contentType !== 'application/octet-stream') {
-              resolvedMime = parsed.contentType.split(';')[0].trim();
+            const bridgeCt = (parsed.contentType || '').split(';')[0].trim().toLowerCase();
+            if (bridgeCt === 'text/html' || bridgeCt === 'application/xhtml+xml') {
+              return {
+                success: false,
+                idbKey,
+                mediaIdbKey: idbKey,
+                dataUrl: '',
+                fileName: detected.suggestedFileName,
+                mimeType: bridgeCt,
+                sizeBytes: 0,
+                verifiedInIdb: false,
+                messageAr:
+                  'الرابط أعاد صفحة ويب (HTML) بدلاً من ملف وسائط قابل للتنزيل — افتحه عبر المتصفح.',
+                errorAr: 'HTML_RESPONSE_REJECTED'
+              };
+            }
+            if (bridgeCt && bridgeCt !== 'application/octet-stream') {
+              resolvedMime = bridgeCt;
             }
             sizeBytes = Math.max(1, Math.floor((parsed.base64.length * 3) / 4));
             dataUrl = `data:${resolvedMime};base64,${parsed.base64}`;
@@ -574,9 +723,27 @@ export async function downloadRemoteMediaToOfflineCache(params: {
           };
         }
 
-        const ctHeader = response.headers.get('content-type');
-        if (ctHeader && !ctHeader.includes('text/html') && ctHeader !== 'application/octet-stream') {
-          resolvedMime = ctHeader.split(';')[0].trim();
+        const ctHeader = (response.headers.get('content-type') || '')
+          .split(';')[0]
+          .trim()
+          .toLowerCase();
+        if (ctHeader === 'text/html' || ctHeader === 'application/xhtml+xml') {
+          return {
+            success: false,
+            idbKey,
+            mediaIdbKey: idbKey,
+            dataUrl: '',
+            fileName: detected.suggestedFileName,
+            mimeType: ctHeader,
+            sizeBytes: 0,
+            verifiedInIdb: false,
+            messageAr:
+              'الرابط أعاد صفحة ويب (HTML) بدلاً من ملف وسائط مباشر — افتحه في المتصفح أو تطبيق خارجي.',
+            errorAr: 'HTML_RESPONSE_REJECTED'
+          };
+        }
+        if (ctHeader && ctHeader !== 'application/octet-stream') {
+          resolvedMime = ctHeader;
         }
         const ab = await response.arrayBuffer();
         const bytes = new Uint8Array(ab);
@@ -593,6 +760,28 @@ export async function downloadRemoteMediaToOfflineCache(params: {
             verifiedInIdb: false,
             messageAr: 'الملف الذي تم جلبه من الرابط فارغ (0 بايت).',
             errorAr: 'EMPTY_REMOTE_PAYLOAD'
+          };
+        }
+        const headSnippet = new TextDecoder('utf-8', { fatal: false })
+          .decode(bytes.subarray(0, Math.min(256, bytes.byteLength)))
+          .trimStart()
+          .toLowerCase();
+        if (
+          headSnippet.startsWith('<!doctype html') ||
+          headSnippet.startsWith('<html')
+        ) {
+          return {
+            success: false,
+            idbKey,
+            mediaIdbKey: idbKey,
+            dataUrl: '',
+            fileName: detected.suggestedFileName,
+            mimeType: 'text/html',
+            sizeBytes: 0,
+            verifiedInIdb: false,
+            messageAr:
+              'المحتوى المستلم عبارة عن صفحة HTML وليس ملفاً مباشراً — افتح الرابط في المتصفح.',
+            errorAr: 'HTML_RESPONSE_REJECTED'
           };
         }
         const b64 = uint8ToBase64(bytes);
@@ -664,6 +853,74 @@ export async function downloadRemoteMediaToOfflineCache(params: {
   }
 }
 
+function ensureFileExtensionForMime(rawName: string, mime: string): string {
+  const clean = (rawName || `umedt-media-${Date.now()}`).trim();
+  if (/\.[a-z0-9]{2,6}$/i.test(clean)) return clean;
+  const m = mime.toLowerCase();
+  if (m.includes('svg')) return `${clean}.svg`;
+  if (m.includes('png')) return `${clean}.png`;
+  if (m.includes('jpeg') || m.includes('jpg')) return `${clean}.jpg`;
+  if (m.includes('webp')) return `${clean}.webp`;
+  if (m.includes('pdf')) return `${clean}.pdf`;
+  if (m.includes('json')) return `${clean}.json`;
+  if (m.includes('csv')) return `${clean}.csv`;
+  if (m.includes('text/plain')) return `${clean}.txt`;
+  if (m.includes('mpeg')) return `${clean}.mp3`;
+  if (m.includes('mp4')) return `${clean}.mp4`;
+  return clean;
+}
+
+function normalizeDataUrlOrTextToBase64DataUrl(
+  target: string,
+  fileName?: string,
+  explicitMime?: string
+): { dataUrl: string; fileName: string; mimeType: string } {
+  const mimeType = normalizeMediaMimeType(explicitMime, fileName, target);
+  const resolvedName = ensureFileExtensionForMime(
+    fileName || `umedt-resource-${Date.now()}`,
+    mimeType
+  );
+  if (target.startsWith('data:')) {
+    const commaIdx = target.indexOf(',');
+    const header = commaIdx !== -1 ? target.slice(5, commaIdx) : '';
+    const dataPart = commaIdx !== -1 ? target.slice(commaIdx + 1) : '';
+    const dataMime = normalizeMediaMimeType(
+      header.split(';')[0] || mimeType,
+      resolvedName,
+      target
+    );
+    if (header.includes('base64')) {
+      return {
+        dataUrl: target,
+        fileName: ensureFileExtensionForMime(resolvedName, dataMime),
+        mimeType: dataMime
+      };
+    }
+    const decodedText = (() => {
+      try {
+        return decodeURIComponent(dataPart);
+      } catch {
+        return dataPart;
+      }
+    })();
+    const bytes = new TextEncoder().encode(decodedText);
+    const b64 = uint8ToBase64(bytes);
+    return {
+      dataUrl: `data:${dataMime};base64,${b64}`,
+      fileName: ensureFileExtensionForMime(resolvedName, dataMime),
+      mimeType: dataMime
+    };
+  }
+  const textMime = mimeType === 'application/octet-stream' ? 'text/plain' : mimeType;
+  const bytes = new TextEncoder().encode(target);
+  const b64 = uint8ToBase64(bytes);
+  return {
+    dataUrl: `data:${textMime};base64,${b64}`,
+    fileName: ensureFileExtensionForMime(resolvedName, textMime),
+    mimeType: textMime
+  };
+}
+
 /**
  * Opens an external URL or local media file in an external application on Android (`ACTION_VIEW`) or browser tab.
  */
@@ -676,6 +933,8 @@ export function openMediaInExternalApp(
   if (!target) {
     return { opened: false, messageAr: 'لا يوجد رابط أو ملف لفتحه خارجياً.' };
   }
+
+  const isHttpUrl = /^https?:\/\//i.test(target);
 
   if (typeof window !== 'undefined') {
     const bridge = (
@@ -690,27 +949,42 @@ export function openMediaInExternalApp(
 
     if (bridge) {
       try {
-        if (target.startsWith('data:') && bridge.saveBase64FileToDownloads && bridge.openDownloadedFile) {
-          const safeName = fileName || `umedt-media-${Date.now()}`;
-          const safeMime = mimeType || 'application/octet-stream';
-          bridge.saveBase64FileToDownloads(safeName, target, safeMime);
-          const openRes = JSON.parse(bridge.openDownloadedFile(safeName, safeMime)) as {
-            ok?: boolean;
-          };
-          if (openRes.ok) {
-            return {
-              opened: true,
-              messageAr: `تم فتح "${safeName}" في تطبيق خارجي.`
-            };
-          }
-        } else if (bridge.openExternalUrl) {
-          const raw = bridge.openExternalUrl(target, mimeType || '');
+        if (isHttpUrl && bridge.openExternalUrl) {
+          // Never send arbitrary MIME types for http(s) links so Android resolves Chrome/YouTube/Browser cleanly
+          const raw = bridge.openExternalUrl(target, '');
           const parsed = JSON.parse(raw) as { ok?: boolean };
           if (parsed.ok) {
             return {
               opened: true,
-              messageAr: 'تم فتح الوسائط في التطبيق الخارجي.'
+              messageAr: 'تم فتح الرابط في المتصفح / التطبيق الخارجي.'
             };
+          }
+        } else if (
+          !isHttpUrl &&
+          bridge.saveBase64FileToDownloads &&
+          bridge.openDownloadedFile
+        ) {
+          const normalized = normalizeDataUrlOrTextToBase64DataUrl(
+            target,
+            fileName,
+            mimeType
+          );
+          const saveRaw = bridge.saveBase64FileToDownloads(
+            normalized.fileName,
+            normalized.dataUrl,
+            normalized.mimeType
+          );
+          const saveParsed = JSON.parse(saveRaw) as { ok?: boolean };
+          if (saveParsed.ok) {
+            const openRes = JSON.parse(
+              bridge.openDownloadedFile(normalized.fileName, normalized.mimeType)
+            ) as { ok?: boolean };
+            if (openRes.ok) {
+              return {
+                opened: true,
+                messageAr: `تم فتح "${normalized.fileName}" في تطبيق خارجي.`
+              };
+            }
           }
         }
       } catch {
@@ -719,12 +993,15 @@ export function openMediaInExternalApp(
     }
 
     if (typeof document !== 'undefined') {
+      const normalized = isHttpUrl
+        ? { dataUrl: target, fileName: fileName || '' }
+        : normalizeDataUrlOrTextToBase64DataUrl(target, fileName, mimeType);
       const a = document.createElement('a');
-      a.href = target;
+      a.href = normalized.dataUrl;
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
-      if (target.startsWith('data:') && fileName) {
-        a.download = fileName;
+      if (!isHttpUrl && normalized.fileName) {
+        a.download = normalized.fileName;
       }
       document.body.appendChild(a);
       a.click();
@@ -733,7 +1010,9 @@ export function openMediaInExternalApp(
       }, 2000);
       return {
         opened: true,
-        messageAr: 'تم فتح الملف / الرابط في عارض خارجي.'
+        messageAr: isHttpUrl
+          ? 'تم فتح الرابط في المتصفح.'
+          : `تم فتح "${normalized.fileName}" في عارض خارجي.`
       };
     }
   }

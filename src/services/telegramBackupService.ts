@@ -16,7 +16,10 @@ import {
   AcademicExamPackage,
   MediaAssetRecord,
   LocalMediaRecord,
-  UserStudyNoteRecord
+  UserStudyNoteRecord,
+  MorphologicalAffix,
+  ClinicalAbbreviation,
+  DataPackagePayload
 } from '../types/lexicon';
 import {
   loadMedicalBlocks,
@@ -33,9 +36,31 @@ import {
 } from './quizEngineService';
 import { getAllLocalMediaRecordsMap } from './mediaStorageService';
 import { base64ToUint8Array } from '../utils/downloadHelper';
-import { createDefaultVersionMetadata } from './dataPlatformService';
+import {
+  APP_VERSION,
+  DB_SCHEMA_VERSION,
+  buildDataPackageZipBytes,
+  createDefaultVersionMetadata
+} from './dataPlatformService';
 
-export type TelegramBackupSchedule = 'off' | '6h' | 'daily' | 'weekly' | 'on_change';
+export type TelegramBackupSchedule =
+  | 'off'
+  | '1h'
+  | '6h'
+  | '12h'
+  | 'daily'
+  | 'weekly'
+  | 'custom_hours'
+  | 'on_change';
+
+export type TelegramBackupMode =
+  | 'single_complete_file'
+  | 'with_separate_media'
+  | 'notes_and_scheduled_full';
+
+export type TelegramBackupFileFormat = 'json' | 'zip';
+
+export type TelegramChangeAction = 'add' | 'update' | 'delete' | 'import';
 
 export interface ConciseDataSummary {
   termsCount: number;
@@ -65,6 +90,10 @@ export interface TelegramBackupConfig {
   encryptedBotToken?: string;
   chatId: string;
   schedule: TelegramBackupSchedule;
+  backupMode?: TelegramBackupMode;
+  backupFileFormat?: TelegramBackupFileFormat;
+  sendInstantChangeNotes?: boolean;
+  customIntervalHours?: number;
   includeTopicsAndHierarchy: boolean;
   includeDictionaryAndTerms: boolean;
   includeQuizzesAndStats: boolean;
@@ -73,6 +102,8 @@ export interface TelegramBackupConfig {
   lastBackupAt?: string;
   lastBackupSummary?: ConciseDataSummary;
   lastBackupMessageId?: number;
+  lastBackupFileId?: string;
+  lastBackupFileName?: string;
   appBackupMessageIds?: number[];
 }
 
@@ -85,11 +116,15 @@ const DEFAULT_CONFIG: TelegramBackupConfig = {
   enabled: false,
   botToken: '',
   chatId: '',
-  schedule: 'on_change',
+  schedule: 'daily',
+  backupMode: 'single_complete_file',
+  backupFileFormat: 'json',
+  sendInstantChangeNotes: true,
+  customIntervalHours: 4,
   includeTopicsAndHierarchy: true,
   includeDictionaryAndTerms: true,
   includeQuizzesAndStats: true,
-  includeMediaFilesOnSync: true,
+  includeMediaFilesOnSync: false,
   syncedMediaSha256Map: {},
   appBackupMessageIds: []
 };
@@ -387,6 +422,40 @@ export function loadTelegramBackupConfig(): TelegramBackupConfig {
       ])
     );
 
+    const backupMode: TelegramBackupMode =
+      parsedFull.backupMode ||
+      parsedCreds.backupMode ||
+      memoryTelegramConfig?.backupMode ||
+      'single_complete_file';
+
+    const includeMediaFilesOnSync =
+      backupMode === 'with_separate_media'
+        ? true
+        : parsedFull.backupMode || parsedCreds.backupMode
+          ? false
+          : false;
+
+    const backupFileFormat: TelegramBackupFileFormat =
+      parsedFull.backupFileFormat ||
+      parsedCreds.backupFileFormat ||
+      memoryTelegramConfig?.backupFileFormat ||
+      'json';
+
+    const sendInstantChangeNotes =
+      typeof parsedFull.sendInstantChangeNotes === 'boolean'
+        ? parsedFull.sendInstantChangeNotes
+        : typeof parsedCreds.sendInstantChangeNotes === 'boolean'
+          ? parsedCreds.sendInstantChangeNotes
+          : memoryTelegramConfig?.sendInstantChangeNotes ?? true;
+
+    const customIntervalHoursRaw =
+      typeof parsedFull.customIntervalHours === 'number'
+        ? parsedFull.customIntervalHours
+        : typeof parsedCreds.customIntervalHours === 'number'
+          ? parsedCreds.customIntervalHours
+          : memoryTelegramConfig?.customIntervalHours ?? 4;
+    const customIntervalHours = Math.max(0.25, Math.min(720, customIntervalHoursRaw));
+
     const resolved: TelegramBackupConfig = {
       ...DEFAULT_CONFIG,
       ...memoryTelegramConfig,
@@ -396,6 +465,11 @@ export function loadTelegramBackupConfig(): TelegramBackupConfig {
       encryptedBotToken: decryptedToken ? encryptBotTokenForStorage(decryptedToken) : '',
       chatId,
       schedule,
+      backupMode,
+      backupFileFormat,
+      sendInstantChangeNotes,
+      customIntervalHours,
+      includeMediaFilesOnSync,
       enabled,
       lastBackupMessageId,
       appBackupMessageIds
@@ -415,19 +489,58 @@ export function saveTelegramBackupConfig(config: TelegramBackupConfig): Telegram
   const plainToken = decryptBotTokenFromStorage(rawTokenInput);
   const encryptedBotToken = plainToken ? encryptBotTokenForStorage(plainToken) : '';
   const chatId = typeof config.chatId === 'string' ? config.chatId : previous.chatId;
-  const schedule = config.schedule || previous.schedule || 'on_change';
+  const schedule = config.schedule || previous.schedule || 'daily';
   const hasCredentials = Boolean(plainToken.trim() && chatId.trim());
+
+  const resolvedBackupMode: TelegramBackupMode =
+    config.backupMode !== undefined
+      ? config.backupMode
+      : config.includeMediaFilesOnSync === true && config.backupMode === undefined
+        ? 'with_separate_media'
+        : config.includeMediaFilesOnSync === false
+          ? previous.backupMode === 'notes_and_scheduled_full'
+            ? 'notes_and_scheduled_full'
+            : 'single_complete_file'
+          : previous.backupMode || 'single_complete_file';
+
+  const resolvedIncludeMedia =
+    resolvedBackupMode === 'with_separate_media'
+      ? config.includeMediaFilesOnSync !== false
+      : false;
+
+  const resolvedFormat: TelegramBackupFileFormat =
+    config.backupFileFormat || previous.backupFileFormat || 'json';
+
+  const resolvedInstantNotes =
+    typeof config.sendInstantChangeNotes === 'boolean'
+      ? config.sendInstantChangeNotes
+      : typeof previous.sendInstantChangeNotes === 'boolean'
+        ? previous.sendInstantChangeNotes
+        : true;
+
+  const resolvedCustomHours = Math.max(
+    0.25,
+    Math.min(
+      720,
+      typeof config.customIntervalHours === 'number' && !Number.isNaN(config.customIntervalHours)
+        ? config.customIntervalHours
+        : previous.customIntervalHours || 4
+    )
+  );
 
   const lastBackupMessageId =
     typeof config.lastBackupMessageId === 'number'
       ? config.lastBackupMessageId
       : previous.lastBackupMessageId;
 
-  const appBackupMessageIds = Array.isArray(config.appBackupMessageIds)
-    ? config.appBackupMessageIds
-    : typeof lastBackupMessageId === 'number'
-    ? [lastBackupMessageId]
-    : previous.appBackupMessageIds || [];
+  const appBackupMessageIds = Array.from(
+    new Set([
+      ...(Array.isArray(config.appBackupMessageIds)
+        ? config.appBackupMessageIds
+        : previous.appBackupMessageIds || []),
+      ...(typeof lastBackupMessageId === 'number' ? [lastBackupMessageId] : [])
+    ])
+  );
 
   const normalized: TelegramBackupConfig = {
     ...DEFAULT_CONFIG,
@@ -437,6 +550,11 @@ export function saveTelegramBackupConfig(config: TelegramBackupConfig): Telegram
     encryptedBotToken,
     chatId,
     schedule,
+    backupMode: resolvedBackupMode,
+    backupFileFormat: resolvedFormat,
+    sendInstantChangeNotes: resolvedInstantNotes,
+    customIntervalHours: resolvedCustomHours,
+    includeMediaFilesOnSync: resolvedIncludeMedia,
     enabled:
       schedule === 'off'
         ? false
@@ -461,13 +579,19 @@ export function saveTelegramBackupConfig(config: TelegramBackupConfig): Telegram
     encryptedBotToken,
     chatId: normalized.chatId,
     schedule: normalized.schedule,
+    backupMode: normalized.backupMode,
+    backupFileFormat: normalized.backupFileFormat,
+    sendInstantChangeNotes: normalized.sendInstantChangeNotes,
+    customIntervalHours: normalized.customIntervalHours,
     includeTopicsAndHierarchy: normalized.includeTopicsAndHierarchy,
     includeDictionaryAndTerms: normalized.includeDictionaryAndTerms,
     includeQuizzesAndStats: normalized.includeQuizzesAndStats,
-    includeMediaFilesOnSync: normalized.includeMediaFilesOnSync !== false,
+    includeMediaFilesOnSync: normalized.includeMediaFilesOnSync === true,
     syncedMediaSha256Map,
     lastBackupAt: normalized.lastBackupAt,
     lastBackupMessageId: normalized.lastBackupMessageId,
+    lastBackupFileId: normalized.lastBackupFileId,
+    lastBackupFileName: normalized.lastBackupFileName,
     appBackupMessageIds: normalized.appBackupMessageIds
   };
 
@@ -612,12 +736,14 @@ export interface FullUnifiedBackupPayload {
     exams?: AcademicExamPackage[];
     mediaAssets?: MediaAssetRecord[];
     userNotes?: UserStudyNoteRecord[];
+    customAffixes?: MorphologicalAffix[];
+    customAbbreviations?: ClinicalAbbreviation[];
     studyStats?: StudyStats;
     versionMetadata: VersionMetadata;
   };
 }
 
-function stripBinaryMediaFromBooksForBackup(books: AcademicBookResource[]): AcademicBookResource[] {
+export function stripBinaryMediaFromBooksForBackup(books: AcademicBookResource[]): AcademicBookResource[] {
   return (books || []).map((rawBk) => {
     const bk = normalizeAcademicBookResource(
       rawBk as Partial<AcademicBookResource> & Record<string, unknown>
@@ -709,6 +835,24 @@ export function buildConciseDataSummary(params: {
   };
 }
 
+function readPersistedAffixesAndAbbreviations(): {
+  customAffixes: MorphologicalAffix[];
+  customAbbreviations: ClinicalAbbreviation[];
+} {
+  try {
+    const rawAffixes = readRawFromStorage('dictengine_umd_affixes_v1');
+    const rawAbbr = readRawFromStorage('dictengine_umd_abbreviations_v1');
+    const customAffixes = rawAffixes ? (JSON.parse(rawAffixes) as MorphologicalAffix[]) : [];
+    const customAbbreviations = rawAbbr ? (JSON.parse(rawAbbr) as ClinicalAbbreviation[]) : [];
+    return {
+      customAffixes: Array.isArray(customAffixes) ? customAffixes : [],
+      customAbbreviations: Array.isArray(customAbbreviations) ? customAbbreviations : []
+    };
+  } catch {
+    return { customAffixes: [], customAbbreviations: [] };
+  }
+}
+
 export function createUnifiedBackupPackage(
   terms: DictionaryTerm[],
   sentences: LinkedSentence[],
@@ -731,6 +875,7 @@ export function createUnifiedBackupPackage(
   const userNotes = loadUserStudyNotes();
   const quizQuestions = loadQuizQuestions(sanitizedTopics, terms);
   const quizAttempts = loadQuizAttempts();
+  const { customAffixes, customAbbreviations } = readPersistedAffixesAndAbbreviations();
   const resolvedMetadata = versionMetadata || createDefaultVersionMetadata();
 
   const tempPayload = {
@@ -745,6 +890,8 @@ export function createUnifiedBackupPackage(
     exams,
     mediaAssets,
     userNotes,
+    customAffixes,
+    customAbbreviations,
     studyStats,
     versionMetadata: resolvedMetadata
   };
@@ -773,6 +920,83 @@ export function createUnifiedBackupPackage(
 
   const jsonString = redactBotTokenFromText(JSON.stringify(payload));
   return { payload, jsonString, summary };
+}
+
+export function createUnifiedZipBackupBytes(
+  terms: DictionaryTerm[],
+  sentences: LinkedSentence[],
+  topics: TopicArticle[],
+  sourceLabel = 'نسخة احتياطية كاملة (ZIP)',
+  studyStats?: StudyStats,
+  versionMetadata?: VersionMetadata
+): {
+  zipBytes: Uint8Array;
+  summary: ConciseDataSummary;
+} {
+  const { payload, summary } = createUnifiedBackupPackage(
+    terms,
+    sentences,
+    topics,
+    sourceLabel,
+    studyStats,
+    versionMetadata
+  );
+
+  const meta = payload.data.versionMetadata;
+  const dataPkg: DataPackagePayload = {
+    manifest: {
+      packageId: meta.packageId || `umedt-tg-zip-${Date.now()}`,
+      dataVersion: meta.dataVersion || '2026.10.0-umd',
+      minAppVersion: APP_VERSION,
+      schemaVersion: DB_SCHEMA_VERSION,
+      releasedAt: summary.timestamp,
+      channel: meta.remoteChannel || 'stable',
+      packageFormat: 'umedt-unified-zip-v2',
+      counts: {
+        terms: payload.data.terms.length,
+        sentences: payload.data.sentences.length,
+        topics: payload.data.topics.length,
+        affixes: (payload.data.customAffixes || []).length,
+        abbreviations: (payload.data.customAbbreviations || []).length
+      },
+      extendedCounts: {
+        blocks: payload.data.blocks.length,
+        subjects: payload.data.subjects.length,
+        topics: payload.data.topics.length,
+        terms: payload.data.terms.length,
+        sentences: payload.data.sentences.length,
+        books: (payload.data.books || []).length,
+        questions: payload.data.quizQuestions.length,
+        quizAttempts: payload.data.quizAttempts.length,
+        exams: (payload.data.exams || []).length,
+        mediaAssets: (payload.data.mediaAssets || []).length,
+        userNotes: (payload.data.userNotes || []).length
+      }
+    },
+    terms: payload.data.terms,
+    sentences: payload.data.sentences,
+    topics: payload.data.topics,
+    customAffixes: payload.data.customAffixes || [],
+    customAbbreviations: payload.data.customAbbreviations || [],
+    blocks: payload.data.blocks,
+    subjects: payload.data.subjects,
+    books: payload.data.books || [],
+    questions: payload.data.quizQuestions,
+    quizAttempts: payload.data.quizAttempts,
+    exams: payload.data.exams || [],
+    mediaAssets: payload.data.mediaAssets || [],
+    userNotes: payload.data.userNotes || [],
+    studyStats: payload.data.studyStats
+  };
+
+  const zipBytes = buildDataPackageZipBytes(dataPkg);
+  return {
+    zipBytes,
+    summary: {
+      ...summary,
+      sizeKB: Math.max(1, Math.round((zipBytes.byteLength / 1024) * 10) / 10)
+    }
+  };
 }
 
 function sanitizeTelegramInput(raw: string): string {
@@ -1105,38 +1329,73 @@ export async function sendBackupToTelegram(
     const filteredSentences = mergedConfig.includeDictionaryAndTerms ? sentences : [];
     const filteredTopics = mergedConfig.includeTopicsAndHierarchy ? topics : [];
 
-    const { jsonString, summary } = createUnifiedBackupPackage(
-      filteredTerms,
-      filteredSentences,
-      filteredTopics,
-      reasonLabel,
-      studyStats,
-      versionMetadata
-    );
-
+    const useZipFormat = mergedConfig.backupFileFormat === 'zip';
     const dateStr = new Date().toISOString().slice(0, 10);
-    const filename = `UMEDT-Backup-${dateStr}.json`;
+    const filename = useZipFormat
+      ? `UMEDT-Backup-${dateStr}.zip`
+      : `UMEDT-Backup-${dateStr}.json`;
+
+    let summary: ConciseDataSummary;
+    let jsonString = '';
+    let zipBytes: Uint8Array | null = null;
+
+    if (useZipFormat) {
+      const zipPkg = createUnifiedZipBackupBytes(
+        filteredTerms,
+        filteredSentences,
+        filteredTopics,
+        reasonLabel,
+        studyStats,
+        versionMetadata
+      );
+      zipBytes = zipPkg.zipBytes;
+      summary = zipPkg.summary;
+    } else {
+      const jsonPkg = createUnifiedBackupPackage(
+        filteredTerms,
+        filteredSentences,
+        filteredTopics,
+        reasonLabel,
+        studyStats,
+        versionMetadata
+      );
+      jsonString = jsonPkg.jsonString;
+      summary = jsonPkg.summary;
+    }
+
+    const mediaPolicyLabel =
+      mergedConfig.backupMode === 'with_separate_media'
+        ? 'ملف شامل + مزامنة الوسائط منفصلة'
+        : 'ملف واحد شامل (روابط الوسائط فقط)';
+
     const captionLines = [
       `📦 نسخة احتياطية UMEDT (${reasonLabel})`,
+      `🗂️ النمط: ${mediaPolicyLabel}`,
       `📋 تعريف البيانات: ${summary.shortText}`,
       `⭐ المفضلة: ${summary.favoritesCount} · الحجم: ${summary.sizeKB} KB`,
-      `🕒 التاريخ: ${new Date(summary.timestamp).toLocaleString('ar-SA')}`
+      `🕒 التاريخ: ${new Date(summary.timestamp).toLocaleString('ar-SA')}`,
+      `♻️ قابلة للاستيراد والدمج مباشرة من داخل التطبيق أو عبر رفع الملف.`
     ];
     const caption = captionLines.join('\n');
 
     let sentSuccessfully = false;
     let uploadedMessageId: number | undefined;
+    let uploadedFileId: string | undefined;
     let lastErrorDescription = '';
 
     // 1. Direct Telegram Bot API sendDocument upload (Token stays strictly inside client app)
     try {
       const formData = new FormData();
       formData.append('chat_id', cleanChatId);
+      const mimeType = useZipFormat ? 'application/zip' : 'application/json';
+      const payloadData = zipBytes
+        ? zipBytes.buffer.slice(zipBytes.byteOffset, zipBytes.byteOffset + zipBytes.byteLength) as ArrayBuffer
+        : jsonString;
       try {
-        const fileObj = new File([jsonString], filename, { type: 'application/json' });
+        const fileObj = new File([payloadData], filename, { type: mimeType });
         formData.append('document', fileObj, filename);
       } catch {
-        const blob = new Blob([jsonString], { type: 'application/json' });
+        const blob = new Blob([payloadData], { type: mimeType });
         formData.append('document', blob, filename);
       }
       formData.append('caption', caption);
@@ -1154,6 +1413,7 @@ export async function sendBackupToTelegram(
       if (res.ok && data?.ok === true && typeof data?.result?.message_id === 'number') {
         sentSuccessfully = true;
         uploadedMessageId = data.result.message_id;
+        uploadedFileId = data.result?.document?.file_id;
       } else {
         lastErrorDescription =
           data?.description || lastErrorDescription || `HTTP ${res.status}`;
@@ -1169,7 +1429,7 @@ export async function sendBackupToTelegram(
       /unauthorized|chat not found|not enough rights|bot was kicked|bot is not a member/i.test(
         lastErrorDescription
       );
-    if (!sentSuccessfully && !isAuthOrChatError) {
+    if (!sentSuccessfully && !isAuthOrChatError && !useZipFormat) {
       const compactTerms = filteredTerms.filter(
         (t) =>
           t.favorite ||
@@ -1212,6 +1472,7 @@ export async function sendBackupToTelegram(
         ) {
           sentSuccessfully = true;
           uploadedMessageId = compactData.result.message_id;
+          uploadedFileId = compactData.result?.document?.file_id;
         } else if (compactData?.description) {
           lastErrorDescription = compactData.description;
         }
@@ -1229,7 +1490,7 @@ export async function sendBackupToTelegram(
     }
 
     // Requirement #2: Only AFTER the new backup is uploaded and verified, delete previous app-created backup(s)
-    // while NEVER deleting media messages or other messages in the channel.
+    // while NEVER deleting media messages, change notes, shared interactive files, or other messages in the channel.
     const previousAppBackupIds = Array.from(
       new Set([
         ...(mergedConfig.appBackupMessageIds || []),
@@ -1271,14 +1532,23 @@ export async function sendBackupToTelegram(
       lastBackupAt: summary.timestamp,
       lastBackupSummary: summary,
       lastBackupMessageId: uploadedMessageId,
+      lastBackupFileId: uploadedFileId || mergedConfig.lastBackupFileId,
+      lastBackupFileName: filename,
       appBackupMessageIds: [uploadedMessageId]
     };
     saveTelegramBackupConfig(updatedConfig);
 
+    // Strictly respect backupMode: ONLY upload separate binary media files if user chose 'with_separate_media'
+    // (or explicitly passed includeMediaFilesOnSync: true with undefined backupMode)
+    const shouldUploadSeparateMedia =
+      updatedConfig.backupMode === 'with_separate_media' &&
+      updatedConfig.includeMediaFilesOnSync === true &&
+      !options?.simulatedOffline;
+
     let mediaSyncResult:
       | { uploadedCount: number; skippedDeduplicatedCount: number; failedCount: number }
       | undefined;
-    if (updatedConfig.includeMediaFilesOnSync !== false && !options?.simulatedOffline) {
+    if (shouldUploadSeparateMedia) {
       try {
         const mediaRes = await uploadPendingMediaToTelegramChannel(updatedConfig, {
           customFetch: fetchFn
@@ -1289,15 +1559,15 @@ export async function sendBackupToTelegram(
           failedCount: mediaRes.failedCount
         };
       } catch {
-        // Keep JSON backup success intact even if media sync encounters an error
+        // Keep unified backup success intact even if media sync encounters an error
       }
     }
 
     return {
       ok: true,
-      message: `تم إرسال ملف النسخة الاحتياطية (${filename}) إلى تليجرام بنجاح والاحتفاظ بنسخة حديثة واحدة.${
+      message: `تم إرسال ملف النسخة الشاملة (${filename}) إلى تليجرام بنجاح والاحتفاظ بنسخة حديثة واحدة.${
         mediaSyncResult && mediaSyncResult.uploadedCount > 0
-          ? ` (+ رفع ${mediaSyncResult.uploadedCount} وسائط)`
+          ? ` (+ رفع ${mediaSyncResult.uploadedCount} وسائط منفصلة)`
           : ''
       }`,
       summary,
@@ -1313,6 +1583,546 @@ export async function sendBackupToTelegram(
     return {
       ok: false,
       message: redactBotTokenFromText(rawMsg, cleanToken)
+    };
+  }
+}
+
+// ============================================================================
+// INSTANT CHANNEL CHANGE NOTES ON UPDATE / ADDITION / DELETION
+// ============================================================================
+
+export interface TelegramChangeNoteEntry {
+  action: TelegramChangeAction;
+  label: string;
+}
+
+const ACTION_BADGE_MAP: Record<TelegramChangeAction, string> = {
+  add: '➕ إضافة',
+  update: '✏️ تحديث',
+  delete: '🗑️ حذف',
+  import: '📥 استيراد'
+};
+
+let pendingChangeNotesTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingChangeNoteEntries: TelegramChangeNoteEntry[] = [];
+let pendingChangeNotesContext: {
+  terms?: DictionaryTerm[];
+  sentences?: LinkedSentence[];
+  topics?: TopicArticle[];
+  getTerms?: () => DictionaryTerm[];
+  getSentences?: () => LinkedSentence[];
+  getTopics?: () => TopicArticle[];
+  customFetch?: typeof fetch;
+  onNoteSent?: (res: { ok: boolean; messageId?: number }) => void;
+} | null = null;
+
+/**
+ * Publishes an immediate change note to the configured Telegram channel
+ * WITHOUT deleting any backups or sending redundant files.
+ */
+export async function sendChangeNotesToTelegram(
+  config: TelegramBackupConfig,
+  entries: TelegramChangeNoteEntry[],
+  summaryContext?: {
+    terms?: DictionaryTerm[];
+    sentences?: LinkedSentence[];
+    topics?: TopicArticle[];
+  },
+  options?: { customFetch?: typeof fetch; simulatedOffline?: boolean }
+): Promise<{ ok: boolean; messageId?: number; message: string }> {
+  if (!entries || entries.length === 0) {
+    return { ok: false, message: 'لا توجد تغييرات لإرسالها.' };
+  }
+  if (options?.simulatedOffline) {
+    return { ok: false, message: 'تم تأجيل النوتة في وضع عدم الاتصال.' };
+  }
+  const latestSaved = loadTelegramBackupConfig();
+  const cleanToken = decryptBotTokenFromStorage(
+    config.botToken || config.encryptedBotToken || latestSaved.botToken || latestSaved.encryptedBotToken || ''
+  );
+  const cleanChatId = sanitizeTelegramInput(config.chatId || latestSaved.chatId || '');
+  if (!cleanToken || !cleanChatId) {
+    return { ok: false, message: 'إعدادات تليجرام غير مكتملة.' };
+  }
+
+  const uniqueEntries: TelegramChangeNoteEntry[] = [];
+  const seen = new Set<string>();
+  for (const e of entries) {
+    const k = `${e.action}:${e.label}`.trim();
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    uniqueEntries.push(e);
+  }
+
+  const lines = [
+    `📝 نوتة تحديث فورية — UMEDT`,
+    ...uniqueEntries.slice(0, 12).map((e) => `• ${ACTION_BADGE_MAP[e.action] || '✏️'} ${e.label}`),
+    ...(uniqueEntries.length > 12 ? [`• ... و ${uniqueEntries.length - 12} تعديلات إضافية`] : [])
+  ];
+
+  if (summaryContext) {
+    const summary = buildConciseDataSummary({
+      terms: summaryContext.terms,
+      sentences: summaryContext.sentences,
+      topics: summaryContext.topics
+    });
+    lines.push(`📊 الملخص الحالي: ${summary.shortText}`);
+  }
+  lines.push(`🕒 ${new Date().toLocaleString('ar-SA')}`);
+
+  const fetchFn = options?.customFetch || fetch;
+  try {
+    const res = await fetchFn(
+      `https://api.telegram.org/bot${cleanToken}/sendMessage`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: cleanChatId,
+          text: redactBotTokenFromText(lines.join('\n'), cleanToken),
+          disable_notification: true
+        })
+      }
+    );
+    const data = await res.json();
+    if (res.ok && data?.ok === true) {
+      return {
+        ok: true,
+        messageId: data?.result?.message_id,
+        message: 'تم نشر نوتة التحديث في قناة تليجرام.'
+      };
+    }
+    return {
+      ok: false,
+      message: formatTelegramErrorAr(data?.description, res.status, cleanToken)
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      message: redactBotTokenFromText(
+        err instanceof Error ? err.message : 'تعذر إرسال نوتة التحديث.',
+        cleanToken
+      )
+    };
+  }
+}
+
+export function scheduleDebouncedTelegramChangeNote(params: {
+  action: TelegramChangeAction;
+  label: string;
+  terms?: DictionaryTerm[];
+  sentences?: LinkedSentence[];
+  topics?: TopicArticle[];
+  getTerms?: () => DictionaryTerm[];
+  getSentences?: () => LinkedSentence[];
+  getTopics?: () => TopicArticle[];
+  debounceMs?: number;
+  customFetch?: typeof fetch;
+  simulatedOffline?: boolean;
+  onNoteSent?: (res: { ok: boolean; messageId?: number }) => void;
+}): void {
+  if (params.simulatedOffline) return;
+  const cfg = loadTelegramBackupConfig();
+  if (cfg.sendInstantChangeNotes === false) return;
+  const cleanToken = decryptBotTokenFromStorage(cfg.botToken || cfg.encryptedBotToken || '');
+  const cleanChatId = sanitizeTelegramInput(cfg.chatId);
+  if (!cleanToken || !cleanChatId) return;
+
+  pendingChangeNoteEntries.push({
+    action: params.action,
+    label: params.label
+  });
+
+  pendingChangeNotesContext = {
+    terms: params.terms,
+    sentences: params.sentences,
+    topics: params.topics,
+    getTerms: params.getTerms,
+    getSentences: params.getSentences,
+    getTopics: params.getTopics,
+    customFetch: params.customFetch,
+    onNoteSent: params.onNoteSent
+  };
+
+  if (pendingChangeNotesTimer) {
+    clearTimeout(pendingChangeNotesTimer);
+  }
+  const delay = typeof params.debounceMs === 'number' ? params.debounceMs : 1800;
+  pendingChangeNotesTimer = setTimeout(() => {
+    void flushPendingTelegramChangeNotes();
+  }, delay);
+}
+
+export async function flushPendingTelegramChangeNotes(): Promise<{
+  ok: boolean;
+  executed: boolean;
+  sentCount: number;
+  messageId?: number;
+}> {
+  if (pendingChangeNotesTimer) {
+    clearTimeout(pendingChangeNotesTimer);
+    pendingChangeNotesTimer = null;
+  }
+  const entries = [...pendingChangeNoteEntries];
+  const ctx = pendingChangeNotesContext;
+  pendingChangeNoteEntries = [];
+  pendingChangeNotesContext = null;
+
+  if (!ctx || entries.length === 0) {
+    return { ok: false, executed: false, sentCount: 0 };
+  }
+
+  const cfg = loadTelegramBackupConfig();
+  const res = await sendChangeNotesToTelegram(
+    cfg,
+    entries,
+    {
+      terms: ctx.getTerms ? ctx.getTerms() : ctx.terms,
+      sentences: ctx.getSentences ? ctx.getSentences() : ctx.sentences,
+      topics: ctx.getTopics ? ctx.getTopics() : ctx.topics
+    },
+    { customFetch: ctx.customFetch }
+  );
+  ctx.onNoteSent?.({ ok: res.ok, messageId: res.messageId });
+  return {
+    ok: res.ok,
+    executed: true,
+    sentCount: entries.length,
+    messageId: res.messageId
+  };
+}
+
+// ============================================================================
+// DIRECT IN-APP RESTORE / MERGE FROM TELEGRAM & INTERACTIVE FILE SHARING
+// ============================================================================
+
+async function fetchTelegramBinaryViaNativeOrFetch(
+  fileUrl: string,
+  customFetch?: typeof fetch
+): Promise<Uint8Array> {
+  if (typeof window !== 'undefined') {
+    const w = window as unknown as {
+      UMEDNativeDownloader?: {
+        fetchRemoteUrlBase64?: (url: string) => string;
+      };
+    };
+    if (
+      w.UMEDNativeDownloader &&
+      typeof w.UMEDNativeDownloader.fetchRemoteUrlBase64 === 'function'
+    ) {
+      const rawRes = w.UMEDNativeDownloader.fetchRemoteUrlBase64(fileUrl);
+      const parsed = JSON.parse(rawRes) as {
+        ok?: boolean;
+        base64?: string;
+        error?: string;
+      };
+      if (parsed.ok && parsed.base64) {
+        return base64ToUint8Array(parsed.base64);
+      }
+    }
+  }
+
+  const fetchFn = customFetch || fetch;
+  const res = await fetchFn(fileUrl);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+  const ab = await res.arrayBuffer();
+  return new Uint8Array(ab);
+}
+
+function normalizeChatIdMatch(a: string | number | undefined, b: string | number | undefined): boolean {
+  const sa = String(a || '').trim();
+  const sb = String(b || '').trim();
+  if (!sa || !sb) return false;
+  return sa === sb;
+}
+
+function isUmedtBackupDocument(doc?: { file_name?: string; file_id?: string }): boolean {
+  if (!doc || !doc.file_id) return false;
+  const name = (doc.file_name || '').toLowerCase();
+  return (
+    name.includes('umedt-backup') ||
+    name.includes('umed2-data-package') ||
+    name.includes('dictengine-umd') ||
+    name.endsWith('.json') ||
+    name.endsWith('.zip')
+  );
+}
+
+/**
+ * Discovers the latest importable UMEDT backup (.json or .zip) from the configured Telegram channel
+ * (checking pinned message, recent channel updates, and saved file_id) and downloads its bytes directly
+ * so it can be imported/merged inside the app without losing user progress.
+ */
+export async function fetchLatestBackupPayloadFromTelegram(
+  config?: Partial<TelegramBackupConfig>,
+  options?: { customFetch?: typeof fetch; simulatedOffline?: boolean }
+): Promise<{
+  ok: boolean;
+  bytes?: Uint8Array;
+  fileName?: string;
+  format?: 'json' | 'zip';
+  message: string;
+  discoveredMessageId?: number;
+}> {
+  if (options?.simulatedOffline) {
+    return {
+      ok: false,
+      message: 'الوضع الأوفلاين مفعل؛ لا يمكن الجلب من تليجرام حالياً.'
+    };
+  }
+  const latestSaved = loadTelegramBackupConfig();
+  const cleanToken = decryptBotTokenFromStorage(
+    config?.botToken ||
+      config?.encryptedBotToken ||
+      latestSaved.botToken ||
+      latestSaved.encryptedBotToken ||
+      ''
+  );
+  const cleanChatId = sanitizeTelegramInput(config?.chatId || latestSaved.chatId || '');
+  if (!cleanToken || !cleanChatId) {
+    return {
+      ok: false,
+      message: 'يرجى إدخال رمز البوت (Bot Token) ومعرف المحادثة/القناة (Chat ID) أولاً.'
+    };
+  }
+
+  const fetchFn = options?.customFetch || fetch;
+  let candidateFileId = config?.lastBackupFileId || latestSaved.lastBackupFileId || '';
+  let candidateFileName =
+    config?.lastBackupFileName || latestSaved.lastBackupFileName || 'UMEDT-Backup.json';
+  let discoveredMessageId =
+    config?.lastBackupMessageId || latestSaved.lastBackupMessageId;
+
+  // 1. Check getUpdates for newest matching backup document in this chat
+  try {
+    const updRes = await fetchFn(
+      `https://api.telegram.org/bot${cleanToken}/getUpdates?limit=50&allowed_updates=${encodeURIComponent(
+        JSON.stringify(['channel_post', 'message', 'edited_channel_post'])
+      )}`
+    );
+    const updData = await updRes.json();
+    if (updRes.ok && updData?.ok === true && Array.isArray(updData.result)) {
+      let bestMsgId = -1;
+      for (const upd of updData.result) {
+        const msg = upd.channel_post || upd.message || upd.edited_channel_post;
+        if (!msg) continue;
+        if (!normalizeChatIdMatch(msg.chat?.id, cleanChatId)) continue;
+        const doc = msg.document as { file_id?: string; file_name?: string } | undefined;
+        if (!isUmedtBackupDocument(doc)) continue;
+        const fname = (doc?.file_name || '').toLowerCase();
+        // Prefer official backup files over standalone shared HTML/topic exports
+        const isBackupFile =
+          fname.includes('umedt-backup') ||
+          fname.includes('umed2-data-package') ||
+          fname.includes('dictengine-umd');
+        if (!isBackupFile) continue;
+        const msgId = typeof msg.message_id === 'number' ? msg.message_id : 0;
+        if (msgId >= bestMsgId && doc?.file_id) {
+          bestMsgId = msgId;
+          candidateFileId = doc.file_id;
+          candidateFileName = doc.file_name || candidateFileName;
+          discoveredMessageId = msgId;
+        }
+      }
+    }
+  } catch {
+    // Fallback to getChat / saved lastBackupFileId
+  }
+
+  // 2. Also inspect getChat pinned_message if no newer backup came from getUpdates
+  if (!candidateFileId) {
+    try {
+      const chatRes = await fetchFn(
+        `https://api.telegram.org/bot${cleanToken}/getChat?chat_id=${encodeURIComponent(cleanChatId)}`
+      );
+      const chatData = await chatRes.json();
+      const pinnedDoc = chatData?.result?.pinned_message?.document as
+        | { file_id?: string; file_name?: string }
+        | undefined;
+      if (isUmedtBackupDocument(pinnedDoc) && pinnedDoc?.file_id) {
+        candidateFileId = pinnedDoc.file_id;
+        candidateFileName = pinnedDoc.file_name || candidateFileName;
+        discoveredMessageId = chatData?.result?.pinned_message?.message_id;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!candidateFileId) {
+    return {
+      ok: false,
+      message:
+        'لم يتم العثور على ملف نسخة احتياطية حديث في سجل التحديثات. يمكنك تنزيل ملف النسخة (.json أو .zip) من قناة تليجرام واستيراده مباشرة من جهازك.'
+    };
+  }
+
+  try {
+    const fileMetaRes = await fetchFn(
+      `https://api.telegram.org/bot${cleanToken}/getFile?file_id=${encodeURIComponent(
+        candidateFileId
+      )}`
+    );
+    const fileMeta = await fileMetaRes.json();
+    const filePath = fileMeta?.result?.file_path;
+    if (!fileMetaRes.ok || !fileMeta?.ok || !filePath) {
+      return {
+        ok: false,
+        message: formatTelegramErrorAr(fileMeta?.description, fileMetaRes.status, cleanToken)
+      };
+    }
+
+    const downloadUrl = `https://api.telegram.org/file/bot${cleanToken}/${filePath}`;
+    const bytes = await fetchTelegramBinaryViaNativeOrFetch(downloadUrl, fetchFn);
+    if (!bytes || bytes.byteLength < 2) {
+      return {
+        ok: false,
+        message: 'تم استلام ملف فارغ من تليجرام.'
+      };
+    }
+
+    const detectedZip =
+      candidateFileName.toLowerCase().endsWith('.zip') ||
+      (bytes.byteLength >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b);
+
+    return {
+      ok: true,
+      bytes,
+      fileName: candidateFileName,
+      format: detectedZip ? 'zip' : 'json',
+      discoveredMessageId,
+      message: `تم تنزيل النسخة (${candidateFileName}) من تليجرام بنجاح.`
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const isCorsOrNetwork = /failed to fetch|cors|network|load failed/i.test(msg);
+    return {
+      ok: false,
+      message: isCorsOrNetwork
+        ? 'المتصفح يمنع تنزيل ملفات Telegram مباشرة عبر CORS. حمّل ملف النسخة من قناة تليجرام إلى هاتفك ثم استخدم زر «استيراد بيانات أوفلاين» (أو افتح عبر تطبيق أندرويد للتنزيل المباشر).'
+        : redactBotTokenFromText(`تعذر جلب النسخة من تليجرام: ${msg}`, cleanToken)
+    };
+  }
+}
+
+/**
+ * Shares any generated interactive file (Topic HTML/ZIP, Subject HTML/ZIP, Block HTML/ZIP,
+ * Interactive Exam HTML/JSON, Terms JSON/CSV) directly to the configured Telegram channel.
+ * Does NOT alter `appBackupMessageIds` so periodic backups never delete shared interactive files.
+ */
+export async function sendInteractiveFileToTelegram(params: {
+  config?: Partial<TelegramBackupConfig>;
+  fileName: string;
+  content: string | Uint8Array;
+  mimeType: string;
+  titleAr: string;
+  scopeLabel?: string;
+  recordsCount?: number;
+  customFetch?: typeof fetch;
+  simulatedOffline?: boolean;
+}): Promise<{
+  ok: boolean;
+  message: string;
+  uploadedMessageId?: number;
+}> {
+  if (params.simulatedOffline) {
+    return {
+      ok: false,
+      message: 'الوضع الأوفلاين مفعل؛ تعذر إرسال الملف إلى تليجرام حالياً.'
+    };
+  }
+
+  const latestSaved = loadTelegramBackupConfig();
+  const cleanToken = decryptBotTokenFromStorage(
+    params.config?.botToken ||
+      params.config?.encryptedBotToken ||
+      latestSaved.botToken ||
+      latestSaved.encryptedBotToken ||
+      ''
+  );
+  const cleanChatId = sanitizeTelegramInput(
+    params.config?.chatId || latestSaved.chatId || ''
+  );
+  if (!cleanToken || !cleanChatId) {
+    return {
+      ok: false,
+      message:
+        'يرجى ضبط رمز البوت (Bot Token) ومعرف القناة (Chat ID) في الإعدادات > النسخ الاحتياطي لتليجرام أولاً.'
+    };
+  }
+
+  const isBinary = params.content instanceof Uint8Array;
+  const payloadData: string | ArrayBuffer = isBinary
+    ? ((params.content as Uint8Array).buffer.slice(
+        (params.content as Uint8Array).byteOffset,
+        (params.content as Uint8Array).byteOffset + (params.content as Uint8Array).byteLength
+      ) as ArrayBuffer)
+    : redactBotTokenFromText(String(params.content || ''), cleanToken);
+
+  const byteSize = isBinary
+    ? (params.content as Uint8Array).byteLength
+    : new TextEncoder().encode(payloadData as string).byteLength;
+
+  if (byteSize < 2) {
+    return {
+      ok: false,
+      message: 'الملف المولّد فارغ ولا يمكن إرساله.'
+    };
+  }
+
+  const sizeKB = Math.max(1, Math.round(byteSize / 1024));
+  const captionLines = [
+    `📘 ملف تفاعلي UMEDT · ${params.titleAr}`,
+    ...(params.scopeLabel ? [`📂 النوع: ${params.scopeLabel}`] : []),
+    ...(typeof params.recordsCount === 'number'
+      ? [`📊 المحتوى: ${params.recordsCount} عنصر · الحجم: ${sizeKB} KB`]
+      : [`📊 الحجم: ${sizeKB} KB`]),
+    `🕒 ${new Date().toLocaleString('ar-SA')}`
+  ];
+
+  const fetchFn = params.customFetch || fetch;
+  try {
+    const formData = new FormData();
+    formData.append('chat_id', cleanChatId);
+    try {
+      const fileObj = new File([payloadData], params.fileName, {
+        type: params.mimeType
+      });
+      formData.append('document', fileObj, params.fileName);
+    } catch {
+      const blob = new Blob([payloadData], { type: params.mimeType });
+      formData.append('document', blob, params.fileName);
+    }
+    formData.append('caption', redactBotTokenFromText(captionLines.join('\n'), cleanToken));
+
+    const res = await fetchFn(
+      `https://api.telegram.org/bot${cleanToken}/sendDocument`,
+      {
+        method: 'POST',
+        body: formData
+      }
+    );
+    const data = await res.json();
+    if (res.ok && data?.ok === true && typeof data?.result?.message_id === 'number') {
+      return {
+        ok: true,
+        uploadedMessageId: data.result.message_id,
+        message: `تم إرسال "${params.fileName}" (${sizeKB} KB) مباشرة إلى قناة تليجرام بنجاح.`
+      };
+    }
+    return {
+      ok: false,
+      message: formatTelegramErrorAr(data?.description, res.status, cleanToken)
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      message: redactBotTokenFromText(
+        err instanceof Error ? err.message : 'تعذر إرسال الملف إلى قناة تليجرام.',
+        cleanToken
+      )
     };
   }
 }
@@ -1481,16 +2291,43 @@ export function isTelegramScheduledBackupDue(
   if (Number.isNaN(lastMs)) return true;
 
   const elapsedHours = (Date.now() - lastMs) / (1000 * 60 * 60);
+  if (config.schedule === '1h') return elapsedHours >= 1;
   if (config.schedule === '6h') return elapsedHours >= 6;
+  if (config.schedule === '12h') return elapsedHours >= 12;
   if (config.schedule === 'daily') return elapsedHours >= 24;
   if (config.schedule === 'weekly') return elapsedHours >= 24 * 7;
+  if (config.schedule === 'custom_hours') {
+    const hrs = Math.max(0.25, config.customIntervalHours || 4);
+    return elapsedHours >= hrs;
+  }
   return false;
 }
 
 export const SCHEDULE_LABELS_AR: Record<TelegramBackupSchedule, string> = {
   off: 'يدوي فقط (إيقاف النسخ الدوري)',
-  '6h': 'كل 6 ساعات تلقائياً',
-  daily: 'يومياً تلقائياً',
-  weekly: 'أسبوعياً تلقائياً',
-  on_change: 'تلقائياً عند إضافة أو تعديل البيانات'
+  '1h': 'كل ساعة تلقائياً (دوري)',
+  '6h': 'كل 6 ساعات تلقائياً (دوري)',
+  '12h': 'كل 12 ساعة تلقائياً (دوري)',
+  daily: 'يومياً تلقائياً (دوري)',
+  weekly: 'أسبوعياً تلقائياً (دوري)',
+  custom_hours: 'توقيت مخصص (تحديد الساعات)',
+  on_change: 'فوراً عند كل إضافة أو تعديل للبيانات'
+};
+
+export const BACKUP_MODE_LABELS_AR: Record<
+  TelegramBackupMode,
+  { title: string; desc: string }
+> = {
+  single_complete_file: {
+    title: 'ملف واحد شامل (روابط الوسائط فقط — موصى به)',
+    desc: 'يرسل ملفاً واحداً شاملاً لكل البيانات مع حفظ روابط ومراجع الوسائط فقط دون إرسال ملفات وسائط إضافية.'
+  },
+  notes_and_scheduled_full: {
+    title: 'نوتات فورية للتعديلات + نسخة شاملة حسب الجدول',
+    desc: 'ينشر نوتات فورية في القناة عند كل إضافة أو تعديل أو حذف، ويرسل النسخة الشاملة الكاملة تلقائياً حسب التوقيت المحدد.'
+  },
+  with_separate_media: {
+    title: 'ملف شامل + رفع ملفات الوسائط المحلية منفصلة',
+    desc: 'يرسل ملف النسخة الشاملة بالإضافة إلى رفع ملفات الوسائط المحلية المخزنة منفصلة ببصمة SHA-256.'
+  }
 };

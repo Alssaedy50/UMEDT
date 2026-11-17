@@ -4,7 +4,9 @@ const ALLOWED_REMOTE_HOSTS = new Set([
   'api.github.com',
   'release-assets.githubusercontent.com',
   'objects.githubusercontent.com',
-  'codeload.github.com'
+  'codeload.github.com',
+  'www.cdc.gov',
+  'cdc.gov'
 ]);
 
 const MAX_REMOTE_BYTES = 25 * 1024 * 1024;

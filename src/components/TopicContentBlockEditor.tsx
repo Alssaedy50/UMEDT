@@ -21,7 +21,10 @@ import {
   GitBranch,
   FileText,
   BookOpen,
-  GraduationCap
+  GraduationCap,
+  Globe,
+  Eye,
+  RefreshCw
 } from 'lucide-react';
 import {
   TopicContentBlock,
@@ -36,10 +39,11 @@ import {
   formatBytesLabel,
   detectExternalMediaKind,
   downloadRemoteMediaToOfflineCache,
-  openMediaInExternalApp
+  openMediaInExternalApp,
+  isDownloadableMediaUrl,
+  normalizeMediaMimeType
 } from '../services/mediaStorageService';
 import { loadAcademicBooks, loadAcademicExams } from '../services/learningHierarchyService';
-import { executeVerifiedExportDownload } from '../services/exportDownloadService';
 import {
   prepareAndDownloadFile,
   base64ToUint8Array
@@ -167,6 +171,15 @@ export const SectionContentBlocksRenderer: React.FC<
     title: string;
     mimeType?: string;
   } | null>(null);
+  const [inlineTextModal, setInlineTextModal] = useState<{
+    title: string;
+    content: string;
+    fileName: string;
+    mimeType: string;
+  } | null>(null);
+  const [failedBlockImages, setFailedBlockImages] = useState<
+    Record<string, boolean>
+  >({});
 
   const sortedBlocks = [...blocks].sort((a, b) => a.order - b.order);
 
@@ -182,7 +195,28 @@ export const SectionContentBlocksRenderer: React.FC<
         if (idbKey) {
           const rec = await getLocalMediaRecord(idbKey);
           if (rec?.dataUrl && !cancelled) {
-            nextMap[blk.id] = rec.dataUrl;
+            const recMime = (rec.mimeType || '').toLowerCase();
+            const isHtmlPolluted =
+              recMime === 'text/html' ||
+              recMime === 'application/xhtml+xml' ||
+              rec.dataUrl.startsWith('data:text/html');
+            const isNonDownloadableLinkBlock =
+              blk.type === 'video_link' &&
+              Boolean(blk.externalUrl) &&
+              !isDownloadableMediaUrl(
+                blk.externalUrl!,
+                blk.mediaMimeType,
+                blk.mediaFileName
+              );
+            const isOctetPollutedLink =
+              isNonDownloadableLinkBlock &&
+              rec.dataUrl.startsWith('data:application/octet-stream');
+
+            if (isHtmlPolluted || isOctetPollutedLink) {
+              await deleteLocalMediaRecord(idbKey);
+            } else {
+              nextMap[blk.id] = rec.dataUrl;
+            }
           }
         }
       }
@@ -216,6 +250,12 @@ export const SectionContentBlocksRenderer: React.FC<
       });
       if (res.success && res.dataUrl) {
         setResolvedMediaUrls((prev) => ({ ...prev, [blk.id]: res.dataUrl! }));
+        setFailedBlockImages((prev) => {
+          if (!prev[blk.id]) return prev;
+          const copy = { ...prev };
+          delete copy[blk.id];
+          return copy;
+        });
       }
       showToast(res.messageAr, res.success ? 'success' : 'info');
     } finally {
@@ -227,16 +267,41 @@ export const SectionContentBlocksRenderer: React.FC<
     blk: TopicContentBlock,
     fallbackUrl?: string
   ) => {
-    const targetUrl =
-      resolvedMediaUrls[blk.id] ||
-      (blk.mediaUrl && !blk.mediaUrl.startsWith('idb://') ? blk.mediaUrl : '') ||
-      blk.externalUrl ||
-      fallbackUrl ||
-      '';
+    const detectedLink =
+      blk.externalUrl && /^https?:\/\//i.test(blk.externalUrl)
+        ? detectExternalMediaKind(
+            blk.externalUrl,
+            blk.mediaMimeType,
+            blk.mediaFileName
+          )
+        : null;
+    const preferExternalWebUrl =
+      blk.type === 'video_link' &&
+      Boolean(blk.externalUrl && /^https?:\/\//i.test(blk.externalUrl)) &&
+      (!detectedLink ||
+        detectedLink.kind === 'link' ||
+        detectedLink.kind === 'video_embed');
+
+    const targetUrl = preferExternalWebUrl
+      ? blk.externalUrl!
+      : resolvedMediaUrls[blk.id] ||
+        (blk.mediaUrl && !blk.mediaUrl.startsWith('idb://') ? blk.mediaUrl : '') ||
+        blk.externalUrl ||
+        fallbackUrl ||
+        '';
+
+    const resolvedMime = /^https?:\/\//i.test(targetUrl)
+      ? ''
+      : normalizeMediaMimeType(
+          blk.mediaMimeType,
+          blk.mediaFileName,
+          targetUrl
+        );
+
     const res = await openMediaInExternalApp(
       targetUrl,
       blk.mediaFileName || blk.titleEn || 'UMEDT_Media',
-      blk.mediaMimeType
+      resolvedMime
     );
     showToast(res.messageAr, res.opened ? 'success' : 'info');
   };
@@ -272,8 +337,11 @@ export const SectionContentBlocksRenderer: React.FC<
       const commaIdx = contentOrUrl.indexOf(',');
       const header = commaIdx !== -1 ? contentOrUrl.slice(5, commaIdx) : '';
       const dataPart = commaIdx !== -1 ? contentOrUrl.slice(commaIdx + 1) : '';
-      const mime =
-        header.split(';')[0] || blk.mediaMimeType || 'application/octet-stream';
+      const mime = normalizeMediaMimeType(
+        header.split(';')[0] || blk.mediaMimeType,
+        fileName,
+        contentOrUrl
+      );
       const payload = header.includes('base64')
         ? base64ToUint8Array(dataPart)
         : decodeURIComponent(dataPart);
@@ -290,15 +358,87 @@ export const SectionContentBlocksRenderer: React.FC<
       return;
     }
 
-    const res = await executeVerifiedExportDownload({
+    const normalizedMime = normalizeMediaMimeType(
+      blk.mediaMimeType,
       fileName,
+      contentOrUrl
+    );
+    const textMime =
+      normalizedMime === 'application/octet-stream'
+        ? 'text/plain;charset=utf-8'
+        : normalizedMime.startsWith('text/') || normalizedMime === 'application/json'
+          ? `${normalizedMime};charset=utf-8`
+          : normalizedMime;
+
+    const res = await prepareAndDownloadFile({
+      filename: fileName,
       content: contentOrUrl,
-      format: 'json',
-      recordsCount: 1,
-      deliveryMode: 'download',
-      titleAr: fileName
+      mime: textMime
     });
-    showToast(res.messageAr, res.success ? 'success' : 'info');
+    if (res.initiated) {
+      showToast(res.messageAr, 'success');
+    } else {
+      showToast(res.error || 'تعذر تنزيل الملف المرفق', 'info');
+    }
+  };
+
+  const handlePreviewTextAttachment = async (
+    blk: TopicContentBlock,
+    resolvedSrc: string
+  ) => {
+    const fileName = blk.mediaFileName || blk.titleEn || 'Study_Sheet.txt';
+    const mimeType = normalizeMediaMimeType(
+      blk.mediaMimeType,
+      fileName,
+      resolvedSrc
+    );
+    let textContent = '';
+
+    if (resolvedSrc.startsWith('data:')) {
+      const commaIdx = resolvedSrc.indexOf(',');
+      const header = commaIdx !== -1 ? resolvedSrc.slice(5, commaIdx) : '';
+      const dataPart = commaIdx !== -1 ? resolvedSrc.slice(commaIdx + 1) : '';
+      if (header.includes('base64')) {
+        textContent = new TextDecoder('utf-8', { fatal: false }).decode(
+          base64ToUint8Array(dataPart)
+        );
+      } else {
+        try {
+          textContent = decodeURIComponent(dataPart);
+        } catch {
+          textContent = dataPart;
+        }
+      }
+    } else if (/^https?:\/\//i.test(resolvedSrc)) {
+      const cached = await downloadRemoteMediaToOfflineCache({
+        remoteUrl: resolvedSrc,
+        topicId,
+        sectionId,
+        blockId: blk.id,
+        preferredFileName: fileName,
+        preferredMimeType: mimeType
+      });
+      if (cached.success && cached.dataUrl) {
+        setResolvedMediaUrls((prev) => ({ ...prev, [blk.id]: cached.dataUrl }));
+        const commaIdx = cached.dataUrl.indexOf(',');
+        const dataPart = commaIdx !== -1 ? cached.dataUrl.slice(commaIdx + 1) : '';
+        textContent = new TextDecoder('utf-8', { fatal: false }).decode(
+          base64ToUint8Array(dataPart)
+        );
+      } else {
+        showToast(cached.messageAr, 'info');
+        return;
+      }
+    } else {
+      textContent = resolvedSrc || blk.text || '';
+    }
+
+    setInlineTextModal({
+      title: fileName,
+      content: textContent,
+      fileName,
+      mimeType
+    });
   };
 
   return (
@@ -432,50 +572,104 @@ export const SectionContentBlocksRenderer: React.FC<
           const isCachedLocally = Boolean(
             resolvedMediaUrls[blk.id] || imgSrc.startsWith('data:')
           );
+          const hasImageError = Boolean(failedBlockImages[blk.id]);
+          const isSvgImg =
+            imgSrc.startsWith('data:image/svg') ||
+            imgSrc.toLowerCase().includes('.svg') ||
+            (blk.mediaMimeType || '').includes('svg') ||
+            (blk.mediaFileName || '').toLowerCase().endsWith('.svg');
 
           return (
             <figure
               key={blk.id}
-              className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-950 my-2 max-w-full"
+              className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 my-2 max-w-full"
             >
-              <img
-                src={imgSrc}
-                alt={blk.captionEn || blk.captionAr || 'Medical diagram'}
-                referrerPolicy="no-referrer"
-                onClick={() =>
-                  setZoomedImage({
-                    src: imgSrc,
-                    caption: blk.captionEn || blk.captionAr || ''
-                  })
-                }
-                onError={(e) => {
-                  const target = e.currentTarget;
-                  target.style.display = 'none';
-                }}
-                className="w-full max-w-full h-auto max-h-[420px] object-contain mx-auto bg-slate-950 cursor-zoom-in"
-              />
-              <figcaption className="p-3 bg-slate-900 text-slate-200 text-xs flex flex-wrap items-center justify-between gap-2">
+              {!hasImageError ? (
+                <img
+                  src={imgSrc}
+                  alt={blk.captionEn || blk.captionAr || 'Medical diagram'}
+                  referrerPolicy="no-referrer"
+                  onClick={() =>
+                    setZoomedImage({
+                      src: imgSrc,
+                      caption: blk.captionEn || blk.captionAr || ''
+                    })
+                  }
+                  onLoad={() => {
+                    if (failedBlockImages[blk.id]) {
+                      setFailedBlockImages((prev) => {
+                        const copy = { ...prev };
+                        delete copy[blk.id];
+                        return copy;
+                      });
+                    }
+                  }}
+                  onError={() => {
+                    setFailedBlockImages((prev) => ({ ...prev, [blk.id]: true }));
+                  }}
+                  className={`w-full max-w-full h-auto max-h-[420px] object-contain mx-auto cursor-zoom-in ${
+                    isSvgImg ? 'bg-white dark:bg-slate-900 p-2' : 'bg-slate-950'
+                  }`}
+                />
+              ) : (
+                <div className="min-h-[140px] flex flex-col items-center justify-center p-5 text-center space-y-2.5 bg-slate-100 dark:bg-slate-900">
+                  <ImageIcon className="w-7 h-7 text-slate-400" />
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    تعذر عرض الصورة من الرابط — يمكنك محاولة الجلب أوفلاين أو الفتح خارجياً
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFailedBlockImages((prev) => {
+                          const copy = { ...prev };
+                          delete copy[blk.id];
+                          return copy;
+                        })
+                      }
+                      className="min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center gap-1"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>إعادة المحاولة</span>
+                    </button>
+                    {remoteUrl && isDownloadableMediaUrl(remoteUrl, blk.mediaMimeType, blk.mediaFileName) && (
+                      <button
+                        type="button"
+                        disabled={downloadingBlockId === blk.id}
+                        onClick={() => void handleCacheExternalMediaOffline(blk, remoteUrl)}
+                        className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold flex items-center gap-1"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>{downloadingBlockId === blk.id ? 'جاري الجلب...' : 'جلب أوفلاين'}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+              <figcaption className="p-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 text-xs flex flex-wrap items-center justify-between gap-2">
                 <span className="leading-relaxed break-words">
                   {blk.captionEn || blk.captionAr || blk.mediaFileName || 'صورة توضيحية'}
                 </span>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {remoteUrl && !isCachedLocally && (
-                    <button
-                      type="button"
-                      disabled={downloadingBlockId === blk.id}
-                      onClick={() => void handleCacheExternalMediaOffline(blk, remoteUrl)}
-                      className="min-h-[32px] px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1"
-                    >
-                      <Download className="w-3 h-3" />
-                      <span>
-                        {downloadingBlockId === blk.id ? 'جاري الحفظ...' : 'تنزيل أوفلاين'}
-                      </span>
-                    </button>
-                  )}
+                  {remoteUrl &&
+                    !isCachedLocally &&
+                    isDownloadableMediaUrl(remoteUrl, blk.mediaMimeType, blk.mediaFileName) && (
+                      <button
+                        type="button"
+                        disabled={downloadingBlockId === blk.id}
+                        onClick={() => void handleCacheExternalMediaOffline(blk, remoteUrl)}
+                        className="min-h-[36px] px-2.5 py-1 rounded-xl bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>
+                          {downloadingBlockId === blk.id ? 'جاري الحفظ...' : 'تنزيل أوفلاين'}
+                        </span>
+                      </button>
+                    )}
                   <button
                     type="button"
                     onClick={() => void handleOpenInExternalApp(blk, imgSrc)}
-                    className="min-h-[32px] px-2.5 py-1 rounded-lg bg-slate-800 text-slate-200 text-[11px] font-bold flex items-center gap-1"
+                    className="min-h-[36px] px-2.5 py-1 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-[11px] font-bold flex items-center gap-1"
                   >
                     <ExternalLink className="w-3 h-3" />
                     <span>فتح خارجياً</span>
@@ -501,41 +695,77 @@ export const SectionContentBlocksRenderer: React.FC<
             blk.mediaMimeType,
             blk.mediaFileName
           );
+          const canCacheOffline =
+            Boolean(remoteUrl) &&
+            isDownloadableMediaUrl(remoteUrl, blk.mediaMimeType, blk.mediaFileName);
           const isPlayableVideoFile =
-            Boolean(resolvedMediaUrls[blk.id]) ||
-            localOrDirectSrc.startsWith('data:video/') ||
             detected.kind === 'video_direct' ||
-            blk.type === 'video';
+            localOrDirectSrc.startsWith('data:video/') ||
+            (blk.type === 'video' &&
+              detected.kind !== 'link' &&
+              detected.kind !== 'video_embed');
+          const isAudioLink =
+            detected.kind === 'audio' ||
+            localOrDirectSrc.startsWith('data:audio/');
           const isCachedLocally = Boolean(
-            resolvedMediaUrls[blk.id] || localOrDirectSrc.startsWith('data:')
+            resolvedMediaUrls[blk.id] ||
+              localOrDirectSrc.startsWith('data:video/') ||
+              localOrDirectSrc.startsWith('data:audio/')
           );
+          const domainLabel = (() => {
+            try {
+              if (/^https?:\/\//i.test(remoteUrl)) {
+                return new URL(remoteUrl).hostname.replace(/^www\./, '');
+              }
+            } catch {
+              // ignore
+            }
+            return '';
+          })();
 
           return (
             <div
               key={blk.id}
               className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3"
             >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <p
-                    dir="ltr"
-                    className="text-xs sm:text-sm font-extrabold text-emerald-700 dark:text-emerald-400 truncate text-left"
-                  >
-                    {blk.titleEn || blk.mediaFileName || remoteUrl || 'Medical Video'}
-                  </p>
+              <div className="flex flex-wrap items-start justify-between gap-2.5">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {detected.kind === 'video_embed' || isPlayableVideoFile ? (
+                      <Video className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    ) : (
+                      <Globe className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    )}
+                    <p
+                      dir="ltr"
+                      className="text-xs sm:text-sm font-extrabold text-emerald-700 dark:text-emerald-400 break-words text-left"
+                    >
+                      {blk.titleEn || blk.mediaFileName || remoteUrl || 'Medical Resource'}
+                    </p>
+                  </div>
                   {(blk.titleAr || blk.text) && (
-                    <p className="text-xs text-slate-500 mt-0.5 break-words">
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed break-words">
                       {blk.titleAr || blk.text}
+                    </p>
+                  )}
+                  {domainLabel && (
+                    <p className="text-[11px] font-mono text-slate-400" dir="ltr">
+                      {domainLabel}
+                      {detected.kind === 'video_embed'
+                        ? ' · Embedded Video'
+                        : detected.kind === 'link'
+                          ? ' · External Reference'
+                          : ''}
                     </p>
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                  {remoteUrl && !isCachedLocally && (
+                  {canCacheOffline && !isCachedLocally && (
                     <button
                       type="button"
                       disabled={downloadingBlockId === blk.id}
                       onClick={() => void handleCacheExternalMediaOffline(blk, remoteUrl)}
-                      className="min-h-[34px] px-2.5 py-1 rounded-xl bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1"
+                      className="min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold flex items-center gap-1"
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>
@@ -545,11 +775,21 @@ export const SectionContentBlocksRenderer: React.FC<
                   )}
                   <button
                     type="button"
-                    onClick={() => void handleOpenInExternalApp(blk, localOrDirectSrc)}
-                    className="min-h-[34px] px-2.5 py-1 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-[11px] font-bold flex items-center gap-1"
+                    onClick={() => void handleOpenInExternalApp(blk, remoteUrl || localOrDirectSrc)}
+                    className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
+                      detected.kind === 'link'
+                        ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                        : 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200'
+                    }`}
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    <span>فتح في تطبيق خارجي</span>
+                    <span>
+                      {detected.kind === 'link'
+                        ? 'فتح الرابط في المتصفح'
+                        : detected.kind === 'video_embed'
+                          ? 'فتح في YouTube / المتصفح'
+                          : 'فتح في تطبيق خارجي'}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -562,16 +802,33 @@ export const SectionContentBlocksRenderer: React.FC<
                   src={localOrDirectSrc}
                   className="w-full max-h-[380px] rounded-xl bg-black"
                 />
-              ) : detected.embedUrl ? (
-                <div className="w-full aspect-video rounded-xl overflow-hidden bg-black border border-slate-800">
-                  <iframe
-                    src={detected.embedUrl}
-                    title={blk.titleEn || 'Embedded Video'}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    className="w-full h-full border-0"
-                  />
-                </div>
+              ) : isAudioLink ? (
+                <audio
+                  controls
+                  preload="metadata"
+                  src={localOrDirectSrc}
+                  className="w-full"
+                />
+              ) : detected.kind === 'video_embed' && detected.embedUrl ? (
+                typeof navigator !== 'undefined' && navigator.onLine === false ? (
+                  <div className="p-4 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 text-center space-y-1">
+                    <p className="font-bold">فيديو YouTube مدمج يتطلب اتصالاً بالإنترنت للتشغيل</p>
+                    <p dir="ltr" className="text-[11px] font-mono text-slate-400 break-all">
+                      {remoteUrl}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="w-full aspect-video rounded-xl overflow-hidden bg-black border border-slate-800">
+                    <iframe
+                      src={detected.embedUrl}
+                      title={blk.titleEn || 'Embedded Video'}
+                      referrerPolicy="strict-origin-when-cross-origin"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      className="w-full h-full border-0"
+                    />
+                  </div>
+                )
               ) : null}
             </div>
           );
@@ -645,13 +902,34 @@ export const SectionContentBlocksRenderer: React.FC<
             resolvedMediaUrls[blk.id] ||
             (blk.mediaUrl && !blk.mediaUrl.startsWith('idb://') ? blk.mediaUrl : '') ||
             remoteUrl;
+          const normalizedMime = normalizeMediaMimeType(
+            blk.mediaMimeType,
+            blk.mediaFileName,
+            resolvedSrc
+          );
           const isPdf =
-            (blk.mediaMimeType || '').toLowerCase().includes('pdf') ||
+            normalizedMime.includes('pdf') ||
             (blk.mediaFileName || '').toLowerCase().endsWith('.pdf') ||
             resolvedSrc.toLowerCase().includes('.pdf') ||
             resolvedSrc.startsWith('data:application/pdf');
+          const isInlinePlainText =
+            Boolean(resolvedSrc) &&
+            !resolvedSrc.startsWith('data:') &&
+            !resolvedSrc.startsWith('idb://') &&
+            !/^https?:\/\//i.test(resolvedSrc);
+          const isTextDoc =
+            !isPdf &&
+            (isInlinePlainText ||
+              normalizedMime.startsWith('text/') ||
+              normalizedMime === 'application/json' ||
+              /\.(txt|json|md|csv)$/i.test(blk.mediaFileName || blk.titleEn || ''));
+          const canCacheOffline =
+            Boolean(remoteUrl) &&
+            isDownloadableMediaUrl(remoteUrl, normalizedMime, blk.mediaFileName);
           const isCachedLocally = Boolean(
-            resolvedMediaUrls[blk.id] || resolvedSrc.startsWith('data:')
+            resolvedMediaUrls[blk.id] ||
+              resolvedSrc.startsWith('data:') ||
+              isInlinePlainText
           );
 
           return (
@@ -669,7 +947,7 @@ export const SectionContentBlocksRenderer: React.FC<
                     {blk.mediaFileName || blk.titleEn || 'Attached Medical Document'}
                   </p>
                   <p className="text-[11px] text-slate-500 break-words">
-                    {blk.mediaMimeType || blk.titleAr || 'Document'} ·{' '}
+                    {blk.titleAr || normalizedMime} ·{' '}
                     {blk.mediaSizeBytes
                       ? formatBytesLabel(blk.mediaSizeBytes)
                       : blk.text || (isCachedLocally ? 'محفوظ أوفلاين' : 'رابط خارجي')}
@@ -684,7 +962,7 @@ export const SectionContentBlocksRenderer: React.FC<
                       setInlinePdfModal({
                         url: resolvedSrc,
                         title: blk.mediaFileName || blk.titleEn || 'PDF Viewer',
-                        mimeType: blk.mediaMimeType || 'application/pdf'
+                        mimeType: normalizedMime || 'application/pdf'
                       })
                     }
                     className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-900 text-white dark:bg-slate-800 text-xs font-bold flex items-center gap-1.5"
@@ -692,7 +970,17 @@ export const SectionContentBlocksRenderer: React.FC<
                     <span>معاينة PDF</span>
                   </button>
                 )}
-                {remoteUrl && !isCachedLocally && (
+                {isTextDoc && resolvedSrc && (
+                  <button
+                    type="button"
+                    onClick={() => void handlePreviewTextAttachment(blk, resolvedSrc)}
+                    className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-900 text-white dark:bg-slate-800 text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>معاينة النص</span>
+                  </button>
+                )}
+                {canCacheOffline && !isCachedLocally && (
                   <button
                     type="button"
                     disabled={downloadingBlockId === blk.id}
@@ -845,7 +1133,7 @@ export const SectionContentBlocksRenderer: React.FC<
                   className="p-3 bg-white dark:bg-slate-950 flex justify-center overflow-x-auto cursor-zoom-in [&>svg]:max-w-full [&>svg]:h-auto"
                   dangerouslySetInnerHTML={{ __html: rawSvg }}
                 />
-              ) : imgSrc ? (
+              ) : imgSrc && !failedBlockImages[blk.id] ? (
                 <img
                   src={imgSrc}
                   alt={blk.captionEn || blk.titleEn || 'Medical diagram'}
@@ -856,11 +1144,30 @@ export const SectionContentBlocksRenderer: React.FC<
                       caption: blk.captionEn || blk.captionAr || blk.titleAr || ''
                     })
                   }
-                  className="w-full max-w-full h-auto max-h-[420px] object-contain mx-auto bg-slate-950 cursor-zoom-in"
+                  onError={() => {
+                    setFailedBlockImages((prev) => ({ ...prev, [blk.id]: true }));
+                  }}
+                  className="w-full max-w-full h-auto max-h-[420px] object-contain mx-auto bg-white dark:bg-slate-900 p-2 cursor-zoom-in"
                 />
               ) : (
-                <div className="p-4 text-xs text-slate-600 dark:text-slate-300 whitespace-pre-line">
-                  {blk.text || blk.captionAr || blk.captionEn || 'مخطط توضيحي'}
+                <div className="p-4 text-xs text-slate-600 dark:text-slate-300 whitespace-pre-line text-center space-y-2">
+                  <p>{blk.text || blk.captionAr || blk.captionEn || 'تعذر عرض المخطط من الرابط'}</p>
+                  {failedBlockImages[blk.id] && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFailedBlockImages((prev) => {
+                          const copy = { ...prev };
+                          delete copy[blk.id];
+                          return copy;
+                        })
+                      }
+                      className="min-h-[34px] px-3 py-1 rounded-xl bg-slate-200 dark:bg-slate-800 text-xs font-bold inline-flex items-center gap-1"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>إعادة المحاولة</span>
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1202,6 +1509,62 @@ export const SectionContentBlocksRenderer: React.FC<
               title={inlinePdfModal.title}
               className="w-full flex-1 border-0 bg-slate-100 dark:bg-slate-950"
             />
+          </div>
+        </div>
+      )}
+
+      {/* Inline Text / Study Sheet Viewer Modal */}
+      {inlineTextModal && (
+        <div
+          onClick={() => setInlineTextModal(null)}
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-3 sm:p-5"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-3xl max-h-[85dvh] rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden shadow-2xl"
+          >
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+              <span
+                dir="ltr"
+                className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white truncate"
+              >
+                {inlineTextModal.title}
+              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void prepareAndDownloadFile({
+                      filename: inlineTextModal.fileName,
+                      content: inlineTextModal.content,
+                      mime:
+                        inlineTextModal.mimeType === 'application/octet-stream'
+                          ? 'text/plain;charset=utf-8'
+                          : `${inlineTextModal.mimeType};charset=utf-8`
+                    }).then((r) => {
+                      if (r.initiated) showToast(r.messageAr, 'success');
+                    });
+                  }}
+                  className="min-h-[36px] px-3 py-1 rounded-xl bg-emerald-600 text-white text-xs font-bold flex items-center gap-1"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>تنزيل</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInlineTextModal(null)}
+                  className="min-h-[36px] px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold"
+                >
+                  إغلاق
+                </button>
+              </div>
+            </div>
+            <pre
+              dir="auto"
+              className="p-4 sm:p-5 overflow-y-auto text-xs sm:text-sm leading-relaxed font-sans whitespace-pre-wrap text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-950"
+            >
+              {inlineTextModal.content}
+            </pre>
           </div>
         </div>
       )}

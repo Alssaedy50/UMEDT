@@ -18,6 +18,7 @@ import android.view.View;
 import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
 import android.webkit.URLUtil;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 
 import androidx.core.app.ActivityCompat;
@@ -43,6 +44,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
+import java.util.Locale;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -109,6 +111,8 @@ public class MainActivity extends BridgeActivity {
             webView.getSettings().setJavaScriptEnabled(true);
             webView.getSettings().setAllowFileAccess(true);
             webView.getSettings().setDomStorageEnabled(true);
+            webView.getSettings().setDatabaseEnabled(true);
+            webView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
             webView.getSettings().setMediaPlaybackRequiresUserGesture(false);
 
             UMEDNativeDownloader bridgeInstance = new UMEDNativeDownloader();
@@ -219,11 +223,18 @@ public class MainActivity extends BridgeActivity {
 
                 String cleanBase64 = base64Data;
                 int commaIdx = cleanBase64.indexOf(',');
+                byte[] bytes;
                 if (cleanBase64.startsWith("data:") && commaIdx != -1) {
-                    cleanBase64 = cleanBase64.substring(commaIdx + 1);
+                    String dataHeader = cleanBase64.substring(5, commaIdx);
+                    String payloadPart = cleanBase64.substring(commaIdx + 1);
+                    if (dataHeader.contains("base64")) {
+                        bytes = Base64.decode(payloadPart, Base64.DEFAULT);
+                    } else {
+                        bytes = Uri.decode(payloadPart).getBytes(StandardCharsets.UTF_8);
+                    }
+                } else {
+                    bytes = Base64.decode(cleanBase64, Base64.DEFAULT);
                 }
-
-                byte[] bytes = Base64.decode(cleanBase64, Base64.DEFAULT);
                 if (bytes == null || bytes.length == 0) {
                     result.put("ok", false);
                     result.put("verified", false);
@@ -465,7 +476,7 @@ public class MainActivity extends BridgeActivity {
                     conn.setConnectTimeout(20000);
                     conn.setReadTimeout(25000);
                     conn.setRequestProperty("User-Agent", "UMEDT-Android/2.4.0");
-                    conn.setRequestProperty("Accept", "application/json, application/octet-stream, */*");
+                    conn.setRequestProperty("Accept", "image/*, application/pdf, audio/*, video/*, text/plain, application/json, application/octet-stream, */*");
                     statusCode = conn.getResponseCode();
                     statusMsg = conn.getResponseMessage() != null ? conn.getResponseMessage() : "";
                     if (statusCode == HttpURLConnection.HTTP_MOVED_PERM
@@ -666,10 +677,52 @@ public class MainActivity extends BridgeActivity {
                     res.put("error", "الرابط فارغ");
                     return res.toString();
                 }
-                Uri uri = Uri.parse(urlString.trim());
+                String trimmedUrl = urlString.trim();
+                String lowerUrl = trimmedUrl.toLowerCase(Locale.ROOT);
+                boolean isWebUrl = lowerUrl.startsWith("http://") || lowerUrl.startsWith("https://");
+
+                if (isWebUrl) {
+                    Uri uri = Uri.parse(trimmedUrl);
+                    Intent viewIntent = new Intent(Intent.ACTION_VIEW, uri);
+                    viewIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    Intent chooser = Intent.createChooser(viewIntent, "فتح الرابط في المتصفح");
+                    chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(chooser);
+                    res.put("ok", true);
+                    return res.toString();
+                }
+
+                if (lowerUrl.startsWith("data:")) {
+                    int commaIdx = trimmedUrl.indexOf(',');
+                    String dataHeader = commaIdx != -1 ? trimmedUrl.substring(5, commaIdx) : "";
+                    String detectedMime = dataHeader.contains(";")
+                            ? dataHeader.substring(0, dataHeader.indexOf(';')).trim()
+                            : (!dataHeader.isEmpty() ? dataHeader.trim() : "application/octet-stream");
+                    String targetMime = (mimeType != null && mimeType.contains("/") && !mimeType.contains(" "))
+                            ? mimeType.split(";")[0].trim()
+                            : detectedMime;
+                    String ext = targetMime.contains("svg") ? ".svg"
+                            : targetMime.contains("png") ? ".png"
+                            : targetMime.contains("jpeg") ? ".jpg"
+                            : targetMime.contains("pdf") ? ".pdf"
+                            : targetMime.contains("json") ? ".json"
+                            : targetMime.contains("text/plain") ? ".txt"
+                            : ".bin";
+                    String tempName = "umedt-external-" + System.currentTimeMillis() + ext;
+                    String saveResRaw = saveBase64FileToDownloads(tempName, trimmedUrl, targetMime);
+                    JSONObject saveObj = new JSONObject(saveResRaw);
+                    if (saveObj.optBoolean("ok", false)) {
+                        return openDownloadedFile(tempName, targetMime);
+                    }
+                    res.put("ok", false);
+                    res.put("error", saveObj.optString("error", "تعذر فتح البيانات خارجياً"));
+                    return res.toString();
+                }
+
+                Uri uri = Uri.parse(trimmedUrl);
                 Intent viewIntent = new Intent(Intent.ACTION_VIEW);
-                if (mimeType != null && !mimeType.trim().isEmpty() && !urlString.startsWith("http")) {
-                    viewIntent.setDataAndType(uri, mimeType.trim());
+                if (mimeType != null && !mimeType.trim().isEmpty() && mimeType.contains("/") && !mimeType.contains(" ")) {
+                    viewIntent.setDataAndType(uri, mimeType.split(";")[0].trim());
                 } else {
                     viewIntent.setData(uri);
                 }

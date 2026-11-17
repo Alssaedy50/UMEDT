@@ -15,7 +15,9 @@ import {
   Eye,
   BookOpen,
   Award,
-  Check
+  Check,
+  Download,
+  Send
 } from 'lucide-react';
 import {
   DictionaryTerm,
@@ -42,6 +44,9 @@ import {
 import { extractLinkedTermsFromText } from '../engine/knowledgeLinker';
 import { getLocalMediaRecord } from '../services/mediaStorageService';
 import { computeDeterministicFastHashHex } from '../services/cloudLibrarySyncService';
+import { generateStandaloneExamHtmlDocument } from '../services/standaloneExportService';
+import { executeVerifiedExportDownload } from '../services/exportDownloadService';
+import { sendInteractiveFileToTelegram } from '../services/telegramBackupService';
 
 interface QuizCenterModalProps {
   isOpen: boolean;
@@ -158,6 +163,7 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
   const [completedAttempt, setCompletedAttempt] = useState<QuizAttemptRecord | null>(
     null
   );
+  const [isSharingQuizTelegram, setIsSharingQuizTelegram] = useState<boolean>(false);
 
   const timerIntervalRef = useRef<number | null>(null);
   const fileImportInputRef = useRef<HTMLInputElement | null>(null);
@@ -412,6 +418,81 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remainingSeconds, sessionState]);
+
+  const buildInteractiveExamExportPayload = (sourcePool: UnifiedQuizQuestion[]) => {
+    const scopeTitleAr = activeExamPackage
+      ? activeExamPackage.titleAr || activeExamPackage.titleEn
+      : scopeType === 'topic'
+        ? topics.find((t) => t.id === selectedTopicId)?.titleAr ||
+          topics.find((t) => t.id === selectedTopicId)?.titleEn ||
+          'اختبار موضوع طبي'
+        : scopeType === 'subject'
+          ? subjects.find((s) => s.id === selectedSubjectId)?.titleAr ||
+            subjects.find((s) => s.id === selectedSubjectId)?.titleEn ||
+            'اختبار مادة دراسية'
+          : scopeType === 'block'
+            ? blocks.find((b) => b.id === selectedBlockId)?.titleAr ||
+              blocks.find((b) => b.id === selectedBlockId)?.titleEn ||
+              'اختبار بلوك طبي'
+            : 'اختبار طبي تفاعلي — UMEDT';
+
+    const built = generateStandaloneExamHtmlDocument({
+      titleAr: scopeTitleAr,
+      titleEn: activeExamPackage?.titleEn || 'UMEDT Interactive Medical Exam',
+      exam: activeExamPackage,
+      questions: sourcePool,
+      attempts,
+      terms,
+      durationMinutes: timerMinutes > 0 ? timerMinutes : activeExamPackage?.durationMinutes || 0
+    });
+    const safeSlug = (activeExamPackage?.id || selectedTopicId || selectedSubjectId || selectedBlockId || 'Quiz')
+      .replace(/[^a-zA-Z0-9_-]/g, '_');
+    return {
+      fileName: `UMEDT_Exam_${safeSlug}_Standalone.html`,
+      htmlText: built.htmlText,
+      recordsCount: built.recordsCount,
+      titleAr: scopeTitleAr
+    };
+  };
+
+  const handleDownloadInteractiveExamHtml = async (sourcePool: UnifiedQuizQuestion[]) => {
+    if (sourcePool.length === 0) {
+      showToast('لا توجد أسئلة لتصديرها في هذا النطاق.', 'info');
+      return;
+    }
+    const built = buildInteractiveExamExportPayload(sourcePool);
+    const res = await executeVerifiedExportDownload({
+      fileName: built.fileName,
+      content: built.htmlText,
+      format: 'html',
+      recordsCount: built.recordsCount,
+      deliveryMode: 'download',
+      titleAr: built.titleAr
+    });
+    showToast(res.messageAr, res.success ? 'success' : 'info');
+  };
+
+  const handleSendInteractiveExamToTelegram = async (sourcePool: UnifiedQuizQuestion[]) => {
+    if (sourcePool.length === 0) {
+      showToast('لا توجد أسئلة لإرسالها في هذا النطاق.', 'info');
+      return;
+    }
+    setIsSharingQuizTelegram(true);
+    try {
+      const built = buildInteractiveExamExportPayload(sourcePool);
+      const res = await sendInteractiveFileToTelegram({
+        fileName: built.fileName,
+        content: built.htmlText,
+        mimeType: 'text/html;charset=utf-8',
+        titleAr: built.titleAr,
+        scopeLabel: 'اختبار تفاعلي مستقل (HTML)',
+        recordsCount: built.recordsCount
+      });
+      showToast(res.message, res.ok ? 'success' : 'info');
+    } finally {
+      setIsSharingQuizTelegram(false);
+    }
+  };
 
   // ============================================================================
   // 2. QUESTION BUILDER & IMPORTER STATE (Manual / Bulk Text / JSON File)
@@ -897,6 +978,31 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                     بدء الاختبار الآن ({Math.min(desiredCount, availableScopeQuestions.length)} سؤال)
                   </span>
                 </button>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    disabled={availableScopeQuestions.length === 0}
+                    onClick={() => void handleDownloadInteractiveExamHtml(availableScopeQuestions)}
+                    className="min-h-[44px] px-4 py-2 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-extrabold flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <Download className="w-4 h-4 shrink-0" />
+                    <span>تصدير اختبار تفاعلي (HTML)</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={availableScopeQuestions.length === 0 || isSharingQuizTelegram}
+                    onClick={() => void handleSendInteractiveExamToTelegram(availableScopeQuestions)}
+                    className="min-h-[44px] px-4 py-2 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-extrabold flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <Send className="w-4 h-4 shrink-0" />
+                    <span>
+                      {isSharingQuizTelegram
+                        ? 'جاري الإرسال إلى تليجرام...'
+                        : 'إرسال الاختبار مباشرة إلى تليجرام'}
+                    </span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1336,6 +1442,18 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                       className="min-h-[44px] px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-xs font-bold"
                     >
                       اختبار جديد
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isSharingQuizTelegram}
+                      onClick={() => void handleSendInteractiveExamToTelegram(sessionQuestions)}
+                      className="min-h-[44px] px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-extrabold flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <Send className="w-4 h-4 shrink-0" />
+                      <span>
+                        {isSharingQuizTelegram ? 'جاري الإرسال...' : 'إرسال الاختبار لتليجرام'}
+                      </span>
                     </button>
                   </div>
                 </div>

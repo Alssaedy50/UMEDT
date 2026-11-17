@@ -447,7 +447,9 @@ ${placeholderContext || 'None'}`;
     'api.github.com',
     'release-assets.githubusercontent.com',
     'objects.githubusercontent.com',
-    'codeload.github.com'
+    'codeload.github.com',
+    'www.cdc.gov',
+    'cdc.gov'
   ]);
 
   app.get('/api/remote-fetch', async (req, res) => {

@@ -4,8 +4,10 @@ import type {
   MedicalSubject,
   AcademicBookResource,
   UnifiedQuizQuestion,
+  QuizAttemptRecord,
   AcademicExamPackage,
   MediaAssetRecord,
+  UserStudyNoteRecord,
   DataCatalogDocument
 } from './learningPlatform';
 
@@ -336,8 +338,10 @@ export interface DataPackagePayload {
   subjects?: MedicalSubject[];
   books?: AcademicBookResource[];
   questions?: UnifiedQuizQuestion[];
+  quizAttempts?: QuizAttemptRecord[];
   exams?: AcademicExamPackage[];
   mediaAssets?: MediaAssetRecord[];
+  userNotes?: UserStudyNoteRecord[];
   catalog?: DataCatalogDocument;
   studyStats?: StudyStats;
   settings?: AppSettings;
@@ -370,6 +374,8 @@ export interface AtomicImportResult {
     questionsImported?: number;
     examsImported?: number;
     mediaAssetsImported?: number;
+    userNotesImported?: number;
+    quizAttemptsImported?: number;
     totalTermsAfter: number;
     totalSentencesAfter: number;
   };

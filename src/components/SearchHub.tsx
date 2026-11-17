@@ -72,11 +72,27 @@ export const SearchHub: React.FC<SearchHubProps> = ({
   const [isSearchFocused, setIsSearchFocused] = React.useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = React.useState(-1);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
+  const isComposingRef = React.useRef(false);
+  const lastPushedQueryRef = React.useRef(searchQuery);
+  const blurTimeoutRef = React.useRef<number | null>(null);
 
   React.useEffect(() => {
-    setDraftQuery(searchQuery);
-    setActiveSuggestionIndex(-1);
+    if (searchQuery !== lastPushedQueryRef.current) {
+      lastPushedQueryRef.current = searchQuery;
+      if (!isComposingRef.current) {
+        setDraftQuery(searchQuery);
+      }
+      setActiveSuggestionIndex(-1);
+    }
   }, [searchQuery]);
+
+  React.useEffect(() => {
+    return () => {
+      if (blurTimeoutRef.current !== null) {
+        window.clearTimeout(blurTimeoutRef.current);
+      }
+    };
+  }, []);
 
   React.useEffect(() => {
     setVisibleLimit(250);
@@ -125,11 +141,15 @@ export const SearchHub: React.FC<SearchHubProps> = ({
         return;
       }
       const clipText = await navigator.clipboard.readText();
-      if (clipText?.trim()) {
-        setDraftQuery(clipText.trim());
+      const normalizedClip = clipText ? clipText.replace(/[\r\n]+/g, ' ').trim() : '';
+      if (normalizedClip) {
+        isComposingRef.current = false;
+        lastPushedQueryRef.current = normalizedClip;
+        setDraftQuery(normalizedClip);
+        onSearchQueryChange(normalizedClip);
         setIsSearchFocused(true);
         setActiveSuggestionIndex(-1);
-        showToast('تم جلب النص من الحافظة؛ اضغط بحث لإظهار النتيجة');
+        showToast('تم لصق الكلمة وعرض النتائج');
       } else {
         showToast('الحافظة فارغة حالياً', 'info');
       }
@@ -187,12 +207,15 @@ export const SearchHub: React.FC<SearchHubProps> = ({
       return;
     }
 
+    lastPushedQueryRef.current = query;
+    setDraftQuery(query);
     onSearchQueryChange(query);
     setIsSearchFocused(false);
     setActiveSuggestionIndex(-1);
   };
 
   const handleSelectSuggestion = (item: DictionaryTerm) => {
+    lastPushedQueryRef.current = item.term;
     setDraftQuery(item.term);
     onSearchQueryChange(item.term);
     setIsSearchFocused(false);
@@ -257,21 +280,66 @@ export const SearchHub: React.FC<SearchHubProps> = ({
               type="text"
               value={draftQuery}
               onChange={(event) => {
-                setDraftQuery(event.target.value);
+                const nextValue = event.target.value;
+                setDraftQuery(nextValue);
                 setActiveSuggestionIndex(-1);
                 setIsSearchFocused(true);
+                lastPushedQueryRef.current = nextValue;
+                React.startTransition(() => {
+                  onSearchQueryChange(nextValue);
+                });
               }}
-              onFocus={() => setIsSearchFocused(true)}
+              onCompositionStart={() => {
+                isComposingRef.current = true;
+              }}
+              onCompositionEnd={(event) => {
+                isComposingRef.current = false;
+                const committed = event.currentTarget.value;
+                lastPushedQueryRef.current = committed;
+                setDraftQuery(committed);
+                onSearchQueryChange(committed);
+              }}
+              onFocus={() => {
+                if (blurTimeoutRef.current !== null) {
+                  window.clearTimeout(blurTimeoutRef.current);
+                  blurTimeoutRef.current = null;
+                }
+                setIsSearchFocused(true);
+              }}
               onPaste={(event) => {
-                const pastedText = event.clipboardData.getData('text/plain');
-                if (!pastedText) return;
-                event.preventDefault();
-                const nextQuery = pastedText.trim();
-                setDraftQuery(nextQuery);
-                setActiveSuggestionIndex(-1);
-                setIsSearchFocused(Boolean(nextQuery));
+                const pastedText = event.clipboardData?.getData('text/plain') || '';
+                const inputEl = event.currentTarget;
+                // Do not call preventDefault(): keep Android WebView InputConnection synchronized
+                // so dismissing the soft keyboard never reverts or clears the pasted word.
+                window.setTimeout(() => {
+                  const domValue = inputEl?.value || '';
+                  const resolved =
+                    domValue || pastedText.replace(/[\r\n]+/g, ' ').trim();
+                  if (!resolved) return;
+                  isComposingRef.current = false;
+                  lastPushedQueryRef.current = resolved;
+                  setDraftQuery(resolved);
+                  onSearchQueryChange(resolved);
+                  setActiveSuggestionIndex(-1);
+                  setIsSearchFocused(true);
+                }, 0);
               }}
-              onBlur={() => window.setTimeout(() => setIsSearchFocused(false), 320)}
+              onBlur={(event) => {
+                isComposingRef.current = false;
+                const latestValue = event.currentTarget.value;
+                if (latestValue && latestValue !== lastPushedQueryRef.current) {
+                  lastPushedQueryRef.current = latestValue;
+                  setDraftQuery(latestValue);
+                  onSearchQueryChange(latestValue);
+                }
+                if (blurTimeoutRef.current !== null) {
+                  window.clearTimeout(blurTimeoutRef.current);
+                }
+                blurTimeoutRef.current = window.setTimeout(() => {
+                  setIsSearchFocused(false);
+                  blurTimeoutRef.current = null;
+                }, 220);
+              }}
               onKeyDown={handleSearchKeyDown}
               dir="auto"
               autoComplete="off"
@@ -291,6 +359,8 @@ export const SearchHub: React.FC<SearchHubProps> = ({
                 <button
                   type="button"
                   onClick={() => {
+                    isComposingRef.current = false;
+                    lastPushedQueryRef.current = '';
                     setDraftQuery('');
                     onSearchQueryChange('');
                     setActiveSuggestionIndex(-1);

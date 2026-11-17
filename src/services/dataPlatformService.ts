@@ -38,7 +38,9 @@ import {
   UnifiedQuizQuestion,
   AcademicExamPackage,
   MediaAssetRecord,
-  DataCatalogDocument
+  DataCatalogDocument,
+  QuizAttemptRecord,
+  UserStudyNoteRecord
 } from '../types/lexicon';
 import {
   normalizeAcademicBookResource,
@@ -634,8 +636,30 @@ export function validateDataPackageObject(raw: unknown): DataValidationResult {
     };
   }
 
-  // Support legacy top-level array of terms as a valid package object
-  const obj: Record<string, unknown> = Array.isArray(raw) ? { terms: raw } : (raw as Record<string, unknown>);
+  // Support legacy top-level array of terms OR umed-unified-backup-v2.3 / umed-granular-export-v1 envelopes (nested inside `.data`)
+  const rawEnvelope: Record<string, unknown> = Array.isArray(raw)
+    ? { terms: raw }
+    : (raw as Record<string, unknown>);
+  const nestedData =
+    rawEnvelope.data &&
+    typeof rawEnvelope.data === 'object' &&
+    !Array.isArray(rawEnvelope.data) &&
+    (rawEnvelope.format === 'umed-unified-backup-v2.3' ||
+      rawEnvelope.format === 'umed-granular-export-v1' ||
+      Array.isArray((rawEnvelope.data as Record<string, unknown>).terms) ||
+      Array.isArray((rawEnvelope.data as Record<string, unknown>).topics) ||
+      Array.isArray((rawEnvelope.data as Record<string, unknown>).blocks))
+      ? (rawEnvelope.data as Record<string, unknown>)
+      : null;
+  const obj: Record<string, unknown> = nestedData
+    ? {
+        ...rawEnvelope,
+        ...nestedData,
+        manifest: rawEnvelope.manifest || nestedData.manifest,
+        versionMetadata: nestedData.versionMetadata || rawEnvelope.versionMetadata,
+        exportedAt: rawEnvelope.exportedAt || nestedData.exportedAt
+      }
+    : rawEnvelope;
 
   const rawManifest =
     obj.manifest && typeof obj.manifest === 'object' && !Array.isArray(obj.manifest)
@@ -715,7 +739,9 @@ export function validateDataPackageObject(raw: unknown): DataValidationResult {
     : Array.isArray(obj.quizQuestions)
     ? obj.quizQuestions
     : [];
+  const rawQuizAttempts = Array.isArray(obj.quizAttempts) ? obj.quizAttempts : [];
   const rawExams = Array.isArray(obj.exams) ? obj.exams : [];
+  const rawUserNotes = Array.isArray(obj.userNotes) ? obj.userNotes : [];
   const rawMediaAssets = Array.isArray(obj.mediaAssets)
     ? obj.mediaAssets
     : Array.isArray(obj.mediaIndex)
@@ -734,7 +760,9 @@ export function validateDataPackageObject(raw: unknown): DataValidationResult {
     rawSubjects.length +
     rawBooks.length +
     rawQuestions.length +
+    rawQuizAttempts.length +
     rawExams.length +
+    rawUserNotes.length +
     rawMediaAssets.length;
 
   if (totalItems === 0 && errors.length === 0) {
@@ -928,6 +956,13 @@ export function validateDataPackageObject(raw: unknown): DataValidationResult {
     };
   }
 
+  const validatedQuizAttempts = rawQuizAttempts.filter(
+    (a): a is QuizAttemptRecord => Boolean(a && typeof a === 'object' && !Array.isArray(a) && isNonEmptyString((a as Record<string, unknown>).id))
+  );
+  const validatedUserNotes = rawUserNotes.filter(
+    (n): n is UserStudyNoteRecord => Boolean(n && typeof n === 'object' && !Array.isArray(n) && isNonEmptyString((n as Record<string, unknown>).id))
+  );
+
   const payload: DataPackagePayload = {
     manifest,
     terms: validatedTerms,
@@ -939,8 +974,10 @@ export function validateDataPackageObject(raw: unknown): DataValidationResult {
     ...(validatedSubjects.length > 0 ? { subjects: validatedSubjects } : {}),
     ...(validatedBooks.length > 0 ? { books: validatedBooks } : {}),
     ...(validatedQuestions.length > 0 ? { questions: validatedQuestions } : {}),
+    ...(validatedQuizAttempts.length > 0 ? { quizAttempts: validatedQuizAttempts } : {}),
     ...(validatedExams.length > 0 ? { exams: validatedExams } : {}),
     ...(validatedMediaAssets.length > 0 ? { mediaAssets: validatedMediaAssets } : {}),
+    ...(validatedUserNotes.length > 0 ? { userNotes: validatedUserNotes } : {}),
     ...(obj.catalog && typeof obj.catalog === 'object' && !Array.isArray(obj.catalog)
       ? { catalog: obj.catalog as DataCatalogDocument }
       : {}),
@@ -1697,6 +1734,12 @@ export function assemblePackageFromZipJsonMap(
     } else if (name === 'exams.json') {
       const arr = extractZipJsonArray(content, 'exams');
       if (arr) combined.exams = arr;
+    } else if (name === 'quiz-attempts.json') {
+      const arr = extractZipJsonArray(content, 'quizAttempts');
+      if (arr) combined.quizAttempts = arr;
+    } else if (name === 'user-notes.json') {
+      const arr = extractZipJsonArray(content, 'userNotes');
+      if (arr) combined.userNotes = arr;
     } else if (
       name === 'media-index.json' ||
       name === 'mediaassets.json' ||
@@ -1900,6 +1943,12 @@ export function buildDataPackageZipBytes(payload: DataPackagePayload): Uint8Arra
       ? { 'questions.json': payload.questions }
       : {}),
     ...(payload.exams && payload.exams.length > 0 ? { 'exams.json': payload.exams } : {}),
+    ...(payload.quizAttempts && payload.quizAttempts.length > 0
+      ? { 'quiz-attempts.json': payload.quizAttempts }
+      : {}),
+    ...(payload.userNotes && payload.userNotes.length > 0
+      ? { 'user-notes.json': payload.userNotes }
+      : {}),
     ...(payload.mediaAssets && payload.mediaAssets.length > 0
       ? { 'media-index.json': payload.mediaAssets }
       : {})

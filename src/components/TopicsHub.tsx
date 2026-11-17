@@ -105,7 +105,11 @@ import {
   subscribeToCloudLibraryChanges,
   computeDeterministicFastHashHex
 } from '../services/cloudLibrarySyncService';
-import { getLocalMediaRecord } from '../services/mediaStorageService';
+import {
+  getLocalMediaRecord,
+  openMediaInExternalApp,
+  detectExternalMediaKind
+} from '../services/mediaStorageService';
 import {
   prepareAndDownloadFile,
   base64ToUint8Array
@@ -973,6 +977,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
       setActiveBlockFilter('ALL');
       setActiveSubjectFilter('ALL');
     }
+    onHierarchyChanged?.(`حذف بلوك: ${blockDeleteTarget.titleAr || blockDeleteTarget.titleEn}`);
     setBlockDeleteTarget(null);
     setBlockDeleteConfirmed(false);
   };
@@ -984,6 +989,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     if (activeSubjectFilter === subj.id) {
       setActiveSubjectFilter('ALL');
     }
+    onHierarchyChanged?.(`حذف مادة: ${subj.titleAr || subj.titleEn}`);
     showToast(`تم حذف المادة "${subj.titleAr}" مع الاحتفاظ بالمواضيع.`);
   };
 
@@ -1773,11 +1779,13 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         onSaveQuestions={(next) => {
           setQuizQuestions(next);
           saveQuizQuestions(next);
+          onHierarchyChanged?.(`تحديث بنك الأسئلة (${next.length} سؤال)`);
         }}
         onDeleteQuestion={(qId) => {
           const next = quizQuestions.filter((q) => q.id !== qId);
           setQuizQuestions(next);
           saveQuizQuestions(next);
+          onHierarchyChanged?.('حذف سؤال من بنك الاختبارات');
         }}
         attempts={quizAttempts}
         onSaveAttempt={(attempt) => {
@@ -1823,6 +1831,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         subjects={subjects}
         questions={quizQuestions}
         attempts={quizAttempts}
+        exams={academicExams}
         defaultBlockId={exportInitialBlockId}
         defaultSubjectId={exportInitialSubjectId}
         defaultTopicId={exportInitialTopicId}
@@ -3838,17 +3847,33 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           {/* Linked Media Assets from media-index.json (Auto-discovered & Offline Cached) */}
           {(() => {
             const embeddedUrls = new Set<string>();
+            const embeddedMediaIds = new Set<string>();
             for (const sec of activeTopic.sections) {
               for (const cb of sec.contentBlocks || []) {
                 if (cb.mediaUrl) embeddedUrls.add(cb.mediaUrl);
                 if (cb.externalUrl) embeddedUrls.add(cb.externalUrl);
+                if (cb.mediaIdbKey) embeddedMediaIds.add(cb.mediaIdbKey);
+                if (cb.id) {
+                  embeddedMediaIds.add(cb.id);
+                  const stripped = cb.id.replace(/^.*-(?:img|att|lnk)-/, '');
+                  if (stripped) embeddedMediaIds.add(stripped);
+                }
               }
             }
             for (const img of activeTopic.images || []) {
+              if (img.id) embeddedMediaIds.add(img.id);
+              if (img.mediaIdbKey) embeddedMediaIds.add(img.mediaIdbKey);
               if (img.url) embeddedUrls.add(img.url);
               if (img.externalUrl) embeddedUrls.add(img.externalUrl);
             }
+            for (const lnk of activeTopic.links || []) {
+              if (lnk.id) embeddedMediaIds.add(lnk.id);
+              if (lnk.mediaIdbKey) embeddedMediaIds.add(lnk.mediaIdbKey);
+              if (lnk.url) embeddedUrls.add(lnk.url);
+            }
             for (const att of activeTopic.attachments || []) {
+              if (att.id) embeddedMediaIds.add(att.id);
+              if (att.mediaIdbKey) embeddedMediaIds.add(att.mediaIdbKey);
               if (att.externalUrl) embeddedUrls.add(att.externalUrl);
               if (att.contentDataUrlOrText) embeddedUrls.add(att.contentDataUrlOrText);
             }
@@ -3865,6 +3890,9 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     (ma.linkedEntityType === 'block' &&
                       ma.linkedEntityId === activeTopic.blockId)));
               if (!isForTopic) return false;
+              if (embeddedMediaIds.has(ma.id) || (ma.mediaIdbKey && embeddedMediaIds.has(ma.mediaIdbKey))) {
+                return false;
+              }
               const href = ma.rawUrl || ma.url || '';
               return !href || !embeddedUrls.has(href);
             });
@@ -3893,21 +3921,25 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                           ma.kind || ma.mediaType || ma.format || 'attachment'
                         ).toLowerCase();
                         const mimeLower = String(ma.mimeType || '').toLowerCase();
-                        const nameOrHref = String(ma.fileName || rawHref || '');
+                        const detectedExtra = detectExternalMediaKind(
+                          rawHref || resolvedSrc,
+                          mimeLower,
+                          ma.fileName
+                        );
                         const isImageOrSvg =
                           mediaKind === 'image' ||
                           mediaKind === 'svg' ||
                           mediaKind === 'diagram' ||
-                          mimeLower.startsWith('image/') ||
-                          /\.(svg|png|jpe?g|webp|gif)(?:[?#].*)?$/i.test(nameOrHref);
+                          detectedExtra.kind === 'image';
                         const isAudio =
                           mediaKind === 'audio' ||
-                          mimeLower.startsWith('audio/') ||
-                          /\.(mp3|wav|ogg|m4a)(?:[?#].*)?$/i.test(nameOrHref);
-                        const isVideo =
-                          mediaKind === 'video' ||
-                          mimeLower.startsWith('video/') ||
-                          /\.(mp4|webm|mov)(?:[?#].*)?$/i.test(nameOrHref);
+                          detectedExtra.kind === 'audio';
+                        const isEmbedVideo = detectedExtra.kind === 'video_embed' && Boolean(detectedExtra.embedUrl);
+                        const isDirectVideo =
+                          !isEmbedVideo &&
+                          (detectedExtra.kind === 'video_direct' ||
+                            resolvedSrc.startsWith('data:video/') ||
+                            mediaKind === 'video_file');
                         const displayTitle =
                           ma.titleAr ||
                           ma.captionAr ||
@@ -3942,7 +3974,17 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                               />
                             ) : isAudio && resolvedSrc ? (
                               <audio controls src={resolvedSrc} className="w-full" />
-                            ) : isVideo && resolvedSrc ? (
+                            ) : isEmbedVideo && detectedExtra.embedUrl ? (
+                              <div className="w-full aspect-video rounded-xl overflow-hidden bg-black">
+                                <iframe
+                                  src={detectedExtra.embedUrl}
+                                  title={displayTitle}
+                                  referrerPolicy="strict-origin-when-cross-origin"
+                                  allowFullScreen
+                                  className="w-full h-full border-0"
+                                />
+                              </div>
+                            ) : isDirectVideo && resolvedSrc ? (
                               <video
                                 controls
                                 playsInline
@@ -3950,26 +3992,40 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                                 className="w-full max-h-56 rounded-xl bg-black"
                               />
                             ) : resolvedSrc ? (
-                              <a
-                                href={resolvedSrc}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const r = openMediaInExternalApp(
+                                    rawHref || resolvedSrc,
+                                    ma.fileName || ma.titleEn || ma.id,
+                                    /^https?:\/\//i.test(rawHref || resolvedSrc)
+                                      ? ''
+                                      : ma.mimeType
+                                  );
+                                  showToast(r.messageAr, r.opened ? 'success' : 'info');
+                                }}
                                 className="min-h-[40px] px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-extrabold inline-flex items-center gap-1.5"
                               >
                                 <Download className="w-3.5 h-3.5" />
-                                <span>فتح / تنزيل المرفق</span>
-                              </a>
+                                <span>فتح / عرض المرفق</span>
+                              </button>
                             ) : null}
                             {hasImageError && rawHref && (
-                              <a
-                                href={rawHref}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const r = openMediaInExternalApp(
+                                    rawHref,
+                                    ma.fileName || ma.titleEn || ma.id,
+                                    ''
+                                  );
+                                  showToast(r.messageAr, r.opened ? 'success' : 'info');
+                                }}
                                 className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-extrabold inline-flex items-center gap-1.5"
                               >
                                 <Download className="w-3.5 h-3.5" />
                                 <span>عرض الصورة من المصدر</span>
-                              </a>
+                              </button>
                             )}
                           </div>
                         );

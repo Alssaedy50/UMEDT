@@ -8,7 +8,8 @@ import {
   AcademicBookResource,
   AcademicExamPackage,
   MediaAssetRecord,
-  UserStudyNoteRecord
+  UserStudyNoteRecord,
+  QuizAttemptRecord
 } from '../types/lexicon';
 import {
   getAllLocalMediaRecordsMap,
@@ -540,6 +541,29 @@ export async function generateStandaloneHtmlDocument(
               }</div>`;
             }
             if (cb.type === 'attachment') {
+              const rawMediaText = cb.mediaUrl || '';
+              const isRawPlainText =
+                Boolean(rawMediaText.trim()) &&
+                !rawMediaText.startsWith('data:') &&
+                !rawMediaText.startsWith('idb://') &&
+                !rawMediaText.startsWith('media/') &&
+                !/^https?:\/\//i.test(rawMediaText);
+
+              if (isRawPlainText) {
+                const txtHref = `data:text/plain;charset=utf-8,${encodeURIComponent(rawMediaText)}`;
+                return `<div class="media-card"><div class="media-header"><strong dir="ltr">${escapeHtml(
+                  cb.mediaFileName || cb.titleEn || 'Study Sheet'
+                )}</strong><span>${escapeHtml(
+                  cb.titleAr || cb.text || 'مرفق نصي'
+                )}</span></div><pre dir="auto" style="white-space:pre-wrap;font-size:13px;line-height:1.7;padding:12px;border-radius:10px;background:rgba(15,23,42,0.04);max-height:300px;overflow:auto;">${escapeHtml(
+                  rawMediaText
+                )}</pre><div class="media-actions"><a href="${escapeHtml(
+                  txtHref
+                )}" download="${escapeHtml(
+                  cb.mediaFileName || 'study-sheet.txt'
+                )}" class="ext-btn">تنزيل الملف النصي ↓</a></div></div>`;
+              }
+
               const resolved = resolveMediaUrlForStandalone({
                 rawUrl: cb.mediaUrl,
                 externalUrl: cb.externalUrl,
@@ -558,7 +582,7 @@ export async function generateStandaloneHtmlDocument(
                       fileHref
                     )}" download="${escapeHtml(
                       cb.mediaFileName || 'document.pdf'
-                    )}" target="_blank" rel="noopener noreferrer" class="ext-btn">فتح / تنزيل المستند (PDF) ↗</a></div>`
+                    )}" target="_blank" rel="noopener noreferrer" class="ext-btn">فتح / تنزيل المستند ↗</a></div>`
                   : `<div class="omitted-media">مرفق محلي (${escapeHtml(
                       cb.mediaFileName || 'Document'
                     )})</div>`
@@ -1426,6 +1450,493 @@ export async function generateStandaloneZipArchiveBytes(
     zipBytes,
     recordsCount,
     includedMediaFilesCount: collectedZipMediaEntries.length,
+    entryNames: zipEntries.map((e) => e.name)
+  };
+}
+
+export interface StandaloneExamExportParams {
+  titleAr: string;
+  titleEn?: string;
+  exam?: AcademicExamPackage | null;
+  questions: UnifiedQuizQuestion[];
+  attempts?: QuizAttemptRecord[];
+  terms?: DictionaryTerm[];
+  durationMinutes?: number;
+  passingScorePercent?: number;
+}
+
+/**
+ * Generates a self-contained, 100% offline interactive Quiz / Exam HTML page
+ * supporting single choice, multiple select, true/false, fill blank, short answer,
+ * matching, and image-based clinical questions with live grading & explanations.
+ */
+export function generateStandaloneExamHtmlDocument(
+  params: StandaloneExamExportParams
+): {
+  htmlString: string;
+  htmlText: string;
+  recordsCount: number;
+} {
+  const titleAr = params.titleAr || params.exam?.titleAr || 'اختبار طبي تفاعلي — UMEDT';
+  const titleEn = params.titleEn || params.exam?.titleEn || 'UMEDT Interactive Medical Exam';
+  const durationMinutes =
+    typeof params.durationMinutes === 'number'
+      ? params.durationMinutes
+      : params.exam?.durationMinutes || 0;
+  const passingPercent =
+    typeof params.passingScorePercent === 'number'
+      ? params.passingScorePercent
+      : params.exam?.passingScorePercent ?? params.exam?.passingPercent ?? 60;
+
+  const targetQuestions = params.questions || [];
+  const attempts = params.attempts || [];
+
+  const embeddedQuestionsJson = JSON.stringify(
+    targetQuestions.map((q) => ({
+      id: q.id,
+      type: q.type,
+      questionEn: q.questionEn,
+      questionAr: q.questionAr || '',
+      imageUrl: q.imageUrl || '',
+      options: q.options || [],
+      correctOptionKeys: q.correctOptionKeys || [],
+      acceptableAnswers: q.acceptableAnswers || [],
+      matchingPairs: q.matchingPairs || [],
+      explanationEn: q.explanationEn || '',
+      explanationAr: q.explanationAr || ''
+    }))
+  )
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e');
+
+  const rawHtml = `<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escapeHtml(titleAr)} — UMEDT Exam</title>
+  <style>
+    :root {
+      --bg: #020617;
+      --surface: #0f172a;
+      --surface-2: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #10b981;
+      --accent-soft: rgba(16, 185, 129, 0.14);
+      --danger: #f43f5e;
+    }
+    html[data-theme="light"] {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-2: #f1f5f9;
+      --border: #cbd5e1;
+      --text: #0f172a;
+      --muted: #475569;
+      --accent: #059669;
+      --accent-soft: rgba(5, 150, 105, 0.1);
+      --danger: #e11d48;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+    }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .brand { font-weight: 800; color: var(--accent); font-size: 0.95rem; }
+    .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+    .btn {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 0.7rem;
+      padding: 0.45rem 0.85rem;
+      font-weight: 700;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #ffffff;
+      border-color: var(--accent);
+    }
+    .container { max-width: 920px; margin: 0 auto; padding: 1.15rem; }
+    .hero {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      padding: 1.15rem;
+      margin-bottom: 1rem;
+    }
+    .hero h1 { margin: 0 0 0.25rem 0; font-size: 1.25rem; }
+    .hero p { margin: 0.2rem 0; color: var(--muted); font-size: 0.85rem; }
+    .status-strip {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-top: 0.85rem;
+      padding: 0.75rem;
+      border-radius: 0.9rem;
+      background: var(--surface-2);
+      font-size: 0.84rem;
+      font-weight: 700;
+    }
+    .q-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 1.15rem;
+      padding: 1.05rem;
+      margin-bottom: 0.95rem;
+    }
+    .q-meta { display: flex; justify-content: space-between; font-size: 0.76rem; color: var(--accent); font-weight: 800; margin-bottom: 0.4rem; }
+    .q-stem-en { font-weight: 800; font-size: 0.96rem; text-align: left; direction: ltr; margin: 0.3rem 0; }
+    .q-stem-ar { color: var(--muted); font-size: 0.86rem; margin: 0 0 0.7rem 0; }
+    .q-img { max-width: 100%; max-height: 320px; border-radius: 0.8rem; margin: 0.5rem 0; border: 1px solid var(--border); }
+    .opts { display: grid; gap: 0.5rem; margin-top: 0.6rem; }
+    .opt-btn {
+      width: 100%;
+      text-align: left;
+      direction: ltr;
+      padding: 0.6rem 0.85rem;
+      border-radius: 0.75rem;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+      font-weight: 700;
+      font-size: 0.86rem;
+      cursor: pointer;
+    }
+    .opt-btn.selected { border-color: var(--accent); background: var(--accent-soft); }
+    .opt-btn.correct { border-color: #10b981; background: rgba(16, 185, 129, 0.24); }
+    .opt-btn.wrong { border-color: #f43f5e; background: rgba(244, 63, 94, 0.24); }
+    .text-input, .match-select {
+      width: 100%;
+      padding: 0.6rem 0.85rem;
+      border-radius: 0.75rem;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+      font-size: 0.86rem;
+      font-weight: 600;
+    }
+    .match-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; align-items: center; margin-bottom: 0.4rem; }
+    .q-exp {
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      border-radius: 0.8rem;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      font-size: 0.83rem;
+      display: none;
+    }
+    .q-exp.visible { display: block; }
+    .result-box {
+      display: none;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      border-radius: 1rem;
+      border: 1px solid var(--accent);
+      background: var(--accent-soft);
+      text-align: center;
+    }
+    .result-box.visible { display: block; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">UMEDT · الاختبار التفاعلي المستقل</div>
+    <div class="controls">
+      <span id="timerBadge" class="btn" style="display:${durationMinutes > 0 ? 'inline-block' : 'none'}">⏱ ${durationMinutes}:00</span>
+      <button type="button" class="btn" onclick="toggleTheme()">تبديل المظهر</button>
+      <button type="button" class="btn" onclick="resetExam()">إعادة</button>
+      <button type="button" class="btn btn-primary" onclick="gradeAllExam()">إنهاء وتصحيح الكل</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <h1>${escapeHtml(titleAr)}</h1>
+      <p dir="ltr">${escapeHtml(titleEn)}</p>
+      <div class="status-strip">
+        <span id="progressText">الأسئلة: 0 / ${targetQuestions.length}</span>
+        <span id="scoreText">نسبة النجاح المطلوبة: ${passingPercent}%</span>
+      </div>
+    </section>
+
+    <div id="finalResultBox" class="result-box"></div>
+    <div id="examRoot"></div>
+    ${
+      attempts.length > 0
+        ? `<section class="hero" style="margin-top:1rem;">
+            <h2 style="font-size:1rem;margin:0 0 0.5rem 0;">سجل النتائج السابقة (${attempts.length})</h2>
+            ${attempts
+              .slice(0, 10)
+              .map(
+                (a) =>
+                  `<div style="font-size:0.82rem;padding:0.35rem 0;border-top:1px solid var(--border);">
+                    <strong>${escapeHtml(a.title)}</strong> — ${a.scorePercent}% (${a.correctCount}/${a.totalQuestions}) · ${escapeHtml(a.completedAt.slice(0, 10))}
+                  </div>`
+              )
+              .join('')}
+          </section>`
+        : ''
+    }
+  </main>
+
+  <script>
+    var QUESTIONS = ${embeddedQuestionsJson};
+    var PASSING = ${passingPercent};
+    var DURATION_MIN = ${durationMinutes};
+    var responses = {};
+    var graded = false;
+    var remainingSec = DURATION_MIN > 0 ? DURATION_MIN * 60 : null;
+
+    function esc(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function toggleTheme() {
+      var h = document.documentElement;
+      h.setAttribute('data-theme', h.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
+    }
+
+    function evaluateQ(q, resp) {
+      resp = resp || {};
+      if (q.type === 'fill_blank' || q.type === 'short_answer') {
+        var val = String(resp.text || '').trim().toLowerCase();
+        if (!val) return false;
+        return (q.acceptableAnswers || []).some(function(a) { return String(a).trim().toLowerCase() === val; });
+      }
+      if (q.type === 'matching') {
+        var map = resp.match || {};
+        var pairs = q.matchingPairs || [];
+        return pairs.length > 0 && pairs.every(function(p) { return (map[p.id] || '') === p.rightEn; });
+      }
+      var picked = (resp.keys || []).slice().sort();
+      var truth = (q.correctOptionKeys || []).slice().sort();
+      return picked.length > 0 && picked.length === truth.length && picked.every(function(k, i) { return k === truth[i]; });
+    }
+
+    function selectOpt(qId, key, isMulti) {
+      if (!responses[qId]) responses[qId] = { keys: [] };
+      var cur = responses[qId].keys || [];
+      if (isMulti) {
+        responses[qId].keys = cur.indexOf(key) !== -1 ? cur.filter(function(k) { return k !== key; }) : cur.concat([key]);
+      } else {
+        responses[qId].keys = [key];
+        responses[qId].revealed = true;
+      }
+      render();
+    }
+
+    function revealMulti(qId) {
+      if (!responses[qId]) responses[qId] = { keys: [] };
+      responses[qId].revealed = true;
+      render();
+    }
+
+    function setTextResp(qId, val) {
+      if (!responses[qId]) responses[qId] = {};
+      responses[qId].text = val;
+      updateProgress();
+    }
+
+    function setMatchResp(qId, pairId, val) {
+      if (!responses[qId]) responses[qId] = { match: {} };
+      if (!responses[qId].match) responses[qId].match = {};
+      responses[qId].match[pairId] = val;
+      updateProgress();
+    }
+
+    function updateProgress() {
+      var answered = 0;
+      for (var i = 0; i < QUESTIONS.length; i++) {
+        var r = responses[QUESTIONS[i].id];
+        if (r && ((r.keys && r.keys.length) || (r.text && r.text.trim()) || (r.match && Object.keys(r.match).length))) answered++;
+      }
+      document.getElementById('progressText').textContent = 'المجاب عنها: ' + answered + ' / ' + QUESTIONS.length;
+    }
+
+    function gradeAllExam() {
+      graded = true;
+      var okCount = 0;
+      for (var i = 0; i < QUESTIONS.length; i++) {
+        if (evaluateQ(QUESTIONS[i], responses[QUESTIONS[i].id])) okCount++;
+      }
+      var pct = QUESTIONS.length > 0 ? Math.round((okCount / QUESTIONS.length) * 100) : 0;
+      var passed = pct >= PASSING;
+      var box = document.getElementById('finalResultBox');
+      box.className = 'result-box visible';
+      box.innerHTML = '<h2 style="margin:0 0 0.3rem 0;">النتيجة النهائية: ' + pct + '% (' + okCount + ' / ' + QUESTIONS.length + ')</h2>' +
+        '<p style="margin:0;font-weight:700;">' + (passed ? '✅ ناجح (تجاوزت الحد المطلوب ' + PASSING + '%)' : '⚠️ تحتاج مراجعة (المطلوب ' + PASSING + '%)') + '</p>';
+      document.getElementById('scoreText').textContent = 'النتيجة: ' + pct + '%';
+      render();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function resetExam() {
+      responses = {};
+      graded = false;
+      remainingSec = DURATION_MIN > 0 ? DURATION_MIN * 60 : null;
+      document.getElementById('finalResultBox').className = 'result-box';
+      document.getElementById('scoreText').textContent = 'نسبة النجاح المطلوبة: ' + PASSING + '%';
+      render();
+    }
+
+    function render() {
+      var root = document.getElementById('examRoot');
+      if (!QUESTIONS.length) {
+        root.innerHTML = '<div class="q-card">لا توجد أسئلة متوفرة في هذا الاختبار حالياً.</div>';
+        return;
+      }
+      var html = '';
+      for (var i = 0; i < QUESTIONS.length; i++) {
+        var q = QUESTIONS[i];
+        var resp = responses[q.id] || {};
+        var isMulti = q.type === 'multiple_select';
+        var showExp = graded || resp.revealed;
+        var isOk = evaluateQ(q, resp);
+        html += '<div class="q-card">';
+        html += '<div class="q-meta"><span>سؤال ' + (i + 1) + ' من ' + QUESTIONS.length + ' · ' + esc(q.type) + '</span>';
+        if (showExp) {
+          html += '<span style="color:' + (isOk ? '#10b981' : '#f43f5e') + '">' + (isOk ? '✓ إجابة صحيحة' : '✕ إجابة غير صحيحة') + '</span>';
+        }
+        html += '</div>';
+        html += '<p class="q-stem-en" dir="ltr">' + esc(q.questionEn) + '</p>';
+        if (q.questionAr) html += '<p class="q-stem-ar">' + esc(q.questionAr) + '</p>';
+        if (q.imageUrl && (q.imageUrl.indexOf('http') === 0 || q.imageUrl.indexOf('data:') === 0)) {
+          html += '<img class="q-img" src="' + esc(q.imageUrl) + '" alt="Clinical media" />';
+        }
+        if (q.type === 'fill_blank' || q.type === 'short_answer') {
+          html += '<input class="text-input" dir="ltr" placeholder="Type answer..." value="' + esc(resp.text || '') + '" oninput="setTextResp(\\'' + esc(q.id) + '\\', this.value)" />';
+          html += '<button type="button" class="btn" style="margin-top:0.5rem;" onclick="revealMulti(\\'' + esc(q.id) + '\\')">تحقق من الإجابة</button>';
+        } else if (q.type === 'matching') {
+          var rights = (q.matchingPairs || []).map(function(p) { return p.rightEn; });
+          for (var pIdx = 0; pIdx < (q.matchingPairs || []).length; pIdx++) {
+            var pair = q.matchingPairs[pIdx];
+            var pickedRight = (resp.match || {})[pair.id] || '';
+            html += '<div class="match-row" dir="ltr"><span>' + esc(pair.leftEn) + '</span><select class="match-select" onchange="setMatchResp(\\'' + esc(q.id) + '\\', \\'' + esc(pair.id) + '\\', this.value)"><option value="">-- Select --</option>';
+            for (var rIdx = 0; rIdx < rights.length; rIdx++) {
+              html += '<option value="' + esc(rights[rIdx]) + '"' + (pickedRight === rights[rIdx] ? ' selected' : '') + '>' + esc(rights[rIdx]) + '</option>';
+            }
+            html += '</select></div>';
+          }
+          html += '<button type="button" class="btn" style="margin-top:0.5rem;" onclick="revealMulti(\\'' + esc(q.id) + '\\')">تحقق من المطابقة</button>';
+        } else {
+          html += '<div class="opts">';
+          for (var oIdx = 0; oIdx < (q.options || []).length; oIdx++) {
+            var opt = q.options[oIdx];
+            var picked = (resp.keys || []).indexOf(opt.key) !== -1;
+            var truth = (q.correctOptionKeys || []).indexOf(opt.key) !== -1;
+            var cls = 'opt-btn';
+            if (showExp) {
+              if (truth) cls += ' correct';
+              else if (picked) cls += ' wrong';
+            } else if (picked) {
+              cls += ' selected';
+            }
+            html += '<button type="button" class="' + cls + '" onclick="selectOpt(\\'' + esc(q.id) + '\\', \\'' + esc(opt.key) + '\\', ' + (isMulti ? 'true' : 'false') + ')"><strong>' + esc(opt.key) + '.</strong> ' + esc(opt.textEn) + (opt.textAr ? ' — ' + esc(opt.textAr) : '') + '</button>';
+          }
+          html += '</div>';
+          if (isMulti && !showExp) {
+            html += '<button type="button" class="btn" style="margin-top:0.5rem;" onclick="revealMulti(\\'' + esc(q.id) + '\\')">تحقق من الاختيارات</button>';
+          }
+        }
+        html += '<div class="q-exp' + (showExp ? ' visible' : '') + '">';
+        html += '<div dir="ltr"><strong>Answer:</strong> ' + esc((q.correctOptionKeys || []).length ? q.correctOptionKeys.join(', ') : (q.acceptableAnswers || []).join(' | ')) + '</div>';
+        if (q.explanationEn) html += '<div dir="ltr" style="margin-top:0.35rem;">' + esc(q.explanationEn) + '</div>';
+        if (q.explanationAr) html += '<div style="margin-top:0.35rem;color:var(--muted);">' + esc(q.explanationAr) + '</div>';
+        html += '</div></div>';
+      }
+      root.innerHTML = html;
+      updateProgress();
+    }
+
+    if (remainingSec !== null) {
+      setInterval(function() {
+        if (graded || remainingSec === null) return;
+        if (remainingSec <= 0) { gradeAllExam(); return; }
+        remainingSec--;
+        var m = Math.floor(remainingSec / 60);
+        var s = remainingSec % 60;
+        document.getElementById('timerBadge').textContent = '⏱ ' + m + ':' + (s < 10 ? '0' : '') + s;
+      }, 1000);
+    }
+
+    render();
+  </script>
+</body>
+</html>`;
+
+  const htmlString = redactBotTokenFromText(rawHtml);
+  return {
+    htmlString,
+    htmlText: htmlString,
+    recordsCount: targetQuestions.length + attempts.length
+  };
+}
+
+export function generateStandaloneExamZipArchiveBytes(
+  params: StandaloneExamExportParams
+): {
+  zipBytes: Uint8Array;
+  recordsCount: number;
+  entryNames: string[];
+} {
+  const { htmlString, recordsCount } = generateStandaloneExamHtmlDocument(params);
+  const dataJsonObject = {
+    format: 'umed-granular-export-v1',
+    exportType: 'UMEDT_STANDALONE_EXAM_ZIP',
+    exportedAt: new Date().toISOString(),
+    data: {
+      exams: params.exam ? [params.exam] : [],
+      quizQuestions: params.questions,
+      quizAttempts: params.attempts || []
+    }
+  };
+
+  const encoder = new TextEncoder();
+  const dataJsonBytes = encoder.encode(
+    redactBotTokenFromText(JSON.stringify(dataJsonObject, null, 2))
+  );
+  const indexHtmlBytes = encoder.encode(htmlString);
+  const readmeBytes = encoder.encode(
+    [
+      'UMEDT Standalone Interactive Exam Package',
+      '=========================================',
+      '- Open "index.html" in any browser to take the interactive exam offline with instant grading and explanations.',
+      '- Import "package-data.json" or this ".zip" inside UMEDT to merge the questions into your question bank.'
+    ].join('\n')
+  );
+
+  const zipEntries: Array<{ name: string; data: Uint8Array }> = [
+    { name: 'index.html', data: indexHtmlBytes },
+    { name: 'package-data.json', data: dataJsonBytes },
+    { name: 'data.json', data: dataJsonBytes },
+    { name: 'README.txt', data: readmeBytes }
+  ];
+
+  const zipBytes = buildZipBytesFromEntries(zipEntries);
+  return {
+    zipBytes,
+    recordsCount,
     entryNames: zipEntries.map((e) => e.name)
   };
 }

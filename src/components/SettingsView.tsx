@@ -34,8 +34,11 @@ import { usePWAInstall, useOnlineStatus } from '../hooks/usePWAInstall';
 import {
   TelegramBackupConfig,
   TelegramBackupSchedule,
+  TelegramBackupMode,
+  TelegramBackupFileFormat,
   ConciseDataSummary,
   SCHEDULE_LABELS_AR,
+  BACKUP_MODE_LABELS_AR,
   loadTelegramBackupConfig,
   saveTelegramBackupConfig,
   testTelegramConnection,
@@ -97,6 +100,10 @@ interface SettingsViewProps {
     ok: boolean;
     message: string;
     summary?: ConciseDataSummary;
+  }>;
+  onRestoreFromTelegramNow?: (overrideConfig?: TelegramBackupConfig) => Promise<{
+    ok: boolean;
+    message: string;
   }>;
   currentDataSummary?: ConciseDataSummary;
   lastImportedOrCopiedSummary?: ConciseDataSummary | null;
@@ -271,6 +278,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   telegramConfig,
   onUpdateTelegramConfig,
   onTriggerTelegramBackupNow,
+  onRestoreFromTelegramNow,
   currentDataSummary,
   lastImportedOrCopiedSummary
 }) => {
@@ -282,6 +290,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isSendingTelegram, setIsSendingTelegram] = useState<boolean>(false);
   const [isTestingTelegram, setIsTestingTelegram] = useState<boolean>(false);
   const [isSyncingTelegramMedia, setIsSyncingTelegramMedia] = useState<boolean>(false);
+  const [isRestoringTelegram, setIsRestoringTelegram] = useState<boolean>(false);
   const [telegramFeedback, setTelegramFeedback] = useState<{
     ok: boolean;
     message: string;
@@ -514,6 +523,38 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     onUpdateTelegramConfig?.(fresh);
     setTelegramFeedback({ ok: mediaRes.ok, message: mediaRes.message });
     setIsSyncingTelegramMedia(false);
+  };
+
+  const handleRestoreTelegramNow = async () => {
+    if (!onRestoreFromTelegramNow) return;
+    const currentToken = (
+      botTokenInputRef.current?.value ??
+      draftBotToken ??
+      telegramConfig?.botToken ??
+      ''
+    ).trim();
+    const currentChatId = (
+      chatIdInputRef.current?.value ??
+      draftChatId ??
+      telegramConfig?.chatId ??
+      ''
+    ).trim();
+
+    setDraftBotToken(currentToken);
+    setDraftChatId(currentChatId);
+    const savedCfg = syncAndPersistTelegramDraft({
+      botToken: currentToken,
+      chatId: currentChatId
+    });
+
+    setIsRestoringTelegram(true);
+    setTelegramFeedback(null);
+    try {
+      const res = await onRestoreFromTelegramNow(savedCfg);
+      setTelegramFeedback({ ok: res.ok, message: res.message });
+    } finally {
+      setIsRestoringTelegram(false);
+    }
   };
 
   const summaryToShow =
@@ -1075,6 +1116,85 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     />
                   </div>
 
+                  {/* Backup Mode Selection */}
+                  <div className="space-y-1.5">
+                    <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
+                      طريقة النسخ إلى قناة تليجرام:
+                    </label>
+                    <div className="space-y-1.5">
+                      {(
+                        [
+                          'single_complete_file',
+                          'notes_and_scheduled_full',
+                          'with_separate_media'
+                        ] as TelegramBackupMode[]
+                      ).map((modeKey) => {
+                        const activeMode =
+                          (telegramConfig.backupMode || 'single_complete_file') === modeKey;
+                        const info = BACKUP_MODE_LABELS_AR[modeKey];
+                        return (
+                          <button
+                            key={modeKey}
+                            type="button"
+                            onClick={() =>
+                              syncAndPersistTelegramDraft({
+                                backupMode: modeKey,
+                                includeMediaFilesOnSync: modeKey === 'with_separate_media'
+                              })
+                            }
+                            className={`w-full min-h-[48px] p-2.5 rounded-xl border text-right transition-colors space-y-0.5 ${
+                              activeMode
+                                ? 'bg-emerald-500/10 border-emerald-500 text-emerald-800 dark:text-emerald-200'
+                                : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
+                            }`}
+                          >
+                            <div className="font-extrabold text-xs flex items-center justify-between gap-2">
+                              <span>{info.title}</span>
+                              {activeMode && (
+                                <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                              )}
+                            </div>
+                            <p className="text-[11px] opacity-80 leading-relaxed">{info.desc}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Backup File Format */}
+                  <div className="space-y-1.5">
+                    <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
+                      صيغة النسخة الدورية القابلة للاستيراد:
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(
+                        [
+                          { key: 'json', label: 'JSON (ملف شامل واحد)' },
+                          { key: 'zip', label: 'ZIP (أرشيف مضغوط شامل)' }
+                        ] as Array<{ key: TelegramBackupFileFormat; label: string }>
+                      ).map((fmt) => {
+                        const activeFmt =
+                          (telegramConfig.backupFileFormat || 'json') === fmt.key;
+                        return (
+                          <button
+                            key={fmt.key}
+                            type="button"
+                            onClick={() =>
+                              syncAndPersistTelegramDraft({ backupFileFormat: fmt.key })
+                            }
+                            className={`min-h-[42px] px-3 py-2 rounded-xl border font-bold text-center transition-colors ${
+                              activeFmt
+                                ? 'bg-emerald-600 border-emerald-600 text-white'
+                                : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
+                            }`}
+                          >
+                            {fmt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {/* Periodic Schedule Selector */}
                   <div className="space-y-1.5">
                     <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
@@ -1099,10 +1219,50 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         )
                       )}
                     </select>
+
+                    {telegramConfig.schedule === 'custom_hours' && (
+                      <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                        <span className="font-bold text-slate-700 dark:text-slate-300 shrink-0">
+                          الفاصل الزمني (بالساعات):
+                        </span>
+                        <input
+                          type="number"
+                          min={0.5}
+                          max={720}
+                          step={0.5}
+                          dir="ltr"
+                          value={telegramConfig.customIntervalHours ?? 4}
+                          onChange={(e) => {
+                            const v = parseFloat(e.target.value);
+                            if (!Number.isNaN(v)) {
+                              syncAndPersistTelegramDraft({
+                                customIntervalHours: Math.max(0.25, Math.min(720, v))
+                              });
+                            }
+                          }}
+                          className="w-24 min-h-[38px] px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-center font-bold"
+                        />
+                        <span className="text-[11px] text-slate-500">ساعة</span>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Scope Checkboxes */}
+                  {/* Scope & Instant Notes Checkboxes */}
                   <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+                    <label className="flex items-start gap-2 font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={telegramConfig.sendInstantChangeNotes !== false}
+                        onChange={(e) =>
+                          syncAndPersistTelegramDraft({
+                            sendInstantChangeNotes: e.target.checked
+                          })
+                        }
+                        className="w-4 h-4 mt-0.5 rounded text-emerald-600 shrink-0"
+                      />
+                      <span>نشر نوتات فورية في القناة عند كل إضافة أو تعديل أو حذف</span>
+                    </label>
+
                     <label className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
                       <input
                         type="checkbox"
@@ -1112,9 +1272,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             includeDictionaryAndTerms: e.target.checked
                           })
                         }
-                        className="w-4 h-4 rounded text-emerald-600"
+                        className="w-4 h-4 rounded text-emerald-600 shrink-0"
                       />
-                      <span>تضمين المصطلحات والجمل والمفضلة</span>
+                      <span>تضمين المصطلحات والجمل والمفضلة والملاحظات</span>
                     </label>
 
                     <label className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
@@ -1126,29 +1286,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             includeTopicsAndHierarchy: e.target.checked
                           })
                         }
-                        className="w-4 h-4 rounded text-emerald-600"
+                        className="w-4 h-4 rounded text-emerald-600 shrink-0"
                       />
-                      <span>تضمين المواضيع والبلوكات والمواد والاختبارات</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={telegramConfig.includeMediaFilesOnSync !== false}
-                        onChange={(e) =>
-                          syncAndPersistTelegramDraft({
-                            includeMediaFilesOnSync: e.target.checked
-                          })
-                        }
-                        className="w-4 h-4 rounded text-emerald-600"
-                      />
-                      <span>مزامنة ملفات الوسائط تلقائياً مع القناة (ببصمة SHA-256)</span>
+                      <span>تضمين المواضيع والبلوكات والمواد والكتب والاختبارات</span>
                     </label>
                   </div>
 
                   {telegramFeedback && (
                     <div
-                      className={`p-3 rounded-xl border font-bold ${
+                      className={`p-3 rounded-xl border font-bold leading-relaxed ${
                         telegramFeedback.ok
                           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
                           : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'
@@ -1161,9 +1307,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <button
                       type="button"
-                      disabled={isTestingTelegram || isSendingTelegram || isSyncingTelegramMedia}
+                      disabled={
+                        isTestingTelegram ||
+                        isSendingTelegram ||
+                        isSyncingTelegramMedia ||
+                        isRestoringTelegram
+                      }
                       onClick={() => void handleTestTelegram()}
-                      className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
                       <RefreshCw
                         className={`w-3.5 h-3.5 ${isTestingTelegram ? 'animate-spin' : ''}`}
@@ -1173,28 +1324,65 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                     <button
                       type="button"
-                      disabled={isSendingTelegram || isTestingTelegram || isSyncingTelegramMedia}
+                      disabled={
+                        isSendingTelegram ||
+                        isTestingTelegram ||
+                        isSyncingTelegramMedia ||
+                        isRestoringTelegram
+                      }
                       onClick={() => void handleSendTelegramNow()}
-                      className="min-h-[42px] px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      className="min-h-[44px] px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
                       <Send className="w-3.5 h-3.5" />
                       <span>{isSendingTelegram ? 'جاري الإرسال...' : 'نسخ الآن لتليجرام'}</span>
                     </button>
                   </div>
 
-                  <button
-                    type="button"
-                    disabled={isSyncingTelegramMedia || isSendingTelegram || isTestingTelegram}
-                    onClick={() => void handleSyncTelegramMediaNow()}
-                    className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
-                  >
-                    <Upload className={`w-3.5 h-3.5 ${isSyncingTelegramMedia ? 'animate-pulse' : ''}`} />
-                    <span>
-                      {isSyncingTelegramMedia
-                        ? 'جاري مزامنة الوسائط...'
-                        : 'مزامنة الوسائط الآن'}
-                    </span>
-                  </button>
+                  {onRestoreFromTelegramNow && (
+                    <button
+                      type="button"
+                      disabled={
+                        isRestoringTelegram ||
+                        isSendingTelegram ||
+                        isTestingTelegram ||
+                        isSyncingTelegramMedia
+                      }
+                      onClick={() => void handleRestoreTelegramNow()}
+                      className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      <Download
+                        className={`w-3.5 h-3.5 ${isRestoringTelegram ? 'animate-bounce' : ''}`}
+                      />
+                      <span>
+                        {isRestoringTelegram
+                          ? 'جاري الجلب والدمج من تليجرام...'
+                          : 'استيراد ودمج آخر نسخة من تليجرام مباشرة'}
+                      </span>
+                    </button>
+                  )}
+
+                  {telegramConfig.backupMode === 'with_separate_media' && (
+                    <button
+                      type="button"
+                      disabled={
+                        isSyncingTelegramMedia ||
+                        isSendingTelegram ||
+                        isTestingTelegram ||
+                        isRestoringTelegram
+                      }
+                      onClick={() => void handleSyncTelegramMediaNow()}
+                      className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      <Upload
+                        className={`w-3.5 h-3.5 ${isSyncingTelegramMedia ? 'animate-pulse' : ''}`}
+                      />
+                      <span>
+                        {isSyncingTelegramMedia
+                          ? 'جاري مزامنة الوسائط...'
+                          : 'مزامنة الوسائط المحلية منفصلة الآن'}
+                      </span>
+                    </button>
+                  )}
                 </div>
               </>
             )}

@@ -69,14 +69,17 @@ import {
   saveBookReadingProgress,
   toggleBookFavorite,
   normalizeMediaAssetRecord,
-  saveAcademicBooks
+  saveAcademicBooks,
+  buildContextualContentBlocksForTopic
 } from '../src/services/learningHierarchyService';
 import {
   saveLocalMediaRecord,
   getLocalMediaRecord,
   detectExternalMediaKind,
   downloadRemoteMediaToOfflineCache,
-  openMediaInExternalApp
+  openMediaInExternalApp,
+  isDownloadableMediaUrl,
+  normalizeMediaMimeType
 } from '../src/services/mediaStorageService';
 import {
   UMEDT_DATA_CATALOG_URL,
@@ -108,16 +111,29 @@ import {
   saveTelegramBackupConfig,
   readRawTelegramConfigJsonForAudit,
   createUnifiedBackupPackage,
+  createUnifiedZipBackupBytes,
   sendBackupToTelegram,
   scheduleDebouncedTelegramAutoSync,
   flushPendingTelegramAutoSync,
+  scheduleDebouncedTelegramChangeNote,
+  flushPendingTelegramChangeNotes,
+  fetchLatestBackupPayloadFromTelegram,
+  sendInteractiveFileToTelegram,
   uploadPendingMediaToTelegramChannel
 } from '../src/services/telegramBackupService';
 import {
   generateStandaloneHtmlDocument,
   generateStandaloneZipArchiveBytes,
+  generateStandaloneExamHtmlDocument,
+  generateStandaloneExamZipArchiveBytes,
   inspectZipEntriesList
 } from '../src/services/standaloneExportService';
+import {
+  saveQuizAttempt,
+  loadQuizAttempts,
+  loadQuizQuestions
+} from '../src/services/quizEngineService';
+import type { TopicArticle } from '../src/types/lexicon';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -3468,8 +3484,602 @@ async function main() {
   console.log(
     '[PASS] 20. UMEDT-DATA 13-File ZIP Assembly, Extended Atomic Import, Media Kind Fallback, Canonical Hash Stability, Strict 64-Hex SHA-256 Rejection & Affix/Abbreviation Sync Verified'
   );
+
+  // ============================================================================
+  // 21. Media & External Link Integrity (topic-blood-pressure-2026-01 & Live Data)
+  // ============================================================================
+  // 21.1 MIME normalization for human-readable labels and extensions
+  assertCondition(
+    normalizeMediaMimeType('TEXT / STUDY SHEET', 'Blood_Pressure_Quick_Review.txt', 'BP...') ===
+      'text/plain' &&
+      normalizeMediaMimeType('', 'diagram.svg', '') === 'image/svg+xml' &&
+      normalizeMediaMimeType(undefined, undefined, 'data:image/svg+xml;charset=utf-8,%3Csvg%3E') ===
+        'image/svg+xml',
+    'normalizeMediaMimeType must map display labels and SVG data URLs to canonical MIME types'
+  );
+
+  // 21.2 detectExternalMediaKind + isDownloadableMediaUrl accuracy
+  const whoMeta = detectExternalMediaKind('https://www.who.int/news-room/fact-sheets/detail/hypertension');
+  const ytMeta = detectExternalMediaKind('https://www.youtube.com/watch?v=TLiD3vh_X8o');
+  const ahaAudioHtmlMeta = detectExternalMediaKind(
+    'https://www.heart.org/en/health-topics/high-blood-pressure/understanding-blood-pressure-readings/monitoring-your-blood-pressure-at-home'
+  );
+  const cdcJpgMeta = detectExternalMediaKind('https://www.cdc.gov/dpdx/ascariasis/modules/Ascaris_LifeCycle.jpg');
+  const githubSvgMeta = detectExternalMediaKind('https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/media/bp-diagram.svg');
+  assertCondition(
+    whoMeta.kind === 'link' &&
+      whoMeta.mimeType === 'text/html' &&
+      !isDownloadableMediaUrl('https://www.who.int/news-room/fact-sheets/detail/hypertension') &&
+      ytMeta.kind === 'video_embed' &&
+      Boolean(ytMeta.embedUrl?.includes('youtube.com/embed/TLiD3vh_X8o')) &&
+      !isDownloadableMediaUrl('https://www.youtube.com/watch?v=TLiD3vh_X8o') &&
+      ahaAudioHtmlMeta.kind === 'link' &&
+      !isDownloadableMediaUrl('https://www.heart.org/en/health-topics/high-blood-pressure') &&
+      cdcJpgMeta.kind === 'image' &&
+      isDownloadableMediaUrl('https://www.cdc.gov/dpdx/ascariasis/modules/Ascaris_LifeCycle.jpg') &&
+      githubSvgMeta.kind === 'image' &&
+      isDownloadableMediaUrl('https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/media/bp-diagram.svg'),
+    'Media kind & downloadability classifier must distinguish YouTube embeds & HTML pages from downloadable images/audio/PDFs'
+  );
+
+  // 21.3 downloadRemoteMediaToOfflineCache must reject HTML web pages and text/html HTTP responses
+  const rejectedWebpageRes = await downloadRemoteMediaToOfflineCache({
+    remoteUrl: 'https://www.who.int/news-room/fact-sheets/detail/hypertension',
+    topicId: 'topic-blood-pressure-2026-01',
+    blockId: 'bp-link-who'
+  });
+  assertCondition(
+    !rejectedWebpageRes.success && rejectedWebpageRes.errorAr === 'NON_DOWNLOADABLE_WEBPAGE',
+    'downloadRemoteMediaToOfflineCache must reject non-downloadable webpage URLs up front'
+  );
+
+  const rejectedHtmlHeaderRes = await downloadRemoteMediaToOfflineCache({
+    remoteUrl: 'https://example.com/resource.mp4',
+    customFetch: async () =>
+      new Response('<!DOCTYPE html><html><body>Webpage</body></html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      })
+  });
+  assertCondition(
+    !rejectedHtmlHeaderRes.success && rejectedHtmlHeaderRes.errorAr === 'HTML_RESPONSE_REJECTED',
+    'downloadRemoteMediaToOfflineCache must reject HTTP text/html responses'
+  );
+
+  // 21.4 buildContextualContentBlocksForTopic preserves externalUrl/mediaIdbKey & avoids video misclassification
+  const bpBuiltSections = buildContextualContentBlocksForTopic({
+    id: 'topic-blood-pressure-2026-01',
+    title: 'Blood Pressure',
+    subtitle: 'Hypertension',
+    category: 'Medical',
+    author: 'UMEDT',
+    publishedAt: '2026-11-17',
+    readingTimeMinutes: 10,
+    favorite: false,
+    sections: [
+      {
+        id: 'sec-bp-1',
+        heading: 'BP Physiology — فيزيولوجيا ضغط الدم',
+        paragraphs: ['Mean arterial pressure = DBP + 1/3 PP.']
+      }
+    ],
+    images: [
+      {
+        id: 'img-bp-01',
+        url: 'data:image/svg+xml;charset=utf-8,%3Csvg%3E%3C/svg%3E',
+        externalUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/media/bp-01.svg',
+        mediaIdbKey: 'idb-bp-01',
+        fileName: 'bp-01.svg',
+        mimeType: 'image/svg+xml',
+        caption: 'BP Classification'
+      }
+    ],
+    links: [
+      {
+        id: 'lnk-who',
+        title: 'WHO Fact Sheet',
+        url: 'https://www.who.int/news-room/fact-sheets/detail/hypertension'
+      },
+      {
+        id: 'lnk-mp3',
+        title: 'Korotkoff Sounds Audio',
+        url: 'https://cdn.example.org/korotkoff.mp3',
+        mediaType: 'audio'
+      }
+    ],
+    attachments: [
+      {
+        id: 'att-bp-txt',
+        fileName: 'Blood_Pressure_Quick_Review.txt',
+        fileType: 'TEXT / STUDY SHEET',
+        fileSizeLabel: '~1 KB',
+        contentDataUrlOrText: 'Normal BP <120/<80 mmHg'
+      }
+    ]
+  });
+  const bpBlocks = bpBuiltSections[0]?.contentBlocks || [];
+  const bpImgBlk = bpBlocks.find((b) => b.id.includes('img-bp-01'));
+  const bpWhoBlk = bpBlocks.find((b) => b.id.includes('lnk-who'));
+  const bpAudioBlk = bpBlocks.find((b) => b.id.includes('lnk-mp3'));
+  const bpAttBlk = bpBlocks.find((b) => b.id.includes('att-bp-txt'));
+  assertCondition(
+    bpImgBlk?.externalUrl === 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/media/bp-01.svg' &&
+      bpImgBlk?.mediaIdbKey === 'idb-bp-01' &&
+      bpWhoBlk?.mediaMimeType === 'text/html' &&
+      bpAudioBlk?.type === 'audio' &&
+      bpAttBlk?.mediaMimeType === 'text/plain' &&
+      bpAttBlk?.titleAr === 'TEXT / STUDY SHEET',
+    'buildContextualContentBlocksForTopic must preserve externalUrl/mediaIdbKey, detect audio links, and normalize attachment MIME types'
+  );
+
+  // 21.5 Structural guards on TopicContentBlockEditor.tsx, MainActivity.java, and remote-fetch allowlist
+  const editorSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src/components/TopicContentBlockEditor.tsx'),
+    'utf8'
+  );
+  const mainActivitySrc = fs.readFileSync(
+    path.join(process.cwd(), 'android/app/src/main/java/org/umed2/dictengine/MainActivity.java'),
+    'utf8'
+  );
+  const serverSrc = fs.readFileSync(path.join(process.cwd(), 'server.ts'), 'utf8');
+  assertCondition(
+    !editorSrc.includes("target.style.display = 'none'") &&
+      editorSrc.includes('failedBlockImages') &&
+      editorSrc.includes('inlineTextModal') &&
+      editorSrc.includes('isDownloadableMediaUrl') &&
+      mainActivitySrc.includes('isWebUrl') &&
+      mainActivitySrc.includes('MIXED_CONTENT_COMPATIBILITY_MODE') &&
+      serverSrc.includes('www.cdc.gov'),
+    'UI fallback, text preview modal, Android HTTP Intent guard, and CDC remote-fetch allowlist must be active'
+  );
+
+  console.log(
+    '[PASS] 21. Blood Pressure & Parasitology Media Classification, HTML Polluted Cache Prevention, Inline Text Preview & Android Intent Guards Verified'
+  );
+
+  // ============================================================================
+  // 22. Telegram Single-File Backup Modes, Instant Change Notes, Direct Restore/Merge (.json & .zip) & Interactive File Sharing
+  // ============================================================================
+  {
+    const tgToken22 = '987654321:AAFakeTelegramBotTokenSection22Verify';
+    const tgChat22 = '-100777888999';
+    const testBlocks = loadMedicalBlocks();
+    const testSubjects = loadMedicalSubjects();
+    const existingTopics = loadAppState().topics || [];
+    const existingTerms = loadAppState().terms || [];
+    const existingSentences = loadAppState().sentences || [];
+
+    // Ensure at least one local media record exists to verify single_complete_file skips separate uploads
+    const mediaKey22 = `sec22-local-img-${Date.now()}`;
+    await saveLocalMediaRecord({
+      id: mediaKey22,
+      mediaType: 'image',
+      fileName: 'sec22-cardiac-diagram.png',
+      mimeType: 'image/png',
+      dataUrl:
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      sizeBytes: 96,
+      createdAt: new Date().toISOString()
+    });
+
+    const sec22NoteId = `note-sec22-${Date.now()}`;
+    const sec22NowIso = new Date().toISOString();
+    saveUserStudyNotes([
+      ...loadUserStudyNotes(),
+      {
+        id: sec22NoteId,
+        entityType: 'topic',
+        entityId: 'topic-sec22-sync',
+        title: 'My Preserved Study Note',
+        content: 'Keep this personal note during Telegram restore merge',
+        createdAt: sec22NowIso,
+        updatedAt: sec22NowIso
+      }
+    ]);
+
+    const sec22AttemptId = `attempt-sec22-${Date.now()}`;
+    saveQuizAttempt({
+      id: sec22AttemptId,
+      title: 'Section 22 ACS Check',
+      scopeType: 'topic',
+      blockId: testBlocks[0]?.id || 'block-cardiology',
+      subjectId: testSubjects[0]?.id || 'subj-cardiology',
+      topicIds: ['topic-sec22-sync'],
+      completedAt: sec22NowIso,
+      mode: 'instant',
+      totalQuestions: 2,
+      correctCount: 2,
+      wrongCount: 0,
+      scorePercent: 100,
+      durationSeconds: 35,
+      questionIds: ['q-sec22-01'],
+      answers: [
+        {
+          questionId: 'q-sec22-01',
+          selectedKeys: ['B'],
+          isCorrect: true
+        }
+      ]
+    });
+
+    const sec22Topic: TopicArticle = {
+      id: 'topic-sec22-sync',
+      title: 'Acute Coronary Syndrome Protocol',
+      titleAr: 'بروتوكول المتلازمة التاجية الحادة',
+      subtitle: 'Emergency Cardiology & Troponin Workflow',
+      author: 'UMEDT Medical Editorial',
+      publishedAt: '2026-11-17',
+      readingTimeMinutes: 8,
+      category: 'Medical',
+      blockId: testBlocks[0]?.id || 'block-cardiology',
+      subjectId: testSubjects[0]?.id || 'subj-cardiology',
+      favorite: true,
+      sections: [
+        {
+          id: 'sec-22-initial-assessment',
+          heading: 'Initial Assessment',
+          headingAr: 'التقييم الأولي',
+          paragraphs: ['Obtain 12-lead ECG within 10 minutes and check serial troponin.']
+        }
+      ],
+      images: [
+        {
+          id: 'img-sec22',
+          url: `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==`,
+          mediaIdbKey: mediaKey22,
+          caption: '12-Lead ECG Diagram'
+        }
+      ],
+      links: [
+        {
+          id: 'lnk-sec22',
+          title: 'AHA ACS Guideline',
+          url: 'https://www.heart.org/acs-guideline.pdf'
+        }
+      ],
+      attachments: []
+    };
+
+    const topicsWithSec22 = [
+      ...existingTopics.filter((t) => t.id !== sec22Topic.id),
+      sec22Topic
+    ];
+    saveTopics(topicsWithSec22);
+
+    const apiLog22: Array<{ endpoint: string; fileName?: string; text?: string }> = [];
+    let nextMsgId22 = 8100;
+    const uploadedPayloads22 = new Map<string, { fileName: string; bytes: Uint8Array }>();
+
+    saveTelegramBackupConfig({
+      enabled: true,
+      botToken: tgToken22,
+      chatId: tgChat22,
+      schedule: '6h',
+      backupMode: 'single_complete_file',
+      backupFileFormat: 'json',
+      sendInstantChangeNotes: true,
+      includeTopicsAndHierarchy: true,
+      includeDictionaryAndTerms: true,
+      includeQuizzesAndStats: true,
+      includeMediaFilesOnSync: false,
+      appBackupMessageIds: []
+    });
+
+    const origFetch22 = globalThis.fetch;
+    globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const urlStr = typeof input === 'string' ? input : input.toString();
+      if (urlStr.includes('api.telegram.org/file/bot')) {
+        const match = urlStr.split('/').pop() || '';
+        const stored = uploadedPayloads22.get(match);
+        if (!stored) {
+          return new Response('Not Found', { status: 404 });
+        }
+        return new Response(
+          stored.bytes.buffer.slice(
+            stored.bytes.byteOffset,
+            stored.bytes.byteOffset + stored.bytes.byteLength
+          ) as ArrayBuffer,
+          { status: 200, headers: { 'Content-Type': 'application/octet-stream' } }
+        );
+      }
+      if (urlStr.includes('api.telegram.org/bot')) {
+        if (urlStr.endsWith('/sendDocument')) {
+          let docName = 'unknown';
+          let docBytes = new Uint8Array();
+          if (init?.body instanceof FormData) {
+            const docEntry = init.body.get('document');
+            if (docEntry && typeof (docEntry as Blob).arrayBuffer === 'function') {
+              docName = (docEntry as File).name || 'backup.json';
+              docBytes = new Uint8Array(await (docEntry as Blob).arrayBuffer());
+            }
+          }
+          const msgId = nextMsgId22++;
+          const fileId = `fid-${msgId}`;
+          uploadedPayloads22.set(fileId, { fileName: docName, bytes: docBytes });
+          apiLog22.push({ endpoint: 'sendDocument', fileName: docName });
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              result: {
+                message_id: msgId,
+                document: { file_id: fileId, file_name: docName }
+              }
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (urlStr.endsWith('/sendMessage')) {
+          const bodyObj = init?.body ? JSON.parse(String(init.body)) : {};
+          apiLog22.push({ endpoint: 'sendMessage', text: String(bodyObj.text || '') });
+          return new Response(
+            JSON.stringify({ ok: true, result: { message_id: nextMsgId22++ } }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (urlStr.endsWith('/deleteMessage')) {
+          apiLog22.push({ endpoint: 'deleteMessage' });
+          return new Response(JSON.stringify({ ok: true, result: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (urlStr.includes('/getUpdates')) {
+          apiLog22.push({ endpoint: 'getUpdates' });
+          const cfgNow = loadTelegramBackupConfig();
+          const fid = cfgNow.lastBackupFileId || '';
+          const fname = cfgNow.lastBackupFileName || '';
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              result: fid
+                ? [
+                    {
+                      update_id: 901,
+                      channel_post: {
+                        message_id: cfgNow.lastBackupMessageId || 8100,
+                        chat: { id: tgChat22 },
+                        document: { file_id: fid, file_name: fname }
+                      }
+                    }
+                  ]
+                : []
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (urlStr.includes('/getFile')) {
+          apiLog22.push({ endpoint: 'getFile' });
+          const parsedUrl = new URL(urlStr);
+          const fid = parsedUrl.searchParams.get('file_id') || '';
+          return new Response(
+            JSON.stringify({ ok: true, result: { file_id: fid, file_path: fid } }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+      return origFetch22(input, init);
+    };
+
+    try {
+      // 22.1 single_complete_file mode sends strictly ONE comprehensive JSON document (no separate media uploads, no binary payloads)
+      const cfgSingle = loadTelegramBackupConfig();
+      const singleRes = await sendBackupToTelegram(
+        cfgSingle,
+        existingTerms,
+        existingSentences,
+        topicsWithSec22,
+        'نسخة شاملة موحدة (ملف واحد)'
+      );
+      const sendDocsAfterSingle = apiLog22.filter((c) => c.endpoint === 'sendDocument');
+      assertCondition(
+        singleRes.ok &&
+          sendDocsAfterSingle.length === 1 &&
+          sendDocsAfterSingle[0].fileName?.endsWith('.json') === true &&
+          singleRes.mediaSyncResult === undefined,
+        'single_complete_file mode must upload strictly 1 JSON backup document without separate media uploads'
+      );
+      const uploadedJsonBytes = uploadedPayloads22.get(
+        loadTelegramBackupConfig().lastBackupFileId || ''
+      )?.bytes;
+      const uploadedJsonText = uploadedJsonBytes
+        ? new TextDecoder().decode(uploadedJsonBytes)
+        : '';
+      assertCondition(
+        !uploadedJsonText.includes('data:image/png;base64') &&
+          uploadedJsonText.includes('https://www.heart.org/acs-guideline.pdf') &&
+          uploadedJsonText.includes(`idb://${mediaKey22}`) &&
+          uploadedJsonText.includes(sec22NoteId) &&
+          uploadedJsonText.includes(sec22AttemptId),
+        'Single backup file must strip binary payloads while keeping media URLs/refs, userNotes, and quizAttempts'
+      );
+
+      // 22.2 Instant Change Notes batch add/update/delete into a single Telegram sendMessage without touching appBackupMessageIds
+      const backupIdsBeforeNotes = [...(loadTelegramBackupConfig().appBackupMessageIds || [])];
+      scheduleDebouncedTelegramChangeNote({
+        action: 'add',
+        label: 'إضافة موضوع: Acute Coronary Syndrome',
+        terms: existingTerms,
+        sentences: existingSentences,
+        topics: topicsWithSec22,
+        debounceMs: 5000
+      });
+      scheduleDebouncedTelegramChangeNote({
+        action: 'update',
+        label: 'تحديث مادة: Cardiology',
+        terms: existingTerms,
+        sentences: existingSentences,
+        topics: topicsWithSec22,
+        debounceMs: 5000
+      });
+      scheduleDebouncedTelegramChangeNote({
+        action: 'delete',
+        label: 'حذف سؤال قديم من بنك الأسئلة',
+        terms: existingTerms,
+        sentences: existingSentences,
+        topics: topicsWithSec22,
+        debounceMs: 5000
+      });
+      const noteFlush = await flushPendingTelegramChangeNotes();
+      const sentMsgs = apiLog22.filter((c) => c.endpoint === 'sendMessage');
+      const backupIdsAfterNotes = loadTelegramBackupConfig().appBackupMessageIds || [];
+      assertCondition(
+        noteFlush.ok &&
+          noteFlush.sentCount === 3 &&
+          sentMsgs.length === 1 &&
+          Boolean(sentMsgs[0].text?.includes('إضافة')) &&
+          Boolean(sentMsgs[0].text?.includes('تحديث')) &&
+          Boolean(sentMsgs[0].text?.includes('حذف')) &&
+          JSON.stringify(backupIdsBeforeNotes) === JSON.stringify(backupIdsAfterNotes),
+        'Instant change notes must batch add/update/delete into one sendMessage and leave appBackupMessageIds untouched'
+      );
+
+      // 22.3 Direct In-App Restore/Merge from Telegram (.json backup) preserves user progress & notes
+      const fetchedJsonBackup = await fetchLatestBackupPayloadFromTelegram(
+        loadTelegramBackupConfig()
+      );
+      assertCondition(
+        fetchedJsonBackup.ok &&
+          fetchedJsonBackup.format === 'json' &&
+          Boolean(fetchedJsonBackup.bytes && fetchedJsonBackup.bytes.byteLength > 20),
+        'fetchLatestBackupPayloadFromTelegram must download the latest JSON backup from Telegram'
+      );
+      const mergeJsonRes = await executeAtomicPackageImport(fetchedJsonBackup.bytes!, {
+        mode: 'merge'
+      });
+      const mergedTopicsAfterJson = loadAppState().topics || [];
+      const restoredSec22Topic = mergedTopicsAfterJson.find((t) => t.id === sec22Topic.id);
+      const restoredNotesAfterJson = loadUserStudyNotes();
+      const restoredAttemptsAfterJson = loadQuizAttempts();
+      assertCondition(
+        mergeJsonRes.result.success &&
+          Boolean(restoredSec22Topic) &&
+          restoredSec22Topic?.favorite === true &&
+          restoredNotesAfterJson.some((n) => n.id === sec22NoteId) &&
+          restoredAttemptsAfterJson.some((a) => a.id === sec22AttemptId),
+        'Two-way Telegram JSON restore/merge must restore topics, notes, and quizAttempts while preserving favorite state'
+      );
+
+      // 22.4 ZIP Scheduled Backup & Direct In-App Restore/Merge (.zip backup)
+      saveTelegramBackupConfig({
+        ...loadTelegramBackupConfig(),
+        backupFileFormat: 'zip',
+        backupMode: 'notes_and_scheduled_full'
+      });
+      const zipBackupRes = await sendBackupToTelegram(
+        loadTelegramBackupConfig(),
+        existingTerms,
+        existingSentences,
+        topicsWithSec22,
+        'نسخة دورية مجدولة (ZIP)'
+      );
+      const zipFileName = loadTelegramBackupConfig().lastBackupFileName || '';
+      assertCondition(
+        zipBackupRes.ok && zipFileName.endsWith('.zip'),
+        'Telegram backup with backupFileFormat=zip must upload a .zip backup archive'
+      );
+      const fetchedZipBackup = await fetchLatestBackupPayloadFromTelegram(
+        loadTelegramBackupConfig()
+      );
+      assertCondition(
+        fetchedZipBackup.ok &&
+          fetchedZipBackup.format === 'zip' &&
+          Boolean(fetchedZipBackup.bytes && fetchedZipBackup.bytes.byteLength > 50),
+        'fetchLatestBackupPayloadFromTelegram must retrieve .zip periodic backups from Telegram'
+      );
+      const mergeZipRes = await executeAtomicPackageImport(fetchedZipBackup.bytes!, {
+        mode: 'merge'
+      });
+      assertCondition(
+        mergeZipRes.result.success &&
+          (loadAppState().topics || []).some((t) => t.id === sec22Topic.id),
+        'Importing/merging downloaded Telegram .zip backup must succeed atomically'
+      );
+
+      // 22.5 with_separate_media mode uploads BOTH backup and separate local media file
+      const docsBeforeSeparateMedia = apiLog22.filter((c) => c.endpoint === 'sendDocument').length;
+      saveTelegramBackupConfig({
+        ...loadTelegramBackupConfig(),
+        backupFileFormat: 'json',
+        backupMode: 'with_separate_media'
+      });
+      const sepMediaRes = await sendBackupToTelegram(
+        loadTelegramBackupConfig(),
+        existingTerms,
+        existingSentences,
+        topicsWithSec22,
+        'نسخة مع الوسائط المنفصلة'
+      );
+      const docsAfterSeparateMedia = apiLog22.filter((c) => c.endpoint === 'sendDocument').length;
+      assertCondition(
+        sepMediaRes.ok &&
+          Boolean(sepMediaRes.mediaSyncResult) &&
+          docsAfterSeparateMedia >= docsBeforeSeparateMedia + 1,
+        'with_separate_media mode must trigger separate media sync alongside the main backup'
+      );
+
+      // 22.6 Direct Sharing of Standalone Interactive Exam HTML & ZIP to Telegram without affecting appBackupMessageIds
+      const sampleQuestions22 = loadQuizQuestions(topicsWithSec22, existingTerms).slice(0, 3);
+      const examHtml = generateStandaloneExamHtmlDocument({
+        titleAr: 'اختبار القلبية التفاعلي',
+        titleEn: 'Interactive Cardiology Exam',
+        questions: sampleQuestions22,
+        durationMinutes: 15,
+        passingScorePercent: 60
+      });
+      const examZip = generateStandaloneExamZipArchiveBytes({
+        titleAr: 'اختبار القلبية التفاعلي',
+        titleEn: 'Interactive Cardiology Exam',
+        questions: sampleQuestions22,
+        durationMinutes: 15,
+        passingScorePercent: 60
+      });
+      const examZipEntries = inspectZipEntriesList(examZip.zipBytes);
+      assertCondition(
+        examHtml.htmlString.includes('<!DOCTYPE html>') &&
+          examHtml.htmlString.includes('gradeAllExam') &&
+          examHtml.htmlString.includes('selectOpt') &&
+          examZipEntries.includes('index.html') &&
+          examZipEntries.includes('package-data.json'),
+        'Standalone exam HTML and ZIP generator must produce self-contained interactive exam bundles'
+      );
+
+      const backupIdsBeforeShare = [...(loadTelegramBackupConfig().appBackupMessageIds || [])];
+      const shareHtmlRes = await sendInteractiveFileToTelegram({
+        config: loadTelegramBackupConfig(),
+        fileName: 'UMEDT-Cardio-Exam.html',
+        content: examHtml.htmlString,
+        mimeType: 'text/html',
+        titleAr: 'اختبار القلبية التفاعلي',
+        scopeLabel: 'اختبار تفاعلي مستقل (HTML)',
+        recordsCount: sampleQuestions22.length
+      });
+      const shareZipRes = await sendInteractiveFileToTelegram({
+        config: loadTelegramBackupConfig(),
+        fileName: 'UMEDT-Cardio-Exam.zip',
+        content: examZip.zipBytes,
+        mimeType: 'application/zip',
+        titleAr: 'اختبار القلبية التفاعلي (ZIP)',
+        scopeLabel: 'اختبار تفاعلي (ZIP)',
+        recordsCount: sampleQuestions22.length
+      });
+      const backupIdsAfterShare = loadTelegramBackupConfig().appBackupMessageIds || [];
+      assertCondition(
+        shareHtmlRes.ok &&
+          shareZipRes.ok &&
+          JSON.stringify(backupIdsBeforeShare) === JSON.stringify(backupIdsAfterShare),
+        'Sharing interactive HTML/ZIP files directly to Telegram must succeed without modifying appBackupMessageIds'
+      );
+    } finally {
+      globalThis.fetch = origFetch22;
+    }
+
+    console.log(
+      '[PASS] 22. Telegram Single-File Modes, Instant Change Notes, Direct Restore/Merge (.json & .zip) & Interactive File Sharing Verified'
+    );
+  }
+
   console.log('================================================================');
-  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (20/20 — 100%)');
+  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (22/22 — 100%)');
   console.log('================================================================');
 }
 

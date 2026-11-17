@@ -9,7 +9,8 @@ import {
   FileJson,
   FileSpreadsheet,
   Globe,
-  Archive
+  Archive,
+  Send
 } from 'lucide-react';
 import {
   DictionaryTerm,
@@ -17,7 +18,8 @@ import {
   MedicalBlock,
   MedicalSubject,
   UnifiedQuizQuestion,
-  QuizAttemptRecord
+  QuizAttemptRecord,
+  AcademicExamPackage
 } from '../types/lexicon';
 import {
   GITHUB_DIRECT_RELEASE_LINKS,
@@ -32,8 +34,11 @@ import {
 } from '../services/exportDownloadService';
 import {
   generateStandaloneHtmlDocument,
-  generateStandaloneZipArchiveBytes
+  generateStandaloneZipArchiveBytes,
+  generateStandaloneExamHtmlDocument,
+  generateStandaloneExamZipArchiveBytes
 } from '../services/standaloneExportService';
+import { sendInteractiveFileToTelegram } from '../services/telegramBackupService';
 import {
   loadAcademicBooks,
   loadAcademicExams,
@@ -56,9 +61,11 @@ interface GranularExportModalProps {
   terms: DictionaryTerm[];
   questions: UnifiedQuizQuestion[];
   attempts: QuizAttemptRecord[];
+  exams?: AcademicExamPackage[];
   defaultTopicId?: string | null;
   defaultSubjectId?: string | null;
   defaultBlockId?: string | null;
+  defaultExamId?: string | null;
   showToast: (msg: string, type?: string) => void;
 }
 
@@ -79,22 +86,27 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
   terms,
   questions,
   attempts,
+  exams,
   defaultTopicId,
   defaultSubjectId,
   defaultBlockId,
+  defaultExamId,
   showToast
 }) => {
+  const availableExams = useMemo(() => exams ?? loadAcademicExams(), [exams]);
   const [scope, setScope] = useState<ExportScopeOption>(
-    defaultTopicId
-      ? 'single_topic'
-      : defaultBlockId
-        ? 'complete_block'
-        : defaultSubjectId
-          ? 'complete_subject'
-          : 'all_terms'
+    defaultExamId
+      ? 'tests_and_results'
+      : defaultTopicId
+        ? 'single_topic'
+        : defaultBlockId
+          ? 'complete_block'
+          : defaultSubjectId
+            ? 'complete_subject'
+            : 'all_terms'
   );
   const [format, setFormat] = useState<'json' | 'csv' | 'html' | 'zip'>(
-    defaultTopicId || defaultBlockId || defaultSubjectId ? 'html' : 'json'
+    defaultTopicId || defaultBlockId || defaultSubjectId || defaultExamId ? 'html' : 'json'
   );
   const [includeLocalMedia, setIncludeLocalMedia] = useState<boolean>(false);
   const [selectedBlockId, setSelectedBlockId] = useState<string>(
@@ -106,8 +118,16 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
   const [selectedTopicId, setSelectedTopicId] = useState<string>(
     defaultTopicId || topics[0]?.id || ''
   );
+  const [selectedExamId, setSelectedExamId] = useState<string>(
+    defaultExamId || 'ALL'
+  );
   const [termFilterTarget, setTermFilterTarget] = useState<'subject' | 'block'>('subject');
   const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [isSendingTelegram, setIsSendingTelegram] = useState<boolean>(false);
+  const [telegramSendFeedback, setTelegramSendFeedback] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
   const [lastExportResult, setLastExportResult] = useState<VerifiedExportResult | null>(
     null
   );
@@ -126,7 +146,8 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
   const supportsStandaloneHtmlZip =
     scope === 'single_topic' ||
     scope === 'complete_subject' ||
-    scope === 'complete_block';
+    scope === 'complete_block' ||
+    scope === 'tests_and_results';
 
   const effectiveFormat: 'json' | 'csv' | 'html' | 'zip' = useMemo(() => {
     if (format === 'csv' && supportsCsv) return 'csv';
@@ -151,268 +172,361 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
     [topics, selectedTopicId]
   );
 
+  const buildCurrentExportPayload = async (): Promise<{
+    fileName: string;
+    content: string | Uint8Array;
+    recordsCount: number;
+    titleAr: string;
+    scopeLabel: string;
+    mimeType: string;
+  }> => {
+    let fileName = `UMEDT_Export_${Date.now()}.${effectiveFormat}`;
+    let content: string | Uint8Array = '';
+    let recordsCount = 0;
+    let titleAr = 'تصدير بيانات UMEDT';
+    let scopeLabel = 'حزمة بيانات UMEDT';
+
+    if (scope === 'all_terms') {
+      titleAr = 'جميع مصطلحات قاموس UMEDT';
+      scopeLabel = 'قاموس المصطلحات الطبي';
+      recordsCount = terms.length;
+      fileName = `UMEDT_All_Terms_${terms.length}.${effectiveFormat}`;
+      content =
+        effectiveFormat === 'csv'
+          ? buildTermsCsvContent(terms)
+          : JSON.stringify(
+              {
+                exportType: 'UMEDT_ALL_TERMS',
+                exportedAt: new Date().toISOString(),
+                count: terms.length,
+                terms
+              },
+              null,
+              2
+            );
+    } else if (scope === 'subject_or_block_terms') {
+      const targetTopics =
+        termFilterTarget === 'subject'
+          ? topics.filter((t) => t.subjectId === selectedSubjectId)
+          : topics.filter((t) => t.blockId === selectedBlockId);
+
+      const matchedTerms = resolveTermsForTopics(targetTopics, terms);
+      const targetCode =
+        termFilterTarget === 'subject'
+          ? activeSubject?.code || 'SUBJ'
+          : activeBlock?.code || 'BLOCK';
+
+      titleAr =
+        termFilterTarget === 'subject'
+          ? `مصطلحات مادة ${activeSubject?.titleEn || ''}`
+          : `مصطلحات بلوك ${activeBlock?.titleEn || ''}`;
+      scopeLabel =
+        termFilterTarget === 'subject' ? 'مصطلحات مادة دراسية' : 'مصطلحات بلوك طبي';
+      recordsCount = matchedTerms.length;
+      fileName = `UMEDT_Terms_${targetCode}_${matchedTerms.length}.${effectiveFormat}`;
+      content =
+        effectiveFormat === 'csv'
+          ? buildTermsCsvContent(matchedTerms)
+          : JSON.stringify(
+              {
+                exportType: 'UMEDT_FILTERED_TERMS',
+                filterType: termFilterTarget,
+                targetId:
+                  termFilterTarget === 'subject' ? selectedSubjectId : selectedBlockId,
+                exportedAt: new Date().toISOString(),
+                count: matchedTerms.length,
+                terms: matchedTerms
+              },
+              null,
+              2
+            );
+    } else if (scope === 'single_topic' && activeTopic) {
+      const topicBlock = blocks.find((b) => b.id === activeTopic.blockId);
+      const topicSubject = subjects.find((s) => s.id === activeTopic.subjectId);
+      titleAr = `موضوع: ${activeTopic.titleEn || activeTopic.title}`;
+      scopeLabel = `موضوع تفاعلي (${effectiveFormat.toUpperCase()})`;
+      const safeSlug = activeTopic.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+      if (effectiveFormat === 'html') {
+        const builtHtml = await generateStandaloneHtmlDocument({
+          scope: 'topic',
+          titleEn: activeTopic.titleEn || activeTopic.title,
+          titleAr: activeTopic.titleAr || activeTopic.subtitle || activeTopic.title,
+          block: topicBlock,
+          subjects: topicSubject ? [topicSubject] : [],
+          topics: [activeTopic],
+          allTerms: terms,
+          allQuestions: questions,
+          books: loadAcademicBooks(),
+          exams: availableExams,
+          mediaAssets: loadMediaAssetsIndex(),
+          userNotes: loadUserStudyNotes(),
+          includeLocalMedia
+        });
+        fileName = `UMEDT_Topic_${safeSlug}_Standalone.html`;
+        content = builtHtml.htmlText;
+        recordsCount = builtHtml.recordsCount;
+      } else if (effectiveFormat === 'zip') {
+        const builtZip = await generateStandaloneZipArchiveBytes({
+          scope: 'topic',
+          titleEn: activeTopic.titleEn || activeTopic.title,
+          titleAr: activeTopic.titleAr || activeTopic.subtitle || activeTopic.title,
+          block: topicBlock,
+          subjects: topicSubject ? [topicSubject] : [],
+          topics: [activeTopic],
+          allTerms: terms,
+          allQuestions: questions,
+          books: loadAcademicBooks(),
+          exams: availableExams,
+          mediaAssets: loadMediaAssetsIndex(),
+          userNotes: loadUserStudyNotes(),
+          includeLocalMedia
+        });
+        fileName = `UMEDT_Topic_${safeSlug}_Standalone.zip`;
+        content = builtZip.zipBytes;
+        recordsCount = builtZip.recordsCount;
+      } else {
+        const built = buildSingleTopicExportBundle(
+          activeTopic,
+          terms,
+          questions,
+          topicBlock,
+          topicSubject
+        );
+        recordsCount = built.recordsCount;
+        fileName = `UMEDT_Topic_${safeSlug}.json`;
+        content = built.jsonText;
+      }
+    } else if (scope === 'complete_subject' && activeSubject) {
+      const subjBlock = blocks.find((b) => b.id === activeSubject.blockId);
+      const subjectTopics = topics.filter((t) => t.subjectId === activeSubject.id);
+      titleAr = `مادة كاملة: ${activeSubject.titleEn}`;
+      scopeLabel = `مادة دراسية تفاعلية (${effectiveFormat.toUpperCase()})`;
+      const safeCode = (activeSubject.code || activeSubject.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+
+      if (effectiveFormat === 'html') {
+        const builtHtml = await generateStandaloneHtmlDocument({
+          scope: 'subject',
+          titleEn: activeSubject.titleEn,
+          titleAr: activeSubject.titleAr,
+          block: subjBlock,
+          subjects: [activeSubject],
+          topics: subjectTopics,
+          allTerms: terms,
+          allQuestions: questions,
+          books: loadAcademicBooks(),
+          exams: availableExams,
+          mediaAssets: loadMediaAssetsIndex(),
+          userNotes: loadUserStudyNotes(),
+          includeLocalMedia
+        });
+        fileName = `UMEDT_Subject_${safeCode}_Standalone.html`;
+        content = builtHtml.htmlText;
+        recordsCount = builtHtml.recordsCount;
+      } else if (effectiveFormat === 'zip') {
+        const builtZip = await generateStandaloneZipArchiveBytes({
+          scope: 'subject',
+          titleEn: activeSubject.titleEn,
+          titleAr: activeSubject.titleAr,
+          block: subjBlock,
+          subjects: [activeSubject],
+          topics: subjectTopics,
+          allTerms: terms,
+          allQuestions: questions,
+          books: loadAcademicBooks(),
+          exams: availableExams,
+          mediaAssets: loadMediaAssetsIndex(),
+          userNotes: loadUserStudyNotes(),
+          includeLocalMedia
+        });
+        fileName = `UMEDT_Subject_${safeCode}_Standalone.zip`;
+        content = builtZip.zipBytes;
+        recordsCount = builtZip.recordsCount;
+      } else {
+        const built = buildSubjectExportBundle(
+          activeSubject,
+          topics,
+          terms,
+          questions,
+          subjBlock
+        );
+        recordsCount = built.recordsCount;
+        fileName = `UMEDT_Subject_${safeCode}.json`;
+        content = built.jsonText;
+      }
+    } else if (scope === 'complete_block' && activeBlock) {
+      const blockSubjects = subjects.filter((s) => s.blockId === activeBlock.id);
+      const subjIds = new Set(blockSubjects.map((s) => s.id));
+      const blockTopics = topics.filter(
+        (t) => t.blockId === activeBlock.id || (t.subjectId && subjIds.has(t.subjectId))
+      );
+      titleAr = `بلوك كامل: ${activeBlock.titleEn}`;
+      scopeLabel = `بلوك طبي متكامل (${effectiveFormat.toUpperCase()})`;
+      const safeCode = (activeBlock.code || activeBlock.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+
+      if (effectiveFormat === 'html') {
+        const builtHtml = await generateStandaloneHtmlDocument({
+          scope: 'block',
+          titleEn: activeBlock.titleEn,
+          titleAr: activeBlock.titleAr,
+          block: activeBlock,
+          subjects: blockSubjects,
+          topics: blockTopics,
+          allTerms: terms,
+          allQuestions: questions,
+          books: loadAcademicBooks(),
+          exams: availableExams,
+          mediaAssets: loadMediaAssetsIndex(),
+          userNotes: loadUserStudyNotes(),
+          includeLocalMedia
+        });
+        fileName = `UMEDT_Block_${safeCode}_Standalone.html`;
+        content = builtHtml.htmlText;
+        recordsCount = builtHtml.recordsCount;
+      } else if (effectiveFormat === 'zip') {
+        const builtZip = await generateStandaloneZipArchiveBytes({
+          scope: 'block',
+          titleEn: activeBlock.titleEn,
+          titleAr: activeBlock.titleAr,
+          block: activeBlock,
+          subjects: blockSubjects,
+          topics: blockTopics,
+          allTerms: terms,
+          allQuestions: questions,
+          books: loadAcademicBooks(),
+          exams: availableExams,
+          mediaAssets: loadMediaAssetsIndex(),
+          userNotes: loadUserStudyNotes(),
+          includeLocalMedia
+        });
+        fileName = `UMEDT_Block_${safeCode}_Standalone.zip`;
+        content = builtZip.zipBytes;
+        recordsCount = builtZip.recordsCount;
+      } else {
+        const built = buildBlockExportBundle(
+          activeBlock,
+          subjects,
+          topics,
+          terms,
+          questions
+        );
+        recordsCount = built.recordsCount;
+        fileName = `UMEDT_Block_${safeCode}.json`;
+        content = built.jsonText;
+      }
+    } else if (scope === 'tests_and_results') {
+      const selectedExam =
+        selectedExamId !== 'ALL'
+          ? availableExams.find((ex) => ex.id === selectedExamId) || null
+          : null;
+
+      let targetQuestions = questions;
+      if (selectedExam) {
+        const qById = new Map(questions.map((q) => [q.id, q]));
+        if (selectedExam.questions && selectedExam.questions.length > 0) {
+          targetQuestions = selectedExam.questions;
+        } else if (selectedExam.questionIds && selectedExam.questionIds.length > 0) {
+          targetQuestions = selectedExam.questionIds
+            .map((id) => qById.get(id))
+            .filter((q): q is UnifiedQuizQuestion => Boolean(q));
+        } else {
+          targetQuestions = questions.filter(
+            (q) =>
+              (selectedExam.subjectId && q.subjectId === selectedExam.subjectId) ||
+              (selectedExam.blockId && q.blockId === selectedExam.blockId) ||
+              (selectedExam.topicIds && q.topicId && selectedExam.topicIds.includes(q.topicId))
+          );
+        }
+      }
+
+      titleAr = selectedExam
+        ? `اختبار: ${selectedExam.titleAr || selectedExam.titleEn}`
+        : 'بنك الاختبارات التفاعلية وسجل النتائج';
+      scopeLabel = `اختبار تفاعلي (${effectiveFormat.toUpperCase()})`;
+      const safeSlug = (selectedExam?.id || 'Bank').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+      if (effectiveFormat === 'html') {
+        const builtExamHtml = generateStandaloneExamHtmlDocument({
+          titleAr,
+          titleEn: selectedExam?.titleEn || 'UMEDT Interactive Medical Exam',
+          exam: selectedExam,
+          questions: targetQuestions,
+          attempts,
+          terms
+        });
+        fileName = `UMEDT_Exam_${safeSlug}_Standalone.html`;
+        content = builtExamHtml.htmlText;
+        recordsCount = builtExamHtml.recordsCount;
+      } else if (effectiveFormat === 'zip') {
+        const builtExamZip = generateStandaloneExamZipArchiveBytes({
+          titleAr,
+          titleEn: selectedExam?.titleEn || 'UMEDT Interactive Medical Exam',
+          exam: selectedExam,
+          questions: targetQuestions,
+          attempts,
+          terms
+        });
+        fileName = `UMEDT_Exam_${safeSlug}_Standalone.zip`;
+        content = builtExamZip.zipBytes;
+        recordsCount = builtExamZip.recordsCount;
+      } else if (effectiveFormat === 'csv') {
+        recordsCount = targetQuestions.length + attempts.length;
+        fileName = `UMEDT_Exam_${safeSlug}_${targetQuestions.length}Q.csv`;
+        content = buildQuestionsAndResultsCsvContent(targetQuestions, attempts);
+      } else {
+        recordsCount = targetQuestions.length + attempts.length;
+        fileName = `UMEDT_Exam_${safeSlug}_${targetQuestions.length}Q.json`;
+        content = JSON.stringify(
+          {
+            exportType: 'UMEDT_QUIZ_BANK_AND_RESULTS',
+            exportedAt: new Date().toISOString(),
+            exam: selectedExam || undefined,
+            counts: {
+              questions: targetQuestions.length,
+              attempts: attempts.length
+            },
+            questions: targetQuestions,
+            attempts
+          },
+          null,
+          2
+        );
+      }
+    }
+
+    const mimeType =
+      effectiveFormat === 'html'
+        ? 'text/html;charset=utf-8'
+        : effectiveFormat === 'zip'
+          ? 'application/zip'
+          : effectiveFormat === 'csv'
+            ? 'text/csv;charset=utf-8'
+            : 'application/json;charset=utf-8';
+
+    return {
+      fileName,
+      content,
+      recordsCount,
+      titleAr,
+      scopeLabel,
+      mimeType
+    };
+  };
+
   const handleRunExport = async (deliveryMode: 'download' | 'share') => {
     setIsExporting(true);
     setLastExportResult(null);
+    setTelegramSendFeedback(null);
 
     try {
-      let fileName = `UMEDT_Export_${Date.now()}.${effectiveFormat}`;
-      let content: string | Uint8Array = '';
-      let recordsCount = 0;
-      let titleAr = 'تصدير بيانات UMEDT';
-
-      if (scope === 'all_terms') {
-        titleAr = 'جميع مصطلحات قاموس UMEDT';
-        recordsCount = terms.length;
-        fileName = `UMEDT_All_Terms_${terms.length}.${effectiveFormat}`;
-        content =
-          effectiveFormat === 'csv'
-            ? buildTermsCsvContent(terms)
-            : JSON.stringify(
-                {
-                  exportType: 'UMEDT_ALL_TERMS',
-                  exportedAt: new Date().toISOString(),
-                  count: terms.length,
-                  terms
-                },
-                null,
-                2
-              );
-      } else if (scope === 'subject_or_block_terms') {
-        const targetTopics =
-          termFilterTarget === 'subject'
-            ? topics.filter((t) => t.subjectId === selectedSubjectId)
-            : topics.filter((t) => t.blockId === selectedBlockId);
-
-        const matchedTerms = resolveTermsForTopics(targetTopics, terms);
-        const targetCode =
-          termFilterTarget === 'subject'
-            ? activeSubject?.code || 'SUBJ'
-            : activeBlock?.code || 'BLOCK';
-
-        titleAr =
-          termFilterTarget === 'subject'
-            ? `مصطلحات مادة ${activeSubject?.titleEn || ''}`
-            : `مصطلحات بلوك ${activeBlock?.titleEn || ''}`;
-        recordsCount = matchedTerms.length;
-        fileName = `UMEDT_Terms_${targetCode}_${matchedTerms.length}.${effectiveFormat}`;
-        content =
-          effectiveFormat === 'csv'
-            ? buildTermsCsvContent(matchedTerms)
-            : JSON.stringify(
-                {
-                  exportType: 'UMEDT_FILTERED_TERMS',
-                  filterType: termFilterTarget,
-                  targetId:
-                    termFilterTarget === 'subject' ? selectedSubjectId : selectedBlockId,
-                  exportedAt: new Date().toISOString(),
-                  count: matchedTerms.length,
-                  terms: matchedTerms
-                },
-                null,
-                2
-              );
-      } else if (scope === 'single_topic' && activeTopic) {
-        const topicBlock = blocks.find((b) => b.id === activeTopic.blockId);
-        const topicSubject = subjects.find((s) => s.id === activeTopic.subjectId);
-        titleAr = `موضوع: ${activeTopic.titleEn || activeTopic.title}`;
-        const safeSlug = activeTopic.id.replace(/[^a-zA-Z0-9_-]/g, '_');
-
-        if (effectiveFormat === 'html') {
-          const builtHtml = await generateStandaloneHtmlDocument({
-            scope: 'topic',
-            titleEn: activeTopic.titleEn || activeTopic.title,
-            titleAr: activeTopic.titleAr || activeTopic.subtitle || activeTopic.title,
-            block: topicBlock,
-            subjects: topicSubject ? [topicSubject] : [],
-            topics: [activeTopic],
-            allTerms: terms,
-            allQuestions: questions,
-            books: loadAcademicBooks(),
-            exams: loadAcademicExams(),
-            mediaAssets: loadMediaAssetsIndex(),
-            userNotes: loadUserStudyNotes(),
-            includeLocalMedia
-          });
-          fileName = `UMEDT_Topic_${safeSlug}_Standalone.html`;
-          content = builtHtml.htmlText;
-          recordsCount = builtHtml.recordsCount;
-        } else if (effectiveFormat === 'zip') {
-          const builtZip = await generateStandaloneZipArchiveBytes({
-            scope: 'topic',
-            titleEn: activeTopic.titleEn || activeTopic.title,
-            titleAr: activeTopic.titleAr || activeTopic.subtitle || activeTopic.title,
-            block: topicBlock,
-            subjects: topicSubject ? [topicSubject] : [],
-            topics: [activeTopic],
-            allTerms: terms,
-            allQuestions: questions,
-            books: loadAcademicBooks(),
-            exams: loadAcademicExams(),
-            mediaAssets: loadMediaAssetsIndex(),
-            userNotes: loadUserStudyNotes(),
-            includeLocalMedia
-          });
-          fileName = `UMEDT_Topic_${safeSlug}_Standalone.zip`;
-          content = builtZip.zipBytes;
-          recordsCount = builtZip.recordsCount;
-        } else {
-          const built = buildSingleTopicExportBundle(
-            activeTopic,
-            terms,
-            questions,
-            topicBlock,
-            topicSubject
-          );
-          recordsCount = built.recordsCount;
-          fileName = `UMEDT_Topic_${safeSlug}.json`;
-          content = built.jsonText;
-        }
-      } else if (scope === 'complete_subject' && activeSubject) {
-        const subjBlock = blocks.find((b) => b.id === activeSubject.blockId);
-        const subjectTopics = topics.filter((t) => t.subjectId === activeSubject.id);
-        titleAr = `مادة كاملة: ${activeSubject.titleEn}`;
-        const safeCode = (activeSubject.code || activeSubject.id).replace(/[^a-zA-Z0-9_-]/g, '_');
-
-        if (effectiveFormat === 'html') {
-          const builtHtml = await generateStandaloneHtmlDocument({
-            scope: 'subject',
-            titleEn: activeSubject.titleEn,
-            titleAr: activeSubject.titleAr,
-            block: subjBlock,
-            subjects: [activeSubject],
-            topics: subjectTopics,
-            allTerms: terms,
-            allQuestions: questions,
-            books: loadAcademicBooks(),
-            exams: loadAcademicExams(),
-            mediaAssets: loadMediaAssetsIndex(),
-            userNotes: loadUserStudyNotes(),
-            includeLocalMedia
-          });
-          fileName = `UMEDT_Subject_${safeCode}_Standalone.html`;
-          content = builtHtml.htmlText;
-          recordsCount = builtHtml.recordsCount;
-        } else if (effectiveFormat === 'zip') {
-          const builtZip = await generateStandaloneZipArchiveBytes({
-            scope: 'subject',
-            titleEn: activeSubject.titleEn,
-            titleAr: activeSubject.titleAr,
-            block: subjBlock,
-            subjects: [activeSubject],
-            topics: subjectTopics,
-            allTerms: terms,
-            allQuestions: questions,
-            books: loadAcademicBooks(),
-            exams: loadAcademicExams(),
-            mediaAssets: loadMediaAssetsIndex(),
-            userNotes: loadUserStudyNotes(),
-            includeLocalMedia
-          });
-          fileName = `UMEDT_Subject_${safeCode}_Standalone.zip`;
-          content = builtZip.zipBytes;
-          recordsCount = builtZip.recordsCount;
-        } else {
-          const built = buildSubjectExportBundle(
-            activeSubject,
-            topics,
-            terms,
-            questions,
-            subjBlock
-          );
-          recordsCount = built.recordsCount;
-          fileName = `UMEDT_Subject_${safeCode}.json`;
-          content = built.jsonText;
-        }
-      } else if (scope === 'complete_block' && activeBlock) {
-        const blockSubjects = subjects.filter((s) => s.blockId === activeBlock.id);
-        const subjIds = new Set(blockSubjects.map((s) => s.id));
-        const blockTopics = topics.filter(
-          (t) => t.blockId === activeBlock.id || (t.subjectId && subjIds.has(t.subjectId))
-        );
-        titleAr = `بلوك كامل: ${activeBlock.titleEn}`;
-        const safeCode = (activeBlock.code || activeBlock.id).replace(/[^a-zA-Z0-9_-]/g, '_');
-
-        if (effectiveFormat === 'html') {
-          const builtHtml = await generateStandaloneHtmlDocument({
-            scope: 'block',
-            titleEn: activeBlock.titleEn,
-            titleAr: activeBlock.titleAr,
-            block: activeBlock,
-            subjects: blockSubjects,
-            topics: blockTopics,
-            allTerms: terms,
-            allQuestions: questions,
-            books: loadAcademicBooks(),
-            exams: loadAcademicExams(),
-            mediaAssets: loadMediaAssetsIndex(),
-            userNotes: loadUserStudyNotes(),
-            includeLocalMedia
-          });
-          fileName = `UMEDT_Block_${safeCode}_Standalone.html`;
-          content = builtHtml.htmlText;
-          recordsCount = builtHtml.recordsCount;
-        } else if (effectiveFormat === 'zip') {
-          const builtZip = await generateStandaloneZipArchiveBytes({
-            scope: 'block',
-            titleEn: activeBlock.titleEn,
-            titleAr: activeBlock.titleAr,
-            block: activeBlock,
-            subjects: blockSubjects,
-            topics: blockTopics,
-            allTerms: terms,
-            allQuestions: questions,
-            books: loadAcademicBooks(),
-            exams: loadAcademicExams(),
-            mediaAssets: loadMediaAssetsIndex(),
-            userNotes: loadUserStudyNotes(),
-            includeLocalMedia
-          });
-          fileName = `UMEDT_Block_${safeCode}_Standalone.zip`;
-          content = builtZip.zipBytes;
-          recordsCount = builtZip.recordsCount;
-        } else {
-          const built = buildBlockExportBundle(
-            activeBlock,
-            subjects,
-            topics,
-            terms,
-            questions
-          );
-          recordsCount = built.recordsCount;
-          fileName = `UMEDT_Block_${safeCode}.json`;
-          content = built.jsonText;
-        }
-      } else if (scope === 'tests_and_results') {
-        titleAr = 'بنك الاختبارات التفاعلية وسجل النتائج';
-        recordsCount = questions.length + attempts.length;
-        fileName = `UMEDT_Tests_And_Results_${questions.length}Q.${effectiveFormat}`;
-        content =
-          effectiveFormat === 'csv'
-            ? buildQuestionsAndResultsCsvContent(questions, attempts)
-            : JSON.stringify(
-                {
-                  exportType: 'UMEDT_QUIZ_BANK_AND_RESULTS',
-                  exportedAt: new Date().toISOString(),
-                  counts: {
-                    questions: questions.length,
-                    attempts: attempts.length
-                  },
-                  questions,
-                  attempts
-                },
-                null,
-                2
-              );
-      }
-
+      const built = await buildCurrentExportPayload();
       const result = await executeVerifiedExportDownload({
-        fileName,
-        content,
+        fileName: built.fileName,
+        content: built.content,
         format: effectiveFormat,
-        recordsCount,
+        recordsCount: built.recordsCount,
         deliveryMode,
-        titleAr
+        titleAr: built.titleAr
       });
 
       setLastExportResult(result);
@@ -420,6 +534,26 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
       showToast(result.messageAr, result.success ? 'success' : 'info');
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleSendInteractiveToTelegram = async () => {
+    setIsSendingTelegram(true);
+    setTelegramSendFeedback(null);
+    try {
+      const built = await buildCurrentExportPayload();
+      const tgRes = await sendInteractiveFileToTelegram({
+        fileName: built.fileName,
+        content: built.content,
+        mimeType: built.mimeType,
+        titleAr: built.titleAr,
+        scopeLabel: built.scopeLabel,
+        recordsCount: built.recordsCount
+      });
+      setTelegramSendFeedback({ ok: tgRes.ok, message: tgRes.message });
+      showToast(tgRes.message, tgRes.ok ? 'success' : 'info');
+    } finally {
+      setIsSendingTelegram(false);
     }
   };
 
@@ -488,8 +622,8 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
                 },
                 {
                   key: 'tests_and_results',
-                  labelAr: 'بنك الاختبارات ونتائج المحاولات',
-                  sub: `${questions.length} سؤال · ${attempts.length} نتيجة · JSON / CSV`
+                  labelAr: 'اختبار تفاعلي / بنك الأسئلة والنتائج',
+                  sub: `${questions.length} سؤال · ${attempts.length} نتيجة · HTML / ZIP / JSON / CSV`
                 }
               ] as const
             ).map((opt) => {
@@ -626,6 +760,28 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
           </div>
         )}
 
+        {scope === 'tests_and_results' && availableExams.length > 0 && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+              نطاق الاختبار التفاعلي المصدّر:
+            </label>
+            <select
+              value={selectedExamId}
+              onChange={(e) => setSelectedExamId(e.target.value)}
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+            >
+              <option value="ALL">
+                جميع أسئلة البنك وسجل النتائج ({questions.length} سؤال)
+              </option>
+              {availableExams.map((ex) => (
+                <option key={ex.id} value={ex.id}>
+                  {ex.titleAr || ex.titleEn} ({ex.titleEn})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* 3. Format Selector (HTML / ZIP / JSON / CSV) */}
         <div className="space-y-2.5">
           <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
@@ -710,27 +866,55 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
           )}
         </div>
 
-        {/* 4. Action Buttons (Direct Download + Native Android Share) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-          <button
-            type="button"
-            disabled={isExporting}
-            onClick={() => void handleRunExport('download')}
-            className="min-h-[48px] px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center justify-center gap-2 transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            <span>تنزيل مباشر إلى الجهاز ({effectiveFormat.toUpperCase()})</span>
-          </button>
+        {/* 4. Action Buttons (Direct Download + Native Android Share + Direct Telegram Share) */}
+        <div className="space-y-2.5 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              disabled={isExporting || isSendingTelegram}
+              onClick={() => void handleRunExport('download')}
+              className="min-h-[48px] px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            >
+              <Download className="w-4 h-4 shrink-0" />
+              <span>تنزيل مباشر إلى الجهاز ({effectiveFormat.toUpperCase()})</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={isExporting || isSendingTelegram}
+              onClick={() => void handleRunExport('share')}
+              className="min-h-[48px] px-4 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-extrabold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            >
+              <Share2 className="w-4 h-4 shrink-0" />
+              <span>مشاركة وحفظ الملف على أندرويد</span>
+            </button>
+          </div>
 
           <button
             type="button"
-            disabled={isExporting}
-            onClick={() => void handleRunExport('share')}
-            className="min-h-[48px] px-4 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-extrabold flex items-center justify-center gap-2 transition-colors"
+            disabled={isExporting || isSendingTelegram}
+            onClick={() => void handleSendInteractiveToTelegram()}
+            className="w-full min-h-[48px] px-4 py-3 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-extrabold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
           >
-            <Share2 className="w-4 h-4" />
-            <span>مشاركة وحفظ الملف على أندرويد</span>
+            <Send className="w-4 h-4 shrink-0" />
+            <span>
+              {isSendingTelegram
+                ? 'جاري إرسال الملف التفاعلي إلى تليجرام...'
+                : `إرسال مباشر إلى قناة تليجرام (${effectiveFormat.toUpperCase()})`}
+            </span>
           </button>
+
+          {telegramSendFeedback && (
+            <div
+              className={`p-3 rounded-2xl border text-xs font-bold leading-relaxed ${
+                telegramSendFeedback.ok
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'
+              }`}
+            >
+              {telegramSendFeedback.message}
+            </div>
+          )}
         </div>
 
         {/* Verified Export Status Banner with Open & Share Actions */}

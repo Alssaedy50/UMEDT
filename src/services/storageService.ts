@@ -50,7 +50,9 @@ import {
   AcademicBookResource,
   UnifiedQuizQuestion,
   AcademicExamPackage,
-  MediaAssetRecord
+  MediaAssetRecord,
+  QuizAttemptRecord,
+  UserStudyNoteRecord
 } from '../types/lexicon';
 import {
   LEARNING_STORAGE_KEYS,
@@ -63,7 +65,9 @@ import {
   loadAcademicExams,
   saveAcademicExams,
   loadMediaAssetsIndex,
-  saveMediaAssetsIndex
+  saveMediaAssetsIndex,
+  loadUserStudyNotes,
+  saveUserStudyNotes
 } from './learningHierarchyService';
 import {
   INITIAL_TERMS,
@@ -1791,14 +1795,48 @@ export async function executeAtomicPackageImport(
       }
       const nextMediaAssets = Array.from(nextMediaAssetsMap.values());
 
+      const existingNotes = loadUserStudyNotes();
+      const nextNotesMap = new Map<string, UserStudyNoteRecord>(
+        mode === 'replace' && (payload.userNotes || []).length > 0
+          ? []
+          : existingNotes.map((n) => [n.id, n])
+      );
+      for (const note of payload.userNotes || []) {
+        if (mode === 'ignore' && nextNotesMap.has(note.id)) continue;
+        const prevNote = nextNotesMap.get(note.id);
+        if (!prevNote || (note.updatedAt || '') >= (prevNote.updatedAt || '')) {
+          nextNotesMap.set(note.id, note);
+        }
+      }
+      const nextNotes = Array.from(nextNotesMap.values());
+
+      const existingAttempts = safeReadJson<QuizAttemptRecord[]>(
+        LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS,
+        []
+      );
+      const nextAttemptsMap = new Map<string, QuizAttemptRecord>(
+        mode === 'replace' && (payload.quizAttempts || []).length > 0
+          ? []
+          : existingAttempts.map((a) => [a.id, a])
+      );
+      for (const att of payload.quizAttempts || []) {
+        if (mode === 'ignore' && nextAttemptsMap.has(att.id)) continue;
+        nextAttemptsMap.set(att.id, att);
+      }
+      const nextAttempts = Array.from(nextAttemptsMap.values()).slice(0, 100);
+
       if ((payload.blocks || []).length > 0) saveMedicalBlocks(nextBlocks);
       if ((payload.subjects || []).length > 0) saveMedicalSubjects(nextSubjects);
       if ((payload.books || []).length > 0) saveAcademicBooks(nextBooks);
       if ((payload.questions || []).length > 0) {
         safeWriteJson(LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS, nextQuestions);
       }
+      if ((payload.quizAttempts || []).length > 0) {
+        safeWriteJson(LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS, nextAttempts);
+      }
       if ((payload.exams || []).length > 0) saveAcademicExams(nextExams);
       if ((payload.mediaAssets || []).length > 0) saveMediaAssetsIndex(nextMediaAssets);
+      if ((payload.userNotes || []).length > 0) saveUserStudyNotes(nextNotes);
 
       // Keep Unified Cloud Mirror synchronized with imported package metadata & extended collections
       if (
@@ -1875,6 +1913,8 @@ export async function executeAtomicPackageImport(
             questionsImported: (payload.questions || []).length,
             examsImported: (payload.exams || []).length,
             mediaAssetsImported: (payload.mediaAssets || []).length,
+            userNotesImported: (payload.userNotes || []).length,
+            quizAttemptsImported: (payload.quizAttempts || []).length,
             totalTermsAfter: nextState.terms.length,
             totalSentencesAfter: nextState.sentences.length
           },
@@ -2017,6 +2057,31 @@ export function exportFullDatabaseZipBytes(state?: Partial<PersistedAppState>): 
   const customAffixes = state?.customAffixes ?? current.customAffixes;
   const customAbbreviations = state?.customAbbreviations ?? current.customAbbreviations;
   const versionMeta = state?.versionMetadata ?? current.versionMetadata;
+  const blocks = loadMedicalBlocks();
+  const subjects = loadMedicalSubjects();
+  const books = loadAcademicBooks().map((bk) => ({
+    ...bk,
+    downloadUrl:
+      bk.downloadUrl && bk.downloadUrl.startsWith('data:')
+        ? `idb://${bk.mediaIdbKey || bk.id}`
+        : bk.downloadUrl,
+    pdfUrl:
+      bk.pdfUrl && bk.pdfUrl.startsWith('data:')
+        ? `idb://${bk.mediaIdbKey || bk.id}`
+        : bk.pdfUrl,
+    coverUrl: bk.coverUrl && bk.coverUrl.startsWith('data:') ? undefined : bk.coverUrl
+  }));
+  const questions = safeReadJson<UnifiedQuizQuestion[]>(
+    LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS,
+    []
+  );
+  const quizAttempts = safeReadJson<QuizAttemptRecord[]>(
+    LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS,
+    []
+  );
+  const exams = loadAcademicExams();
+  const mediaAssets = loadMediaAssetsIndex();
+  const userNotes = loadUserStudyNotes();
 
   const payload: DataPackagePayload = {
     manifest: {
@@ -2032,6 +2097,19 @@ export function exportFullDatabaseZipBytes(state?: Partial<PersistedAppState>): 
         topics: topics.length,
         affixes: customAffixes.length,
         abbreviations: customAbbreviations.length
+      },
+      extendedCounts: {
+        blocks: blocks.length,
+        subjects: subjects.length,
+        topics: topics.length,
+        terms: terms.length,
+        sentences: sentences.length,
+        books: books.length,
+        questions: questions.length,
+        exams: exams.length,
+        mediaAssets: mediaAssets.length,
+        userNotes: userNotes.length,
+        quizAttempts: quizAttempts.length
       }
     },
     terms,
@@ -2039,6 +2117,14 @@ export function exportFullDatabaseZipBytes(state?: Partial<PersistedAppState>): 
     topics,
     customAffixes,
     customAbbreviations,
+    blocks,
+    subjects,
+    books,
+    questions,
+    quizAttempts,
+    exams,
+    mediaAssets,
+    userNotes,
     studyStats: state?.studyStats ?? current.studyStats,
     settings: state?.settings ?? current.settings
   };

@@ -14,6 +14,10 @@ import {
   MediaAssetRecord,
   UserStudyNoteRecord
 } from '../types/lexicon';
+import {
+  detectExternalMediaKind,
+  normalizeMediaMimeType
+} from './mediaStorageService';
 
 export const LEARNING_STORAGE_KEYS = {
   BLOCKS: 'dictengine_umd_blocks_v2',
@@ -425,7 +429,16 @@ export function buildContextualContentBlocksForTopic(topic: TopicArticle): Topic
         id: `${sec.id}-img-${img.id}`,
         type: 'image',
         order: orderCounter++,
-        mediaUrl: img.url,
+        mediaUrl: img.mediaIdbKey && !img.url ? `idb://${img.mediaIdbKey}` : img.url,
+        externalUrl:
+          img.externalUrl ||
+          (/^https?:\/\//i.test(img.url || '') ? img.url : undefined),
+        mediaIdbKey: img.mediaIdbKey,
+        mediaFileName: img.fileName,
+        mediaMimeType: img.mimeType
+          ? normalizeMediaMimeType(img.mimeType, img.fileName, img.url)
+          : undefined,
+        mediaSizeBytes: img.sizeBytes,
         captionEn: img.caption,
         captionAr: img.caption
       });
@@ -434,17 +447,76 @@ export function buildContextualContentBlocksForTopic(topic: TopicArticle): Topic
     // Attach external links & attachments to the final section if not already placed inline
     if (secIdx === sections.length - 1) {
       for (const lnk of topic.links || []) {
-        blocks.push({
-          id: `${sec.id}-lnk-${lnk.id}`,
-          type: 'video_link',
-          order: orderCounter++,
-          titleEn: lnk.title,
-          titleAr: lnk.description || lnk.title,
-          externalUrl: lnk.url,
-          text: lnk.description || lnk.title
-        });
+        const hintMime =
+          lnk.mediaType === 'audio'
+            ? 'audio/mpeg'
+            : lnk.mediaType === 'pdf'
+              ? 'application/pdf'
+              : lnk.mediaType === 'image'
+                ? 'image/png'
+                : undefined;
+        const detected = detectExternalMediaKind(lnk.url, hintMime, lnk.title);
+        if (lnk.mediaType === 'audio' || detected.kind === 'audio') {
+          blocks.push({
+            id: `${sec.id}-lnk-${lnk.id}`,
+            type: 'audio',
+            order: orderCounter++,
+            titleEn: lnk.title,
+            titleAr: lnk.description || lnk.title,
+            mediaUrl: lnk.mediaIdbKey ? `idb://${lnk.mediaIdbKey}` : lnk.url,
+            externalUrl: lnk.url,
+            mediaIdbKey: lnk.mediaIdbKey,
+            mediaFileName: detected.suggestedFileName,
+            mediaMimeType: detected.mimeType,
+            text: lnk.description || lnk.title
+          });
+        } else if (lnk.mediaType === 'pdf' || detected.kind === 'pdf') {
+          blocks.push({
+            id: `${sec.id}-lnk-${lnk.id}`,
+            type: 'pdf_viewer',
+            order: orderCounter++,
+            titleEn: lnk.title,
+            titleAr: lnk.description || lnk.title,
+            mediaUrl: lnk.mediaIdbKey ? `idb://${lnk.mediaIdbKey}` : lnk.url,
+            externalUrl: lnk.url,
+            mediaIdbKey: lnk.mediaIdbKey,
+            mediaFileName: detected.suggestedFileName,
+            mediaMimeType: 'application/pdf',
+            text: lnk.description || lnk.title
+          });
+        } else if (lnk.mediaType === 'image' || detected.kind === 'image') {
+          blocks.push({
+            id: `${sec.id}-lnk-${lnk.id}`,
+            type: 'image',
+            order: orderCounter++,
+            mediaUrl: lnk.mediaIdbKey ? `idb://${lnk.mediaIdbKey}` : lnk.url,
+            externalUrl: lnk.url,
+            mediaIdbKey: lnk.mediaIdbKey,
+            mediaFileName: detected.suggestedFileName,
+            mediaMimeType: detected.mimeType,
+            captionEn: lnk.title,
+            captionAr: lnk.description || lnk.title
+          });
+        } else {
+          blocks.push({
+            id: `${sec.id}-lnk-${lnk.id}`,
+            type: 'video_link',
+            order: orderCounter++,
+            titleEn: lnk.title,
+            titleAr: lnk.description || lnk.title,
+            externalUrl: lnk.url,
+            mediaIdbKey: lnk.mediaIdbKey,
+            mediaMimeType: detected.mimeType,
+            text: lnk.description || lnk.title
+          });
+        }
       }
       for (const att of topic.attachments || []) {
+        const normalizedMime = normalizeMediaMimeType(
+          att.mimeType || att.fileType,
+          att.fileName,
+          att.contentDataUrlOrText || att.externalUrl
+        );
         blocks.push({
           id: `${sec.id}-att-${att.id}`,
           type: 'attachment',
@@ -452,8 +524,11 @@ export function buildContextualContentBlocksForTopic(topic: TopicArticle): Topic
           titleEn: att.fileName,
           titleAr: att.fileType,
           mediaFileName: att.fileName,
-          mediaMimeType: att.fileType,
-          mediaUrl: att.contentDataUrlOrText,
+          mediaMimeType: normalizedMime,
+          mediaSizeBytes: att.sizeBytes,
+          mediaUrl: att.contentDataUrlOrText || (att.mediaIdbKey ? `idb://${att.mediaIdbKey}` : ''),
+          externalUrl: att.externalUrl,
+          mediaIdbKey: att.mediaIdbKey,
           text: att.fileSizeLabel
         });
       }
@@ -521,12 +596,18 @@ export function syncContentBlocksToLegacyTopicFields(
         derivedParagraphs.push(
           `Q: ${blk.inlineQuestion.questionEn} — Answer: ${blk.inlineQuestion.correctOptionKeys.join(', ')}`
         );
-      } else if ((blk.type === 'image' || blk.type === 'diagram') && blk.mediaUrl) {
-        if (!seenImgUrls.has(blk.mediaUrl)) {
-          seenImgUrls.add(blk.mediaUrl);
+      } else if ((blk.type === 'image' || blk.type === 'diagram') && (blk.mediaUrl || blk.externalUrl)) {
+        const canonicalImgUrl = blk.mediaUrl || blk.externalUrl || '';
+        if (canonicalImgUrl && !seenImgUrls.has(canonicalImgUrl)) {
+          seenImgUrls.add(canonicalImgUrl);
           collectedImages.push({
             id: blk.id,
-            url: blk.mediaUrl,
+            url: canonicalImgUrl,
+            externalUrl: blk.externalUrl,
+            mediaIdbKey: blk.mediaIdbKey,
+            fileName: blk.mediaFileName,
+            mimeType: blk.mediaMimeType,
+            sizeBytes: blk.mediaSizeBytes,
             caption: blk.captionEn || blk.captionAr || blk.titleEn || 'Illustration'
           });
         }

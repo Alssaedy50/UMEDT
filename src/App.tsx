@@ -84,6 +84,7 @@ import {
 import { runSafeIndexedDbMigration, putAllInStore, IDB_STORES } from './services/indexedDbService';
 import {
   TelegramBackupConfig,
+  TelegramChangeAction,
   ConciseDataSummary,
   loadTelegramBackupConfig,
   saveTelegramBackupConfig,
@@ -91,7 +92,9 @@ import {
   isTelegramScheduledBackupDue,
   buildConciseDataSummary,
   createUnifiedBackupPackage,
-  scheduleDebouncedTelegramAutoSync
+  scheduleDebouncedTelegramAutoSync,
+  scheduleDebouncedTelegramChangeNote,
+  fetchLatestBackupPayloadFromTelegram
 } from './services/telegramBackupService';
 import {
   saveMedicalBlocks,
@@ -813,7 +816,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simulatedOffline]);
 
-  // Periodic Telegram Auto-Backup Check (Runs on startup and every 5 minutes)
+  // Periodic Telegram Auto-Backup Check (Runs on startup and every minute)
   useEffect(() => {
     const checkScheduledBackup = async () => {
       const cfg = loadTelegramBackupConfig();
@@ -846,7 +849,7 @@ export default function App() {
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       void checkScheduledBackup();
-    }, 5 * 60 * 1000);
+    }, 60 * 1000);
     return () => {
       clearTimeout(initTimer);
       clearInterval(interval);
@@ -873,6 +876,15 @@ export default function App() {
     };
   }, [terms, sentences, topics, studyStats, versionMetadata, simulatedOffline]);
 
+  const inferTelegramChangeAction = (reason: string): TelegramChangeAction => {
+    if (reason.includes('حذف')) return 'delete';
+    if (reason.includes('إضافة') || reason.includes('إنشاء') || reason.includes('جديد')) {
+      return 'add';
+    }
+    if (reason.includes('استيراد') || reason.includes('دمج')) return 'import';
+    return 'update';
+  };
+
   const triggerTelegramAutoSync = (
     reason: string,
     overrides?: {
@@ -881,13 +893,35 @@ export default function App() {
       topics?: TopicArticle[];
       studyStats?: { gotIt: number; needsReview: number };
       versionMetadata?: VersionMetadata;
+      action?: TelegramChangeAction;
+      skipChangeNote?: boolean;
     }
   ) => {
     const cfg = loadTelegramBackupConfig();
-    if (!cfg.enabled || cfg.schedule !== 'on_change' || latestDataRef.current.simulatedOffline) {
+    if (latestDataRef.current.simulatedOffline) return;
+    if (!cfg.botToken.trim() || !cfg.chatId.trim()) return;
+
+    // 1. Always publish debounced instant change notes when enabled (even in scheduled mode)
+    if (cfg.sendInstantChangeNotes !== false && !overrides?.skipChangeNote) {
+      scheduleDebouncedTelegramChangeNote({
+        action: overrides?.action || inferTelegramChangeAction(reason),
+        label: reason,
+        getTerms: () => overrides?.terms ?? latestDataRef.current.terms,
+        getSentences: () => overrides?.sentences ?? latestDataRef.current.sentences,
+        getTopics: () => overrides?.topics ?? latestDataRef.current.topics,
+        debounceMs: 2200
+      });
+    }
+
+    // 2. Full backup upload on change ONLY when schedule is 'on_change' and mode isn't scheduled-only
+    if (
+      !cfg.enabled ||
+      cfg.schedule !== 'on_change' ||
+      cfg.backupMode === 'notes_and_scheduled_full'
+    ) {
       return;
     }
-    if (!cfg.botToken.trim() || !cfg.chatId.trim()) return;
+
     scheduleDebouncedTelegramAutoSync({
       getTerms: () => overrides?.terms ?? latestDataRef.current.terms,
       getSentences: () => overrides?.sentences ?? latestDataRef.current.sentences,
@@ -1474,7 +1508,10 @@ export default function App() {
     });
   };
 
-  const handleImportFullBackupJson = (rawJson: string): boolean => {
+  const handleImportFullBackupJson = (
+    rawJson: string,
+    options?: { skipTelegramSync?: boolean }
+  ): boolean => {
     const mode =
       conflictPolicy === 'overwrite'
         ? 'replace'
@@ -1539,6 +1576,32 @@ export default function App() {
             }
           }
           saveUserStudyNotes(Array.from(notesMap.values()));
+        }
+        if (Array.isArray(inner.customAffixes) && inner.customAffixes.length > 0) {
+          setCustomAffixes((prev) => {
+            if (mode === 'replace') return inner.customAffixes;
+            const map = new Map(prev.map((a) => [a.id || a.cleanKey, a]));
+            for (const item of inner.customAffixes) {
+              if (!item) continue;
+              const k = item.id || item.cleanKey;
+              if (mode === 'ignore' && map.has(k)) continue;
+              map.set(k, item);
+            }
+            return Array.from(map.values());
+          });
+        }
+        if (Array.isArray(inner.customAbbreviations) && inner.customAbbreviations.length > 0) {
+          setCustomAbbreviations((prev) => {
+            if (mode === 'replace') return inner.customAbbreviations;
+            const map = new Map(prev.map((a) => [a.id || a.abbr.toLowerCase(), a]));
+            for (const item of inner.customAbbreviations) {
+              if (!item || !item.abbr) continue;
+              const k = item.id || item.abbr.toLowerCase();
+              if (mode === 'ignore' && map.has(k)) continue;
+              map.set(k, item);
+            }
+            return Array.from(map.values());
+          });
         }
         if (Array.isArray(inner.quizQuestions || inner.questions)) {
           const qArr = inner.quizQuestions || inner.questions;
@@ -1605,11 +1668,13 @@ export default function App() {
         });
         setLastImportedOrCopiedSummary(summary);
         setBackupHistory(loadBackupHistory());
-        triggerTelegramAutoSync('استيراد نسخة احتياطية', {
-          terms: Array.isArray(inner.terms) ? inner.terms : undefined,
-          sentences: Array.isArray(inner.sentences) ? inner.sentences : undefined,
-          topics: Array.isArray(inner.topics) ? inner.topics : undefined
-        });
+        if (!options?.skipTelegramSync) {
+          triggerTelegramAutoSync('استيراد نسخة احتياطية', {
+            terms: Array.isArray(inner.terms) ? inner.terms : undefined,
+            sentences: Array.isArray(inner.sentences) ? inner.sentences : undefined,
+            topics: Array.isArray(inner.topics) ? inner.topics : undefined
+          });
+        }
         showToast(`تم استيراد النسخة أوفلاين بنجاح (${summary.shortText})`);
         return true;
       }
@@ -1635,13 +1700,15 @@ export default function App() {
       });
       setLastImportedOrCopiedSummary(summary);
       setBackupHistory(loadBackupHistory());
-      triggerTelegramAutoSync('استيراد قاعدة بيانات كاملة', {
-        terms: importResult.state.terms,
-        sentences: importResult.state.sentences,
-        topics: importResult.state.topics,
-        studyStats: importResult.state.studyStats,
-        versionMetadata: importResult.state.versionMetadata
-      });
+      if (!options?.skipTelegramSync) {
+        triggerTelegramAutoSync('استيراد قاعدة بيانات كاملة', {
+          terms: importResult.state.terms,
+          sentences: importResult.state.sentences,
+          topics: importResult.state.topics,
+          studyStats: importResult.state.studyStats,
+          versionMetadata: importResult.state.versionMetadata
+        });
+      }
       showToast(`تم استيراد البيانات بنجاح (${summary.shortText})`);
       return true;
     }
@@ -2058,6 +2125,63 @@ export default function App() {
     return res;
   };
 
+  const handleRestoreFromTelegramNow = async (
+    overrideConfig?: TelegramBackupConfig
+  ): Promise<{ ok: boolean; message: string }> => {
+    const activeCfg = overrideConfig
+      ? saveTelegramBackupConfig(overrideConfig)
+      : saveTelegramBackupConfig(telegramConfig);
+    setTelegramConfig(activeCfg);
+
+    const fetchRes = await fetchLatestBackupPayloadFromTelegram(activeCfg, {
+      simulatedOffline
+    });
+    if (!fetchRes.ok || !fetchRes.bytes) {
+      showToast(fetchRes.message, 'info');
+      return { ok: false, message: fetchRes.message };
+    }
+
+    const mode =
+      conflictPolicy === 'overwrite'
+        ? 'replace'
+        : conflictPolicy === 'ignore'
+          ? 'ignore'
+          : 'merge';
+
+    const { result, state } = await executeAtomicPackageImport(fetchRes.bytes, {
+      mode,
+      fileNameHint: fetchRes.fileName || 'UMEDT-Backup.json'
+    });
+
+    if (!result.success) {
+      const errMsg = result.errors[0] || 'تعذر قراءة ملف النسخة المستلمة من تليجرام.';
+      showToast(errMsg, 'info');
+      return { ok: false, message: errMsg };
+    }
+
+    setTerms(state.terms);
+    setSentences(state.sentences);
+    setTopics(state.topics);
+    setCustomAffixes(state.customAffixes);
+    setCustomAbbreviations(state.customAbbreviations);
+    setStudyStats(state.studyStats);
+    setVersionMetadata(state.versionMetadata);
+    setBackupHistory(loadBackupHistory());
+    setLastBackupTime('استيراد من تليجرام');
+
+    const summary = buildConciseDataSummary({
+      terms: state.terms,
+      sentences: state.sentences,
+      topics: state.topics,
+      sourceLabel: `مستورد من تليجرام (${fetchRes.fileName || 'Backup'})`,
+      rawSizeBytes: fetchRes.bytes.byteLength
+    });
+    setLastImportedOrCopiedSummary(summary);
+    const successMsg = `تم استيراد ودمج النسخة من تليجرام بنجاح (${summary.shortText})`;
+    showToast(successMsg);
+    return { ok: true, message: successMsg };
+  };
+
   const downloadFile = async (filename: string, content: string, mime = 'application/json') => {
     const res = await prepareAndDownloadFile({
       filename,
@@ -2406,24 +2530,7 @@ export default function App() {
             onAddSentenceToExistingTerm={handleAddSentenceToTerm}
             onTriggerTTS={triggerTTS}
             onHierarchyChanged={(reason) => {
-              if (!simulatedOffline) {
-                scheduleDebouncedTelegramAutoSync({
-                  getTerms: () => terms,
-                  getSentences: () => sentences,
-                  getTopics: () => topics,
-                  getStudyStats: () => studyStats,
-                  getVersionMetadata: () => versionMetadata,
-                  triggerReason: reason,
-                  debounceMs: 4500,
-                  onSyncCompleted: (res) => {
-                    if (res.ok && res.summary) {
-                      setTelegramConfig(loadTelegramBackupConfig());
-                      setLastImportedOrCopiedSummary(res.summary);
-                      setLastBackupTime('مزامنة تلقائية لتليجرام');
-                    }
-                  }
-                });
-              }
+              triggerTelegramAutoSync(reason);
             }}
             showToast={showToast}
           />
@@ -2546,6 +2653,7 @@ export default function App() {
             telegramConfig={telegramConfig}
             onUpdateTelegramConfig={handleUpdateTelegramConfig}
             onTriggerTelegramBackupNow={handleTriggerTelegramBackupNow}
+            onRestoreFromTelegramNow={handleRestoreFromTelegramNow}
             currentDataSummary={currentDataSummary}
             lastImportedOrCopiedSummary={lastImportedOrCopiedSummary}
             onResetDefaults={() => {

@@ -49,8 +49,10 @@ import {
   saveLocalMediaRecord,
   deleteLocalMediaRecordsByTopicId,
   deleteLocalMediaRecordsByKeys,
+  deleteLocalMediaRecord,
   getMediaRecordsByTopicId,
   downloadRemoteMediaToOfflineCache,
+  isDownloadableMediaUrl,
   formatBytesLabel
 } from './mediaStorageService';
 
@@ -2491,6 +2493,13 @@ async function resolveAndCacheRemoteUrlForEntity(params: {
   const matchedAsset = (params.mediaAssets || []).find(
     (ma) => ma.url === cleanUrl || ma.rawUrl === cleanUrl || ma.id === params.preferredIdbKey
   );
+  const effectiveFileName = params.fileName || matchedAsset?.fileName;
+  const effectiveMime = params.mimeType || matchedAsset?.mimeType;
+
+  if (!isDownloadableMediaUrl(cleanUrl, effectiveMime, effectiveFileName)) {
+    return { sizeBytes: 0, cachedNew: false, skippedDuplicate: false };
+  }
+
   const stableId =
     params.preferredIdbKey ||
     matchedAsset?.mediaIdbKey ||
@@ -2498,12 +2507,21 @@ async function resolveAndCacheRemoteUrlForEntity(params: {
 
   const existing = await getLocalMediaRecord(stableId);
   if (existing && existing.dataUrl && existing.sizeBytes > 0) {
-    return {
-      idbKey: stableId,
-      sizeBytes: 0,
-      cachedNew: false,
-      skippedDuplicate: true
-    };
+    const existingMime = (existing.mimeType || '').toLowerCase();
+    const isPollutedHtml =
+      existingMime === 'text/html' ||
+      existingMime === 'application/xhtml+xml' ||
+      existing.dataUrl.startsWith('data:text/html');
+    if (isPollutedHtml) {
+      await deleteLocalMediaRecord(stableId);
+    } else {
+      return {
+        idbKey: stableId,
+        sizeBytes: 0,
+        cachedNew: false,
+        skippedDuplicate: true
+      };
+    }
   }
 
   const cached = await downloadRemoteMediaToOfflineCache({
@@ -2511,8 +2529,8 @@ async function resolveAndCacheRemoteUrlForEntity(params: {
     remoteUrl: cleanUrl,
     topicId: params.topicId,
     blockId: params.blockId,
-    fileName: params.fileName || matchedAsset?.fileName,
-    mimeType: params.mimeType || matchedAsset?.mimeType,
+    fileName: effectiveFileName,
+    mimeType: effectiveMime,
     customFetch: params.customFetch
   });
 
