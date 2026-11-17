@@ -110,10 +110,10 @@ import {
 import { saveQuizQuestions, saveQuizAttempts } from './services/quizEngineService';
 import {
   importUniversalAiOrLocalContent,
+  importUniversalZipArchiveBytes,
   UniversalImportReport
 } from './services/aiUniversalImportService';
 import { parseUploadedFile } from './services/fileParserService';
-import { lookupQuickWordOrPhraseAr } from './engine/hybridTranslator';
 import {
   enqueueEntitiesForCloudSync,
   processCloudSyncQueue,
@@ -1745,10 +1745,12 @@ export default function App() {
   const handleImportPackageFile = async (file: File) => {
     const lowerName = file.name.toLowerCase();
 
-    // If JSON / CSV / TXT / MD, first try universal AI/UMEDT-DATA parser and legacy unified parsers
+    // If JSON / JSONL / CSV / TSV / TXT / MD, first try universal AI/UMEDT-DATA parser and legacy unified parsers
     if (
       lowerName.endsWith('.json') ||
+      lowerName.endsWith('.jsonl') ||
       lowerName.endsWith('.csv') ||
+      lowerName.endsWith('.tsv') ||
       lowerName.endsWith('.txt') ||
       lowerName.endsWith('.md') ||
       lowerName.endsWith('.umedpack')
@@ -1756,9 +1758,10 @@ export default function App() {
       try {
         const parsedFile = await parseUploadedFile(file);
         const text = parsedFile.extractedText.trim();
-        if (text.startsWith('{') || text.startsWith('[') || /```(?:json)?/i.test(text)) {
+        if (text) {
           const universalReport = importUniversalAiOrLocalContent({
             rawText: text,
+            conflictPolicy,
             sourceLabel: file.name
           });
           if (universalReport.success) {
@@ -1766,65 +1769,13 @@ export default function App() {
             showToast(`تم استيراد الملف (${file.name}): ${universalReport.summaryText}`);
             return;
           }
-          const ok = handleImportFullBackupJson(text);
-          if (ok) return;
-        } else if (lowerName.endsWith('.csv') || lowerName.endsWith('.txt') || lowerName.endsWith('.md')) {
-          const lines = text
-            .split(/\r?\n/)
-            .map((l) => l.trim())
-            .filter((l) => l.length > 1);
-          const stagedFromText: StagedTermItem[] = [];
-          lines.forEach((line, idx) => {
-            const parts = line.includes('\t')
-              ? line.split('\t')
-              : line.includes(' - ')
-              ? line.split(' - ')
-              : line.includes(' : ')
-              ? line.split(' : ')
-              : line.split(',');
-            const tEn = (parts[0] || '').trim().replace(/^["']|["']$/g, '');
-            if (!tEn || tEn.toLowerCase() === 'term' || tEn.toLowerCase() === 'term_en') return;
-            const tAr =
-              (parts[1] || '').trim().replace(/^["']|["']$/g, '') ||
-              lookupQuickWordOrPhraseAr(tEn, terms)?.translationAr ||
-              'مصطلح طبي';
-            const defAr =
-              (parts[2] || '').trim().replace(/^["']|["']$/g, '') ||
-              `مصطلح طبي سريري يعني ${tAr}.`;
-            const defEn =
-              (parts[3] || '').trim().replace(/^["']|["']$/g, '') ||
-              `Clinical medical term: ${tEn}.`;
-            stagedFromText.push({
-              id: `stg-settings-${Date.now()}-${idx}`,
-              term: tEn,
-              translation: tAr,
-              phonetic: `/${tEn.toLowerCase()}/`,
-              pos: tEn.includes(' ') ? 'phrase' : 'noun',
-              category: 'Medical',
-              definitionAr: defAr,
-              definitionEn: defEn,
-              examples: [],
-              relations: { synonyms: [], broader: [], related: [] },
-              selected: true
-            });
-          });
-          if (stagedFromText.length > 0) {
-            handleCommitBatch({
-              stagedTerms: stagedFromText,
-              stagedSentences: [],
-              stayOnCurrentTab: true
-            });
-            const summary = buildConciseDataSummary({
-              terms: stagedFromText as unknown as DictionaryTerm[],
-              sourceLabel: file.name,
-              rawSizeBytes: file.size
-            });
-            setLastImportedOrCopiedSummary(summary);
-            return;
+          if (text.startsWith('{') || text.startsWith('[')) {
+            const ok = handleImportFullBackupJson(text);
+            if (ok) return;
           }
         }
       } catch {
-        // Fallback to executeAtomicPackageImport below
+        // Fallback to executeAtomicPackageImport or universal ZIP reader below
       }
     }
 
@@ -1840,6 +1791,23 @@ export default function App() {
     });
 
     if (!result.success) {
+      // Fallback: if this is an AI-generated .zip or UMEDT-DATA .zip without manifest.json, parse via importUniversalZipArchiveBytes
+      if (lowerName.endsWith('.zip') || lowerName.endsWith('.umedpack')) {
+        try {
+          const zipBytes = new Uint8Array(await file.arrayBuffer());
+          const zipReport = importUniversalZipArchiveBytes(zipBytes, {
+            conflictPolicy,
+            sourceLabel: file.name
+          });
+          if (zipReport.success) {
+            handleUniversalImportComplete(zipReport);
+            showToast(`تم استيراد الأرشيف (${file.name}): ${zipReport.summaryText}`);
+            return;
+          }
+        } catch {
+          // Ignore and show original error below
+        }
+      }
       const firstErr = result.errors[0] || 'حزمة البيانات غير صالحة.';
       showToast(`تعذر استيراد الحزمة: ${firstErr}`, 'info');
       return;

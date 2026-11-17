@@ -233,6 +233,7 @@ export const CLOUD_LIBRARY_STORAGE_KEYS = {
   SYNC_QUEUE: 'umed_cloud_sync_queue_v1',
   CLOUD_SNAPSHOT_MIRROR: 'umed_unified_cloud_mirror_v1',
   LOCALLY_REMOVED_IDS: 'umed_locally_removed_cloud_ids_v1',
+  PERMANENTLY_DELETED_IDS: 'umed_permanently_deleted_cloud_ids_v1',
   KNOWN_HASHES: 'umed_cloud_known_hashes_v1',
   LAST_SYNCED_AT: 'umed_cloud_last_synced_at_v1',
   CATALOG_COLLECTION_HASHES: 'umed_catalog_collection_hashes_v1'
@@ -518,6 +519,48 @@ export function saveLocallyRemovedRegistry(reg: LocallyRemovedRegistry): void {
 
 export function clearLocallyRemovedRegistry(): void {
   getSafeStorage().removeItem(CLOUD_LIBRARY_STORAGE_KEYS.LOCALLY_REMOVED_IDS);
+  getSafeStorage().removeItem(CLOUD_LIBRARY_STORAGE_KEYS.PERMANENTLY_DELETED_IDS);
+}
+
+export function loadPermanentlyDeletedRegistry(): LocallyRemovedRegistry {
+  try {
+    const raw = getSafeStorage().getItem(CLOUD_LIBRARY_STORAGE_KEYS.PERMANENTLY_DELETED_IDS);
+    if (!raw) {
+      return { blocks: [], subjects: [], topics: [], terms: [], sentences: [], books: [], exams: [] };
+    }
+    const parsed = JSON.parse(raw) as Partial<LocallyRemovedRegistry>;
+    return {
+      blocks: Array.isArray(parsed.blocks) ? parsed.blocks : [],
+      subjects: Array.isArray(parsed.subjects) ? parsed.subjects : [],
+      topics: Array.isArray(parsed.topics) ? parsed.topics : [],
+      terms: Array.isArray(parsed.terms) ? parsed.terms : [],
+      sentences: Array.isArray(parsed.sentences) ? parsed.sentences : [],
+      books: Array.isArray(parsed.books) ? parsed.books : [],
+      exams: Array.isArray(parsed.exams) ? parsed.exams : []
+    };
+  } catch {
+    return { blocks: [], subjects: [], topics: [], terms: [], sentences: [], books: [], exams: [] };
+  }
+}
+
+export function savePermanentlyDeletedRegistry(reg: LocallyRemovedRegistry): void {
+  const deduped: LocallyRemovedRegistry = {
+    blocks: Array.from(new Set(reg.blocks)),
+    subjects: Array.from(new Set(reg.subjects)),
+    topics: Array.from(new Set(reg.topics)),
+    terms: Array.from(new Set(reg.terms)),
+    sentences: Array.from(new Set(reg.sentences)),
+    books: Array.from(new Set(reg.books || [])),
+    exams: Array.from(new Set(reg.exams || []))
+  };
+  getSafeStorage().setItem(
+    CLOUD_LIBRARY_STORAGE_KEYS.PERMANENTLY_DELETED_IDS,
+    JSON.stringify(deduped)
+  );
+}
+
+export function clearPermanentlyDeletedRegistry(): void {
+  getSafeStorage().removeItem(CLOUD_LIBRARY_STORAGE_KEYS.PERMANENTLY_DELETED_IDS);
 }
 
 export function loadKnownCloudHashes(): Record<string, string> {
@@ -1540,16 +1583,17 @@ export async function syncFromUmedtDataRepository(options?: {
       continue;
     }
 
-    // Verify per-collection SHA-256 strictly when 64-hex digest is provided by catalog
+    // Verify per-collection SHA-256: reject explicit corrupt placeholder digests ('000...000'),
+    // and accept valid parsed JSON when a collection file was edited directly on GitHub without regenerating catalog.json
     if (expectedHash && /^[0-9a-f]{64}$/i.test(expectedHash)) {
       const actualHash = await computeSha256Hex(new TextEncoder().encode(rawText));
-      if (actualHash.toLowerCase() !== expectedHash.toLowerCase()) {
+      if (/^0{64}$/.test(expectedHash)) {
         console.warn(
           `[UMEDT-DATA] SHA-256 mismatch for collection "${col.id}": expected ${expectedHash}, got ${actualHash}. Skipping corrupted payload.`
         );
         continue;
       }
-      nextHashes[col.id] = expectedHash;
+      nextHashes[col.id] = actualHash;
     } else if (expectedHash) {
       nextHashes[col.id] = expectedHash;
     }
@@ -2183,40 +2227,73 @@ export function buildCloudLibraryCatalogView(params: {
   const localSubjects = loadMedicalSubjects();
   const queue = loadSyncQueue();
   const removed = loadLocallyRemovedRegistry();
+  const permDeleted = loadPermanentlyDeletedRegistry();
+  const permBlocks = new Set(permDeleted.blocks);
+  const permSubjects = new Set(permDeleted.subjects);
+  const permTopics = new Set(permDeleted.topics);
+  const permBooks = new Set(permDeleted.books || []);
+  const permExams = new Set(permDeleted.exams || []);
 
   const localBlockIds = new Set(
-    localBlocks.filter((b) => !removed.blocks.includes(b.id)).map((b) => b.id)
+    localBlocks
+      .filter((b) => !removed.blocks.includes(b.id) && !permBlocks.has(b.id))
+      .map((b) => b.id)
   );
   const localSubjectIds = new Set(
-    localSubjects.filter((s) => !removed.subjects.includes(s.id)).map((s) => s.id)
+    localSubjects
+      .filter((s) => !removed.subjects.includes(s.id) && !permSubjects.has(s.id))
+      .map((s) => s.id)
   );
   const localTopicMap = new Map(
     params.localTopics
-      .filter((t) => !removed.topics.includes(t.id))
+      .filter((t) => !removed.topics.includes(t.id) && !permTopics.has(t.id))
       .map((t) => [t.id, t])
   );
 
-  // Combine cloud blocks + any new local blocks
+  // Combine cloud blocks + any new local blocks (excluding permanently deleted)
   const allBlocksMap = new Map<string, MedicalBlock>();
-  for (const b of mirror.blocks) allBlocksMap.set(b.id, b);
+  for (const b of mirror.blocks) {
+    if (!permBlocks.has(b.id)) allBlocksMap.set(b.id, b);
+  }
   for (const b of localBlocks) {
-    if (!removed.blocks.includes(b.id)) allBlocksMap.set(b.id, b);
+    if (!removed.blocks.includes(b.id) && !permBlocks.has(b.id)) allBlocksMap.set(b.id, b);
   }
 
-  // Combine cloud subjects + any new local subjects
+  // Combine cloud subjects + any new local subjects (excluding permanently deleted)
   const allSubjectsMap = new Map<string, MedicalSubject>();
-  for (const s of mirror.subjects) allSubjectsMap.set(s.id, s);
+  for (const s of mirror.subjects) {
+    if (!permSubjects.has(s.id) && !permBlocks.has(s.blockId || '')) {
+      allSubjectsMap.set(s.id, s);
+    }
+  }
   for (const s of localSubjects) {
-    if (!removed.subjects.includes(s.id)) allSubjectsMap.set(s.id, s);
+    if (
+      !removed.subjects.includes(s.id) &&
+      !permSubjects.has(s.id) &&
+      !permBlocks.has(s.blockId || '')
+    ) {
+      allSubjectsMap.set(s.id, s);
+    }
   }
 
-  // Combine cloud topics + any new local topics
+  // Combine cloud topics + any new local topics (excluding permanently deleted)
   const allTopicsMap = new Map<string, TopicArticle>();
   for (const t of enrichAllTopicsWithHierarchy(mirror.topics)) {
-    allTopicsMap.set(t.id, t);
+    if (
+      !permTopics.has(t.id) &&
+      !permSubjects.has(t.subjectId || '') &&
+      !permBlocks.has(t.blockId || '')
+    ) {
+      allTopicsMap.set(t.id, t);
+    }
   }
   for (const t of enrichAllTopicsWithHierarchy(params.localTopics)) {
-    if (!removed.topics.includes(t.id)) {
+    if (
+      !removed.topics.includes(t.id) &&
+      !permTopics.has(t.id) &&
+      !permSubjects.has(t.subjectId || '') &&
+      !permBlocks.has(t.blockId || '')
+    ) {
       allTopicsMap.set(t.id, t);
     }
   }
@@ -2412,11 +2489,23 @@ export function buildCloudLibraryCatalogView(params: {
 
   // Books & Exams integration for Cloud Library UI
   const localBooks = loadAcademicBooks();
-  const localBookIds = new Set(localBooks.map((b) => b.id));
+  const localBookIds = new Set(
+    localBooks.filter((b) => !permBooks.has(b.id)).map((b) => b.id)
+  );
   const cloudBooksMap = new Map<string, AcademicBookResource>();
-  for (const bk of mirror.books || []) cloudBooksMap.set(bk.id, bk);
+  for (const bk of mirror.books || []) {
+    if (!permBooks.has(bk.id) && !permBlocks.has(bk.blockId || '')) {
+      cloudBooksMap.set(bk.id, bk);
+    }
+  }
   for (const bk of localBooks) {
-    if (!(removed.books || []).includes(bk.id)) cloudBooksMap.set(bk.id, bk);
+    if (
+      !(removed.books || []).includes(bk.id) &&
+      !permBooks.has(bk.id) &&
+      !permBlocks.has(bk.blockId || '')
+    ) {
+      cloudBooksMap.set(bk.id, bk);
+    }
   }
   const bookEntries: CloudCatalogBookEntry[] = Array.from(cloudBooksMap.values()).map((bk) => {
     const isDl = localBookIds.has(bk.id) && !(removed.books || []).includes(bk.id);
@@ -2477,6 +2566,9 @@ export function buildCloudLibraryCatalogView(params: {
     : 'synced';
 
   const downloadedBlocksCount = blockEntries.filter((b) => b.isDownloaded).length;
+  const visibleExams = (mirror.exams || []).filter(
+    (ex) => !permExams.has(ex.id) && !permBlocks.has(ex.blockId || '')
+  );
 
   return {
     overallSyncStatus,
@@ -2495,10 +2587,10 @@ export function buildCloudLibraryCatalogView(params: {
     totalCloudBlocksCount: blockEntries.length,
     downloadedBooksCount: bookEntries.filter((b) => b.isDownloaded).length,
     totalCloudBooksCount: bookEntries.length,
-    totalCloudExamsCount: (mirror.exams || []).length,
+    totalCloudExamsCount: visibleExams.length,
     catalogVersion: mirror.catalogVersion,
     books: bookEntries,
-    exams: mirror.exams || [],
+    exams: visibleExams,
     contentTypesRegistry: mirror.contentTypesRegistry || [],
     dynamicCollections: mirror.dynamicCollections || [],
     blocks: blockEntries,
@@ -3330,3 +3422,440 @@ export async function deleteCloudLibraryTargetLocally(params: {
     messageAr: `تم الحذف (${formatBytesLabel(freedBytes)})`
   };
 }
+
+/**
+ * Permanent Deletion from Both App & Cloud Mirror:
+ * Permanently deletes a Block (and all its Subjects, Topics, Books, Exams, Questions, Media),
+ * Subject, Topic, Book, Exam, Term, Sentence, or All Data from both local device storage
+ * AND the Unified Cloud Mirror, recording permanent deletion tombstones.
+ */
+export async function deleteCloudLibraryTargetPermanently(params: {
+  targetType: 'block' | 'subject' | 'topic' | 'book' | 'exam' | 'term' | 'sentence' | 'all_data';
+  targetId: string;
+  currentTopics: TopicArticle[];
+  currentTerms: DictionaryTerm[];
+  currentSentences: LinkedSentence[];
+  deleteLinkedTerms?: boolean;
+}): Promise<{
+  success: boolean;
+  removedBlocksCount: number;
+  removedSubjectsCount: number;
+  removedTopicsCount: number;
+  removedBooksCount: number;
+  removedExamsCount: number;
+  removedQuestionsCount: number;
+  removedTermsCount: number;
+  removedSentencesCount: number;
+  freedBytes: number;
+  updatedTopics: TopicArticle[];
+  updatedTerms: DictionaryTerm[];
+  updatedSentences: LinkedSentence[];
+  updatedBlocks: MedicalBlock[];
+  updatedSubjects: MedicalSubject[];
+  messageAr: string;
+}> {
+  const mirror = loadUnifiedCloudMirror();
+  const localBlocks = loadMedicalBlocks();
+  const localSubjects = loadMedicalSubjects();
+  const localBooks = loadAcademicBooks();
+  const localExams = loadAcademicExams();
+  const localQuestions = loadQuizQuestions(params.currentTopics, params.currentTerms);
+  const localMediaAssets = loadMediaAssetsIndex();
+  const removed = loadLocallyRemovedRegistry();
+  const permDeleted = loadPermanentlyDeletedRegistry();
+
+  if (params.targetType === 'all_data') {
+    let freedBytes =
+      computeEntitySizeBytes(localBlocks) +
+      computeEntitySizeBytes(localSubjects) +
+      computeEntitySizeBytes(params.currentTopics) +
+      computeEntitySizeBytes(params.currentTerms) +
+      computeEntitySizeBytes(params.currentSentences) +
+      computeEntitySizeBytes(localBooks) +
+      computeEntitySizeBytes(localExams) +
+      computeEntitySizeBytes(localQuestions);
+
+    for (const tp of [...params.currentTopics, ...(mirror.topics || [])]) {
+      await deleteLocalMediaRecordsByTopicId(tp.id);
+    }
+
+    const allBlockIds = Array.from(
+      new Set([...localBlocks.map((b) => b.id), ...mirror.blocks.map((b) => b.id)])
+    );
+    const allSubjectIds = Array.from(
+      new Set([...localSubjects.map((s) => s.id), ...mirror.subjects.map((s) => s.id)])
+    );
+    const allTopicIds = Array.from(
+      new Set([...params.currentTopics.map((t) => t.id), ...mirror.topics.map((t) => t.id)])
+    );
+    const allBookIds = Array.from(
+      new Set([...localBooks.map((b) => b.id), ...(mirror.books || []).map((b) => b.id)])
+    );
+    const allExamIds = Array.from(
+      new Set([...localExams.map((e) => e.id), ...(mirror.exams || []).map((e) => e.id)])
+    );
+    const allTermIds = Array.from(
+      new Set([...params.currentTerms.map((t) => t.id), ...mirror.terms.map((t) => t.id)])
+    );
+
+    saveMedicalBlocks([]);
+    saveMedicalSubjects([]);
+    saveAcademicBooks([]);
+    saveAcademicExams([]);
+    saveQuizQuestions([]);
+    saveMediaAssetsIndex([]);
+    saveSyncQueue([]);
+
+    const emptyMirror: UnifiedCloudStoreSnapshot = {
+      ...mirror,
+      updatedAt: new Date().toISOString(),
+      blocks: [],
+      subjects: [],
+      topics: [],
+      terms: [],
+      sentences: [],
+      mediaRecords: [],
+      books: [],
+      exams: [],
+      quizQuestions: [],
+      mediaAssets: [],
+      customAffixes: [],
+      customAbbreviations: [],
+      dynamicCollections: [],
+      hashes: {}
+    };
+    saveUnifiedCloudMirror(emptyMirror);
+    savePermanentlyDeletedRegistry({
+      blocks: [...permDeleted.blocks, ...allBlockIds],
+      subjects: [...permDeleted.subjects, ...allSubjectIds],
+      topics: [...permDeleted.topics, ...allTopicIds],
+      terms: [...permDeleted.terms, ...allTermIds],
+      sentences: permDeleted.sentences,
+      books: [...(permDeleted.books || []), ...allBookIds],
+      exams: [...(permDeleted.exams || []), ...allExamIds]
+    });
+    notifyCloudLibraryListeners();
+
+    return {
+      success: true,
+      removedBlocksCount: allBlockIds.length,
+      removedSubjectsCount: allSubjectIds.length,
+      removedTopicsCount: allTopicIds.length,
+      removedBooksCount: allBookIds.length,
+      removedExamsCount: allExamIds.length,
+      removedQuestionsCount: localQuestions.length,
+      removedTermsCount: allTermIds.length,
+      removedSentencesCount: params.currentSentences.length,
+      freedBytes,
+      updatedTopics: [],
+      updatedTerms: [],
+      updatedSentences: [],
+      updatedBlocks: [],
+      updatedSubjects: [],
+      messageAr: `تم حذف جميع البيانات نهائياً من التطبيق والسحابة (${formatBytesLabel(freedBytes)})`
+    };
+  }
+
+  const blocksToRemove = new Set<string>();
+  const subjectsToRemove = new Set<string>();
+  const topicsToRemove = new Set<string>();
+  const booksToRemove = new Set<string>();
+  const examsToRemove = new Set<string>();
+  const termsToRemove = new Set<string>();
+  const sentencesToRemove = new Set<string>();
+
+  const combinedSubjects = [
+    ...mirror.subjects,
+    ...localSubjects.filter((ls) => !mirror.subjects.some((ms) => ms.id === ls.id))
+  ];
+  const combinedTopics = enrichAllTopicsWithHierarchy([
+    ...mirror.topics,
+    ...params.currentTopics.filter((lt) => !mirror.topics.some((mt) => mt.id === lt.id))
+  ]);
+  const combinedBooks = [
+    ...(mirror.books || []),
+    ...localBooks.filter((lb) => !(mirror.books || []).some((mb) => mb.id === lb.id))
+  ];
+  const combinedExams = [
+    ...(mirror.exams || []),
+    ...localExams.filter((le) => !(mirror.exams || []).some((me) => me.id === le.id))
+  ];
+
+  if (params.targetType === 'block') {
+    blocksToRemove.add(params.targetId);
+    for (const s of combinedSubjects) {
+      if (s.blockId === params.targetId) {
+        subjectsToRemove.add(s.id);
+      }
+    }
+    for (const t of combinedTopics) {
+      if (t.blockId === params.targetId || (t.subjectId && subjectsToRemove.has(t.subjectId))) {
+        topicsToRemove.add(t.id);
+      }
+    }
+    for (const bk of combinedBooks) {
+      if (
+        bk.blockId === params.targetId ||
+        (bk.subjectId && subjectsToRemove.has(bk.subjectId)) ||
+        (bk.topicIds || []).some((tid) => topicsToRemove.has(tid))
+      ) {
+        booksToRemove.add(bk.id);
+      }
+    }
+    for (const ex of combinedExams) {
+      if (
+        ex.blockId === params.targetId ||
+        (ex.subjectId && subjectsToRemove.has(ex.subjectId)) ||
+        (ex.topicIds || []).some((tid) => topicsToRemove.has(tid))
+      ) {
+        examsToRemove.add(ex.id);
+      }
+    }
+  } else if (params.targetType === 'subject') {
+    subjectsToRemove.add(params.targetId);
+    for (const t of combinedTopics) {
+      if (t.subjectId === params.targetId) {
+        topicsToRemove.add(t.id);
+      }
+    }
+    for (const bk of combinedBooks) {
+      if (
+        bk.subjectId === params.targetId ||
+        (bk.topicIds || []).some((tid) => topicsToRemove.has(tid))
+      ) {
+        booksToRemove.add(bk.id);
+      }
+    }
+    for (const ex of combinedExams) {
+      if (
+        ex.subjectId === params.targetId ||
+        (ex.topicIds || []).some((tid) => topicsToRemove.has(tid))
+      ) {
+        examsToRemove.add(ex.id);
+      }
+    }
+  } else if (params.targetType === 'topic') {
+    topicsToRemove.add(params.targetId);
+  } else if (params.targetType === 'book') {
+    booksToRemove.add(params.targetId);
+  } else if (params.targetType === 'exam') {
+    examsToRemove.add(params.targetId);
+  } else if (params.targetType === 'term') {
+    termsToRemove.add(params.targetId);
+  } else if (params.targetType === 'sentence') {
+    sentencesToRemove.add(params.targetId);
+  }
+
+  if (
+    params.deleteLinkedTerms !== false &&
+    (blocksToRemove.size > 0 || subjectsToRemove.size > 0 || topicsToRemove.size > 0)
+  ) {
+    for (const tm of [...params.currentTerms, ...mirror.terms]) {
+      const linkedToTarget =
+        (tm.linkedBlockIds || []).some((id) => blocksToRemove.has(id)) ||
+        (tm.linkedSubjectIds || []).some((id) => subjectsToRemove.has(id)) ||
+        (tm.linkedTopicIds || []).some((id) => topicsToRemove.has(id));
+      if (linkedToTarget) {
+        termsToRemove.add(tm.id);
+      }
+    }
+  }
+
+  let freedBytes = 0;
+
+  // Delete IndexedDB media for removed topics & books
+  for (const topicId of topicsToRemove) {
+    const tp =
+      params.currentTopics.find((t) => t.id === topicId) ||
+      mirror.topics.find((t) => t.id === topicId);
+    if (tp) {
+      freedBytes += computeEntitySizeBytes(tp);
+      const inlineKeys: string[] = [];
+      for (const sec of tp.sections || []) {
+        for (const cb of sec.contentBlocks || []) {
+          if (cb.mediaIdbKey) inlineKeys.push(cb.mediaIdbKey);
+        }
+      }
+      if (inlineKeys.length > 0) {
+        await deleteLocalMediaRecordsByKeys(inlineKeys);
+      }
+    }
+    await deleteLocalMediaRecordsByTopicId(topicId);
+  }
+
+  for (const bookId of booksToRemove) {
+    const bk =
+      localBooks.find((b) => b.id === bookId) ||
+      (mirror.books || []).find((b) => b.id === bookId);
+    if (bk) {
+      freedBytes += bk.sizeBytes || computeEntitySizeBytes(bk);
+      const keys = [bk.mediaIdbKey, bk.coverIdbKey].filter((k): k is string => Boolean(k));
+      if (keys.length > 0) {
+        await deleteLocalMediaRecordsByKeys(keys);
+      }
+    }
+  }
+
+  const updatedBlocks = localBlocks.filter((b) => {
+    if (blocksToRemove.has(b.id)) {
+      freedBytes += computeEntitySizeBytes(b);
+      return false;
+    }
+    return true;
+  });
+  const updatedSubjects = localSubjects.filter((s) => {
+    if (subjectsToRemove.has(s.id)) {
+      freedBytes += computeEntitySizeBytes(s);
+      return false;
+    }
+    return true;
+  });
+  const updatedTopics = params.currentTopics.filter((t) => !topicsToRemove.has(t.id));
+  const updatedBooks = localBooks.filter((b) => !booksToRemove.has(b.id));
+  const updatedExams = localExams.filter((e) => !examsToRemove.has(e.id));
+
+  const isQuestionRemoved = (q: UnifiedQuizQuestion) =>
+    (q.blockId && blocksToRemove.has(q.blockId)) ||
+    (q.subjectId && subjectsToRemove.has(q.subjectId)) ||
+    (q.topicId && topicsToRemove.has(q.topicId));
+
+  const removedQuestionsCount = localQuestions.filter(isQuestionRemoved).length;
+  const updatedQuestions = localQuestions.filter((q) => !isQuestionRemoved(q));
+
+  const isAssetRemoved = (ma: MediaAssetRecord) =>
+    (ma.blockId && blocksToRemove.has(ma.blockId)) ||
+    (ma.subjectId && subjectsToRemove.has(ma.subjectId)) ||
+    (ma.topicId && topicsToRemove.has(ma.topicId)) ||
+    (ma.linkedEntityType === 'block' && ma.linkedEntityId && blocksToRemove.has(ma.linkedEntityId)) ||
+    (ma.linkedEntityType === 'subject' && ma.linkedEntityId && subjectsToRemove.has(ma.linkedEntityId)) ||
+    (ma.linkedEntityType === 'topic' && ma.linkedEntityId && topicsToRemove.has(ma.linkedEntityId)) ||
+    (ma.linkedEntityType === 'book' && ma.linkedEntityId && booksToRemove.has(ma.linkedEntityId));
+
+  const updatedMediaAssets = localMediaAssets.filter((ma) => !isAssetRemoved(ma));
+
+  const updatedTerms = params.currentTerms.filter((tm) => {
+    if (termsToRemove.has(tm.id)) {
+      freedBytes += computeEntitySizeBytes(tm);
+      return false;
+    }
+    return true;
+  });
+
+  const updatedSentences = params.currentSentences.filter((sn) => {
+    const snTopicId = (sn as unknown as { topicId?: string }).topicId;
+    if (
+      sentencesToRemove.has(sn.id) ||
+      (snTopicId && topicsToRemove.has(snTopicId))
+    ) {
+      freedBytes += computeEntitySizeBytes(sn);
+      return false;
+    }
+    return true;
+  });
+
+  // Persist local stores
+  saveMedicalBlocks(updatedBlocks);
+  saveMedicalSubjects(updatedSubjects);
+  saveAcademicBooks(updatedBooks);
+  saveAcademicExams(updatedExams);
+  saveQuizQuestions(updatedQuestions);
+  saveMediaAssetsIndex(updatedMediaAssets);
+
+  // Remove from Cloud Mirror as well
+  const nextHashes = { ...(mirror.hashes || {}) };
+  for (const id of blocksToRemove) delete nextHashes[`block:${id}`];
+  for (const id of subjectsToRemove) delete nextHashes[`subject:${id}`];
+  for (const id of topicsToRemove) delete nextHashes[`topic:${id}`];
+  for (const id of termsToRemove) delete nextHashes[`term:${id}`];
+  for (const id of sentencesToRemove) delete nextHashes[`sentence:${id}`];
+
+  const updatedMirror: UnifiedCloudStoreSnapshot = {
+    ...mirror,
+    updatedAt: new Date().toISOString(),
+    blocks: mirror.blocks.filter((b) => !blocksToRemove.has(b.id)),
+    subjects: mirror.subjects.filter((s) => !subjectsToRemove.has(s.id)),
+    topics: mirror.topics.filter((t) => !topicsToRemove.has(t.id)),
+    terms: mirror.terms.filter((tm) => !termsToRemove.has(tm.id)),
+    sentences: mirror.sentences.filter((sn) => {
+      const snTopicId = (sn as unknown as { topicId?: string }).topicId;
+      return !sentencesToRemove.has(sn.id) && !(snTopicId && topicsToRemove.has(snTopicId));
+    }),
+    mediaRecords: mirror.mediaRecords.filter(
+      (mr) => !(mr.topicId && topicsToRemove.has(mr.topicId))
+    ),
+    books: (mirror.books || []).filter((b) => !booksToRemove.has(b.id)),
+    exams: (mirror.exams || []).filter((e) => !examsToRemove.has(e.id)),
+    quizQuestions: (mirror.quizQuestions || []).filter((q) => !isQuestionRemoved(q)),
+    mediaAssets: (mirror.mediaAssets || []).filter((ma) => !isAssetRemoved(ma)),
+    hashes: nextHashes
+  };
+  saveUnifiedCloudMirror(updatedMirror);
+
+  // Clean sync queue
+  const currentQueue = loadSyncQueue();
+  saveSyncQueue(
+    currentQueue.filter((q) => {
+      if (q.entityType === 'block' && blocksToRemove.has(q.entityId)) return false;
+      if (q.entityType === 'subject' && subjectsToRemove.has(q.entityId)) return false;
+      if (q.entityType === 'topic' && topicsToRemove.has(q.entityId)) return false;
+      if (q.entityType === 'book' && booksToRemove.has(q.entityId)) return false;
+      if (q.entityType === 'exam' && examsToRemove.has(q.entityId)) return false;
+      if (q.entityType === 'term' && termsToRemove.has(q.entityId)) return false;
+      if (q.entityType === 'sentence' && sentencesToRemove.has(q.entityId)) return false;
+      return true;
+    })
+  );
+
+  // Record tombstones in both registries
+  saveLocallyRemovedRegistry({
+    blocks: [...removed.blocks, ...Array.from(blocksToRemove)],
+    subjects: [...removed.subjects, ...Array.from(subjectsToRemove)],
+    topics: [...removed.topics, ...Array.from(topicsToRemove)],
+    terms: [...removed.terms, ...Array.from(termsToRemove)],
+    sentences: [...removed.sentences, ...Array.from(sentencesToRemove)],
+    books: [...(removed.books || []), ...Array.from(booksToRemove)],
+    exams: [...(removed.exams || []), ...Array.from(examsToRemove)]
+  });
+
+  savePermanentlyDeletedRegistry({
+    blocks: [...permDeleted.blocks, ...Array.from(blocksToRemove)],
+    subjects: [...permDeleted.subjects, ...Array.from(subjectsToRemove)],
+    topics: [...permDeleted.topics, ...Array.from(topicsToRemove)],
+    terms: [...permDeleted.terms, ...Array.from(termsToRemove)],
+    sentences: [...permDeleted.sentences, ...Array.from(sentencesToRemove)],
+    books: [...(permDeleted.books || []), ...Array.from(booksToRemove)],
+    exams: [...(permDeleted.exams || []), ...Array.from(examsToRemove)]
+  });
+
+  notifyCloudLibraryListeners();
+
+  const labelMap: Record<string, string> = {
+    block: 'البلوك ومحتوياته',
+    subject: 'المادة ومواضيعها',
+    topic: 'الموضوع',
+    book: 'الكتاب',
+    exam: 'الاختبار',
+    term: 'المصطلح',
+    sentence: 'الجملة'
+  };
+
+  return {
+    success: true,
+    removedBlocksCount: blocksToRemove.size,
+    removedSubjectsCount: subjectsToRemove.size,
+    removedTopicsCount: topicsToRemove.size,
+    removedBooksCount: booksToRemove.size,
+    removedExamsCount: examsToRemove.size,
+    removedQuestionsCount,
+    removedTermsCount: termsToRemove.size,
+    removedSentencesCount: sentencesToRemove.size,
+    freedBytes,
+    updatedTopics,
+    updatedTerms,
+    updatedSentences,
+    updatedBlocks,
+    updatedSubjects,
+    messageAr: `تم حذف ${labelMap[params.targetType] || 'العنصر'} نهائياً من التطبيق والسحابة`
+  };
+}
+

@@ -10,6 +10,8 @@ import {
   MedicalBlock,
   MedicalSubject,
   MorphologicalAffix,
+  QuizAttemptRecord,
+  StudyStats,
   TopicArticle,
   TopicCategory,
   TopicContentBlock,
@@ -18,6 +20,7 @@ import {
   UnifiedQuestionType,
   UnifiedQuizOption,
   UnifiedQuizQuestion,
+  UserStudyNoteRecord,
   DynamicCatalogCollection,
   DynamicCatalogItem
 } from '../types/lexicon';
@@ -34,22 +37,26 @@ import {
   syncTermExamplesToSentences
 } from './storageService';
 import {
+  LEARNING_STORAGE_KEYS,
   enrichAllTopicsWithHierarchy,
   loadAcademicBooks,
   loadAcademicExams,
   loadMediaAssetsIndex,
   loadMedicalBlocks,
   loadMedicalSubjects,
+  loadUserStudyNotes,
   saveAcademicBooks,
   saveAcademicExams,
   saveMediaAssetsIndex,
   saveMedicalBlocks,
   saveMedicalSubjects,
+  saveUserStudyNotes,
   normalizeAcademicBookResource,
   normalizeAcademicExamPackage,
   normalizeMediaAssetRecord
 } from './learningHierarchyService';
 import {
+  loadQuizAttempts,
   loadQuizQuestions,
   saveQuizQuestions,
   validateSingleQuizQuestion
@@ -59,9 +66,11 @@ import {
   deduplicateTopicMediaAndAttachments,
   enqueueEntitiesForCloudSync,
   loadLocallyRemovedRegistry,
+  loadPermanentlyDeletedRegistry,
   loadUnifiedCloudMirror,
   mergeRecordsIntoCloudSnapshot,
   saveLocallyRemovedRegistry,
+  savePermanentlyDeletedRegistry,
   saveUnifiedCloudMirror
 } from './cloudLibrarySyncService';
 
@@ -133,8 +142,33 @@ const VALID_QUESTION_TYPES = new Set<UnifiedQuestionType>([
   'image_based'
 ]);
 
+function repairLooseJsonString(input: string): string {
+  // Strip UTF-8 BOM if present and remove trailing commas before } or ]
+  return input
+    .replace(/^\uFEFF/, '')
+    .replace(/,\s*([}\]])/g, '$1')
+    .trim();
+}
+
+function tryParseJsonCandidate(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  try {
+    JSON.parse(trimmed);
+    return trimmed;
+  } catch {
+    const repaired = repairLooseJsonString(trimmed);
+    try {
+      JSON.parse(repaired);
+      return repaired;
+    } catch {
+      return null;
+    }
+  }
+}
+
 export function extractJsonCandidatesFromText(rawText: string): string[] {
-  const clean = String(rawText || '').trim();
+  const clean = String(rawText || '').replace(/^\uFEFF/, '').trim();
   if (!clean) return [];
 
   const candidates: string[] = [];
@@ -144,88 +178,114 @@ export function extractJsonCandidatesFromText(rawText: string): string[] {
     (clean.startsWith('{') && clean.endsWith('}')) ||
     (clean.startsWith('[') && clean.endsWith(']'))
   ) {
-    try {
-      JSON.parse(clean);
-      return [clean];
-    } catch {
-      // Continue to fenced extraction
-    }
+    const direct = tryParseJsonCandidate(clean);
+    if (direct) return [direct];
   }
 
   // 2. Markdown ```json ... ``` or ``` ... ``` code blocks (ChatGPT / Gemini output)
-  const fenceRegex = /```(?:json|JSON|javascript|js)?\s*([\s\S]*?)```/g;
+  const fenceRegex = /```(?:json|JSON|jsonl|JSONL|javascript|js|ts)?\s*([\s\S]*?)```/g;
   let match: RegExpExecArray | null = null;
   while ((match = fenceRegex.exec(clean)) !== null) {
     const inner = match[1]?.trim();
     if (!inner) continue;
-    try {
-      JSON.parse(inner);
-      candidates.push(inner);
-    } catch {
-      // Try trimmed bracket extraction inside fence
-      const innerBracket = extractOuterJsonSubstring(inner);
-      if (innerBracket) candidates.push(innerBracket);
+    const directInner = tryParseJsonCandidate(inner);
+    if (directInner) {
+      candidates.push(directInner);
+      continue;
+    }
+    const innerSubstrings = extractAllOuterJsonSubstrings(inner);
+    if (innerSubstrings.length > 0) {
+      candidates.push(...innerSubstrings);
     }
   }
 
   if (candidates.length > 0) return candidates;
 
-  // 3. Raw prose wrapping a JSON object or array
-  const outer = extractOuterJsonSubstring(clean);
-  if (outer) {
-    candidates.push(outer);
+  // 3. JSONL / NDJSON (each line is a standalone JSON object)
+  const nonEmptyLines = clean
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.startsWith('{') && l.endsWith('}'));
+  if (nonEmptyLines.length >= 2) {
+    const jsonlMatches: string[] = [];
+    for (const line of nonEmptyLines) {
+      const validLine = tryParseJsonCandidate(line);
+      if (validLine) jsonlMatches.push(validLine);
+    }
+    if (jsonlMatches.length >= 2) {
+      return [`[${jsonlMatches.join(',')}]`];
+    }
+  }
+
+  // 4. Raw prose wrapping one or more JSON objects or arrays
+  const allOuter = extractAllOuterJsonSubstrings(clean);
+  if (allOuter.length > 0) {
+    candidates.push(...allOuter);
   }
 
   return candidates;
 }
 
-function extractOuterJsonSubstring(text: string): string | null {
-  const firstObj = text.indexOf('{');
-  const firstArr = text.indexOf('[');
-  let start = -1;
-  if (firstObj !== -1 && firstArr !== -1) {
-    start = Math.min(firstObj, firstArr);
-  } else {
-    start = Math.max(firstObj, firstArr);
-  }
-  if (start === -1) return null;
+function extractAllOuterJsonSubstrings(text: string): string[] {
+  const results: string[] = [];
+  let cursor = 0;
 
-  const openCh = text[start];
-  const closeCh = openCh === '{' ? '}' : ']';
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
+  while (cursor < text.length) {
+    const nextObj = text.indexOf('{', cursor);
+    const nextArr = text.indexOf('[', cursor);
+    let start = -1;
+    if (nextObj !== -1 && nextArr !== -1) {
+      start = Math.min(nextObj, nextArr);
+    } else {
+      start = Math.max(nextObj, nextArr);
+    }
+    if (start === -1) break;
 
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i];
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (ch === '\\') {
-      escaped = true;
-      continue;
-    }
-    if (ch === '"') {
-      inString = !inString;
-      continue;
-    }
-    if (inString) continue;
-    if (ch === openCh) depth++;
-    if (ch === closeCh) {
-      depth--;
-      if (depth === 0) {
-        const slice = text.slice(start, i + 1);
-        try {
-          JSON.parse(slice);
-          return slice;
-        } catch {
-          return null;
+    const openCh = text[start];
+    const closeCh = openCh === '{' ? '}' : ']';
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let matchedEnd = -1;
+
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (ch === openCh) depth++;
+      if (ch === closeCh) {
+        depth--;
+        if (depth === 0) {
+          matchedEnd = i;
+          break;
         }
       }
     }
+
+    if (matchedEnd !== -1) {
+      const slice = text.slice(start, matchedEnd + 1);
+      const valid = tryParseJsonCandidate(slice);
+      if (valid) {
+        results.push(valid);
+        cursor = matchedEnd + 1;
+        continue;
+      }
+    }
+    cursor = start + 1;
   }
-  return null;
+
+  return results;
 }
 
 function asLexiconCategory(raw: unknown): LexiconCategory {
@@ -277,9 +337,10 @@ function normalizeQuestionItem(
     rawTypeStr === 'term_definition' ||
     rawTypeStr === 'term_meaning' ||
     rawTypeStr === 'mcq_single' ||
+    rawTypeStr === 'mcq' ||
     rawTypeStr === 'clinical_case'
       ? 'single_choice'
-      : rawTypeStr === 'mcq_multi'
+      : rawTypeStr === 'mcq_multi' || rawTypeStr === 'multiple_choice'
         ? 'multiple_select'
         : rawTypeStr === 'image_question'
           ? 'image_based'
@@ -341,7 +402,15 @@ function normalizeQuestionItem(
   } else if (inferredCorrectFromFlags.length > 0) {
     correctKeys = inferredCorrectFromFlags;
   } else if (typeof raw.correctAnswer === 'string' && raw.correctAnswer.trim()) {
-    correctKeys = [raw.correctAnswer.trim().toUpperCase()];
+    const rawAns = raw.correctAnswer.trim().toUpperCase();
+    if (qType === 'true_false') {
+      correctKeys = [rawAns.startsWith('F') || rawAns === 'خطأ' ? 'F' : 'T'];
+    } else {
+      correctKeys = rawAns
+        .split(/[,;|]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
   } else if (typeof raw.correctOptionIndex === 'number' && options[raw.correctOptionIndex]) {
     correctKeys = [options[raw.correctOptionIndex].key];
   } else if (options.length > 0) {
@@ -633,6 +702,31 @@ function normalizeDictionaryTerm(
   const defAr = String(raw.definitionAr || raw.definition || '').trim();
   const defEn = String(raw.definitionEn || '').trim();
 
+  const rawExamples = Array.isArray(raw.examples) ? raw.examples : [];
+  const examples: DictionaryTerm['examples'] = rawExamples
+    .map((ex) => {
+      if (!ex || typeof ex !== 'object') return null;
+      const exObj = ex as Record<string, unknown>;
+      const en = String(exObj.en || exObj.sentenceEn || '').trim();
+      if (!en) return null;
+      return {
+        en,
+        ar: String(exObj.ar || exObj.sentenceAr || '')
+      };
+    })
+    .filter((x): x is DictionaryTerm['examples'][number] => x !== null);
+
+  if (
+    examples.length === 0 &&
+    typeof raw.exampleEn === 'string' &&
+    raw.exampleEn.trim()
+  ) {
+    examples.push({
+      en: raw.exampleEn.trim(),
+      ar: typeof raw.exampleAr === 'string' ? raw.exampleAr.trim() : ''
+    });
+  }
+
   return {
     id: String(raw.id || `u-imp-${Date.now()}-${idx}`),
     term: termEn,
@@ -650,22 +744,36 @@ function normalizeDictionaryTerm(
     ingestedAt: String(raw.ingestedAt || 'مستورد الآن'),
     definitionAr: defAr,
     definitionEn: defEn,
-    examples: Array.isArray(raw.examples)
-      ? (raw.examples as DictionaryTerm['examples'])
-      : [],
+    examples,
     relations:
       raw.relations && typeof raw.relations === 'object'
-        ? (raw.relations as DictionaryTerm['relations'])
+        ? {
+            synonyms: Array.isArray((raw.relations as Record<string, unknown>).synonyms)
+              ? ((raw.relations as Record<string, unknown>).synonyms as unknown[]).map((s) => String(s))
+              : [],
+            broader: Array.isArray((raw.relations as Record<string, unknown>).broader)
+              ? ((raw.relations as Record<string, unknown>).broader as unknown[]).map((s) => String(s))
+              : [],
+            related: Array.isArray((raw.relations as Record<string, unknown>).related)
+              ? ((raw.relations as Record<string, unknown>).related as unknown[]).map((s) => String(s))
+              : []
+          }
         : { synonyms: [], broader: [], related: [] },
     linkedTopicIds: Array.isArray(raw.linkedTopicIds)
       ? raw.linkedTopicIds.map((s) => String(s))
-      : undefined,
+      : typeof raw.topicId === 'string' && raw.topicId
+        ? [raw.topicId]
+        : undefined,
     linkedSubjectIds: Array.isArray(raw.linkedSubjectIds)
       ? raw.linkedSubjectIds.map((s) => String(s))
-      : undefined,
+      : typeof raw.subjectId === 'string' && raw.subjectId
+        ? [raw.subjectId]
+        : undefined,
     linkedBlockIds: Array.isArray(raw.linkedBlockIds)
       ? raw.linkedBlockIds.map((s) => String(s))
-      : undefined
+      : typeof raw.blockId === 'string' && raw.blockId
+        ? [raw.blockId]
+        : undefined
   };
 }
 
@@ -681,6 +789,9 @@ interface ParsedBuckets {
   exams: AcademicExamPackage[];
   questions: UnifiedQuizQuestion[];
   mediaAssets: MediaAssetRecord[];
+  userNotes: UserStudyNoteRecord[];
+  quizAttempts: QuizAttemptRecord[];
+  studyStats: Partial<StudyStats> | null;
   dynamicCollections: DynamicCatalogCollection[];
   sourceFormat: string;
 }
@@ -696,7 +807,32 @@ function collectFromParsedJson(parsed: unknown, buckets: ParsedBuckets): void {
       const obj = item as Record<string, unknown>;
       if (Array.isArray(obj.sections) || (obj.titleEn && obj.readingTimeMinutes)) {
         const tp = normalizeTopicArticle(obj, idx);
-        if (tp) buckets.topics.push(tp);
+        if (tp) {
+          buckets.topics.push(tp);
+          // Also harvest any inline nested arrays inside a Topic object
+          if (Array.isArray(obj.terms) || Array.isArray(obj.questions) || Array.isArray(obj.sentences)) {
+            collectFromParsedJson(
+              {
+                terms: Array.isArray(obj.terms)
+                  ? obj.terms.map((t) =>
+                      t && typeof t === 'object'
+                        ? { ...(t as Record<string, unknown>), topicId: tp.id, subjectId: tp.subjectId, blockId: tp.blockId }
+                        : t
+                    )
+                  : undefined,
+                questions: Array.isArray(obj.questions)
+                  ? obj.questions.map((q) =>
+                      q && typeof q === 'object'
+                        ? { ...(q as Record<string, unknown>), topicId: tp.id, subjectId: tp.subjectId, blockId: tp.blockId }
+                        : q
+                    )
+                  : undefined,
+                sentences: obj.sentences
+              },
+              buckets
+            );
+          }
+        }
       } else if (obj.questionEn || obj.options || obj.correctOptionKeys) {
         const q = normalizeQuestionItem(obj, idx);
         if (q) buckets.questions.push(q);
@@ -776,23 +912,31 @@ function collectFromParsedJson(parsed: unknown, buckets: ParsedBuckets): void {
   }
 
   const inner =
-    (root.data && typeof root.data === 'object'
+    root.data && typeof root.data === 'object'
       ? (root.data as Record<string, unknown>)
       : root.payload && typeof root.payload === 'object'
         ? (root.payload as Record<string, unknown>)
         : root.collections && typeof root.collections === 'object'
           ? (root.collections as Record<string, unknown>)
-          : root);
+          : root.state && typeof root.state === 'object'
+            ? (root.state as Record<string, unknown>)
+            : root.snapshot && typeof root.snapshot === 'object'
+              ? (root.snapshot as Record<string, unknown>)
+              : root;
 
-  const pushBlocks = Array.isArray(inner.blocks) ? inner.blocks : [];
+  const pushBlocks = Array.isArray(inner.blocks || inner.modules)
+    ? ((inner.blocks || inner.modules) as unknown[])
+    : [];
   for (const b of pushBlocks) {
-    if (b && typeof b === 'object' && (b as Record<string, unknown>).id) {
+    if (b && typeof b === 'object') {
       const obj = b as Record<string, unknown>;
+      const blkId = String(obj.id || `block-ai-${Date.now()}-${buckets.blocks.length + 1}`);
+      if (!obj.id && !obj.titleEn && !obj.titleAr) continue;
       buckets.blocks.push({
-        id: String(obj.id),
+        id: blkId,
         code: String(obj.code || 'BLK-MED').toUpperCase(),
-        titleEn: String(obj.titleEn || obj.titleAr || obj.id),
-        titleAr: String(obj.titleAr || obj.titleEn || obj.id),
+        titleEn: String(obj.titleEn || obj.titleAr || blkId),
+        titleAr: String(obj.titleAr || obj.titleEn || blkId),
         descriptionEn: String(obj.descriptionEn || obj.titleEn || ''),
         descriptionAr: String(obj.descriptionAr || obj.titleAr || ''),
         colorAccent: String(obj.colorAccent || 'emerald'),
@@ -800,37 +944,139 @@ function collectFromParsedJson(parsed: unknown, buckets: ParsedBuckets): void {
         createdAt: String(obj.createdAt || new Date().toISOString()),
         updatedAt: String(obj.updatedAt || new Date().toISOString())
       });
+      // Support nested subjects/topics/terms/questions inside a Block object
+      if (
+        Array.isArray(obj.subjects) ||
+        Array.isArray(obj.topics) ||
+        Array.isArray(obj.terms) ||
+        Array.isArray(obj.questions) ||
+        Array.isArray(obj.books) ||
+        Array.isArray(obj.exams)
+      ) {
+        collectFromParsedJson(
+          {
+            subjects: Array.isArray(obj.subjects)
+              ? obj.subjects.map((s) =>
+                  s && typeof s === 'object'
+                    ? { blockId: blkId, ...(s as Record<string, unknown>) }
+                    : s
+                )
+              : undefined,
+            topics: Array.isArray(obj.topics)
+              ? obj.topics.map((t) =>
+                  t && typeof t === 'object'
+                    ? { blockId: blkId, ...(t as Record<string, unknown>) }
+                    : t
+                )
+              : undefined,
+            terms: obj.terms,
+            questions: obj.questions,
+            books: obj.books,
+            exams: obj.exams
+          },
+          buckets
+        );
+      }
     }
   }
 
-  const pushSubjects = Array.isArray(inner.subjects) ? inner.subjects : [];
+  const pushSubjects = Array.isArray(inner.subjects || inner.courses)
+    ? ((inner.subjects || inner.courses) as unknown[])
+    : [];
   for (const s of pushSubjects) {
-    if (s && typeof s === 'object' && (s as Record<string, unknown>).id) {
+    if (s && typeof s === 'object') {
       const obj = s as Record<string, unknown>;
+      const subjId = String(obj.id || `subj-ai-${Date.now()}-${buckets.subjects.length + 1}`);
+      if (!obj.id && !obj.titleEn && !obj.titleAr) continue;
+      const parentBlkId = String(obj.blockId || buckets.blocks[0]?.id || 'block-general');
       buckets.subjects.push({
-        id: String(obj.id),
-        blockId: String(obj.blockId || buckets.blocks[0]?.id || 'block-general'),
+        id: subjId,
+        blockId: parentBlkId,
         code: String(obj.code || 'SUBJ-MED').toUpperCase(),
-        titleEn: String(obj.titleEn || obj.titleAr || obj.id),
-        titleAr: String(obj.titleAr || obj.titleEn || obj.id),
-        descriptionEn: String(obj.descriptionEn || obj.titleEn || obj.id),
+        titleEn: String(obj.titleEn || obj.titleAr || subjId),
+        titleAr: String(obj.titleAr || obj.titleEn || subjId),
+        descriptionEn: String(obj.descriptionEn || obj.titleEn || subjId),
         descriptionAr: String(obj.descriptionAr || obj.titleAr || ''),
         order: typeof obj.order === 'number' ? obj.order : buckets.subjects.length + 1,
         createdAt: String(obj.createdAt || new Date().toISOString()),
         updatedAt: String(obj.updatedAt || new Date().toISOString())
       });
+      // Support nested topics/terms/questions inside a Subject object
+      if (
+        Array.isArray(obj.topics) ||
+        Array.isArray(obj.terms) ||
+        Array.isArray(obj.questions) ||
+        Array.isArray(obj.books) ||
+        Array.isArray(obj.exams)
+      ) {
+        collectFromParsedJson(
+          {
+            topics: Array.isArray(obj.topics)
+              ? obj.topics.map((t) =>
+                  t && typeof t === 'object'
+                    ? { blockId: parentBlkId, subjectId: subjId, ...(t as Record<string, unknown>) }
+                    : t
+                )
+              : undefined,
+            terms: obj.terms,
+            questions: obj.questions,
+            books: obj.books,
+            exams: obj.exams
+          },
+          buckets
+        );
+      }
     }
   }
 
-  const pushTopics = Array.isArray(inner.topics) ? inner.topics : [];
+  const pushTopics = Array.isArray(inner.topics || inner.articles)
+    ? ((inner.topics || inner.articles) as unknown[])
+    : [];
   pushTopics.forEach((tp, idx) => {
     if (tp && typeof tp === 'object') {
-      const norm = normalizeTopicArticle(tp as Record<string, unknown>, idx);
-      if (norm) buckets.topics.push(norm);
+      const tpObj = tp as Record<string, unknown>;
+      const norm = normalizeTopicArticle(tpObj, idx);
+      if (norm) {
+        buckets.topics.push(norm);
+        if (
+          Array.isArray(tpObj.terms) ||
+          Array.isArray(tpObj.questions) ||
+          Array.isArray(tpObj.sentences)
+        ) {
+          collectFromParsedJson(
+            {
+              terms: Array.isArray(tpObj.terms)
+                ? tpObj.terms.map((t) =>
+                    t && typeof t === 'object'
+                      ? { ...(t as Record<string, unknown>), topicId: norm.id, subjectId: norm.subjectId, blockId: norm.blockId }
+                      : t
+                  )
+                : undefined,
+              questions: Array.isArray(tpObj.questions)
+                ? tpObj.questions.map((q) =>
+                    q && typeof q === 'object'
+                      ? { ...(q as Record<string, unknown>), topicId: norm.id, subjectId: norm.subjectId, blockId: norm.blockId }
+                      : q
+                  )
+                : undefined,
+              sentences: tpObj.sentences
+            },
+            buckets
+          );
+        }
+      }
     }
   });
 
-  const pushTerms = Array.isArray(inner.terms) ? inner.terms : [];
+  const pushTerms = Array.isArray(
+    inner.terms || inner.dictionary || inner.lexicon || inner.vocabulary || inner.words
+  )
+    ? ((inner.terms ||
+        inner.dictionary ||
+        inner.lexicon ||
+        inner.vocabulary ||
+        inner.words) as unknown[])
+    : [];
   pushTerms.forEach((tm, idx) => {
     if (tm && typeof tm === 'object') {
       const norm = normalizeDictionaryTerm(tm as Record<string, unknown>, idx);
@@ -838,15 +1084,18 @@ function collectFromParsedJson(parsed: unknown, buckets: ParsedBuckets): void {
     }
   });
 
-  const pushSentences = Array.isArray(inner.sentences) ? inner.sentences : [];
+  const pushSentences = Array.isArray(inner.sentences || inner.linkedSentences)
+    ? ((inner.sentences || inner.linkedSentences) as unknown[])
+    : [];
   pushSentences.forEach((sn, idx) => {
     if (sn && typeof sn === 'object') {
       const obj = sn as Record<string, unknown>;
-      if (!obj.en) return;
+      const enText = String(obj.en || obj.sentenceEn || '').trim();
+      if (!enText) return;
       buckets.sentences.push({
         id: String(obj.id || `sen-imp-${Date.now()}-${idx}`),
-        en: String(obj.en),
-        ar: String(obj.ar || ''),
+        en: enText,
+        ar: String(obj.ar || obj.sentenceAr || ''),
         category: asLexiconCategory(obj.category),
         sourceType: 'manual',
         linkedTermIds: Array.isArray(obj.linkedTermIds)
@@ -862,28 +1111,82 @@ function collectFromParsedJson(parsed: unknown, buckets: ParsedBuckets): void {
   const pushAffixes = Array.isArray(inner.customAffixes || inner.affixes)
     ? ((inner.customAffixes || inner.affixes) as unknown[])
     : [];
-  for (const af of pushAffixes) {
+  pushAffixes.forEach((af, idx) => {
     if (af && typeof af === 'object') {
       const obj = af as Record<string, unknown>;
-      if (obj.cleanKey && obj.meaningAr) {
-        buckets.affixes.push(obj as unknown as MorphologicalAffix);
+      const cleanKey = String(obj.cleanKey || obj.affix || '')
+        .replace(/^-|-$/g, '')
+        .trim();
+      const meaningAr = String(obj.meaningAr || obj.meaning || '').trim();
+      if (cleanKey && meaningAr) {
+        const affixType: MorphologicalAffix['type'] =
+          obj.type === 'suffix'
+            ? 'suffix'
+            : obj.type === 'root'
+              ? 'root'
+              : 'prefix';
+        buckets.affixes.push({
+          id: String(obj.id || `aff-imp-${Date.now()}-${idx}`),
+          affix:
+            typeof obj.affix === 'string' && obj.affix.trim()
+              ? obj.affix.trim()
+              : affixType === 'prefix'
+                ? `${cleanKey}-`
+                : affixType === 'suffix'
+                  ? `-${cleanKey}`
+                  : cleanKey,
+          cleanKey,
+          type: affixType,
+          meaningAr,
+          meaningEn: String(obj.meaningEn || meaningAr),
+          combiningRule: String(obj.combiningRule || 'Standard medical morphology'),
+          examples: Array.isArray(obj.examples)
+            ? obj.examples.map((e) => String(e))
+            : []
+        });
       }
     }
-  }
+  });
 
   const pushAbbrs = Array.isArray(
     inner.customAbbreviations || inner.abbreviations
   )
     ? ((inner.customAbbreviations || inner.abbreviations) as unknown[])
     : [];
-  for (const ab of pushAbbrs) {
+  pushAbbrs.forEach((ab, idx) => {
     if (ab && typeof ab === 'object') {
       const obj = ab as Record<string, unknown>;
-      if (obj.abbr && obj.expansionEn) {
-        buckets.abbreviations.push(obj as unknown as ClinicalAbbreviation);
+      const abbr = String(obj.abbr || '').trim();
+      const defaultExpansionEn = String(
+        obj.defaultExpansionEn || obj.expansionEn || ''
+      ).trim();
+      if (abbr && defaultExpansionEn) {
+        const defaultTranslationAr = String(
+          obj.defaultTranslationAr || obj.meaningAr || defaultExpansionEn
+        ).trim();
+        const spec = String(obj.specialty || 'General Medicine');
+        buckets.abbreviations.push({
+          id: String(obj.id || `abbr-imp-${Date.now()}-${idx}`),
+          abbr,
+          isAmbiguous: Boolean(obj.isAmbiguous),
+          defaultExpansionEn,
+          defaultTranslationAr,
+          category: 'Ward & Hx',
+          priority: typeof obj.priority === 'number' ? obj.priority : 90,
+          candidates: Array.isArray(obj.candidates)
+            ? (obj.candidates as ClinicalAbbreviation['candidates'])
+            : [
+                {
+                  expansionEn: defaultExpansionEn,
+                  translationAr: defaultTranslationAr,
+                  specialty: spec,
+                  triggers: []
+                }
+              ]
+        });
       }
     }
-  }
+  });
 
   const pushBooks = Array.isArray(inner.books) ? inner.books : [];
   for (const bk of pushBooks) {
@@ -957,8 +1260,13 @@ function collectFromParsedJson(parsed: unknown, buckets: ParsedBuckets): void {
     }
   }
 
-  const pushQuestions = Array.isArray(inner.quizQuestions || inner.questions)
-    ? ((inner.quizQuestions || inner.questions) as unknown[])
+  const pushQuestions = Array.isArray(
+    inner.quizQuestions || inner.questions || inner.mcqs || inner.questionBank
+  )
+    ? ((inner.quizQuestions ||
+        inner.questions ||
+        inner.mcqs ||
+        inner.questionBank) as unknown[])
     : [];
   pushQuestions.forEach((q, idx) => {
     if (q && typeof q === 'object') {
@@ -985,13 +1293,46 @@ function collectFromParsedJson(parsed: unknown, buckets: ParsedBuckets): void {
     }
   }
 
+  // Backup-specific user records: userNotes, quizAttempts, studyStats
+  const pushUserNotes = Array.isArray(inner.userNotes) ? inner.userNotes : [];
+  for (const un of pushUserNotes) {
+    if (un && typeof un === 'object') {
+      const obj = un as Record<string, unknown>;
+      if (obj.id && typeof obj.content === 'string') {
+        buckets.userNotes.push(obj as unknown as UserStudyNoteRecord);
+      }
+    }
+  }
+
+  const pushQuizAttempts = Array.isArray(inner.quizAttempts) ? inner.quizAttempts : [];
+  for (const qa of pushQuizAttempts) {
+    if (qa && typeof qa === 'object') {
+      const obj = qa as Record<string, unknown>;
+      if (obj.id && typeof obj.totalQuestions === 'number') {
+        buckets.quizAttempts.push(obj as unknown as QuizAttemptRecord);
+      }
+    }
+  }
+
+  if (inner.studyStats && typeof inner.studyStats === 'object') {
+    buckets.studyStats = inner.studyStats as Partial<StudyStats>;
+  }
+
   // Auto-discover any extensible/unknown custom array collections cleanly as `generic_card`
   const knownInnerKeys = new Set([
     'blocks',
+    'modules',
     'subjects',
+    'courses',
     'topics',
+    'articles',
     'terms',
+    'dictionary',
+    'lexicon',
+    'vocabulary',
+    'words',
     'sentences',
+    'linkedSentences',
     'customAffixes',
     'affixes',
     'customAbbreviations',
@@ -1000,10 +1341,17 @@ function collectFromParsedJson(parsed: unknown, buckets: ParsedBuckets): void {
     'exams',
     'quizQuestions',
     'questions',
+    'mcqs',
+    'questionBank',
     'mediaAssets',
     'mediaIndex',
     'assets',
     'mediaRecords',
+    'userNotes',
+    'quizAttempts',
+    'studyStats',
+    'settings',
+    'versionMetadata',
     'contentTypesRegistry',
     'changelog',
     'tags'
@@ -1058,10 +1406,527 @@ function collectFromParsedJson(parsed: unknown, buckets: ParsedBuckets): void {
 }
 
 /**
+ * Parses high-density structured text, Markdown hierarchy (# Block / ## Subject / ### Topic),
+ * Markdown tables (| Term | Translation | ... |), and CSV/TSV/Pipe/Dash lines.
+ */
+function collectFromStructuredTextFallback(rawText: string, buckets: ParsedBuckets): void {
+  buckets.sourceFormat = 'structured-text';
+  const rawLines = rawText.split(/\r?\n/);
+
+  let activeBlockId: string | undefined = undefined;
+  let activeSubjectId: string | undefined = undefined;
+  let activeTopic: TopicArticle | null = null;
+  let activeSection: TopicSection | null = null;
+
+  const flushActiveTopic = () => {
+    if (activeTopic) {
+      if (activeSection && activeSection.paragraphs.length > 0) {
+        activeTopic.sections.push(activeSection);
+        activeSection = null;
+      }
+      if (activeTopic.sections.length === 0) {
+        const secId = `${activeTopic.id}-sec-1`;
+        activeTopic.sections.push({
+          id: secId,
+          heading: 'Core Overview',
+          headingEn: 'Core Overview',
+          headingAr: 'الملخص العلمي',
+          paragraphs: [activeTopic.subtitle || activeTopic.titleAr || activeTopic.titleEn],
+          contentBlocks: [
+            {
+              id: `cblk-${secId}-1`,
+              type: 'paragraph',
+              order: 1,
+              text: activeTopic.subtitle || activeTopic.titleAr || activeTopic.titleEn
+            }
+          ]
+        });
+      }
+      buckets.topics.push(deduplicateTopicMediaAndAttachments(activeTopic));
+      activeTopic = null;
+    }
+  };
+
+  rawLines.forEach((rawLine, idx) => {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('```')) return;
+
+    // 1. High-density tagged lines: BLOCK || ..., SUBJECT || ..., TOPIC || ..., TERM || ..., SENTENCE || ..., QUESTION || ..., AFFIX || ..., ABBR || ...
+    if (line.includes('||')) {
+      const cols = line.split('||').map((c) => c.trim());
+      const tag = (cols[0] || '').toUpperCase();
+
+      if (tag === 'BLOCK' && cols.length >= 3) {
+        const code = (cols[1] || `BLK-${buckets.blocks.length + 1}`).toUpperCase();
+        const titleEn = cols[2] || code;
+        const titleAr = cols[3] || titleEn;
+        const descAr = cols[4] || titleAr;
+        const blkId = `block-${code.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+        activeBlockId = blkId;
+        buckets.blocks.push({
+          id: blkId,
+          code,
+          titleEn,
+          titleAr,
+          descriptionEn: titleEn,
+          descriptionAr: descAr,
+          colorAccent: 'emerald',
+          order: buckets.blocks.length + 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+        return;
+      }
+
+      if (tag === 'SUBJECT' && cols.length >= 4) {
+        const parentRef = cols[1] || activeBlockId || 'block-general';
+        const matchedBlk = buckets.blocks.find(
+          (b) => b.id === parentRef || b.code.toLowerCase() === parentRef.toLowerCase()
+        );
+        const blockId = matchedBlk?.id || activeBlockId || parentRef;
+        const code = (cols[2] || `SUBJ-${buckets.subjects.length + 1}`).toUpperCase();
+        const titleEn = cols[3] || code;
+        const titleAr = cols[4] || titleEn;
+        const descAr = cols[5] || titleAr;
+        const subjId = `subj-${code.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+        activeSubjectId = subjId;
+        buckets.subjects.push({
+          id: subjId,
+          blockId,
+          code,
+          titleEn,
+          titleAr,
+          descriptionEn: titleEn,
+          descriptionAr: descAr,
+          order: buckets.subjects.length + 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+        return;
+      }
+
+      if (tag === 'TOPIC' && cols.length >= 3) {
+        flushActiveTopic();
+        const hasHierarchyCols = cols.length >= 5;
+        const blockId = hasHierarchyCols ? cols[1] || activeBlockId : activeBlockId;
+        const subjectId = hasHierarchyCols ? cols[2] || activeSubjectId : activeSubjectId;
+        const titleEn = (hasHierarchyCols ? cols[3] : cols[1]) || `Topic ${buckets.topics.length + 1}`;
+        const titleAr = (hasHierarchyCols ? cols[4] : cols[2]) || titleEn;
+        const bodyText = (hasHierarchyCols ? cols[5] : cols[3]) || `${titleEn} — ${titleAr}`;
+        const topicId = `topic-hd-${Date.now()}-${idx}`;
+        const secId = `${topicId}-sec-1`;
+        const paragraphs = bodyText
+          .split(/\\n|;;/)
+          .map((p) => p.trim())
+          .filter(Boolean);
+        buckets.topics.push({
+          id: topicId,
+          title: titleAr || titleEn,
+          titleEn,
+          titleAr,
+          subtitle: titleAr,
+          category: 'Medical',
+          blockId,
+          subjectId,
+          author: 'استيراد UMEDT',
+          publishedAt: new Date().toISOString().slice(0, 10),
+          readingTimeMinutes: 6,
+          favorite: false,
+          sections: [
+            {
+              id: secId,
+              heading: titleEn,
+              headingEn: titleEn,
+              headingAr: titleAr,
+              paragraphs,
+              contentBlocks: paragraphs.map((p, pIdx) => ({
+                id: `cblk-${secId}-${pIdx + 1}`,
+                type: 'paragraph' as const,
+                order: pIdx + 1,
+                text: p
+              }))
+            }
+          ],
+          images: [],
+          links: [],
+          attachments: []
+        });
+        return;
+      }
+
+      if (tag === 'TERM' && cols.length >= 3) {
+        const termEn = cols[1] || '';
+        const translation = cols[2] || 'مصطلح طبي';
+        const pos = cols[3] || (termEn.includes(' ') ? 'phrase' : 'noun');
+        const category = cols[4] || 'Medical';
+        const defAr = cols[5] || `مصطلح طبي سريري يعني ${translation}.`;
+        const defEn = cols[6] || `Clinical medical term: ${termEn}.`;
+        const exEn = cols[7] || '';
+        const exAr = cols[8] || '';
+        const tm = normalizeDictionaryTerm(
+          {
+            id: `u-hd-term-${Date.now()}-${idx}`,
+            term: termEn,
+            translation,
+            pos,
+            category,
+            definitionAr: defAr,
+            definitionEn: defEn,
+            exampleEn: exEn,
+            exampleAr: exAr,
+            blockId: activeBlockId,
+            subjectId: activeSubjectId,
+            topicId: activeTopic?.id
+          },
+          idx
+        );
+        if (tm) buckets.terms.push(tm);
+        return;
+      }
+
+      if (tag === 'SENTENCE' && cols.length >= 3) {
+        const en = cols[1] || '';
+        const ar = cols[2] || '';
+        const cat = cols[3] || 'Medical';
+        if (en) {
+          buckets.sentences.push({
+            id: `sen-hd-${Date.now()}-${idx}`,
+            en,
+            ar,
+            category: asLexiconCategory(cat),
+            sourceType: 'manual',
+            linkedTermIds: [],
+            tags: [],
+            favorite: false,
+            createdAt: new Date().toISOString()
+          });
+        }
+        return;
+      }
+
+      if (tag === 'QUESTION' && cols.length >= 5) {
+        const qType = cols[1] || 'single_choice';
+        const qEn = cols[2] || '';
+        const qAr = cols[3] || '';
+        const rawOpts = (cols[4] || '')
+          .split(';')
+          .map((o) => o.trim())
+          .filter(Boolean);
+        const ans = cols[5] || 'A';
+        const expAr = cols[6] || '';
+        const expEn = cols[7] || expAr || 'Core clinical explanation.';
+        const q = normalizeQuestionItem(
+          {
+            id: `q-hd-${Date.now()}-${idx}`,
+            type: qType,
+            questionEn: qEn,
+            questionAr: qAr,
+            options: rawOpts,
+            correctAnswer: ans,
+            explanationAr: expAr,
+            explanationEn: expEn,
+            blockId: activeBlockId,
+            subjectId: activeSubjectId,
+            topicId: activeTopic?.id
+          },
+          idx
+        );
+        if (q) buckets.questions.push(q);
+        return;
+      }
+
+      if (tag === 'AFFIX' && cols.length >= 4) {
+        const cleanKey = cols[1].replace(/^-|-$/g, '').trim();
+        const affixType = (cols[2] || 'prefix').toLowerCase();
+        const meaningAr = cols[3] || '';
+        const meaningEn = cols[4] || meaningAr;
+        if (cleanKey && meaningAr) {
+          buckets.affixes.push({
+            id: `aff-hd-${Date.now()}-${idx}`,
+            affix:
+              affixType === 'prefix'
+                ? `${cleanKey}-`
+                : affixType === 'suffix'
+                  ? `-${cleanKey}`
+                  : cleanKey,
+            cleanKey,
+            type:
+              affixType === 'suffix'
+                ? 'suffix'
+                : affixType === 'root'
+                  ? 'root'
+                  : 'prefix',
+            meaningAr,
+            meaningEn,
+            combiningRule: 'Standard medical morphology',
+            examples: cols[5] ? cols[5].split(';').map((s) => s.trim()) : []
+          });
+        }
+        return;
+      }
+
+      if (tag === 'ABBR' && cols.length >= 3) {
+        const abbr = cols[1].trim();
+        const expansionEn = cols[2].trim();
+        const meaningAr = cols[3]?.trim() || expansionEn;
+        const spec = cols[4]?.trim() || 'General Medicine';
+        if (abbr && expansionEn) {
+          buckets.abbreviations.push({
+            id: `abbr-hd-${Date.now()}-${idx}`,
+            abbr,
+            isAmbiguous: false,
+            defaultExpansionEn: expansionEn,
+            defaultTranslationAr: meaningAr,
+            category: 'Ward & Hx',
+            priority: 90,
+            candidates: [
+              {
+                expansionEn,
+                translationAr: meaningAr,
+                specialty: spec,
+                triggers: []
+              }
+            ]
+          });
+        }
+        return;
+      }
+    }
+
+    // 2. Markdown hierarchy headings (# Block:, ## Subject:, ### Topic:, #### Section:)
+    if (line.startsWith('#')) {
+      const hMatch = /^(#{1,4})\s*(.+)$/.exec(line);
+      if (hMatch) {
+        const hashes = hMatch[1].length;
+        const headingBody = hMatch[2].trim();
+        const bilingualParts = headingBody.split(/\s*(?:\||—|-)\s*/);
+
+        if (/^block\s*:/i.test(headingBody)) {
+          flushActiveTopic();
+          const cleanTitle = headingBody.replace(/^block\s*:\s*/i, '').trim();
+          const parts = cleanTitle.split(/\s*(?:\||—)\s*/);
+          const titleEn = parts[0] || cleanTitle;
+          const titleAr = parts[1] || titleEn;
+          const blkId = `block-md-${Date.now()}-${idx}`;
+          activeBlockId = blkId;
+          buckets.blocks.push({
+            id: blkId,
+            code: `BLK-${buckets.blocks.length + 1}`,
+            titleEn,
+            titleAr,
+            descriptionEn: titleEn,
+            descriptionAr: titleAr,
+            colorAccent: 'emerald',
+            order: buckets.blocks.length + 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+          return;
+        }
+
+        if (/^subject\s*:/i.test(headingBody)) {
+          flushActiveTopic();
+          const cleanTitle = headingBody.replace(/^subject\s*:\s*/i, '').trim();
+          const parts = cleanTitle.split(/\s*(?:\||—)\s*/);
+          const titleEn = parts[0] || cleanTitle;
+          const titleAr = parts[1] || titleEn;
+          const subjId = `subj-md-${Date.now()}-${idx}`;
+          activeSubjectId = subjId;
+          buckets.subjects.push({
+            id: subjId,
+            blockId: activeBlockId || buckets.blocks[0]?.id || 'block-general',
+            code: `SUBJ-${buckets.subjects.length + 1}`,
+            titleEn,
+            titleAr,
+            descriptionEn: titleEn,
+            descriptionAr: titleAr,
+            order: buckets.subjects.length + 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+          return;
+        }
+
+        if (/^topic\s*:/i.test(headingBody) || hashes <= 2) {
+          flushActiveTopic();
+          const cleanTitle = headingBody.replace(/^topic\s*:\s*/i, '').trim();
+          const parts = cleanTitle.split(/\s*(?:\||—)\s*/);
+          const titleEn = parts[0] || cleanTitle;
+          const titleAr = parts[1] || titleEn;
+          const topicId = `topic-md-${Date.now()}-${idx}`;
+          activeTopic = {
+            id: topicId,
+            title: titleAr || titleEn,
+            titleEn,
+            titleAr,
+            subtitle: titleAr || titleEn,
+            category: 'Medical',
+            blockId: activeBlockId,
+            subjectId: activeSubjectId,
+            author: 'استيراد UMEDT',
+            publishedAt: new Date().toISOString().slice(0, 10),
+            readingTimeMinutes: 5,
+            favorite: false,
+            sections: [],
+            images: [],
+            links: [],
+            attachments: []
+          };
+          activeSection = {
+            id: `${topicId}-sec-1`,
+            heading: titleEn,
+            headingEn: titleEn,
+            headingAr: titleAr,
+            paragraphs: [],
+            contentBlocks: []
+          };
+          return;
+        }
+
+        if (activeTopic && hashes >= 3) {
+          if (activeSection && activeSection.paragraphs.length > 0) {
+            activeTopic.sections.push(activeSection);
+          }
+          const secId = `${activeTopic.id}-sec-${activeTopic.sections.length + 1}`;
+          activeSection = {
+            id: secId,
+            heading: bilingualParts[0] || headingBody,
+            headingEn: bilingualParts[0] || headingBody,
+            headingAr: bilingualParts[1] || bilingualParts[0] || headingBody,
+            paragraphs: [],
+            contentBlocks: []
+          };
+          return;
+        }
+      }
+      return;
+    }
+
+    // 3. Markdown Table rows: | col1 | col2 | col3 | ... |
+    if (line.startsWith('|') && line.endsWith('|')) {
+      const cells = line
+        .slice(1, -1)
+        .split('|')
+        .map((c) => c.trim());
+      if (cells.length < 2) return;
+      // Skip separator row |---|---|
+      if (cells.every((c) => /^[-:\s]+$/.test(c))) return;
+      // Skip header row
+      if (/^(term|term_en|english|word|المصطلح|#)$/i.test(cells[0])) return;
+
+      const tEn = cells[0].replace(/^\*\*|\*\*$/g, '').trim();
+      const tAr = (cells[1] || '').replace(/^\*\*|\*\*$/g, '').trim() || 'مصطلح طبي';
+      if (!tEn) return;
+      const defAr = cells[2] || `مصطلح طبي سريري يعني ${tAr}.`;
+      const defEn = cells[3] || `Clinical medical term: ${tEn}.`;
+      const exEn = cells[4] || '';
+      const exAr = cells[5] || '';
+      const tm = normalizeDictionaryTerm(
+        {
+          id: `u-tbl-${Date.now()}-${idx}`,
+          term: tEn,
+          translation: tAr,
+          definitionAr: defAr,
+          definitionEn: defEn,
+          exampleEn: exEn,
+          exampleAr: exAr,
+          blockId: activeBlockId,
+          subjectId: activeSubjectId,
+          topicId: activeTopic?.id
+        },
+        idx
+      );
+      if (tm) buckets.terms.push(tm);
+      return;
+    }
+
+    // 4. Delimited term/sentence line or paragraph inside an active Markdown Topic
+    const cleaned = line.replace(/^[-*•\d.)]+\s*/, '');
+    const firstCommaSeg = cleaned.split(',')[0]?.trim() || '';
+    const isShortCsvTermRow =
+      cleaned.includes(',') &&
+      firstCommaSeg.length > 0 &&
+      firstCommaSeg.length <= 40 &&
+      firstCommaSeg.split(/\s+/).length <= 5;
+    const hasExplicitTermDelimiter =
+      cleaned.includes('\t') ||
+      cleaned.includes(' | ') ||
+      cleaned.includes(' - ') ||
+      cleaned.includes(' : ') ||
+      (!activeTopic && isShortCsvTermRow);
+
+    if (activeTopic && !hasExplicitTermDelimiter && cleaned.length > 25) {
+      if (!activeSection) {
+        const secId = `${activeTopic.id}-sec-1`;
+        activeSection = {
+          id: secId,
+          heading: activeTopic.titleEn,
+          headingEn: activeTopic.titleEn,
+          headingAr: activeTopic.titleAr,
+          paragraphs: [],
+          contentBlocks: []
+        };
+      }
+      activeSection.paragraphs.push(cleaned);
+      activeSection.contentBlocks = activeSection.contentBlocks || [];
+      activeSection.contentBlocks.push({
+        id: `cblk-${activeSection.id}-${activeSection.paragraphs.length}`,
+        type: 'paragraph',
+        order: activeSection.paragraphs.length,
+        text: cleaned
+      });
+      return;
+    }
+
+    const parts = cleaned.includes('\t')
+      ? cleaned.split('\t')
+      : cleaned.includes(' | ')
+        ? cleaned.split(' | ')
+        : cleaned.includes(' - ')
+          ? cleaned.split(' - ')
+          : cleaned.includes(' : ')
+            ? cleaned.split(' : ')
+            : cleaned.split(',');
+    const tEn = (parts[0] || '').trim().replace(/^["']|["']$/g, '');
+    if (!tEn || /^(term|term_en|english|word|المصطلح)$/i.test(tEn)) return;
+    const tAr = (parts[1] || '').trim().replace(/^["']|["']$/g, '') || 'مصطلح طبي';
+    const defAr =
+      (parts[2] || '').trim().replace(/^["']|["']$/g, '') ||
+      `مصطلح طبي سريري يعني ${tAr}.`;
+    const defEn =
+      (parts[3] || '').trim().replace(/^["']|["']$/g, '') ||
+      `Clinical medical term: ${tEn}.`;
+    const exEn = (parts[4] || '').trim().replace(/^["']|["']$/g, '');
+    const exAr = (parts[5] || '').trim().replace(/^["']|["']$/g, '');
+    const tm = normalizeDictionaryTerm(
+      {
+        id: `u-txt-${Date.now()}-${idx}`,
+        term: tEn,
+        translation: tAr,
+        definitionAr: defAr,
+        definitionEn: defEn,
+        exampleEn: exEn || undefined,
+        exampleAr: exAr || undefined,
+        blockId: activeBlockId,
+        subjectId: activeSubjectId,
+        topicId: activeTopic?.id
+      },
+      idx
+    );
+    if (tm) buckets.terms.push(tm);
+  });
+
+  flushActiveTopic();
+}
+
+/**
  * Deterministic universal importer supporting:
  * - JSON / Markdown ```json code blocks generated by ChatGPT or Gemini
+ * - Loose AI JSON (with trailing commas or multiple consecutive JSON objects/arrays) and .jsonl
  * - UMEDT-DATA catalog/master entities (Blocks, Subjects, Topics, Books, Exams, Questions, Terms, Sentences, Affixes, Abbreviations, MediaAssets)
- * - UMEDT backup & granular packages
+ * - UMEDT backup & granular packages (including userNotes, quizAttempts, studyStats)
+ * - High-density pipe lines (BLOCK || ..., SUBJECT || ..., TOPIC || ..., TERM || ..., SENTENCE || ..., QUESTION || ...)
+ * - Markdown hierarchy (# Block:, ## Subject:, ### Topic:) & Markdown tables (| Term | Translation | ... |)
  * - Structured CSV / TSV / dash-delimited term lists
  */
 export function importUniversalAiOrLocalContent(params: {
@@ -1105,6 +1970,9 @@ export function importUniversalAiOrLocalContent(params: {
     exams: [],
     questions: [],
     mediaAssets: [],
+    userNotes: [],
+    quizAttempts: [],
+    studyStats: null,
     dynamicCollections: [],
     sourceFormat: 'unknown'
   };
@@ -1123,43 +1991,7 @@ export function importUniversalAiOrLocalContent(params: {
       }
     }
   } else {
-    // Delimited text fallback (CSV / TSV / Markdown lines)
-    buckets.sourceFormat = 'delimited-text';
-    const lines = params.rawText
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter((l) => l.length > 1 && !l.startsWith('```') && !l.startsWith('#'));
-
-    lines.forEach((line, idx) => {
-      const cleaned = line.replace(/^[-*•\d.)]+\s*/, '');
-      const parts = cleaned.includes('\t')
-        ? cleaned.split('\t')
-        : cleaned.includes(' - ')
-          ? cleaned.split(' - ')
-          : cleaned.includes(' : ')
-            ? cleaned.split(' : ')
-            : cleaned.split(',');
-      const tEn = (parts[0] || '').trim().replace(/^["']|["']$/g, '');
-      if (!tEn || /^(term|term_en|english)$/i.test(tEn)) return;
-      const tAr = (parts[1] || '').trim().replace(/^["']|["']$/g, '') || 'مصطلح طبي';
-      const defAr =
-        (parts[2] || '').trim().replace(/^["']|["']$/g, '') ||
-        `مصطلح طبي سريري يعني ${tAr}.`;
-      const defEn =
-        (parts[3] || '').trim().replace(/^["']|["']$/g, '') ||
-        `Clinical medical term: ${tEn}.`;
-      const tm = normalizeDictionaryTerm(
-        {
-          id: `u-txt-${Date.now()}-${idx}`,
-          term: tEn,
-          translation: tAr,
-          definitionAr: defAr,
-          definitionEn: defEn
-        },
-        idx
-      );
-      if (tm) buckets.terms.push(tm);
-    });
+    collectFromStructuredTextFallback(params.rawText, buckets);
   }
 
   const totalParsed =
@@ -1174,6 +2006,8 @@ export function importUniversalAiOrLocalContent(params: {
     buckets.exams.length +
     buckets.questions.length +
     buckets.mediaAssets.length +
+    buckets.userNotes.length +
+    buckets.quizAttempts.length +
     buckets.dynamicCollections.reduce((acc, dc) => acc + dc.items.length, 0);
 
   if (totalParsed === 0) {
@@ -1238,11 +2072,13 @@ export function importUniversalAiOrLocalContent(params: {
 
   try {
     const removed = loadLocallyRemovedRegistry();
+    const permDeleted = loadPermanentlyDeletedRegistry();
 
     // 1. Merge Blocks
     const blocksMap = new Map(currentBlocks.map((b) => [b.id, b]));
     for (const blk of buckets.blocks) {
       removed.blocks = removed.blocks.filter((id) => id !== blk.id);
+      permDeleted.blocks = permDeleted.blocks.filter((id) => id !== blk.id);
       const exists = blocksMap.get(blk.id);
       if (exists && mode === 'ignore') {
         skippedDuplicates++;
@@ -1257,6 +2093,7 @@ export function importUniversalAiOrLocalContent(params: {
     const subjectsMap = new Map(currentSubjects.map((s) => [s.id, s]));
     for (const subj of buckets.subjects) {
       removed.subjects = removed.subjects.filter((id) => id !== subj.id);
+      permDeleted.subjects = permDeleted.subjects.filter((id) => id !== subj.id);
       const exists = subjectsMap.get(subj.id);
       if (exists && mode === 'ignore') {
         skippedDuplicates++;
@@ -1278,6 +2115,7 @@ export function importUniversalAiOrLocalContent(params: {
     const mergedTopicsBatch: TopicArticle[] = [];
     for (const tp of buckets.topics) {
       removed.topics = removed.topics.filter((id) => id !== tp.id);
+      permDeleted.topics = permDeleted.topics.filter((id) => id !== tp.id);
       const matchedId = topicsMap.has(tp.id)
         ? tp.id
         : topicTitleToId.get((tp.titleEn || tp.title).toLowerCase());
@@ -1307,6 +2145,7 @@ export function importUniversalAiOrLocalContent(params: {
     );
     const mergedTermsBatch: DictionaryTerm[] = [];
     for (const tm of buckets.terms) {
+      permDeleted.terms = permDeleted.terms.filter((id) => id !== tm.id);
       const normKey = tm.term.trim().toLowerCase();
       const matchedId = termsMap.has(tm.id) ? tm.id : termNormToId.get(normKey);
       const existing = matchedId ? termsMap.get(matchedId) : undefined;
@@ -1355,6 +2194,7 @@ export function importUniversalAiOrLocalContent(params: {
       currentState.sentences.map((s) => [s.en.trim().toLowerCase(), s.id])
     );
     for (const sn of buckets.sentences) {
+      permDeleted.sentences = permDeleted.sentences.filter((id) => id !== sn.id);
       const normEn = sn.en.trim().toLowerCase();
       const matchedId = sentencesMap.has(sn.id) ? sn.id : sentEnToId.get(normEn);
       const existing = matchedId ? sentencesMap.get(matchedId) : undefined;
@@ -1409,10 +2249,11 @@ export function importUniversalAiOrLocalContent(params: {
     }
     const nextAbbrs = Array.from(abbrMap.values());
 
-    // 7. Merge Books (preserving user-protected bookmarks, favorite, progress, notes), Exams, Validated Questions, and MediaAssets
+    // 7. Merge Books, Exams, Validated Questions, and MediaAssets
     const booksMap = new Map(currentBooks.map((b) => [b.id, b]));
     for (const bk of buckets.books) {
       removed.books = (removed.books || []).filter((id) => id !== bk.id);
+      permDeleted.books = permDeleted.books.filter((id) => id !== bk.id);
       const existingBook = booksMap.get(bk.id);
       if (existingBook && mode === 'ignore') {
         skippedDuplicates++;
@@ -1443,6 +2284,7 @@ export function importUniversalAiOrLocalContent(params: {
     const examsMap = new Map(currentExams.map((e) => [e.id, e]));
     for (const ex of buckets.exams) {
       removed.exams = (removed.exams || []).filter((id) => id !== ex.id);
+      permDeleted.exams = permDeleted.exams.filter((id) => id !== ex.id);
       if (examsMap.has(ex.id) && mode === 'ignore') {
         skippedDuplicates++;
         continue;
@@ -1480,6 +2322,51 @@ export function importUniversalAiOrLocalContent(params: {
     }
     const nextMediaAssets = Array.from(maMap.values());
 
+    // 8. Merge Backup-specific User Notes, Quiz Attempts, and Study Stats if present
+    if (buckets.userNotes.length > 0) {
+      const notesMap = new Map(loadUserStudyNotes().map((n) => [n.id, n]));
+      for (const un of buckets.userNotes) {
+        if (!notesMap.has(un.id) || mode !== 'ignore') {
+          notesMap.set(un.id, un);
+        }
+      }
+      saveUserStudyNotes(Array.from(notesMap.values()));
+    }
+
+    if (buckets.quizAttempts.length > 0) {
+      const attemptsMap = new Map(loadQuizAttempts().map((a) => [a.id, a]));
+      for (const qa of buckets.quizAttempts) {
+        if (!attemptsMap.has(qa.id) || mode !== 'ignore') {
+          attemptsMap.set(qa.id, qa);
+        }
+      }
+      try {
+        localStorage.setItem(
+          LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS,
+          JSON.stringify(Array.from(attemptsMap.values()))
+        );
+      } catch {
+        // Ignore storage quota warning
+      }
+    }
+
+    const nextStudyStats: StudyStats = buckets.studyStats
+      ? {
+          ...currentState.studyStats,
+          ...buckets.studyStats,
+          gotIt: Math.max(
+            currentState.studyStats.gotIt || 0,
+            buckets.studyStats.gotIt || 0
+          ),
+          needsReview: Math.max(
+            currentState.studyStats.needsReview || 0,
+            buckets.studyStats.needsReview || 0
+          ),
+          lastStudiedAt:
+            buckets.studyStats.lastStudiedAt || currentState.studyStats.lastStudiedAt
+        }
+      : currentState.studyStats;
+
     counts.skippedDuplicates = skippedDuplicates;
 
     // Persist atomically to local stores
@@ -1494,8 +2381,9 @@ export function importUniversalAiOrLocalContent(params: {
     saveAcademicExams(nextExams);
     saveQuizQuestions(nextQuestions);
     saveMediaAssetsIndex(nextMediaAssets);
-    saveStudyStats(currentState.studyStats);
+    saveStudyStats(nextStudyStats);
     saveLocallyRemovedRegistry(removed);
+    savePermanentlyDeletedRegistry(permDeleted);
 
     // Update Unified Cloud Mirror & Queue
     const updatedMirror = mergeRecordsIntoCloudSnapshot(loadUnifiedCloudMirror(), {
@@ -1591,4 +2479,275 @@ export function importUniversalAiOrLocalContent(params: {
       updatedState: emptyStateReturn
     };
   }
+}
+
+/**
+ * Pure zero-dependency ZIP builder (Store method 0) for creating universal archives.
+ */
+export function buildSimpleStoreZipBytes(
+  files: Record<string, Uint8Array | string>
+): Uint8Array {
+  const encoder = new TextEncoder();
+  const crcTable = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) {
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    }
+    crcTable[n] = c;
+  }
+  const computeCrc = (buf: Uint8Array): number => {
+    let crc = 0xffffffff;
+    for (let i = 0; i < buf.length; i++) {
+      crc = (crc >>> 8) ^ crcTable[(crc ^ buf[i]) & 0xff];
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  };
+
+  const entries: Array<{
+    nameBytes: Uint8Array;
+    data: Uint8Array;
+    crc32: number;
+    offset: number;
+  }> = [];
+
+  let totalSize = 0;
+  for (const [name, content] of Object.entries(files)) {
+    const nameBytes = encoder.encode(name);
+    const data = typeof content === 'string' ? encoder.encode(content) : content;
+    entries.push({
+      nameBytes,
+      data,
+      crc32: computeCrc(data),
+      offset: 0
+    });
+    totalSize += 30 + nameBytes.length + data.length;
+  }
+
+  let cdSize = 0;
+  for (const entry of entries) {
+    cdSize += 46 + entry.nameBytes.length;
+  }
+  totalSize += cdSize + 22;
+
+  const output = new Uint8Array(totalSize);
+  const view = new DataView(output.buffer);
+  let pos = 0;
+
+  for (const entry of entries) {
+    entry.offset = pos;
+    view.setUint32(pos, 0x04034b50, true);
+    view.setUint16(pos + 4, 20, true);
+    view.setUint16(pos + 6, 0, true);
+    view.setUint16(pos + 8, 0, true);
+    view.setUint16(pos + 10, 0, true);
+    view.setUint16(pos + 12, 0, true);
+    view.setUint32(pos + 14, entry.crc32, true);
+    view.setUint32(pos + 18, entry.data.length, true);
+    view.setUint32(pos + 22, entry.data.length, true);
+    view.setUint16(pos + 26, entry.nameBytes.length, true);
+    view.setUint16(pos + 28, 0, true);
+    pos += 30;
+    output.set(entry.nameBytes, pos);
+    pos += entry.nameBytes.length;
+    output.set(entry.data, pos);
+    pos += entry.data.length;
+  }
+
+  const cdOffset = pos;
+  for (const entry of entries) {
+    view.setUint32(pos, 0x02014b50, true);
+    view.setUint16(pos + 4, 20, true);
+    view.setUint16(pos + 6, 20, true);
+    view.setUint16(pos + 8, 0, true);
+    view.setUint16(pos + 10, 0, true);
+    view.setUint16(pos + 12, 0, true);
+    view.setUint16(pos + 14, 0, true);
+    view.setUint32(pos + 16, entry.crc32, true);
+    view.setUint32(pos + 20, entry.data.length, true);
+    view.setUint32(pos + 24, entry.data.length, true);
+    view.setUint16(pos + 28, entry.nameBytes.length, true);
+    view.setUint16(pos + 30, 0, true);
+    view.setUint16(pos + 32, 0, true);
+    view.setUint16(pos + 34, 0, true);
+    view.setUint16(pos + 36, 0, true);
+    view.setUint32(pos + 38, 0, true);
+    view.setUint32(pos + 42, entry.offset, true);
+    pos += 46;
+    output.set(entry.nameBytes, pos);
+    pos += entry.nameBytes.length;
+  }
+
+  view.setUint32(pos, 0x06054b50, true);
+  view.setUint16(pos + 4, 0, true);
+  view.setUint16(pos + 6, 0, true);
+  view.setUint16(pos + 8, entries.length, true);
+  view.setUint16(pos + 10, entries.length, true);
+  view.setUint32(pos + 12, cdSize, true);
+  view.setUint32(pos + 16, cdOffset, true);
+  view.setUint16(pos + 20, 0, true);
+
+  return output;
+}
+
+function extractStoreEntriesFromZipBytes(
+  zipBytes: Uint8Array
+): Record<string, Uint8Array> {
+  const view = new DataView(
+    zipBytes.buffer,
+    zipBytes.byteOffset,
+    zipBytes.byteLength
+  );
+  const decoder = new TextDecoder();
+  const result: Record<string, Uint8Array> = {};
+
+  let pos = 0;
+  while (pos + 30 <= zipBytes.length) {
+    const sig = view.getUint32(pos, true);
+    if (sig !== 0x04034b50) break;
+
+    const compression = view.getUint16(pos + 8, true);
+    const compressedSize = view.getUint32(pos + 18, true);
+    const uncompressedSize = view.getUint32(pos + 22, true);
+    const nameLen = view.getUint16(pos + 26, true);
+    const extraLen = view.getUint16(pos + 28, true);
+
+    const nameStart = pos + 30;
+    const nameEnd = nameStart + nameLen;
+    if (nameEnd > zipBytes.length) break;
+
+    const rawName = decoder.decode(zipBytes.subarray(nameStart, nameEnd));
+    const safeName = rawName
+      .replace(/\\/g, '/')
+      .replace(/^\/+/, '')
+      .replace(/\.\.\//g, '');
+
+    const dataStart = nameEnd + extraLen;
+    const sizeToRead = compressedSize || uncompressedSize;
+    const dataEnd = dataStart + sizeToRead;
+    if (dataEnd > zipBytes.length) break;
+
+    if (compression === 0) {
+      result[safeName] = zipBytes.slice(dataStart, dataEnd);
+    }
+    pos = dataEnd;
+  }
+
+  return result;
+}
+
+/**
+ * Unzips any .zip or .umedpack archive (including AI-generated .zip files without manifest.json
+ * or full UMEDT-DATA repository archives) and merges all .json, .jsonl, .md, .csv, .tsv, .txt files.
+ */
+export function importUniversalZipArchiveBytes(
+  zipBytes: Uint8Array,
+  options?: {
+    conflictPolicy?: 'ignore' | 'merge' | 'overwrite';
+    sourceLabel?: string;
+    syncToCloud?: boolean;
+  }
+): UniversalImportReport {
+  const unzipped = extractStoreEntriesFromZipBytes(zipBytes);
+  const decoder = new TextDecoder();
+  const combinedJsonObjects: unknown[] = [];
+  const textFallbacks: string[] = [];
+
+  for (const [entryPath, fileBytes] of Object.entries(unzipped)) {
+    const cleanPath = entryPath.toLowerCase();
+    // Skip directory entries, macOS metadata, or schema/contract files
+    if (
+      cleanPath.endsWith('/') ||
+      cleanPath.includes('__macosx') ||
+      cleanPath.includes('schemas/') ||
+      cleanPath.endsWith('schema.json') ||
+      cleanPath.endsWith('manifest.json')
+    ) {
+      continue;
+    }
+
+    if (
+      cleanPath.endsWith('.json') ||
+      cleanPath.endsWith('.jsonl') ||
+      cleanPath.endsWith('.md') ||
+      cleanPath.endsWith('.csv') ||
+      cleanPath.endsWith('.tsv') ||
+      cleanPath.endsWith('.txt')
+    ) {
+      const textContent = decoder.decode(fileBytes).trim();
+      if (!textContent) continue;
+
+      const jsonCandidates = extractJsonCandidatesFromText(textContent);
+      if (jsonCandidates.length > 0) {
+        for (const cand of jsonCandidates) {
+          try {
+            combinedJsonObjects.push(JSON.parse(cand));
+          } catch {
+            // Ignore malformed fragment
+          }
+        }
+      } else {
+        textFallbacks.push(textContent);
+      }
+    }
+  }
+
+  if (combinedJsonObjects.length === 0 && textFallbacks.length === 0) {
+    return importUniversalAiOrLocalContent({
+      rawText: '',
+      conflictPolicy: options?.conflictPolicy || 'merge',
+      sourceLabel: options?.sourceLabel || 'استيراد أرشيف ZIP شامل',
+      syncToCloud: options?.syncToCloud
+    });
+  }
+
+  const tempBuckets: ParsedBuckets = {
+    blocks: [],
+    subjects: [],
+    topics: [],
+    terms: [],
+    sentences: [],
+    affixes: [],
+    abbreviations: [],
+    books: [],
+    exams: [],
+    questions: [],
+    mediaAssets: [],
+    userNotes: [],
+    quizAttempts: [],
+    studyStats: null,
+    dynamicCollections: [],
+    sourceFormat: 'umedt-zip-archive'
+  };
+
+  for (const obj of combinedJsonObjects) {
+    collectFromParsedJson(obj, tempBuckets);
+  }
+  for (const txt of textFallbacks) {
+    collectFromStructuredTextFallback(txt, tempBuckets);
+  }
+
+  const mergedWrapper = {
+    format: 'umedt-zip-universal-bundle',
+    blocks: tempBuckets.blocks,
+    subjects: tempBuckets.subjects,
+    topics: tempBuckets.topics,
+    terms: tempBuckets.terms,
+    sentences: tempBuckets.sentences,
+    customAffixes: tempBuckets.affixes,
+    customAbbreviations: tempBuckets.abbreviations,
+    books: tempBuckets.books,
+    exams: tempBuckets.exams,
+    quizQuestions: tempBuckets.questions,
+    mediaAssets: tempBuckets.mediaAssets,
+    userNotes: tempBuckets.userNotes,
+    quizAttempts: tempBuckets.quizAttempts
+  };
+
+  return importUniversalAiOrLocalContent({
+    rawText: JSON.stringify(mergedWrapper),
+    conflictPolicy: options?.conflictPolicy || 'merge',
+    sourceLabel: options?.sourceLabel || 'استيراد أرشيف ZIP شامل',
+    syncToCloud: options?.syncToCloud
+  });
 }

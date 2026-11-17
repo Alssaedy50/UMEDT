@@ -55,6 +55,7 @@ import {
   buildCloudLibraryCatalogView,
   downloadCloudLibraryTarget,
   deleteCloudLibraryTargetLocally,
+  deleteCloudLibraryTargetPermanently,
   processCloudSyncQueue,
   syncWithRemoteCloudLibrary,
   subscribeToCloudLibraryChanges,
@@ -297,8 +298,16 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     [topics, terms, sentences, syncRevision]
   );
 
-  // Offline Add & Import state
-  const [offlineAddTab, setOfflineAddTab] = useState<'manual' | 'file_batch'>('manual');
+  // Offline Add & Import state (Popup / Secondary Modals)
+  const [activeIngestModal, setActiveIngestModal] = useState<
+    'manual_term' | 'file_upload' | 'paste_text' | 'permanent_delete' | null
+  >(null);
+  const [pendingDeleteTarget, setPendingDeleteTarget] = useState<{
+    targetType: 'block' | 'subject' | 'topic' | 'book' | 'exam' | 'all_data';
+    targetId: string;
+    titleLabel: string;
+    isDownloaded: boolean;
+  } | null>(null);
   const [manualTerm, setManualTerm] = useState('');
   const [manualTranslation, setManualTranslation] = useState('');
   const [manualPhonetic, setManualPhonetic] = useState('');
@@ -330,7 +339,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       setLibraryMode(initialMode);
       if (initialDraftTerm && initialDraftTerm.trim()) {
         setManualTerm(initialDraftTerm.trim());
-        setOfflineAddTab('manual');
+        setActiveIngestModal('manual_term');
       }
       onInitialModeConsumed?.();
     }
@@ -626,13 +635,16 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    // 1. Universal JSON / Markdown ```json ... ``` / UMEDT-DATA multi-entity bundle / Unified backup
-    const looksStructuredOrMarkdownJson =
+    // 1. Universal JSON / Markdown ```json ... ``` / High-density || lines / Markdown Hierarchy & Tables / Backups
+    const looksStructuredOrRich =
       trimmed.startsWith('{') ||
       trimmed.startsWith('[') ||
-      /```(?:json)?/i.test(trimmed);
+      /```(?:json|jsonl|js|ts)?/i.test(trimmed) ||
+      trimmed.includes('||') ||
+      /^#{1,4}\s*(?:block|subject|topic)\s*:/im.test(trimmed) ||
+      /^\|.+\|.+\|$/m.test(trimmed);
 
-    if (looksStructuredOrMarkdownJson) {
+    if (looksStructuredOrRich) {
       const report = importUniversalAiOrLocalContent({
         rawText: text,
         sourceLabel: sourceFileName
@@ -657,18 +669,20 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       }
 
       // Fallback to legacy unified backup handler if needed
-      try {
-        const ok = onImportFullBackupJson(trimmed);
-        if (ok) {
-          setOfflineFeedback({
-            type: 'success',
-            message: 'تم استيراد النسخة الاحتياطية بنجاح.'
-          });
-          setRawBatchInput('');
-          return;
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          const ok = onImportFullBackupJson(trimmed);
+          if (ok) {
+            setOfflineFeedback({
+              type: 'success',
+              message: 'تم استيراد النسخة الاحتياطية بنجاح.'
+            });
+            setRawBatchInput('');
+            return;
+          }
+        } catch {
+          // Fallback to text line parsing below
         }
-      } catch {
-        // Fallback to text line parsing below
       }
     }
 
@@ -872,6 +886,39 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       showToast?.(res.messageAr, 'info');
     } finally {
       setBusyTargetKey(null);
+      setPendingDeleteTarget(null);
+    }
+  };
+
+  const handleDeleteTargetPermanently = async (
+    targetType: 'block' | 'subject' | 'topic' | 'book' | 'exam' | 'all_data',
+    targetId: string
+  ) => {
+    const key = `perm:${targetType}:${targetId}`;
+    setBusyTargetKey(key);
+    try {
+      const res = await deleteCloudLibraryTargetPermanently({
+        targetType,
+        targetId,
+        currentTopics: topics,
+        currentTerms: terms,
+        currentSentences: sentences
+      });
+      onSyncStateUpdated?.({
+        topics: res.updatedTopics,
+        terms: res.updatedTerms,
+        sentences: res.updatedSentences
+      });
+      setSyncRevision((prev) => prev + 1);
+      onBackupNowTriggered?.(`حذف نهائي (${targetType})`);
+      setOfflineFeedback({
+        type: 'success',
+        message: res.messageAr
+      });
+      showToast?.(res.messageAr, 'info');
+    } finally {
+      setBusyTargetKey(null);
+      setPendingDeleteTarget(null);
     }
   };
 
@@ -1250,11 +1297,20 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
                 <button
                   type="button"
+                  onClick={() => setActiveIngestModal('permanent_delete')}
+                  className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-extrabold flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>حذف نهائي</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setIsAiGuideOpen(true)}
                   className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>دليل الذكاء</span>
+                  <span>برومبت AI</span>
                 </button>
 
                 <button
@@ -1417,7 +1473,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           </div>
                         </button>
 
-                        {/* Block Action Buttons: 1-Word Labels */}
+                        {/* Block Action Buttons */}
                         <div className="flex items-center gap-1.5 shrink-0">
                           {!blk.isDownloaded && (
                             <button
@@ -1431,17 +1487,22 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                             </button>
                           )}
 
-                          {(blk.isDownloaded || blk.isPartiallyDownloaded) && (
-                            <button
-                              type="button"
-                              disabled={blockBusy}
-                              onClick={() => void handleDeleteTargetLocally('block', blk.id)}
-                              className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-extrabold flex items-center gap-1 disabled:opacity-50"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>حذف</span>
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            disabled={blockBusy}
+                            onClick={() =>
+                              setPendingDeleteTarget({
+                                targetType: 'block',
+                                targetId: blk.id,
+                                titleLabel: blk.titleAr || blk.titleEn,
+                                isDownloaded: Boolean(blk.isDownloaded || blk.isPartiallyDownloaded)
+                              })
+                            }
+                            className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-extrabold flex items-center gap-1 disabled:opacity-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>حذف</span>
+                          </button>
                         </div>
                       </div>
 
@@ -1500,19 +1561,24 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                       </button>
                                     )}
 
-                                    {(subj.isDownloaded || subj.isPartiallyDownloaded) && (
-                                      <button
-                                        type="button"
-                                        disabled={subjBusy}
-                                        onClick={() =>
-                                          void handleDeleteTargetLocally('subject', subj.id)
-                                        }
-                                        className="min-h-[34px] px-2.5 py-1 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 text-[11px] font-extrabold flex items-center gap-1 disabled:opacity-50"
-                                      >
-                                        <Trash2 className="w-3 h-3" />
-                                        <span>حذف</span>
-                                      </button>
-                                    )}
+                                    <button
+                                      type="button"
+                                      disabled={subjBusy}
+                                      onClick={() =>
+                                        setPendingDeleteTarget({
+                                          targetType: 'subject',
+                                          targetId: subj.id,
+                                          titleLabel: subj.titleAr || subj.titleEn,
+                                          isDownloaded: Boolean(
+                                            subj.isDownloaded || subj.isPartiallyDownloaded
+                                          )
+                                        })
+                                      }
+                                      className="min-h-[34px] px-2.5 py-1 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 text-[11px] font-extrabold flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                      <span>حذف</span>
+                                    </button>
                                   </div>
                                 </div>
 
@@ -1557,17 +1623,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                                     فتح
                                                   </button>
                                                 )}
-                                                <button
-                                                  type="button"
-                                                  disabled={tpBusy}
-                                                  onClick={() =>
-                                                    void handleDeleteTargetLocally('topic', tp.id)
-                                                  }
-                                                  className="min-h-[34px] px-2 py-1 rounded-lg bg-rose-500/10 text-rose-700 dark:text-rose-300 font-extrabold text-[11px] flex items-center gap-1 disabled:opacity-50"
-                                                >
-                                                  <Trash2 className="w-3 h-3" />
-                                                  <span>حذف</span>
-                                                </button>
                                               </>
                                             ) : (
                                               <button
@@ -1582,6 +1637,22 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                                 <span>تنزيل</span>
                                               </button>
                                             )}
+                                            <button
+                                              type="button"
+                                              disabled={tpBusy}
+                                              onClick={() =>
+                                                setPendingDeleteTarget({
+                                                  targetType: 'topic',
+                                                  targetId: tp.id,
+                                                  titleLabel: tp.titleAr || tp.titleEn,
+                                                  isDownloaded: tp.isDownloaded
+                                                })
+                                              }
+                                              className="min-h-[34px] px-2 py-1 rounded-lg bg-rose-500/10 text-rose-700 dark:text-rose-300 font-extrabold text-[11px] flex items-center gap-1 disabled:opacity-50"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                              <span>حذف</span>
+                                            </button>
                                           </div>
                                         </div>
                                       );
@@ -1658,24 +1729,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                             </button>
                           )}
                           {bk.isDownloaded ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => void handleOpenCloudBook(bk)}
-                                className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold text-xs whitespace-nowrap shrink-0"
-                              >
-                                فتح
-                              </button>
-                              <button
-                                type="button"
-                                disabled={bkBusy}
-                                onClick={() => void handleDeleteTargetLocally('book', bk.id)}
-                                className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 text-rose-700 dark:text-rose-300 font-extrabold text-xs flex items-center gap-1 disabled:opacity-50 whitespace-nowrap shrink-0"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>حذف</span>
-                              </button>
-                            </>
+                            <button
+                              type="button"
+                              onClick={() => void handleOpenCloudBook(bk)}
+                              className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold text-xs whitespace-nowrap shrink-0"
+                            >
+                              فتح
+                            </button>
                           ) : (
                             <button
                               type="button"
@@ -1687,6 +1747,22 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                               <span>تنزيل</span>
                             </button>
                           )}
+                          <button
+                            type="button"
+                            disabled={bkBusy}
+                            onClick={() =>
+                              setPendingDeleteTarget({
+                                targetType: 'book',
+                                targetId: bk.id,
+                                titleLabel: bk.titleAr || bk.titleEn,
+                                isDownloaded: bk.isDownloaded
+                              })
+                            }
+                            className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 text-rose-700 dark:text-rose-300 font-extrabold text-xs flex items-center gap-1 disabled:opacity-50 whitespace-nowrap shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>حذف</span>
+                          </button>
                         </div>
                       </div>
                     );
@@ -1725,13 +1801,29 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           </div>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => setActiveExamModal(ex)}
-                          className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs whitespace-nowrap shrink-0"
-                        >
-                          بدء الاختبار
-                        </button>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setActiveExamModal(ex)}
+                            className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs whitespace-nowrap shrink-0"
+                          >
+                            بدء الاختبار
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPendingDeleteTarget({
+                                targetType: 'exam',
+                                targetId: ex.id,
+                                titleLabel: ex.titleAr || ex.titleEn,
+                                isDownloaded: true
+                              })
+                            }
+                            className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 text-rose-700 dark:text-rose-300 font-extrabold text-xs flex items-center gap-1 whitespace-nowrap shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -2154,7 +2246,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       )}
 
       {/* ====================================================================
-          MODE 3: OFFLINE ADD & FILE IMPORT (TERMS, TOPICS & BACKUPS)
+          MODE 3: ORGANIZED DATA ENTRY & LOCAL UPLOAD HUB (POPUP LAUNCHERS)
          ==================================================================== */}
       {libraryMode === 'add_offline' && (
         <div className="space-y-4">
@@ -2169,62 +2261,23 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   <ArrowRight className="w-4 h-4" />
                   <span>رجوع</span>
                 </button>
-                <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
-                  إضافة واستيراد البيانات أوفلاين
-                </h2>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setIsAiGuideOpen(true)}
-                  className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>دليل الذكاء</span>
-                </button>
-
-                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (offlineAddTab === 'manual') {
-                        const hasEn = Boolean(
-                          (manualTermInputRef.current?.value ?? manualTerm).trim()
-                        );
-                        const hasAr = Boolean(
-                          (manualTranslationInputRef.current?.value ?? manualTranslation).trim()
-                        );
-                        if (hasEn && hasAr) {
-                          handleSaveManualEntry();
-                          return;
-                        }
-                      }
-                      setOfflineAddTab('manual');
-                    }}
-                    className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
-                      offlineAddTab === 'manual'
-                        ? 'bg-emerald-600 text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-300'
-                    }`}
-                  >
-                    <PlusCircle className="w-3.5 h-3.5" />
-                    <span>إضافة يدوية</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOfflineAddTab('file_batch')}
-                    className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
-                      offlineAddTab === 'file_batch'
-                        ? 'bg-emerald-600 text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-300'
-                    }`}
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>استيراد ملفات</span>
-                  </button>
+                <div>
+                  <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+                    إدخال ورفع وإدارة البيانات
+                  </h2>
+                  <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    اختر العملية المطلوبة لفتح نافذتها المخصصة
+                  </p>
                 </div>
               </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,.jsonl,.csv,.tsv,.txt,.md,.zip,.umedpack"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
             </div>
 
             {offlineFeedback && (
@@ -2253,7 +2306,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               </div>
             )}
 
-            {/* CONCISE DATA SUMMARY CARD */}
             {lastDataSummary && (
               <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-emerald-500/40 flex flex-wrap items-center justify-between gap-2 text-xs font-bold">
                 <span className="text-emerald-700 dark:text-emerald-400">
@@ -2265,335 +2317,115 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               </div>
             )}
 
-            {/* SUB-TAB 1: MANUAL OFFLINE ENTRY */}
-            {offlineAddTab === 'manual' && (
-              <form onSubmit={handleSaveManualEntry} noValidate className="space-y-3.5 pt-1">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
-                        المصطلح بالإنجليزية *
-                      </label>
-                      <button
-                        type="button"
-                        onClick={handleAutoAssistOffline}
-                        className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1 hover:underline"
-                      >
-                        <Wand2 className="w-3.5 h-3.5" />
-                        <span>ترجمة تلقائية</span>
-                      </button>
-                    </div>
-                    <input
-                      ref={manualTermInputRef}
-                      type="text"
-                      dir="ltr"
-                      value={manualTerm}
-                      onChange={(e) => {
-                        setManualTerm(e.target.value);
-                        if (offlineFeedback) setOfflineFeedback(null);
-                      }}
-                      onInput={(e) => {
-                        setManualTerm((e.target as HTMLInputElement).value);
-                        if (offlineFeedback) setOfflineFeedback(null);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const currentAr = (
-                            manualTranslationInputRef.current?.value ?? manualTranslation
-                          ).trim();
-                          if (!currentAr) {
-                            e.preventDefault();
-                            manualTranslationInputRef.current?.focus();
-                          }
-                        }
-                      }}
-                      placeholder="e.g., Cardiomyopathy"
-                      className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-mono font-bold text-left focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-extrabold text-slate-700 dark:text-slate-200 block">
-                      الترجمة بالعربية *
-                    </label>
-                    <input
-                      ref={manualTranslationInputRef}
-                      type="text"
-                      value={manualTranslation}
-                      onChange={(e) => {
-                        setManualTranslation(e.target.value);
-                        if (offlineFeedback) setOfflineFeedback(null);
-                      }}
-                      onInput={(e) => {
-                        setManualTranslation((e.target as HTMLInputElement).value);
-                        if (offlineFeedback) setOfflineFeedback(null);
-                      }}
-                      placeholder="اكتب الترجمة بالعربية..."
-                      className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-bold focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
+            {/* 5 Dedicated Popup Launcher Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {/* Popup Option 1: AI Prompt Configurator & Generator */}
+              <button
+                type="button"
+                onClick={() => setIsAiGuideOpen(true)}
+                className="group p-4 rounded-2xl border-2 border-emerald-500/30 hover:border-emerald-500 bg-emerald-500/5 hover:bg-emerald-500/10 text-right transition-all flex items-start justify-between gap-3"
+              >
+                <div className="space-y-1 min-w-0">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-600 text-white text-[10px] font-extrabold">
+                    ChatGPT & Gemini
+                  </span>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                    إعداد وتوليد برومبت الذكاء الاصطناعي
+                  </h3>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+                    حدد (بلوك / مادة / موضوع / آلاف المصطلحات)، الاسم، العدد، والمحاور لإصدار برومبت إنجليزي دقيق
+                  </p>
                 </div>
-
-                {/* Primary Save Bar Directly Below Required Inputs */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                  <div className="flex items-center gap-3">
-                    <label className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={addAlsoToFavorites}
-                        onChange={(e) => setAddAlsoToFavorites(e.target.checked)}
-                        className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <span>إضافة للمفضلة</span>
-                    </label>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowOptionalManualFields((prev) => !prev)}
-                      className="text-xs font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1"
-                    >
-                      <ChevronDown
-                        className={`w-3.5 h-3.5 transition-transform ${
-                          showOptionalManualFields ? 'rotate-180' : ''
-                        }`}
-                      />
-                      <span>
-                        {showOptionalManualFields
-                          ? 'إخفاء الحقول الاختيارية'
-                          : 'حقول إضافية (اختياري)'}
-                      </span>
-                    </button>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="min-h-[42px] px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-xs transition-all"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>حفظ المصطلح</span>
-                  </button>
+                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5" />
                 </div>
+              </button>
 
-                {/* Collapsible Strictly Optional Fields */}
-                {showOptionalManualFields && (
-                  <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                          التخصص (اختياري)
-                        </label>
-                        <select
-                          value={manualCategory}
-                          onChange={(e) => setManualCategory(e.target.value as LexiconCategory)}
-                          className="w-full min-h-[40px] px-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
-                        >
-                          {CATEGORY_OPTIONS.map((cat) => (
-                            <option key={cat.value} value={cat.value}>
-                              {cat.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                          النوع اللغوي (اختياري)
-                        </label>
-                        <select
-                          value={manualPos}
-                          onChange={(e) => setManualPos(e.target.value)}
-                          className="w-full min-h-[40px] px-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
-                        >
-                          {POS_OPTIONS.map((p) => (
-                            <option key={p.value} value={p.value}>
-                              {p.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                          المجلد (اختياري)
-                        </label>
-                        <input
-                          type="text"
-                          value={manualCollection}
-                          onChange={(e) => setManualCollection(e.target.value)}
-                          placeholder="مضاف يدوياً"
-                          className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                        التعريف (اختياري)
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={manualDefAr}
-                        onChange={(e) => setManualDefAr(e.target.value)}
-                        placeholder="تعريف مختصر (اختياري)..."
-                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <input
-                        type="text"
-                        dir="ltr"
-                        value={manualSentenceEn}
-                        onChange={(e) => setManualSentenceEn(e.target.value)}
-                        placeholder="Example sentence (optional)..."
-                        className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-left"
-                      />
-                      <input
-                        type="text"
-                        value={manualSentenceAr}
-                        onChange={(e) => setManualSentenceAr(e.target.value)}
-                        placeholder="ترجمة الجملة (اختياري)..."
-                        className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
-                      />
-                    </div>
-                  </div>
-                )}
-              </form>
-            )}
-
-            {/* SUB-TAB 2: OFFLINE FILE & BATCH IMPORT (TERMS & TOPICS) */}
-            {offlineAddTab === 'file_batch' && (
-              <div className="space-y-3.5 pt-1">
-                <div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".json,.csv,.txt,.md,.zip,.umedpack"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-
-                  <button
-                    type="button"
-                    disabled={isParsingFile}
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full p-3.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/30 text-right flex items-center gap-3 transition-all"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                      <FileSpreadsheet className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="text-xs font-extrabold text-emerald-900 dark:text-emerald-200">
-                        {isParsingFile
-                          ? 'جاري قراءة وتحليل الملف...'
-                          : 'استيراد ملف مصطلحات أو مواضيع أوفلاين (JSON / CSV / TXT)'}
-                      </h4>
-                      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 truncate">
-                        إضافة جماعية للمصطلحات والمواضيع والبلوكات بدون إنترنت
-                      </p>
-                    </div>
-                  </button>
+              {/* Popup Option 2: Upload Local File / ZIP / Backup */}
+              <button
+                type="button"
+                onClick={() => setActiveIngestModal('file_upload')}
+                className="group p-4 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-emerald-500/50 bg-slate-50/70 dark:bg-slate-950/60 text-right transition-all flex items-start justify-between gap-3"
+              >
+                <div className="space-y-1 min-w-0">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-500/15 text-sky-700 dark:text-sky-300 text-[10px] font-extrabold font-mono">
+                    JSON · ZIP · MD · CSV · TXT
+                  </span>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                    رفع واستيراد ملف محلي أو نسخة سابقة
+                  </h3>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+                    قراءة جميع أنواع ملفات البيانات والأرشيفات المضغوطة والنسخ الاحتياطية السابقة
+                  </p>
                 </div>
-
-                <div className="space-y-2">
-                  <textarea
-                    rows={4}
-                    dir="auto"
-                    value={rawBatchInput}
-                    onChange={(e) => setRawBatchInput(e.target.value)}
-                    placeholder={`الصق قائمة مصطلحات (Term - الترجمة - التعريف) أو كود JSON لمصطلحات أو مواضيع أو نسخة احتياطية...`}
-                    className="w-full p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono leading-relaxed"
-                  />
-
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => parseRawTextToStaged(rawBatchInput, 'نص ملصق أوفلاين')}
-                      className="min-h-[40px] px-4 py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-extrabold flex items-center gap-1.5"
-                    >
-                      <Wand2 className="w-3.5 h-3.5" />
-                      <span>تحليل واستيراد أوفلاين</span>
-                    </button>
-                  </div>
+                <div className="w-10 h-10 rounded-2xl bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
+                  <Upload className="w-5 h-5" />
                 </div>
+              </button>
 
-                {stagedItems.length > 0 && (
-                  <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
-                        المصطلحات الجاهزة للحفظ ({stagedItems.filter((i) => i.selected !== false).length}):
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setStagedItems([])}
-                          className="min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 inline-flex items-center gap-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>مسح</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCommitStagedBatch}
-                          className="min-h-[38px] px-4 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-extrabold inline-flex items-center gap-1.5"
-                        >
-                          <Check className="w-4 h-4" />
-                          <span>
-                            حفظ الكل ({stagedItems.filter((i) => i.selected !== false).length})
-                          </span>
-                        </button>
-                      </div>
-                    </div>
+              {/* Popup Option 3: Paste AI Text / Code / High-Density Stream */}
+              <button
+                type="button"
+                onClick={() => setActiveIngestModal('paste_text')}
+                className="group p-4 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-emerald-500/50 bg-slate-50/70 dark:bg-slate-950/60 text-right transition-all flex items-start justify-between gap-3"
+              >
+                <div className="space-y-1 min-w-0">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-700 dark:text-purple-300 text-[10px] font-extrabold">
+                    نصوص وأكواد AI
+                  </span>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                    لصق وتحليل نصوص أو أكواد الذكاء الاصطناعي
+                  </h3>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+                    لصق أكواد JSON أو نصوص عالية الكثافة (||) أو جداول Markdown لآلاف المصطلحات والمواضيع
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                  <Wand2 className="w-5 h-5" />
+                </div>
+              </button>
 
-                    <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
-                      {stagedItems.map((item, idx) => (
-                        <div
-                          key={item.id}
-                          className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3"
-                        >
-                          <label className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={item.selected !== false}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                setStagedItems((prev) =>
-                                  prev.map((it, i) =>
-                                    i === idx ? { ...it, selected: checked } : it
-                                  )
-                                );
-                              }}
-                              className="w-4 h-4 rounded text-emerald-600"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span
-                                  dir="ltr"
-                                  className="font-mono font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white"
-                                >
-                                  {item.term}
-                                </span>
-                                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                                  {item.translation}
-                                </span>
-                                {item.isDuplicate && (
-                                  <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 text-[10px] font-bold">
-                                    تحديث موجود
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                                {item.definitionAr}
-                              </p>
-                            </div>
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+              {/* Popup Option 4: Quick Manual Term Entry */}
+              <button
+                type="button"
+                onClick={() => setActiveIngestModal('manual_term')}
+                className="group p-4 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-emerald-500/50 bg-slate-50/70 dark:bg-slate-950/60 text-right transition-all flex items-start justify-between gap-3"
+              >
+                <div className="space-y-1 min-w-0">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[10px] font-extrabold">
+                    إدخال يدوي سريع
+                  </span>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                    إضافة مصطلح يدوياً للقاموس
+                  </h3>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+                    إضافة سريعة للمصطلح بالإنجليزية وترجمته العربية مع ترجمة تلقائية وحقول اختيارية
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                  <PlusCircle className="w-5 h-5" />
+                </div>
+              </button>
+
+              {/* Popup Option 5: Permanent Data Deletion Manager */}
+              <button
+                type="button"
+                onClick={() => setActiveIngestModal('permanent_delete')}
+                className="sm:col-span-2 group p-4 rounded-2xl border border-rose-500/30 hover:border-rose-500 bg-rose-500/5 hover:bg-rose-500/10 text-right transition-all flex items-center justify-between gap-3"
+              >
+                <div className="space-y-0.5 min-w-0">
+                  <h3 className="text-sm font-extrabold text-rose-800 dark:text-rose-300">
+                    الحذف النهائي للبيانات (من التطبيق والسحابة)
+                  </h3>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                    حذف أي بلوك أو مادة أو موضوع أو كتاب أو اختبار نهائياً من الجهاز ومن المكتبة السحابية
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2696,9 +2528,686 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         </div>
       )}
 
+      {/* ====================================================================
+          POPUP MODALS FOR DATA ENTRY, UPLOAD, PASTE & PERMANENT DELETION
+         ==================================================================== */}
+
+      {/* 1. Popup Modal: Manual Term Entry */}
+      {activeIngestModal === 'manual_term' && (
+        <div
+          onClick={() => setActiveIngestModal(null)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl max-h-[88dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                  <PlusCircle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                    إضافة مصطلح يدوياً
+                  </h3>
+                  <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    جميع الحقول اختيارية ما عدا المصطلح بالإنجليزية والعربية
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveIngestModal(null)}
+                className="min-h-[40px] min-w-[40px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {offlineFeedback && (
+              <div
+                className={`p-3 rounded-2xl border flex items-center justify-between gap-3 text-xs font-bold ${
+                  offlineFeedback.type === 'success'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+                    : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
+                }`}
+              >
+                <span>{offlineFeedback.message}</span>
+                <button type="button" onClick={() => setOfflineFeedback(null)}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveManualEntry} noValidate className="space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
+                      المصطلح بالإنجليزية *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleAutoAssistOffline}
+                      className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1 hover:underline"
+                    >
+                      <Wand2 className="w-3.5 h-3.5" />
+                      <span>ترجمة تلقائية</span>
+                    </button>
+                  </div>
+                  <input
+                    ref={manualTermInputRef}
+                    type="text"
+                    dir="ltr"
+                    value={manualTerm}
+                    onChange={(e) => {
+                      setManualTerm(e.target.value);
+                      if (offlineFeedback) setOfflineFeedback(null);
+                    }}
+                    onInput={(e) => {
+                      setManualTerm((e.target as HTMLInputElement).value);
+                      if (offlineFeedback) setOfflineFeedback(null);
+                    }}
+                    placeholder="e.g., Cardiomyopathy"
+                    className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-mono font-bold text-left focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-extrabold text-slate-700 dark:text-slate-200 block">
+                    الترجمة بالعربية *
+                  </label>
+                  <input
+                    ref={manualTranslationInputRef}
+                    type="text"
+                    value={manualTranslation}
+                    onChange={(e) => {
+                      setManualTranslation(e.target.value);
+                      if (offlineFeedback) setOfflineFeedback(null);
+                    }}
+                    onInput={(e) => {
+                      setManualTranslation((e.target as HTMLInputElement).value);
+                      if (offlineFeedback) setOfflineFeedback(null);
+                    }}
+                    placeholder="اكتب الترجمة بالعربية..."
+                    className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-bold focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <div className="flex items-center gap-3">
+                  <label className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={addAlsoToFavorites}
+                      onChange={(e) => setAddAlsoToFavorites(e.target.checked)}
+                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span>إضافة للمفضلة</span>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowOptionalManualFields((prev) => !prev)}
+                    className="text-xs font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1"
+                  >
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 transition-transform ${
+                        showOptionalManualFields ? 'rotate-180' : ''
+                      }`}
+                    />
+                    <span>
+                      {showOptionalManualFields
+                        ? 'إخفاء الحقول الاختيارية'
+                        : 'حقول إضافية (اختياري)'}
+                    </span>
+                  </button>
+                </div>
+
+                <button
+                  type="submit"
+                  className="min-h-[42px] px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-xs transition-all"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>حفظ المصطلح</span>
+                </button>
+              </div>
+
+              {showOptionalManualFields && (
+                <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                        التخصص (اختياري)
+                      </label>
+                      <select
+                        value={manualCategory}
+                        onChange={(e) => setManualCategory(e.target.value as LexiconCategory)}
+                        className="w-full min-h-[40px] px-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                      >
+                        {CATEGORY_OPTIONS.map((cat) => (
+                          <option key={cat.value} value={cat.value}>
+                            {cat.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                        النوع اللغوي (اختياري)
+                      </label>
+                      <select
+                        value={manualPos}
+                        onChange={(e) => setManualPos(e.target.value)}
+                        className="w-full min-h-[40px] px-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                      >
+                        {POS_OPTIONS.map((p) => (
+                          <option key={p.value} value={p.value}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                        المجلد (اختياري)
+                      </label>
+                      <input
+                        type="text"
+                        value={manualCollection}
+                        onChange={(e) => setManualCollection(e.target.value)}
+                        placeholder="مضاف يدوياً"
+                        className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                      التعريف (اختياري)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={manualDefAr}
+                      onChange={(e) => setManualDefAr(e.target.value)}
+                      placeholder="تعريف مختصر (اختياري)..."
+                      className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      dir="ltr"
+                      value={manualSentenceEn}
+                      onChange={(e) => setManualSentenceEn(e.target.value)}
+                      placeholder="Example sentence (optional)..."
+                      className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-left"
+                    />
+                    <input
+                      type="text"
+                      value={manualSentenceAr}
+                      onChange={(e) => setManualSentenceAr(e.target.value)}
+                      placeholder="ترجمة الجملة (اختياري)..."
+                      className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                    />
+                  </div>
+                </div>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Popup Modal: Local File & Previous Backup Upload */}
+      {activeIngestModal === 'file_upload' && (
+        <div
+          onClick={() => setActiveIngestModal(null)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl max-h-[88dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+                  <Upload className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                    رفع واستيراد ملف محلي أو نسخة سابقة
+                  </h3>
+                  <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    يدعم ملفات JSON و JSONL و ZIP و UMEDPACK و Markdown و CSV و TXT
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveIngestModal(null)}
+                className="min-h-[40px] min-w-[40px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {offlineFeedback && (
+              <div
+                className={`p-3 rounded-2xl border flex items-center justify-between gap-3 text-xs font-bold ${
+                  offlineFeedback.type === 'success'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+                    : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
+                }`}
+              >
+                <span>{offlineFeedback.message}</span>
+                <button type="button" onClick={() => setOfflineFeedback(null)}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            <button
+              type="button"
+              disabled={isParsingFile}
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full p-6 rounded-2xl border-2 border-dashed border-emerald-500/40 hover:border-emerald-500 bg-emerald-500/5 hover:bg-emerald-500/10 text-center flex flex-col items-center justify-center gap-2.5 transition-all"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center">
+                <FileSpreadsheet className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                  {isParsingFile ? 'جاري قراءة وتحليل الملف...' : 'اضغط لاختيار ملف من جهازك'}
+                </h4>
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                  ملفات الذكاء الاصطناعي (.json / .md / .csv / .txt) أو أرشيفات (.zip / .umedpack) أو النسخ الاحتياطية السابقة
+                </p>
+              </div>
+            </button>
+
+            {stagedItems.length > 0 && (
+              <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
+                    المصطلحات الجاهزة للحفظ ({stagedItems.filter((i) => i.selected !== false).length}):
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleCommitStagedBatch();
+                      setActiveIngestModal(null);
+                    }}
+                    className="min-h-[38px] px-4 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-extrabold inline-flex items-center gap-1.5"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>حفظ الكل</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 3. Popup Modal: Paste AI Text / Code / High-Density Stream */}
+      {activeIngestModal === 'paste_text' && (
+        <div
+          onClick={() => setActiveIngestModal(null)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl max-h-[88dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                  <Wand2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                    لصق وتحليل نصوص وأكواد الذكاء الاصطناعي
+                  </h3>
+                  <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    يقرأ تلقائياً كود JSON أو الأسطر عالية الكثافة (||) أو جداول Markdown أو النسخ السابقة
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveIngestModal(null)}
+                className="min-h-[40px] min-w-[40px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {offlineFeedback && (
+              <div
+                className={`p-3 rounded-2xl border flex items-center justify-between gap-3 text-xs font-bold ${
+                  offlineFeedback.type === 'success'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+                    : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
+                }`}
+              >
+                <span>{offlineFeedback.message}</span>
+                <button type="button" onClick={() => setOfflineFeedback(null)}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <textarea
+                rows={8}
+                dir="auto"
+                value={rawBatchInput}
+                onChange={(e) => setRawBatchInput(e.target.value)}
+                placeholder={`الصق هنا مخرجات ChatGPT أو Gemini:\n- كائن أو مصفوفة JSON لبلوكات ومواد ومواضيع ومصطلحات\n- أو أسطر عالية الكثافة: TERM || ... / TOPIC || ... / BLOCK || ...\n- أو جداول Markdown: | Term | Translation | Definition |`}
+                className="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono leading-relaxed"
+              />
+
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveIngestModal(null);
+                    setIsAiGuideOpen(true);
+                  }}
+                  className="min-h-[40px] px-3.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold inline-flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>فتح مولّد البرومبت</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => parseRawTextToStaged(rawBatchInput, 'نص ملصق من الذكاء الاصطناعي')}
+                  className="min-h-[42px] px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-sm"
+                >
+                  <Wand2 className="w-4 h-4" />
+                  <span>تحليل واستيراد البيانات الآن</span>
+                </button>
+              </div>
+            </div>
+
+            {stagedItems.length > 0 && (
+              <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
+                    المصطلحات الجاهزة للحفظ ({stagedItems.filter((i) => i.selected !== false).length}):
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStagedItems([])}
+                      className="min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 inline-flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>مسح</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleCommitStagedBatch();
+                        setActiveIngestModal(null);
+                      }}
+                      className="min-h-[38px] px-4 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-extrabold inline-flex items-center gap-1.5"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>
+                        حفظ الكل ({stagedItems.filter((i) => i.selected !== false).length})
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                  {stagedItems.map((item, idx) => (
+                    <div
+                      key={item.id}
+                      className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3"
+                    >
+                      <label className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={item.selected !== false}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setStagedItems((prev) =>
+                              prev.map((it, i) =>
+                                i === idx ? { ...it, selected: checked } : it
+                              )
+                            );
+                          }}
+                          className="w-4 h-4 rounded text-emerald-600"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              dir="ltr"
+                              className="font-mono font-extrabold text-xs text-slate-900 dark:text-white"
+                            >
+                              {item.term}
+                            </span>
+                            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                              {item.translation}
+                            </span>
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 4. Popup Modal: Permanent Deletion Manager (Blocks, Subjects, Topics, Books, Exams, All Data) */}
+      {activeIngestModal === 'permanent_delete' && (
+        <div
+          onClick={() => setActiveIngestModal(null)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl max-h-[88dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                    الحذف النهائي للبيانات (من التطبيق والسحابة)
+                  </h3>
+                  <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    يحذف البلوك أو المادة أو الموضوع نهائياً من التخزين المحلي ومن المكتبة السحابية
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveIngestModal(null)}
+                className="min-h-[40px] min-w-[40px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Blocks List for Permanent Deletion */}
+            <div className="space-y-2.5">
+              <h4 className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                البلوكات الأكاديمية وما يتبعها ({cloudSummary.blocks.length})
+              </h4>
+              {cloudSummary.blocks.length === 0 ? (
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-500 text-center">
+                  لا توجد بلوكات مسجلة حالياً.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {cloudSummary.blocks.map((blk) => (
+                    <div
+                      key={blk.id}
+                      className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white truncate">
+                          {blk.titleAr || blk.titleEn}
+                        </div>
+                        <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 font-mono">
+                          {blk.code} · {blk.subjects.length} مادة · {blk.totalTopicsCount} موضوع
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPendingDeleteTarget({
+                            targetType: 'block',
+                            targetId: blk.id,
+                            titleLabel: blk.titleAr || blk.titleEn,
+                            isDownloaded: Boolean(blk.isDownloaded || blk.isPartiallyDownloaded)
+                          })
+                        }
+                        className="min-h-[38px] px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold flex items-center gap-1.5 shrink-0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>حذف نهائي</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Wipe All Data Permanently Option */}
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 flex-wrap">
+              <div className="space-y-0.5">
+                <div className="text-xs font-extrabold text-rose-700 dark:text-rose-400">
+                  تصفير وحذف جميع البيانات نهائياً
+                </div>
+                <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  حذف جميع البلوكات والمواد والمواضيع والمصطلحات والكتب والاختبارات من التطبيق والسحابة
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setPendingDeleteTarget({
+                    targetType: 'all_data',
+                    targetId: 'all',
+                    titleLabel: 'جميع بيانات التطبيق والمكتبة السحابية بالكامل',
+                    isDownloaded: true
+                  })
+                }
+                className="min-h-[40px] px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold flex items-center gap-1.5 shrink-0"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>حذف كل البيانات نهائياً</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Popup Modal: Delete Confirmation (Local Only vs Permanent App + Cloud) */}
+      {pendingDeleteTarget && (
+        <div
+          onClick={() => setPendingDeleteTarget(null)}
+          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 shadow-2xl space-y-4"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                    تأكيد حذف البيانات
+                  </h3>
+                  <p className="text-xs font-bold text-rose-600 dark:text-rose-400 mt-0.5 break-words">
+                    {pendingDeleteTarget.titleLabel}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingDeleteTarget(null)}
+                className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed">
+              {pendingDeleteTarget.targetType === 'block'
+                ? 'اختر نوع الحذف المطلوب لهذا البلوك وما يتبعه من مواد ومواضيع وكتب واختبارات:'
+                : 'اختر نوع الحذف المطلوب:'}
+            </p>
+
+            <div className="space-y-2.5">
+              {pendingDeleteTarget.isDownloaded &&
+                pendingDeleteTarget.targetType !== 'all_data' &&
+                pendingDeleteTarget.targetType !== 'exam' && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void handleDeleteTargetLocally(
+                        pendingDeleteTarget.targetType as 'block' | 'subject' | 'topic' | 'book',
+                        pendingDeleteTarget.targetId
+                      )
+                    }
+                    className="w-full p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-amber-500 bg-slate-50 dark:bg-slate-950 text-right space-y-0.5 transition-colors"
+                  >
+                    <div className="text-xs font-extrabold text-slate-900 dark:text-white">
+                      1. حذف النسخة المحلية فقط (توفير المساحة)
+                    </div>
+                    <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                      يزيل الملفات من جهازك مع بقاء العنصر متاحاً في المكتبة السحابية لإعادة تنزيله لاحقاً
+                    </div>
+                  </button>
+                )}
+
+              <button
+                type="button"
+                onClick={() =>
+                  void handleDeleteTargetPermanently(
+                    pendingDeleteTarget.targetType,
+                    pendingDeleteTarget.targetId
+                  )
+                }
+                className="w-full p-3.5 rounded-2xl border border-rose-500/40 hover:border-rose-500 bg-rose-600 hover:bg-rose-500 text-white text-right space-y-0.5 transition-colors shadow-sm"
+              >
+                <div className="text-xs font-extrabold flex items-center justify-between">
+                  <span>حذف نهائي من التطبيق والسحابة</span>
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div className="text-[11px] font-bold text-rose-100">
+                  يحذف العنصر وجميع متعلقاته نهائياً من التطبيق ومن فهرس المكتبة السحابية
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <AiContentGuideModal
         isOpen={isAiGuideOpen}
         onClose={() => setIsAiGuideOpen(false)}
+        onOpenPasteModal={() => setActiveIngestModal('paste_text')}
+        onOpenUploadModal={() => setActiveIngestModal('file_upload')}
         onQuickImportReport={(report) => {
           onUniversalImportComplete?.(report);
           setSyncRevision((prev) => prev + 1);
