@@ -11,7 +11,8 @@ import {
   StudiedTermLogEntry,
   AcademicBookResource,
   AcademicExamPackage,
-  MediaAssetRecord
+  MediaAssetRecord,
+  UserStudyNoteRecord
 } from '../types/lexicon';
 
 export const LEARNING_STORAGE_KEYS = {
@@ -23,7 +24,8 @@ export const LEARNING_STORAGE_KEYS = {
   STUDIED_TERMS_LOG: 'dictengine_umd_studied_terms_log_v2',
   BOOKS: 'dictengine_umd_books_v2',
   EXAMS: 'dictengine_umd_exams_v2',
-  MEDIA_ASSETS: 'dictengine_umd_media_assets_v1'
+  MEDIA_ASSETS: 'dictengine_umd_media_assets_v1',
+  USER_NOTES: 'dictengine_umd_user_notes_v1'
 } as const;
 
 export const INITIAL_MEDICAL_BLOCKS: MedicalBlock[] = [
@@ -851,15 +853,194 @@ export function saveMedicalSubjects(subjects: MedicalSubject[]): void {
   }
 }
 
+export function normalizeAcademicBookResource(
+  raw: Partial<AcademicBookResource> & Record<string, unknown>
+): AcademicBookResource {
+  const downloadUrl =
+    (raw.downloadUrl as string | undefined) ||
+    (raw.pdfUrl as string | undefined) ||
+    (raw.mediaUrl as string | undefined) ||
+    (raw.externalUrl as string | undefined) ||
+    '';
+  const format =
+    (raw.format as string | undefined) ||
+    (raw.fileFormat as string | undefined) ||
+    (downloadUrl.toLowerCase().includes('.epub') ? 'epub' : 'pdf');
+  return {
+    ...(raw as AcademicBookResource),
+    id: String(raw.id || ''),
+    titleEn: String(raw.titleEn || raw.titleAr || raw.id || 'Medical Book'),
+    titleAr: String(raw.titleAr || raw.titleEn || raw.id || 'كتاب طبي'),
+    year:
+      typeof raw.year === 'number'
+        ? raw.year
+        : typeof raw.publicationYear === 'number'
+          ? raw.publicationYear
+          : undefined,
+    publicationYear:
+      typeof raw.publicationYear === 'number'
+        ? raw.publicationYear
+        : typeof raw.year === 'number'
+          ? raw.year
+          : undefined,
+    format,
+    fileFormat: (raw.fileFormat as string | undefined) || format,
+    downloadUrl: downloadUrl || undefined,
+    pdfUrl: (raw.pdfUrl as string | undefined) || downloadUrl || undefined,
+    bookmarks: Array.isArray(raw.bookmarks) ? raw.bookmarks : undefined
+  };
+}
+
+export function normalizeAcademicExamPackage(
+  raw: Partial<AcademicExamPackage> & Record<string, unknown>
+): AcademicExamPackage {
+  const passing =
+    typeof raw.passingScorePercent === 'number'
+      ? raw.passingScorePercent
+      : typeof raw.passingPercent === 'number'
+        ? raw.passingPercent
+        : undefined;
+  return {
+    ...(raw as AcademicExamPackage),
+    id: String(raw.id || ''),
+    titleEn: String(raw.titleEn || raw.titleAr || raw.id || 'Exam Package'),
+    titleAr: String(raw.titleAr || raw.titleEn || raw.id || 'اختبار تقييمي'),
+    passingScorePercent: passing,
+    passingPercent: passing
+  };
+}
+
+export function normalizeMediaAssetRecord(
+  raw: Partial<MediaAssetRecord> & Record<string, unknown>
+): MediaAssetRecord {
+  const resolvedUrl =
+    (raw.url as string | undefined) ||
+    (raw.rawUrl as string | undefined) ||
+    (raw.downloadUrl as string | undefined) ||
+    '';
+  const linkedType = (raw.linkedEntityType as string | undefined)?.toLowerCase();
+  const linkedId = (raw.linkedEntityId as string | undefined) || '';
+  const mimeLower = String(raw.mimeType || '').toLowerCase();
+  const fileOrUrlLower = String(raw.fileName || raw.relativePath || resolvedUrl).toLowerCase();
+  const inferredKind = (() => {
+    const rawKind = String(raw.kind || raw.mediaType || '').trim().toLowerCase();
+    if (rawKind) return rawKind;
+    if (mimeLower.includes('svg') || fileOrUrlLower.endsWith('.svg')) return 'diagram';
+    if (mimeLower.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(fileOrUrlLower)) return 'image';
+    if (mimeLower === 'application/pdf' || fileOrUrlLower.endsWith('.pdf')) return 'pdf';
+    if (mimeLower.startsWith('audio/') || /\.(mp3|wav|ogg|m4a)$/i.test(fileOrUrlLower)) return 'audio';
+    if (mimeLower.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(fileOrUrlLower)) return 'video';
+    return 'attachment';
+  })();
+
+  const inferredFormat = (() => {
+    const rawFmt = String(raw.format || '').trim().toLowerCase();
+    if (rawFmt) return rawFmt;
+    const match = fileOrUrlLower.match(/\.([a-z0-9]{2,6})(?:[?#].*)?$/i);
+    if (match?.[1]) return match[1].toLowerCase();
+    if (mimeLower.includes('/')) return mimeLower.split('/')[1].split('+')[0];
+    return inferredKind;
+  })();
+
+  const titleEn =
+    (raw.titleEn as string | undefined) ||
+    (raw.captionEn as string | undefined) ||
+    (raw.fileName as string | undefined) ||
+    String(raw.id || '');
+  const titleAr =
+    (raw.titleAr as string | undefined) ||
+    (raw.captionAr as string | undefined) ||
+    titleEn ||
+    String(raw.id || '');
+
+  return {
+    ...(raw as MediaAssetRecord),
+    id: String(raw.id || ''),
+    mediaType: (raw.mediaType as string | undefined) || inferredKind,
+    kind: (raw.kind as string | undefined) || inferredKind,
+    format: inferredFormat,
+    titleEn,
+    titleAr,
+    url: resolvedUrl,
+    rawUrl: (raw.rawUrl as string | undefined) || resolvedUrl,
+    topicId:
+      (raw.topicId as string | undefined) ||
+      (linkedType === 'topic' && linkedId ? linkedId : undefined),
+    bookId:
+      (raw.bookId as string | undefined) ||
+      (linkedType === 'book' && linkedId ? linkedId : undefined),
+    subjectId:
+      (raw.subjectId as string | undefined) ||
+      (linkedType === 'subject' && linkedId ? linkedId : undefined),
+    blockId:
+      (raw.blockId as string | undefined) ||
+      (linkedType === 'block' && linkedId ? linkedId : undefined)
+  };
+}
+
+export function normalizeQuizQuestionRecord(
+  raw: Record<string, unknown>,
+  index: number = 0
+): import('../types/lexicon').UnifiedQuizQuestion {
+  const options = Array.isArray(raw.options)
+    ? (raw.options as Array<Record<string, unknown>>).map((opt, optIdx) => ({
+        key: String(opt?.key || String.fromCharCode(65 + optIdx)).trim().toUpperCase(),
+        textEn: String(opt?.textEn || opt?.text || '').trim(),
+        textAr: typeof opt?.textAr === 'string' ? opt.textAr.trim() : undefined
+      }))
+    : [];
+  const correctOptionKeys = Array.isArray(raw.correctOptionKeys)
+    ? raw.correctOptionKeys.map((k) => String(k).trim().toUpperCase()).filter(Boolean)
+    : typeof raw.correctAnswer === 'string' && raw.correctAnswer.trim()
+      ? [raw.correctAnswer.trim().toUpperCase()]
+      : [];
+  const type = (
+    typeof raw.type === 'string' && raw.type.trim() ? raw.type.trim() : 'single_choice'
+  ) as import('../types/lexicon').UnifiedQuestionType;
+
+  return {
+    ...(raw as unknown as import('../types/lexicon').UnifiedQuizQuestion),
+    id: String(raw.id || `umed-q-${index + 1}`),
+    type,
+    questionEn: String(raw.questionEn || raw.stemEn || raw.question || '').trim(),
+    questionAr: typeof raw.questionAr === 'string' ? raw.questionAr.trim() : undefined,
+    imageUrl: typeof raw.imageUrl === 'string' ? raw.imageUrl.trim() : undefined,
+    imageCaption: typeof raw.imageCaption === 'string' ? raw.imageCaption.trim() : undefined,
+    options,
+    correctOptionKeys,
+    matchingPairs: Array.isArray(raw.matchingPairs)
+      ? (raw.matchingPairs as import('../types/lexicon').UnifiedMatchingPair[])
+      : undefined,
+    acceptableAnswers: Array.isArray(raw.acceptableAnswers)
+      ? raw.acceptableAnswers.map(String)
+      : undefined,
+    explanationEn: String(raw.explanationEn || raw.explanationAr || '').trim(),
+    explanationAr: typeof raw.explanationAr === 'string' ? raw.explanationAr.trim() : undefined,
+    blockId: typeof raw.blockId === 'string' ? raw.blockId : undefined,
+    subjectId: typeof raw.subjectId === 'string' ? raw.subjectId : undefined,
+    topicId: typeof raw.topicId === 'string' ? raw.topicId : undefined,
+    sectionId: typeof raw.sectionId === 'string' ? raw.sectionId : undefined,
+    linkedTermIds: Array.isArray(raw.linkedTermIds) ? raw.linkedTermIds.map(String) : [],
+    difficulty:
+      raw.difficulty === 'easy' || raw.difficulty === 'medium' || raw.difficulty === 'hard'
+        ? raw.difficulty
+        : 'medium',
+    sourceLabel: typeof raw.sourceLabel === 'string' ? raw.sourceLabel : undefined,
+    createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : new Date().toISOString()
+  };
+}
+
 export function loadAcademicBooks(): AcademicBookResource[] {
   ensurePostInstallLocalTopicsAndBlocksCleaned();
   const removed = getLocallyRemovedHierarchyIds().books;
   try {
     const raw = getHierarchyStorage().getItem(LEARNING_STORAGE_KEYS.BOOKS);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as AcademicBookResource[];
+    const parsed = JSON.parse(raw) as Array<Partial<AcademicBookResource> & Record<string, unknown>>;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((b) => b && b.id && !removed.has(b.id));
+    return parsed
+      .filter((b) => b && b.id && !removed.has(String(b.id)))
+      .map((b) => normalizeAcademicBookResource(b));
   } catch {
     return [];
   }
@@ -868,10 +1049,51 @@ export function loadAcademicBooks(): AcademicBookResource[] {
 export function saveAcademicBooks(books: AcademicBookResource[]): void {
   try {
     ensurePostInstallLocalTopicsAndBlocksCleaned();
-    getHierarchyStorage().setItem(LEARNING_STORAGE_KEYS.BOOKS, JSON.stringify(books));
+    const normalized = books.map((b) =>
+      normalizeAcademicBookResource(b as Partial<AcademicBookResource> & Record<string, unknown>)
+    );
+    getHierarchyStorage().setItem(LEARNING_STORAGE_KEYS.BOOKS, JSON.stringify(normalized));
   } catch {
     // ignore
   }
+}
+
+export function toggleBookFavorite(bookId: string): AcademicBookResource[] {
+  const books = loadAcademicBooks();
+  const updated = books.map((b) =>
+    b.id === bookId ? { ...b, favorite: !b.favorite } : b
+  );
+  saveAcademicBooks(updated);
+  return updated;
+}
+
+export function saveBookReadingProgress(
+  bookId: string,
+  progress: {
+    lastReadPage?: number;
+    readingProgressPercent?: number;
+    bookmarks?: number[];
+    notes?: string;
+    favorite?: boolean;
+  }
+): AcademicBookResource[] {
+  const books = loadAcademicBooks();
+  const updated = books.map((b) => {
+    if (b.id !== bookId) return b;
+    return {
+      ...b,
+      ...(progress.lastReadPage !== undefined ? { lastReadPage: progress.lastReadPage } : {}),
+      ...(progress.readingProgressPercent !== undefined
+        ? { readingProgressPercent: progress.readingProgressPercent }
+        : {}),
+      ...(progress.bookmarks !== undefined ? { bookmarks: progress.bookmarks } : {}),
+      ...(progress.notes !== undefined ? { notes: progress.notes } : {}),
+      ...(progress.favorite !== undefined ? { favorite: progress.favorite } : {}),
+      updatedAt: new Date().toISOString()
+    };
+  });
+  saveAcademicBooks(updated);
+  return updated;
 }
 
 export function loadAcademicExams(): AcademicExamPackage[] {
@@ -880,9 +1102,11 @@ export function loadAcademicExams(): AcademicExamPackage[] {
   try {
     const raw = getHierarchyStorage().getItem(LEARNING_STORAGE_KEYS.EXAMS);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as AcademicExamPackage[];
+    const parsed = JSON.parse(raw) as Array<Partial<AcademicExamPackage> & Record<string, unknown>>;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((e) => e && e.id && !removed.has(e.id));
+    return parsed
+      .filter((e) => e && e.id && !removed.has(String(e.id)))
+      .map((e) => normalizeAcademicExamPackage(e));
   } catch {
     return [];
   }
@@ -891,7 +1115,10 @@ export function loadAcademicExams(): AcademicExamPackage[] {
 export function saveAcademicExams(exams: AcademicExamPackage[]): void {
   try {
     ensurePostInstallLocalTopicsAndBlocksCleaned();
-    getHierarchyStorage().setItem(LEARNING_STORAGE_KEYS.EXAMS, JSON.stringify(exams));
+    const normalized = exams.map((e) =>
+      normalizeAcademicExamPackage(e as Partial<AcademicExamPackage> & Record<string, unknown>)
+    );
+    getHierarchyStorage().setItem(LEARNING_STORAGE_KEYS.EXAMS, JSON.stringify(normalized));
   } catch {
     // ignore
   }
@@ -901,8 +1128,8 @@ export function loadMediaAssetsIndex(): MediaAssetRecord[] {
   try {
     const raw = getHierarchyStorage().getItem(LEARNING_STORAGE_KEYS.MEDIA_ASSETS);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as MediaAssetRecord[];
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed = JSON.parse(raw) as Array<Partial<MediaAssetRecord> & Record<string, unknown>>;
+    return Array.isArray(parsed) ? parsed.map((m) => normalizeMediaAssetRecord(m)) : [];
   } catch {
     return [];
   }
@@ -910,10 +1137,65 @@ export function loadMediaAssetsIndex(): MediaAssetRecord[] {
 
 export function saveMediaAssetsIndex(assets: MediaAssetRecord[]): void {
   try {
-    getHierarchyStorage().setItem(LEARNING_STORAGE_KEYS.MEDIA_ASSETS, JSON.stringify(assets));
+    const normalized = assets.map((m) =>
+      normalizeMediaAssetRecord(m as Partial<MediaAssetRecord> & Record<string, unknown>)
+    );
+    getHierarchyStorage().setItem(LEARNING_STORAGE_KEYS.MEDIA_ASSETS, JSON.stringify(normalized));
   } catch {
     // ignore
   }
+}
+
+export function loadUserStudyNotes(): UserStudyNoteRecord[] {
+  try {
+    const raw = getHierarchyStorage().getItem(LEARNING_STORAGE_KEYS.USER_NOTES);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as UserStudyNoteRecord[];
+    return Array.isArray(parsed) ? parsed.filter((n) => n && n.id) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveUserStudyNotes(notes: UserStudyNoteRecord[]): void {
+  try {
+    getHierarchyStorage().setItem(LEARNING_STORAGE_KEYS.USER_NOTES, JSON.stringify(notes));
+  } catch {
+    // ignore
+  }
+}
+
+export function upsertUserStudyNote(
+  note: Omit<UserStudyNoteRecord, 'id' | 'createdAt' | 'updatedAt'> & {
+    id?: string;
+    createdAt?: string;
+  }
+): UserStudyNoteRecord[] {
+  const current = loadUserStudyNotes();
+  const now = new Date().toISOString();
+  const targetId = note.id || `note-${note.entityType}-${note.entityId}-${Date.now()}`;
+  const existingIdx = current.findIndex((n) => n.id === targetId);
+  const record: UserStudyNoteRecord = {
+    id: targetId,
+    entityType: note.entityType,
+    entityId: note.entityId,
+    title: note.title,
+    content: note.content,
+    createdAt: note.createdAt || (existingIdx >= 0 ? current[existingIdx].createdAt : now),
+    updatedAt: now
+  };
+  const updated =
+    existingIdx >= 0
+      ? current.map((n, i) => (i === existingIdx ? record : n))
+      : [record, ...current];
+  saveUserStudyNotes(updated);
+  return updated;
+}
+
+export function deleteUserStudyNote(noteId: string): UserStudyNoteRecord[] {
+  const updated = loadUserStudyNotes().filter((n) => n.id !== noteId);
+  saveUserStudyNotes(updated);
+  return updated;
 }
 
 export function loadRecentLearningItems(): RecentLearningItem[] {

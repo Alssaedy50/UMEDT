@@ -222,14 +222,22 @@ export interface AcademicBookResource {
   subtitleEn?: string;
   subtitleAr?: string;
   authors?: string[];
+  publisher?: string;
   edition?: string;
   year?: number;
+  publicationYear?: number;
   language?: string;
+  resourceKind?: 'textbook' | 'atlas' | 'clinical_guideline' | 'study_notes' | string;
   blockId?: string;
   subjectId?: string;
   topicIds?: string[];
   fileFormat?: 'pdf' | 'epub' | 'html' | 'link' | string;
+  format?: 'pdf' | 'epub' | 'html' | 'link' | string;
+  mimeType?: string;
   pdfUrl?: string;
+  downloadUrl?: string;
+  relativePath?: string;
+  mediaAssetId?: string;
   epubUrl?: string;
   coverUrl?: string;
   mediaUrl?: string;
@@ -244,7 +252,11 @@ export interface AcademicBookResource {
   descriptionEn?: string;
   descriptionAr?: string;
   favorite?: boolean;
+  bookmarks?: number[];
   lastReadPage?: number;
+  readingProgressPercent?: number;
+  notes?: string;
+  publishedAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -253,6 +265,7 @@ export interface AcademicExamPackage {
   id: string;
   titleEn: string;
   titleAr: string;
+  examType?: 'comprehensive' | 'subject_quiz' | 'topic_drill' | 'mock_exam' | string;
   blockId?: string;
   subjectId?: string;
   topicIds?: string[];
@@ -260,10 +273,15 @@ export interface AcademicExamPackage {
   questions?: UnifiedQuizQuestion[];
   durationMinutes?: number;
   passingPercent?: number;
+  passingScorePercent?: number;
+  totalPoints?: number;
+  shuffleQuestions?: boolean;
   difficulty?: 'easy' | 'medium' | 'hard';
+  tags?: string[];
   descriptionEn?: string;
   descriptionAr?: string;
   sha256?: string;
+  publishedAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -272,35 +290,110 @@ export interface MediaAssetRecord {
   id: string;
   mediaType?: 'image' | 'diagram' | 'audio' | 'video' | 'pdf' | 'book' | 'attachment' | string;
   kind?: string;
+  format?: string;
+  mediaIdbKey?: string;
   titleEn?: string;
   titleAr?: string;
   fileName?: string;
+  relativePath?: string;
   mimeType?: string;
   url: string;
+  rawUrl?: string;
   sha256?: string;
   sizeBytes?: number;
+  linkedEntityType?: 'topic' | 'book' | 'subject' | 'block' | 'question' | 'exam' | 'term' | string;
+  linkedEntityId?: string;
   topicId?: string;
   subjectId?: string;
   blockId?: string;
   bookId?: string;
   captionEn?: string;
   captionAr?: string;
+  downloadable?: boolean;
+  width?: number;
+  height?: number;
+  pageCount?: number;
+  tags?: string[];
   createdAt?: string;
   updatedAt?: string;
 }
 
+export interface ContentTypeRegistryEntry {
+  contentType: string;
+  rendererType: string;
+  displayNameAr: string;
+  displayNameEn: string;
+  supportsDownload?: boolean;
+  supportsOfflineCache?: boolean;
+}
+
+export interface DynamicCatalogItem {
+  id: string;
+  titleEn?: string;
+  titleAr?: string;
+  subtitleEn?: string;
+  subtitleAr?: string;
+  summaryEn?: string;
+  summaryAr?: string;
+  descriptionEn?: string;
+  descriptionAr?: string;
+  blockId?: string;
+  subjectId?: string;
+  topicId?: string;
+  downloadUrl?: string;
+  rawUrl?: string;
+  url?: string;
+  mimeType?: string;
+  sha256?: string;
+  sizeBytes?: number;
+  tags?: string[];
+  updatedAt?: string;
+  rawPayload?: Record<string, unknown>;
+}
+
+export interface DynamicCatalogCollection {
+  id: string;
+  name?: string;
+  contentType: string;
+  rendererType: UmedtDataRendererType;
+  displayNameAr?: string;
+  displayNameEn?: string;
+  rawUrl?: string;
+  sha256?: string;
+  recordCount?: number;
+  sizeBytes?: number;
+  items: DynamicCatalogItem[];
+}
+
+export interface UserStudyNoteRecord {
+  id: string;
+  entityType: 'topic' | 'book' | 'term' | 'subject' | 'block';
+  entityId: string;
+  title?: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type UmedtDataRendererType =
   | 'block_hub'
+  | 'hierarchy_grid'
   | 'subject_list'
   | 'topic_article'
+  | 'rich_article'
   | 'lexicon_term'
+  | 'lexicon_entry'
   | 'bilingual_sentence'
+  | 'sentence_pair'
   | 'morphology_rule'
   | 'clinical_abbr'
+  | 'abbreviation_rule'
   | 'book_pdf_reader'
   | 'quiz_runner'
+  | 'quiz_question'
   | 'exam_blueprint'
   | 'media_gallery'
+  | 'generic_card'
   | string;
 
 export interface CatalogCollectionDescriptor {
@@ -309,6 +402,8 @@ export interface CatalogCollectionDescriptor {
   contentType: string;
   rendererType: UmedtDataRendererType;
   rawUrl: string;
+  apiPath?: string;
+  schemaUrl?: string;
   sha256?: string;
   recordCount?: number;
   sizeBytes?: number;
@@ -317,12 +412,18 @@ export interface CatalogCollectionDescriptor {
 }
 
 export interface DataCatalogDocument {
+  catalogSchemaVersion?: number | string;
   catalogVersion?: string;
+  schemaVersion?: number | string;
+  minAppVersion?: string;
   repository?: string;
   branch?: string;
+  generatedAt?: string;
   updatedAt?: string;
   latestStableManifestUrl?: string;
   latestBetaManifestUrl?: string;
+  contentTypesRegistry?: ContentTypeRegistryEntry[];
   collections: CatalogCollectionDescriptor[];
 }
+
 

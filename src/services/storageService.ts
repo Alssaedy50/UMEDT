@@ -44,8 +44,27 @@ import {
   ColdRestartVerificationResult,
   StorageMigrationResult,
   Stage7DiagnosticCase,
-  Stage7FinalReleaseReport
+  Stage7FinalReleaseReport,
+  MedicalBlock,
+  MedicalSubject,
+  AcademicBookResource,
+  UnifiedQuizQuestion,
+  AcademicExamPackage,
+  MediaAssetRecord
 } from '../types/lexicon';
+import {
+  LEARNING_STORAGE_KEYS,
+  loadMedicalBlocks,
+  saveMedicalBlocks,
+  loadMedicalSubjects,
+  saveMedicalSubjects,
+  loadAcademicBooks,
+  saveAcademicBooks,
+  loadAcademicExams,
+  saveAcademicExams,
+  loadMediaAssetsIndex,
+  saveMediaAssetsIndex
+} from './learningHierarchyService';
 import {
   INITIAL_TERMS,
   INITIAL_LINKED_SENTENCES,
@@ -358,7 +377,17 @@ const LIVE_DATA_TRANSACTION_KEYS = [
  */
 function captureStorageSnapshot(): Map<string, string | null> {
   const snapshot = new Map<string, string | null>();
-  for (const key of Object.values(STORAGE_KEYS)) {
+  const allKeys = [
+    ...Object.values(STORAGE_KEYS),
+    LEARNING_STORAGE_KEYS.BLOCKS,
+    LEARNING_STORAGE_KEYS.SUBJECTS,
+    LEARNING_STORAGE_KEYS.BOOKS,
+    LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS,
+    LEARNING_STORAGE_KEYS.EXAMS,
+    LEARNING_STORAGE_KEYS.MEDIA_ASSETS,
+    'umed_unified_cloud_mirror_v1'
+  ];
+  for (const key of allKeys) {
     if (key === STORAGE_KEYS.TRANSACTION_WAL || key === STORAGE_KEYS.LAST_CRASH_RECOVERY) {
       continue;
     }
@@ -1663,6 +1692,156 @@ export async function executeAtomicPackageImport(
         };
       }
 
+      // Merge extended UMEDT-DATA collections while preserving user-protected fields
+      const existingBlocks = loadMedicalBlocks();
+      const nextBlocksMap = new Map<string, MedicalBlock>(
+        mode === 'replace' && (payload.blocks || []).length > 0
+          ? []
+          : existingBlocks.map((b) => [b.id, b])
+      );
+      for (const blk of payload.blocks || []) {
+        if (mode === 'ignore' && nextBlocksMap.has(blk.id)) continue;
+        nextBlocksMap.set(blk.id, blk);
+      }
+      const nextBlocks = Array.from(nextBlocksMap.values()).sort((a, b) => a.order - b.order);
+
+      const existingSubjects = loadMedicalSubjects();
+      const nextSubjectsMap = new Map<string, MedicalSubject>(
+        mode === 'replace' && (payload.subjects || []).length > 0
+          ? []
+          : existingSubjects.map((s) => [s.id, s])
+      );
+      for (const subj of payload.subjects || []) {
+        if (mode === 'ignore' && nextSubjectsMap.has(subj.id)) continue;
+        nextSubjectsMap.set(subj.id, subj);
+      }
+      const nextSubjects = Array.from(nextSubjectsMap.values()).sort((a, b) => a.order - b.order);
+
+      const existingBooks = loadAcademicBooks();
+      const existingBookById = new Map<string, AcademicBookResource>(
+        existingBooks.map((b) => [b.id, b])
+      );
+      const nextBooksMap = new Map<string, AcademicBookResource>(
+        mode === 'replace' && (payload.books || []).length > 0
+          ? []
+          : existingBooks.map((b) => [b.id, b])
+      );
+      for (const bk of payload.books || []) {
+        if (mode === 'ignore' && nextBooksMap.has(bk.id)) continue;
+        const prevBk = existingBookById.get(bk.id);
+        nextBooksMap.set(
+          bk.id,
+          prevBk
+            ? {
+                ...bk,
+                favorite: prevBk.favorite ?? bk.favorite,
+                bookmarks: prevBk.bookmarks?.length ? prevBk.bookmarks : bk.bookmarks,
+                lastReadPage: prevBk.lastReadPage ?? bk.lastReadPage,
+                readingProgressPercent:
+                  prevBk.readingProgressPercent ?? bk.readingProgressPercent,
+                notes: prevBk.notes ?? bk.notes,
+                mediaIdbKey: prevBk.mediaIdbKey || bk.mediaIdbKey,
+                coverIdbKey: prevBk.coverIdbKey || bk.coverIdbKey
+              }
+            : bk
+        );
+      }
+      const nextBooks = Array.from(nextBooksMap.values());
+
+      const existingQuestions = safeReadJson<UnifiedQuizQuestion[]>(
+        LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS,
+        []
+      );
+      const nextQuestionsMap = new Map<string, UnifiedQuizQuestion>(
+        mode === 'replace' && (payload.questions || []).length > 0
+          ? []
+          : existingQuestions.map((q) => [q.id, q])
+      );
+      for (const q of payload.questions || []) {
+        if (mode === 'ignore' && nextQuestionsMap.has(q.id)) continue;
+        nextQuestionsMap.set(q.id, q);
+      }
+      const nextQuestions = Array.from(nextQuestionsMap.values());
+
+      const existingExams = loadAcademicExams();
+      const nextExamsMap = new Map<string, AcademicExamPackage>(
+        mode === 'replace' && (payload.exams || []).length > 0
+          ? []
+          : existingExams.map((e) => [e.id, e])
+      );
+      for (const ex of payload.exams || []) {
+        if (mode === 'ignore' && nextExamsMap.has(ex.id)) continue;
+        nextExamsMap.set(ex.id, ex);
+      }
+      const nextExams = Array.from(nextExamsMap.values());
+
+      const existingMediaAssets = loadMediaAssetsIndex();
+      const nextMediaAssetsMap = new Map<string, MediaAssetRecord>(
+        mode === 'replace' && (payload.mediaAssets || []).length > 0
+          ? []
+          : existingMediaAssets.map((m) => [m.id, m])
+      );
+      for (const ma of payload.mediaAssets || []) {
+        if (mode === 'ignore' && nextMediaAssetsMap.has(ma.id)) continue;
+        const prevMa = nextMediaAssetsMap.get(ma.id);
+        nextMediaAssetsMap.set(
+          ma.id,
+          prevMa ? { ...ma, mediaIdbKey: prevMa.mediaIdbKey || ma.mediaIdbKey } : ma
+        );
+      }
+      const nextMediaAssets = Array.from(nextMediaAssetsMap.values());
+
+      if ((payload.blocks || []).length > 0) saveMedicalBlocks(nextBlocks);
+      if ((payload.subjects || []).length > 0) saveMedicalSubjects(nextSubjects);
+      if ((payload.books || []).length > 0) saveAcademicBooks(nextBooks);
+      if ((payload.questions || []).length > 0) {
+        safeWriteJson(LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS, nextQuestions);
+      }
+      if ((payload.exams || []).length > 0) saveAcademicExams(nextExams);
+      if ((payload.mediaAssets || []).length > 0) saveMediaAssetsIndex(nextMediaAssets);
+
+      // Keep Unified Cloud Mirror synchronized with imported package metadata & extended collections
+      if (
+        payload.catalog ||
+        (payload.blocks || []).length > 0 ||
+        (payload.subjects || []).length > 0 ||
+        (payload.books || []).length > 0 ||
+        (payload.questions || []).length > 0 ||
+        (payload.exams || []).length > 0 ||
+        (payload.mediaAssets || []).length > 0
+      ) {
+        try {
+          const mirrorRaw = getStorageRawItem('umed_unified_cloud_mirror_v1');
+          const mirrorObj = mirrorRaw ? (JSON.parse(mirrorRaw) as Record<string, unknown>) : {};
+          const updatedMirror = {
+            ...mirrorObj,
+            version: incomingDataVersion,
+            updatedAt: new Date().toISOString(),
+            ...(payload.catalog?.catalogVersion
+              ? { catalogVersion: payload.catalog.catalogVersion }
+              : {}),
+            ...(payload.catalog?.contentTypesRegistry
+              ? { contentTypesRegistry: payload.catalog.contentTypesRegistry }
+              : {}),
+            ...(nextBlocks.length > 0 ? { blocks: nextBlocks } : {}),
+            ...(nextSubjects.length > 0 ? { subjects: nextSubjects } : {}),
+            ...(nextBooks.length > 0 ? { books: nextBooks } : {}),
+            ...(nextQuestions.length > 0 ? { quizQuestions: nextQuestions } : {}),
+            ...(nextExams.length > 0 ? { exams: nextExams } : {}),
+            ...(nextMediaAssets.length > 0 ? { mediaAssets: nextMediaAssets } : {}),
+            ...(payload.customAffixes.length > 0
+              ? { customAffixes: merged.customAffixes }
+              : {}),
+            ...(payload.customAbbreviations.length > 0
+              ? { customAbbreviations: merged.customAbbreviations }
+              : {})
+          };
+          setStorageRawItem('umed_unified_cloud_mirror_v1', JSON.stringify(updatedMirror));
+        } catch {
+          // non-fatal mirror update
+        }
+      }
+
       // Stage 5: Commit WAL transaction once all keys are safely written
       commitWalTransaction();
 
@@ -1690,6 +1869,12 @@ export async function executeAtomicPackageImport(
             topicsImported: payload.topics.length,
             affixesImported: payload.customAffixes.length,
             abbreviationsImported: payload.customAbbreviations.length,
+            blocksImported: (payload.blocks || []).length,
+            subjectsImported: (payload.subjects || []).length,
+            booksImported: (payload.books || []).length,
+            questionsImported: (payload.questions || []).length,
+            examsImported: (payload.exams || []).length,
+            mediaAssetsImported: (payload.mediaAssets || []).length,
             totalTermsAfter: nextState.terms.length,
             totalSentencesAfter: nextState.sentences.length
           },

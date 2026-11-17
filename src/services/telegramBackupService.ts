@@ -14,19 +14,25 @@ import {
   VersionMetadata,
   AcademicBookResource,
   AcademicExamPackage,
-  MediaAssetRecord
+  MediaAssetRecord,
+  LocalMediaRecord,
+  UserStudyNoteRecord
 } from '../types/lexicon';
 import {
   loadMedicalBlocks,
   loadMedicalSubjects,
   loadAcademicBooks,
   loadAcademicExams,
-  loadMediaAssetsIndex
+  loadMediaAssetsIndex,
+  loadUserStudyNotes,
+  normalizeAcademicBookResource
 } from './learningHierarchyService';
 import {
   loadQuizQuestions,
   loadQuizAttempts
 } from './quizEngineService';
+import { getAllLocalMediaRecordsMap } from './mediaStorageService';
+import { base64ToUint8Array } from '../utils/downloadHelper';
 import { createDefaultVersionMetadata } from './dataPlatformService';
 
 export type TelegramBackupSchedule = 'off' | '6h' | 'daily' | 'weekly' | 'on_change';
@@ -47,6 +53,12 @@ export interface ConciseDataSummary {
   shortText: string;
 }
 
+export interface TelegramMediaSyncRecord {
+  messageId: number;
+  fileName: string;
+  uploadedAt: string;
+}
+
 export interface TelegramBackupConfig {
   enabled: boolean;
   botToken: string;
@@ -56,6 +68,8 @@ export interface TelegramBackupConfig {
   includeTopicsAndHierarchy: boolean;
   includeDictionaryAndTerms: boolean;
   includeQuizzesAndStats: boolean;
+  includeMediaFilesOnSync?: boolean;
+  syncedMediaSha256Map?: Record<string, TelegramMediaSyncRecord>;
   lastBackupAt?: string;
   lastBackupSummary?: ConciseDataSummary;
   lastBackupMessageId?: number;
@@ -75,6 +89,8 @@ const DEFAULT_CONFIG: TelegramBackupConfig = {
   includeTopicsAndHierarchy: true,
   includeDictionaryAndTerms: true,
   includeQuizzesAndStats: true,
+  includeMediaFilesOnSync: true,
+  syncedMediaSha256Map: {},
   appBackupMessageIds: []
 };
 
@@ -433,6 +449,11 @@ export function saveTelegramBackupConfig(config: TelegramBackupConfig): Telegram
 
   memoryTelegramConfig = normalized;
 
+  const syncedMediaSha256Map: Record<string, TelegramMediaSyncRecord> = {
+    ...(previous.syncedMediaSha256Map || {}),
+    ...(config.syncedMediaSha256Map || {})
+  };
+
   // Store ONLY the encrypted token in localStorage/sessionStorage (never plaintext botToken!)
   const persistedRecord = {
     enabled: normalized.enabled,
@@ -443,6 +464,8 @@ export function saveTelegramBackupConfig(config: TelegramBackupConfig): Telegram
     includeTopicsAndHierarchy: normalized.includeTopicsAndHierarchy,
     includeDictionaryAndTerms: normalized.includeDictionaryAndTerms,
     includeQuizzesAndStats: normalized.includeQuizzesAndStats,
+    includeMediaFilesOnSync: normalized.includeMediaFilesOnSync !== false,
+    syncedMediaSha256Map,
     lastBackupAt: normalized.lastBackupAt,
     lastBackupMessageId: normalized.lastBackupMessageId,
     appBackupMessageIds: normalized.appBackupMessageIds
@@ -588,17 +611,30 @@ export interface FullUnifiedBackupPayload {
     books?: AcademicBookResource[];
     exams?: AcademicExamPackage[];
     mediaAssets?: MediaAssetRecord[];
+    userNotes?: UserStudyNoteRecord[];
     studyStats?: StudyStats;
     versionMetadata: VersionMetadata;
   };
 }
 
 function stripBinaryMediaFromBooksForBackup(books: AcademicBookResource[]): AcademicBookResource[] {
-  return (books || []).map((bk) => ({
-    ...bk,
-    pdfUrl: isInlineBinaryDataUrl(bk.pdfUrl) ? `idb://${bk.mediaIdbKey || bk.id}` : bk.pdfUrl,
-    coverUrl: isInlineBinaryDataUrl(bk.coverUrl) ? undefined : bk.coverUrl
-  }));
+  return (books || []).map((rawBk) => {
+    const bk = normalizeAcademicBookResource(
+      rawBk as Partial<AcademicBookResource> & Record<string, unknown>
+    );
+    const idbFallback = `idb://${bk.mediaIdbKey || bk.id}`;
+    return {
+      ...bk,
+      downloadUrl: isInlineBinaryDataUrl(bk.downloadUrl) ? idbFallback : bk.downloadUrl,
+      pdfUrl: isInlineBinaryDataUrl(bk.pdfUrl) ? idbFallback : bk.pdfUrl,
+      coverUrl: isInlineBinaryDataUrl(bk.coverUrl) ? undefined : bk.coverUrl,
+      favorite: bk.favorite,
+      bookmarks: bk.bookmarks,
+      lastReadPage: bk.lastReadPage,
+      readingProgressPercent: bk.readingProgressPercent,
+      notes: bk.notes
+    };
+  });
 }
 
 export function buildConciseDataSummary(params: {
@@ -692,6 +728,7 @@ export function createUnifiedBackupPackage(
   const sanitizedBooks = stripBinaryMediaFromBooksForBackup(loadAcademicBooks());
   const exams = loadAcademicExams();
   const mediaAssets = loadMediaAssetsIndex();
+  const userNotes = loadUserStudyNotes();
   const quizQuestions = loadQuizQuestions(sanitizedTopics, terms);
   const quizAttempts = loadQuizAttempts();
   const resolvedMetadata = versionMetadata || createDefaultVersionMetadata();
@@ -707,6 +744,7 @@ export function createUnifiedBackupPackage(
     books: sanitizedBooks,
     exams,
     mediaAssets,
+    userNotes,
     studyStats,
     versionMetadata: resolvedMetadata
   };
@@ -820,6 +858,199 @@ export async function testTelegramConnection(
   }
 }
 
+export async function computeFileSha256Hex(bytes: Uint8Array): Promise<string> {
+  try {
+    if (typeof globalThis !== 'undefined' && globalThis.crypto?.subtle) {
+      const digest = await globalThis.crypto.subtle.digest(
+        'SHA-256',
+        bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+      );
+      return Array.from(new Uint8Array(digest))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+  } catch {
+    // fallback to Node crypto below
+  }
+  try {
+    const nodeCrypto = await import('crypto');
+    return nodeCrypto.createHash('sha256').update(bytes).digest('hex');
+  } catch {
+    let h = 2166136261;
+    for (let i = 0; i < bytes.length; i++) {
+      h ^= bytes[i];
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(16).padStart(8, '0');
+  }
+}
+
+function extractBytesFromLocalMediaRecord(record: LocalMediaRecord): Uint8Array | null {
+  const raw = String(record?.dataUrl || '').trim();
+  if (!raw) return null;
+  if (raw.startsWith('data:')) {
+    const commaIdx = raw.indexOf(',');
+    if (commaIdx === -1) return null;
+    const header = raw.slice(0, commaIdx);
+    const body = raw.slice(commaIdx + 1);
+    try {
+      if (header.includes(';base64')) {
+        return base64ToUint8Array(body);
+      }
+      return new TextEncoder().encode(decodeURIComponent(body));
+    } catch {
+      return null;
+    }
+  }
+  return new TextEncoder().encode(raw);
+}
+
+/**
+ * Uploads any pending local media files (`LocalMediaRecord`) to the Telegram channel
+ * with SHA-256 deduplication so identical files are never uploaded twice.
+ * IMPORTANT: Uploaded media `message_id`s are stored only in `syncedMediaSha256Map`
+ * and NEVER added to `appBackupMessageIds`, so backup rotation never deletes channel media.
+ */
+export async function uploadPendingMediaToTelegramChannel(
+  config: TelegramBackupConfig,
+  options?: {
+    customFetch?: typeof fetch;
+    mediaMapOverride?: Map<string, LocalMediaRecord>;
+    skipIfSimulatedOffline?: boolean;
+  }
+): Promise<{
+  ok: boolean;
+  message: string;
+  uploadedCount: number;
+  skippedDeduplicatedCount: number;
+  failedCount: number;
+  syncedMediaSha256Map: Record<string, TelegramMediaSyncRecord>;
+}> {
+  const latestSaved = loadTelegramBackupConfig();
+  const syncedMap: Record<string, TelegramMediaSyncRecord> = {
+    ...(latestSaved.syncedMediaSha256Map || {}),
+    ...(config.syncedMediaSha256Map || {})
+  };
+
+  if (options?.skipIfSimulatedOffline) {
+    return {
+      ok: true,
+      message: 'تم تخطي مزامنة الوسائط في وضع عدم الاتصال.',
+      uploadedCount: 0,
+      skippedDeduplicatedCount: 0,
+      failedCount: 0,
+      syncedMediaSha256Map: syncedMap
+    };
+  }
+
+  const cleanToken = decryptBotTokenFromStorage(
+    config.botToken || config.encryptedBotToken || latestSaved.botToken || latestSaved.encryptedBotToken || ''
+  );
+  const cleanChatId = sanitizeTelegramInput(config.chatId || latestSaved.chatId || '');
+  if (!cleanToken || !cleanChatId) {
+    return {
+      ok: false,
+      message: 'يرجى إدخال رمز البوت (Bot Token) ومعرف المحادثة (Chat ID) في إعدادات تليجرام.',
+      uploadedCount: 0,
+      skippedDeduplicatedCount: 0,
+      failedCount: 0,
+      syncedMediaSha256Map: syncedMap
+    };
+  }
+
+  const fetchFn = options?.customFetch || fetch;
+  const mediaMap = options?.mediaMapOverride || (await getAllLocalMediaRecordsMap());
+  let uploadedCount = 0;
+  let skippedDeduplicatedCount = 0;
+  let failedCount = 0;
+  let lastError = '';
+
+  for (const [key, record] of mediaMap.entries()) {
+    const bytes = extractBytesFromLocalMediaRecord(record);
+    if (!bytes || bytes.byteLength === 0) continue;
+
+    const sha = await computeFileSha256Hex(bytes);
+    if (syncedMap[sha]) {
+      skippedDeduplicatedCount += 1;
+      continue;
+    }
+
+    const fileName = record.fileName || `${key}.bin`;
+    const mimeType = record.mimeType || 'application/octet-stream';
+    const caption = `📎 وسائط UMEDT (${fileName}) · SHA-256: ${sha.slice(0, 12)}`;
+
+    try {
+      const formData = new FormData();
+      formData.append('chat_id', cleanChatId);
+      const blob = new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], {
+        type: mimeType
+      });
+      formData.append('document', blob, fileName);
+      formData.append('caption', caption);
+
+      const res = await fetchFn(
+        `https://api.telegram.org/bot${cleanToken}/sendDocument`,
+        {
+          method: 'POST',
+          body: formData
+        }
+      );
+      const data = await res.json();
+      if (res.ok && data?.ok === true && typeof data?.result?.message_id === 'number') {
+        syncedMap[sha] = {
+          messageId: data.result.message_id,
+          fileName,
+          uploadedAt: new Date().toISOString()
+        };
+        uploadedCount += 1;
+      } else {
+        failedCount += 1;
+        lastError = data?.description || `HTTP ${res.status}`;
+      }
+    } catch (err) {
+      failedCount += 1;
+      if (err instanceof Error) {
+        lastError = err.message;
+      }
+    }
+  }
+
+  saveTelegramBackupConfig({
+    ...latestSaved,
+    ...config,
+    botToken: cleanToken,
+    chatId: cleanChatId,
+    syncedMediaSha256Map: syncedMap
+  });
+
+  if (failedCount > 0 && uploadedCount === 0 && skippedDeduplicatedCount === 0) {
+    return {
+      ok: false,
+      message: formatTelegramErrorAr(lastError, undefined, cleanToken),
+      uploadedCount,
+      skippedDeduplicatedCount,
+      failedCount,
+      syncedMediaSha256Map: syncedMap
+    };
+  }
+
+  return {
+    ok: true,
+    message:
+      uploadedCount > 0
+        ? `تم رفع ${uploadedCount} ملف وسائط إلى القناة${
+            skippedDeduplicatedCount > 0 ? ` (تخطي ${skippedDeduplicatedCount} مكرر)` : ''
+          }.`
+        : skippedDeduplicatedCount > 0
+          ? `جميع ملفات الوسائط (${skippedDeduplicatedCount}) مرفوعة مسبقاً ولا يوجد تكرار.`
+          : 'لا توجد ملفات وسائط محلية جديدة للمزامنة.',
+    uploadedCount,
+    skippedDeduplicatedCount,
+    failedCount,
+    syncedMediaSha256Map: syncedMap
+  };
+}
+
 export async function sendBackupToTelegram(
   config: TelegramBackupConfig,
   terms: DictionaryTerm[],
@@ -828,13 +1059,18 @@ export async function sendBackupToTelegram(
   reasonLabel = 'نسخة احتياطية يدوية',
   studyStats?: StudyStats,
   versionMetadata?: VersionMetadata,
-  options?: { customFetch?: typeof fetch }
+  options?: { customFetch?: typeof fetch; simulatedOffline?: boolean }
 ): Promise<{
   ok: boolean;
   message: string;
   summary?: ConciseDataSummary;
   uploadedMessageId?: number;
   deletedPreviousMessageIds?: number[];
+  mediaSyncResult?: {
+    uploadedCount: number;
+    skippedDeduplicatedCount: number;
+    failedCount: number;
+  };
 }> {
   const latestSaved = loadTelegramBackupConfig();
   const cleanToken = decryptBotTokenFromStorage(
@@ -846,6 +1082,12 @@ export async function sendBackupToTelegram(
       ok: false,
       message:
         'يرجى إدخال رمز البوت (Bot Token) ومعرف المحادثة (Chat ID) في إعدادات تليجرام.'
+    };
+  }
+  if (options?.simulatedOffline) {
+    return {
+      ok: false,
+      message: 'الوضع الأوفلاين مفعل؛ تعذر إرسال النسخة الاحتياطية إلى تليجرام حالياً.'
     };
   }
 
@@ -1033,12 +1275,35 @@ export async function sendBackupToTelegram(
     };
     saveTelegramBackupConfig(updatedConfig);
 
+    let mediaSyncResult:
+      | { uploadedCount: number; skippedDeduplicatedCount: number; failedCount: number }
+      | undefined;
+    if (updatedConfig.includeMediaFilesOnSync !== false && !options?.simulatedOffline) {
+      try {
+        const mediaRes = await uploadPendingMediaToTelegramChannel(updatedConfig, {
+          customFetch: fetchFn
+        });
+        mediaSyncResult = {
+          uploadedCount: mediaRes.uploadedCount,
+          skippedDeduplicatedCount: mediaRes.skippedDeduplicatedCount,
+          failedCount: mediaRes.failedCount
+        };
+      } catch {
+        // Keep JSON backup success intact even if media sync encounters an error
+      }
+    }
+
     return {
       ok: true,
-      message: `تم إرسال ملف النسخة الاحتياطية (${filename}) إلى تليجرام بنجاح والاحتفاظ بنسخة حديثة واحدة.`,
+      message: `تم إرسال ملف النسخة الاحتياطية (${filename}) إلى تليجرام بنجاح والاحتفاظ بنسخة حديثة واحدة.${
+        mediaSyncResult && mediaSyncResult.uploadedCount > 0
+          ? ` (+ رفع ${mediaSyncResult.uploadedCount} وسائط)`
+          : ''
+      }`,
       summary,
       uploadedMessageId,
-      deletedPreviousMessageIds
+      deletedPreviousMessageIds,
+      mediaSyncResult
     };
   } catch (err: unknown) {
     const rawMsg =

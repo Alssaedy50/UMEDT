@@ -28,7 +28,8 @@ import {
   UnifiedMatchingPair,
   QuizValidationReport,
   QuizAttemptRecord,
-  QuizAttemptAnswer
+  QuizAttemptAnswer,
+  AcademicExamPackage
 } from '../types/lexicon';
 import {
   BULK_QUIZ_TEXT_TEMPLATE,
@@ -39,6 +40,8 @@ import {
   buildQuizAttemptRecord
 } from '../services/quizEngineService';
 import { extractLinkedTermsFromText } from '../engine/knowledgeLinker';
+import { getLocalMediaRecord } from '../services/mediaStorageService';
+import { computeDeterministicFastHashHex } from '../services/cloudLibrarySyncService';
 
 interface QuizCenterModalProps {
   isOpen: boolean;
@@ -53,6 +56,7 @@ interface QuizCenterModalProps {
   initialBlockId?: string | null;
   initialSubjectId?: string | null;
   initialTopicId?: string | null;
+  initialExam?: AcademicExamPackage | null;
   initialTab?: 'runner' | 'builder' | 'history';
   onSaveQuestions: (newQuestions: UnifiedQuizQuestion[]) => void;
   onDeleteQuestion: (questionId: string) => void;
@@ -93,6 +97,7 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
   initialBlockId,
   initialSubjectId,
   initialTopicId,
+  initialExam,
   initialTab = 'runner',
   onSaveQuestions,
   onDeleteQuestion,
@@ -102,6 +107,9 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'runner' | 'builder' | 'history'>(
     initialTab
+  );
+  const [activeExamPackage, setActiveExamPackage] = useState<AcademicExamPackage | null>(
+    initialExam || null
   );
 
   // ============================================================================
@@ -161,6 +169,59 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
     if (initialScopeType) setScopeType(initialScopeType);
     if (initialTab) setActiveTab(initialTab);
   }, [initialTopicId, initialSubjectId, initialBlockId, initialScopeType, initialTab]);
+
+  useEffect(() => {
+    if (!isOpen || !initialExam) return;
+    setActiveExamPackage(initialExam);
+    setActiveTab('runner');
+    if (initialExam.blockId) setSelectedBlockId(initialExam.blockId);
+    if (initialExam.subjectId) {
+      setSelectedSubjectId(initialExam.subjectId);
+      setScopeType('subject');
+    } else if (initialExam.topicIds?.[0]) {
+      setSelectedTopicId(initialExam.topicIds[0]);
+      setScopeType('topic');
+    } else if (initialExam.blockId) {
+      setScopeType('block');
+    }
+    const examDur = initialExam.durationMinutes || 0;
+    setTimerMinutes(examDur);
+    setGradingMode('exam');
+
+    const questionBankMap = new Map<string, UnifiedQuizQuestion>();
+    for (const q of questions) questionBankMap.set(q.id, q);
+    for (const q of initialExam.questions || []) questionBankMap.set(q.id, q);
+
+    let examPool: UnifiedQuizQuestion[] = [];
+    if (initialExam.questions && initialExam.questions.length > 0) {
+      examPool = initialExam.questions;
+    } else if (initialExam.questionIds && initialExam.questionIds.length > 0) {
+      examPool = initialExam.questionIds
+        .map((id) => questionBankMap.get(id))
+        .filter((q): q is UnifiedQuizQuestion => Boolean(q));
+    }
+    if (examPool.length === 0) {
+      examPool = questions.filter(
+        (q) =>
+          (initialExam.subjectId && q.subjectId === initialExam.subjectId) ||
+          (initialExam.blockId && q.blockId === initialExam.blockId) ||
+          (initialExam.topicIds && q.topicId && initialExam.topicIds.includes(q.topicId))
+      );
+    }
+
+    if (examPool.length > 0) {
+      const prepared = initialExam.shuffleQuestions ? shuffleArray(examPool) : [...examPool];
+      setSessionQuestions(prepared);
+      setCurrentIdx(0);
+      setUserResponses({});
+      setElapsedSeconds(0);
+      setRemainingSeconds(examDur > 0 ? examDur * 60 : null);
+      setCompletedAttempt(null);
+      setSessionState('active');
+    } else {
+      setSessionState('setup');
+    }
+  }, [isOpen, initialExam, questions]);
 
   // Pool of available questions for the chosen scope
   const availableScopeQuestions = useMemo(() => {
@@ -236,6 +297,27 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
       }
     };
   }, [sessionState]);
+
+  const activeSessionQuestion = sessionQuestions[currentIdx] || null;
+  const [offlineQuestionImgSrc, setOfflineQuestionImgSrc] = useState<string | null>(null);
+  const [questionImgFailed, setQuestionImgFailed] = useState<boolean>(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setQuestionImgFailed(false);
+    setOfflineQuestionImgSrc(null);
+    const imgUrl = activeSessionQuestion?.imageUrl?.trim() || '';
+    if (!isOpen || !imgUrl || !/^https?:\/\//i.test(imgUrl)) return;
+    const key = `idb-${computeDeterministicFastHashHex(imgUrl).slice(0, 16)}`;
+    void getLocalMediaRecord(key).then((rec) => {
+      if (!cancelled && rec?.dataUrl) {
+        setOfflineQuestionImgSrc(rec.dataUrl);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, activeSessionQuestion?.id, activeSessionQuestion?.imageUrl]);
 
   const startQuizSession = (customQuestionList?: UnifiedQuizQuestion[]) => {
     const sourcePool = customQuestionList || availableScopeQuestions;
@@ -869,12 +951,29 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
 
                   {currentQuestion.imageUrl && (
                     <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-900">
-                      <img
-                        src={currentQuestion.imageUrl}
-                        alt={currentQuestion.imageCaption || 'Question medical diagram'}
-                        referrerPolicy="no-referrer"
-                        className="w-full max-h-72 object-contain mx-auto"
-                      />
+                      {!questionImgFailed ? (
+                        <img
+                          src={offlineQuestionImgSrc || currentQuestion.imageUrl}
+                          alt={currentQuestion.imageCaption || 'Question medical diagram'}
+                          referrerPolicy="no-referrer"
+                          onError={() => setQuestionImgFailed(true)}
+                          className="w-full max-h-72 object-contain mx-auto"
+                        />
+                      ) : (
+                        <div className="p-4 text-center space-y-2">
+                          <p className="text-xs text-slate-300">
+                            تعذر تحميل الصورة مباشرة داخل التطبيق (قد يتطلب اتصالاً بالإنترنت).
+                          </p>
+                          <a
+                            href={currentQuestion.imageUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold"
+                          >
+                            عرض الصورة من المصدر
+                          </a>
+                        </div>
+                      )}
                       {currentQuestion.imageCaption && (
                         <p className="p-2.5 text-center text-[11px] text-slate-300 bg-slate-950/90">
                           {currentQuestion.imageCaption}
@@ -1180,6 +1279,21 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                   <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">
                     النتيجة النهائية: {completedAttempt.scorePercent}%
                   </h3>
+                  {activeExamPackage && (
+                    <p className="text-xs font-extrabold text-emerald-700 dark:text-emerald-300">
+                      {activeExamPackage.titleAr || activeExamPackage.titleEn} · نسبة النجاح:{' '}
+                      {activeExamPackage.passingScorePercent ??
+                        activeExamPackage.passingPercent ??
+                        60}
+                      %{' '}
+                      {completedAttempt.scorePercent >=
+                      (activeExamPackage.passingScorePercent ??
+                        activeExamPackage.passingPercent ??
+                        60)
+                        ? '(ناجح)'
+                        : '(يحتاج مراجعة)'}
+                    </p>
+                  )}
                   <p className="text-xs text-slate-600 dark:text-slate-300 font-mono tabular-nums">
                     إجابات صحيحة: {completedAttempt.correctCount} · إجابات خاطئة:{' '}
                     {completedAttempt.wrongCount} · المدة:{' '}

@@ -36,7 +36,9 @@ import {
 } from '../services/standaloneExportService';
 import {
   loadAcademicBooks,
-  loadAcademicExams
+  loadAcademicExams,
+  loadMediaAssetsIndex,
+  loadUserStudyNotes
 } from '../services/learningHierarchyService';
 import {
   LocalDownloadRecord,
@@ -228,6 +230,8 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
             allQuestions: questions,
             books: loadAcademicBooks(),
             exams: loadAcademicExams(),
+            mediaAssets: loadMediaAssetsIndex(),
+            userNotes: loadUserStudyNotes(),
             includeLocalMedia
           });
           fileName = `UMEDT_Topic_${safeSlug}_Standalone.html`;
@@ -245,6 +249,8 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
             allQuestions: questions,
             books: loadAcademicBooks(),
             exams: loadAcademicExams(),
+            mediaAssets: loadMediaAssetsIndex(),
+            userNotes: loadUserStudyNotes(),
             includeLocalMedia
           });
           fileName = `UMEDT_Topic_${safeSlug}_Standalone.zip`;
@@ -280,6 +286,8 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
             allQuestions: questions,
             books: loadAcademicBooks(),
             exams: loadAcademicExams(),
+            mediaAssets: loadMediaAssetsIndex(),
+            userNotes: loadUserStudyNotes(),
             includeLocalMedia
           });
           fileName = `UMEDT_Subject_${safeCode}_Standalone.html`;
@@ -297,6 +305,8 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
             allQuestions: questions,
             books: loadAcademicBooks(),
             exams: loadAcademicExams(),
+            mediaAssets: loadMediaAssetsIndex(),
+            userNotes: loadUserStudyNotes(),
             includeLocalMedia
           });
           fileName = `UMEDT_Subject_${safeCode}_Standalone.zip`;
@@ -335,6 +345,8 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
             allQuestions: questions,
             books: loadAcademicBooks(),
             exams: loadAcademicExams(),
+            mediaAssets: loadMediaAssetsIndex(),
+            userNotes: loadUserStudyNotes(),
             includeLocalMedia
           });
           fileName = `UMEDT_Block_${safeCode}_Standalone.html`;
@@ -352,6 +364,8 @@ export const GranularExportModal: React.FC<GranularExportModalProps> = ({
             allQuestions: questions,
             books: loadAcademicBooks(),
             exams: loadAcademicExams(),
+            mediaAssets: loadMediaAssetsIndex(),
+            userNotes: loadUserStudyNotes(),
             includeLocalMedia
           });
           fileName = `UMEDT_Block_${safeCode}_Standalone.zip`;

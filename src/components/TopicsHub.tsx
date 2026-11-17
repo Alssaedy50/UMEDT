@@ -48,7 +48,10 @@ import {
   UnifiedQuizQuestion,
   QuizAttemptRecord,
   RecentLearningItem,
-  StudiedTermLogEntry
+  StudiedTermLogEntry,
+  AcademicExamPackage,
+  MediaAssetRecord,
+  UserStudyNoteRecord
 } from '../types/lexicon';
 import { TOPIC_CATEGORY_META } from '../data/topicsSeedData';
 import {
@@ -78,7 +81,12 @@ import {
   loadRecentLearningItems,
   recordRecentLearningItem,
   loadStudiedTermsLog,
-  recordStudiedTermEvent
+  recordStudiedTermEvent,
+  loadAcademicExams,
+  loadMediaAssetsIndex,
+  loadUserStudyNotes,
+  upsertUserStudyNote,
+  deleteUserStudyNote
 } from '../services/learningHierarchyService';
 import {
   loadQuizQuestions,
@@ -92,7 +100,12 @@ import {
 } from './TopicContentBlockEditor';
 import { QuizCenterModal } from './QuizCenterModal';
 import { GranularExportModal } from './GranularExportModal';
-import { enqueueEntitiesForCloudSync } from '../services/cloudLibrarySyncService';
+import {
+  enqueueEntitiesForCloudSync,
+  subscribeToCloudLibraryChanges,
+  computeDeterministicFastHashHex
+} from '../services/cloudLibrarySyncService';
+import { getLocalMediaRecord } from '../services/mediaStorageService';
 import {
   prepareAndDownloadFile,
   base64ToUint8Array
@@ -232,12 +245,41 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   const [studiedTermsLog, setStudiedTermsLog] = useState<StudiedTermLogEntry[]>(
     () => loadStudiedTermsLog()
   );
+  const [mediaAssets, setMediaAssets] = useState<MediaAssetRecord[]>(() =>
+    loadMediaAssetsIndex()
+  );
+  const [academicExams, setAcademicExams] = useState<AcademicExamPackage[]>(() =>
+    loadAcademicExams()
+  );
+  const [userNotes, setUserNotes] = useState<UserStudyNoteRecord[]>(() =>
+    loadUserStudyNotes()
+  );
+  const [topicOfflineMediaUrls, setTopicOfflineMediaUrls] = useState<
+    Record<string, string>
+  >({});
+  const [failedMediaIds, setFailedMediaIds] = useState<Record<string, boolean>>({});
+  const [newNoteTitle, setNewNoteTitle] = useState<string>('');
+  const [newNoteContent, setNewNoteContent] = useState<string>('');
+  const [isNotesPanelOpen, setIsNotesPanelOpen] = useState<boolean>(false);
 
   useEffect(() => {
     setBlocks(loadMedicalBlocks());
     setSubjects(loadMedicalSubjects());
     setQuizQuestions(loadQuizQuestions(rawTopics, terms));
     setQuizAttempts(loadQuizAttempts());
+    setMediaAssets(loadMediaAssetsIndex());
+    setAcademicExams(loadAcademicExams());
+    setUserNotes(loadUserStudyNotes());
+  }, [rawTopics, terms]);
+
+  useEffect(() => {
+    return subscribeToCloudLibraryChanges(() => {
+      setBlocks(loadMedicalBlocks());
+      setSubjects(loadMedicalSubjects());
+      setMediaAssets(loadMediaAssetsIndex());
+      setAcademicExams(loadAcademicExams());
+      setQuizQuestions(loadQuizQuestions(rawTopics, terms));
+    });
   }, [rawTopics, terms]);
 
   // 2. Navigation & Clean Popup Card States
@@ -273,6 +315,9 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     null
   );
   const [quizInitialTopicId, setQuizInitialTopicId] = useState<string | null>(null);
+  const [quizInitialExam, setQuizInitialExam] = useState<AcademicExamPackage | null>(
+    null
+  );
   const [quizInitialTab, setQuizInitialTab] = useState<
     'runner' | 'builder' | 'history'
   >('runner');
@@ -385,6 +430,51 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     () => topics.find((t) => t.id === selectedTopicId) || topics[0] || null,
     [topics, selectedTopicId]
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    setFailedMediaIds({});
+    if (!activeTopic) return;
+    const linked = mediaAssets.filter(
+      (ma) =>
+        ma.topicId === activeTopic.id ||
+        (ma.linkedEntityType === 'topic' && ma.linkedEntityId === activeTopic.id) ||
+        (activeTopic.subjectId &&
+          (ma.subjectId === activeTopic.subjectId ||
+            (ma.linkedEntityType === 'subject' &&
+              ma.linkedEntityId === activeTopic.subjectId))) ||
+        (activeTopic.blockId &&
+          (ma.blockId === activeTopic.blockId ||
+            (ma.linkedEntityType === 'block' && ma.linkedEntityId === activeTopic.blockId)))
+    );
+    if (linked.length === 0) {
+      setTopicOfflineMediaUrls({});
+      return;
+    }
+    void (async () => {
+      const nextMap: Record<string, string> = {};
+      for (const ma of linked) {
+        const href = (ma.rawUrl || ma.url || '').trim();
+        const key =
+          ma.mediaIdbKey ||
+          (href.startsWith('http://') || href.startsWith('https://')
+            ? `idb-${computeDeterministicFastHashHex(href).slice(0, 16)}`
+            : '');
+        if (key) {
+          const rec = await getLocalMediaRecord(key);
+          if (rec?.dataUrl) {
+            nextMap[ma.id] = rec.dataUrl;
+          }
+        }
+      }
+      if (!cancelled) {
+        setTopicOfflineMediaUrls(nextMap);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTopic, mediaAssets]);
 
   const blockMap = useMemo(
     () => new Map<string, MedicalBlock>(blocks.map((b) => [b.id, b])),
@@ -712,6 +802,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     blockId?: string;
     subjectId?: string;
     topicId?: string;
+    exam?: AcademicExamPackage | null;
     tab?: 'runner' | 'builder' | 'history';
   }) => {
     setActivePopup(null);
@@ -720,6 +811,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     setQuizInitialBlockId(opts?.blockId || null);
     setQuizInitialSubjectId(opts?.subjectId || null);
     setQuizInitialTopicId(opts?.topicId || null);
+    setQuizInitialExam(opts?.exam || null);
     setQuizInitialTab(opts?.tab || 'runner');
     setIsQuizModalOpen(true);
   };
@@ -1709,6 +1801,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         initialBlockId={quizInitialBlockId}
         initialSubjectId={quizInitialSubjectId}
         initialTopicId={quizInitialTopicId}
+        initialExam={quizInitialExam}
         initialTab={quizInitialTab}
         onOpenTermDetail={(termId) => {
           const found = terms.find((t) => t.id === termId);
@@ -3723,20 +3816,310 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                         text: p
                       }))
                     }
-                    onOpenExamOrQuiz={(_examId, tId) =>
+                    onOpenExamOrQuiz={(examId, tId) => {
+                      const matchedExam = examId
+                        ? academicExams.find((ex) => ex.id === examId) || null
+                        : null;
                       openQuizForScope({
-                        blockId: activeTopic.blockId,
-                        subjectId: activeTopic.subjectId,
+                        blockId: matchedExam?.blockId || activeTopic.blockId,
+                        subjectId: matchedExam?.subjectId || activeTopic.subjectId,
                         topicId: tId || activeTopic.id,
+                        exam: matchedExam,
                         tab: 'runner'
-                      })
-                    }
+                      });
+                    }}
                     showToast={showToast}
                   />
                 </section>
               );
             })}
           </div>
+
+          {/* Linked Media Assets from media-index.json (Auto-discovered & Offline Cached) */}
+          {(() => {
+            const embeddedUrls = new Set<string>();
+            for (const sec of activeTopic.sections) {
+              for (const cb of sec.contentBlocks || []) {
+                if (cb.mediaUrl) embeddedUrls.add(cb.mediaUrl);
+                if (cb.externalUrl) embeddedUrls.add(cb.externalUrl);
+              }
+            }
+            for (const img of activeTopic.images || []) {
+              if (img.url) embeddedUrls.add(img.url);
+              if (img.externalUrl) embeddedUrls.add(img.externalUrl);
+            }
+            for (const att of activeTopic.attachments || []) {
+              if (att.externalUrl) embeddedUrls.add(att.externalUrl);
+              if (att.contentDataUrlOrText) embeddedUrls.add(att.contentDataUrlOrText);
+            }
+            const extraMedia = mediaAssets.filter((ma) => {
+              const isForTopic =
+                ma.topicId === activeTopic.id ||
+                (ma.linkedEntityType === 'topic' && ma.linkedEntityId === activeTopic.id) ||
+                (activeTopic.subjectId &&
+                  (ma.subjectId === activeTopic.subjectId ||
+                    (ma.linkedEntityType === 'subject' &&
+                      ma.linkedEntityId === activeTopic.subjectId))) ||
+                (activeTopic.blockId &&
+                  (ma.blockId === activeTopic.blockId ||
+                    (ma.linkedEntityType === 'block' &&
+                      ma.linkedEntityId === activeTopic.blockId)));
+              if (!isForTopic) return false;
+              const href = ma.rawUrl || ma.url || '';
+              return !href || !embeddedUrls.has(href);
+            });
+            const topicExams = academicExams.filter(
+              (ex) =>
+                (ex.topicIds || []).includes(activeTopic.id) ||
+                (activeTopic.subjectId && ex.subjectId === activeTopic.subjectId)
+            );
+            const topicNotes = userNotes.filter(
+              (n) => n.entityType === 'topic' && n.entityId === activeTopic.id
+            );
+
+            return (
+              <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                {extraMedia.length > 0 && (
+                  <div className="space-y-2.5">
+                    <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <ImageIcon className="w-4 h-4 text-emerald-500" />
+                      <span>الوسائط والرسومات المرفقة ({extraMedia.length})</span>
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {extraMedia.map((ma) => {
+                        const rawHref = (ma.rawUrl || ma.url || '').trim();
+                        const resolvedSrc = topicOfflineMediaUrls[ma.id] || rawHref;
+                        const mediaKind = String(
+                          ma.kind || ma.mediaType || ma.format || 'attachment'
+                        ).toLowerCase();
+                        const mimeLower = String(ma.mimeType || '').toLowerCase();
+                        const nameOrHref = String(ma.fileName || rawHref || '');
+                        const isImageOrSvg =
+                          mediaKind === 'image' ||
+                          mediaKind === 'svg' ||
+                          mediaKind === 'diagram' ||
+                          mimeLower.startsWith('image/') ||
+                          /\.(svg|png|jpe?g|webp|gif)(?:[?#].*)?$/i.test(nameOrHref);
+                        const isAudio =
+                          mediaKind === 'audio' ||
+                          mimeLower.startsWith('audio/') ||
+                          /\.(mp3|wav|ogg|m4a)(?:[?#].*)?$/i.test(nameOrHref);
+                        const isVideo =
+                          mediaKind === 'video' ||
+                          mimeLower.startsWith('video/') ||
+                          /\.(mp4|webm|mov)(?:[?#].*)?$/i.test(nameOrHref);
+                        const displayTitle =
+                          ma.titleAr ||
+                          ma.captionAr ||
+                          ma.titleEn ||
+                          ma.captionEn ||
+                          ma.fileName ||
+                          ma.id;
+                        const hasImageError = Boolean(failedMediaIds[ma.id]);
+
+                        return (
+                          <div
+                            key={ma.id}
+                            className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2"
+                          >
+                            <div className="flex items-center justify-between gap-2 text-xs">
+                              <span className="font-extrabold text-slate-900 dark:text-white truncate">
+                                {displayTitle}
+                              </span>
+                              <span className="text-[11px] font-mono text-slate-400 shrink-0">
+                                {topicOfflineMediaUrls[ma.id] ? 'محلي' : mediaKind.toUpperCase()}
+                              </span>
+                            </div>
+                            {isImageOrSvg && resolvedSrc && !hasImageError ? (
+                              <img
+                                src={resolvedSrc}
+                                alt={ma.titleEn || ma.captionEn || ma.fileName || ma.id}
+                                referrerPolicy="no-referrer"
+                                onError={() =>
+                                  setFailedMediaIds((prev) => ({ ...prev, [ma.id]: true }))
+                                }
+                                className="w-full max-h-56 object-contain rounded-xl bg-white dark:bg-slate-900"
+                              />
+                            ) : isAudio && resolvedSrc ? (
+                              <audio controls src={resolvedSrc} className="w-full" />
+                            ) : isVideo && resolvedSrc ? (
+                              <video
+                                controls
+                                playsInline
+                                src={resolvedSrc}
+                                className="w-full max-h-56 rounded-xl bg-black"
+                              />
+                            ) : resolvedSrc ? (
+                              <a
+                                href={resolvedSrc}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="min-h-[40px] px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-extrabold inline-flex items-center gap-1.5"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>فتح / تنزيل المرفق</span>
+                              </a>
+                            ) : null}
+                            {hasImageError && rawHref && (
+                              <a
+                                href={rawHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-extrabold inline-flex items-center gap-1.5"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>عرض الصورة من المصدر</span>
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {topicExams.length > 0 && (
+                  <div className="space-y-2">
+                    <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <GraduationCap className="w-4 h-4 text-emerald-500" />
+                      <span>الاختبارات التقييمية المرتبطة ({topicExams.length})</span>
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {topicExams.map((ex) => (
+                        <div
+                          key={ex.id}
+                          className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-xs font-extrabold text-slate-900 dark:text-white truncate">
+                              {ex.titleAr || ex.titleEn}
+                            </div>
+                            <div className="text-[11px] font-mono tabular-nums text-slate-500">
+                              {ex.questions?.length || ex.questionIds?.length || 0} سؤال
+                              {ex.durationMinutes ? ` · ${ex.durationMinutes} د` : ''}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openQuizForScope({
+                                blockId: ex.blockId || activeTopic.blockId,
+                                subjectId: ex.subjectId || activeTopic.subjectId,
+                                topicId: activeTopic.id,
+                                exam: ex,
+                                tab: 'runner'
+                              })
+                            }
+                            className="min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shrink-0"
+                          >
+                            بدء
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* User Personal Study Notes (Preserved Across All Updates/Sync) */}
+                <div className="space-y-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsNotesPanelOpen((prev) => !prev)}
+                    className="w-full min-h-[42px] px-3.5 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs font-extrabold text-slate-800 dark:text-slate-200"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <BookmarkCheck className="w-4 h-4 text-emerald-500" />
+                      <span>ملاحظاتي الدراسية ({topicNotes.length})</span>
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-slate-400 transition-transform ${
+                        isNotesPanelOpen ? 'rotate-180 text-emerald-500' : ''
+                      }`}
+                    />
+                  </button>
+
+                  {isNotesPanelOpen && (
+                    <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3">
+                      {topicNotes.length > 0 && (
+                        <div className="space-y-2">
+                          {topicNotes.map((note) => (
+                            <div
+                              key={note.id}
+                              className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-start justify-between gap-2"
+                            >
+                              <div className="min-w-0 space-y-1">
+                                {note.title && (
+                                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">
+                                    {note.title}
+                                  </div>
+                                )}
+                                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+                                  {note.content}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextNotes = deleteUserStudyNote(note.id);
+                                  setUserNotes(nextNotes);
+                                  onHierarchyChanged?.('حذف ملاحظة دراسية');
+                                  showToast('تم حذف الملاحظة', 'info');
+                                }}
+                                className="min-h-[36px] min-w-[36px] rounded-xl text-rose-500 hover:bg-rose-500/10 flex items-center justify-center shrink-0"
+                                title="حذف الملاحظة"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          value={newNoteTitle}
+                          onChange={(e) => setNewNoteTitle(e.target.value)}
+                          placeholder="عنوان الملاحظة (اختياري)..."
+                          className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                        />
+                        <textarea
+                          rows={2}
+                          value={newNoteContent}
+                          onChange={(e) => setNewNoteContent(e.target.value)}
+                          placeholder="اكتب ملاحظتك السريرية الخاصة على هذا الموضوع..."
+                          className="w-full p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed"
+                        />
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const cleanBody = newNoteContent.trim();
+                              if (!cleanBody) return;
+                              const nextNotes = upsertUserStudyNote({
+                                entityType: 'topic',
+                                entityId: activeTopic.id,
+                                title: newNoteTitle.trim() || undefined,
+                                content: cleanBody
+                              });
+                              setUserNotes(nextNotes);
+                              setNewNoteTitle('');
+                              setNewNoteContent('');
+                              onHierarchyChanged?.('إضافة ملاحظة دراسية');
+                              showToast('تم حفظ الملاحظة أوفلاين');
+                            }}
+                            className="min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold"
+                          >
+                            حفظ الملاحظة
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Sequential Topic Navigation Footer (Previous / Next Lecture) */}
           {(prevTopic || nextTopic) && (

@@ -38,15 +38,15 @@ type TemplateKey =
 const SYSTEM_PROMPT_CHATGPT_GEMINI = `أنت خبير أكاديمي طبي ومهندس بيانات تعليمية لمنصة UMEDT (القاموس الطبي والمنصة التعليمية السريرية).
 مهمتك: توليد محتوى طبي دقيق ومنظّم بصيغة JSON صالحة للاستيراد المباشر داخل تطبيق UMEDT أو للنشر في مستودع UMEDT-DATA.
 
-قواعد الإخراج الإلزامية (Strict Output Contract):
-1. أخرج كائن JSON صالحاً فقط (أو داخل كتلة \`\`\`json ... \`\`\`) دون نصوص إضافية خارج الكتلة.
-2. لا تضع أي روابط base64 ضخمة (data:...)؛ للصور وملفات PDF والصوت والفيديو استخدم روابط https:// مباشرة أو اترك mediaIdbKey للرفع اليدوي.
+قواعد الإخراج الإلزامية (Strict Output Contract — UMEDT-DATA v2):
+1. أخرج كائن JSON صالحاً فقط (أو داخل كتلة \`\`\`json ... \`\`\`) دون نصوص إضافية خارج الكلة.
+2. لا تضع أي روابط base64 ضخمة (data:...)؛ للصور وملفات PDF والصوت والفيديو استخدم downloadUrl / rawUrl / externalUrl بصيغة https:// مباشرة أو اترك mediaIdbKey للرفع اليدوي.
 3. استخدم معرفات ثابتة واضحة بالصيغة: blk-..., subj-..., tp-..., term-..., sent-..., q-..., exam-..., book-..., asset-... لكي يطابقها التطبيق ويمنع التكرار عبر SHA-256.
 4. يجب أن يتضمن كل موضوع أو مصطلح النصوص الإنجليزية السريرية (titleEn / term / definitionEn) مع الترجمة والشرح العربي الدقيق (titleAr / translation / definitionAr).
 5. جميع أنواع البلوكات المدعومة داخل sections[].contentBlocks:
    - heading | paragraph | table | clinical_note | diagram | image | pdf_viewer | book_reference | exam_link | audio | video | video_link | attachment | question
 6. جميع أنواع الأسئلة المدعومة في questions[] (UnifiedQuestionType):
-   - mcq_single | mcq_multi | true_false | clinical_case | term_meaning | image_question | short_answer`;
+   - single_choice | multiple_select | true_false | matching | fill_blank | short_answer | image_based`;
 
 const LECTURE_AND_EXAM_PROMPT = `أنشئ حزمة UMEDT متكاملة لموضوع طبي (مثلاً: Acute Coronary Syndrome أو Acute Kidney Injury) بصيغة JSON واحدة تحتوي على المفاتيح التالية عند الحاجة:
 {
@@ -325,12 +325,12 @@ const JSON_TEMPLATES: Record<
   },
   questions_all7: {
     labelAr: 'بنك أسئلة (7 أنواع)',
-    shortDesc: 'كل أنماط الأسئلة',
+    shortDesc: 'كل أنماط الأسئلة القياسية',
     json: {
       questions: [
         {
           id: 'q-acs-1',
-          type: 'mcq_single',
+          type: 'single_choice',
           blockId: 'blk-cardio',
           subjectId: 'subj-cardiology',
           topicId: 'tp-acs-overview',
@@ -348,7 +348,7 @@ const JSON_TEMPLATES: Record<
         },
         {
           id: 'q-acs-2',
-          type: 'mcq_multi',
+          type: 'multiple_select',
           topicId: 'tp-acs-overview',
           difficulty: 'medium',
           questionEn: 'Select ALL core initial medications for suspected ACS:',
@@ -368,44 +368,43 @@ const JSON_TEMPLATES: Record<
           difficulty: 'easy',
           questionEn: 'Serum troponin remains normal in classic Unstable Angina.',
           options: [
-            { key: 'true', textEn: 'True', textAr: 'صحيح' },
-            { key: 'false', textEn: 'False', textAr: 'خطأ' }
+            { key: 'T', textEn: 'True', textAr: 'صحيح' },
+            { key: 'F', textEn: 'False', textAr: 'خطأ' }
           ],
-          correctOptionKeys: ['true'],
+          correctOptionKeys: ['T'],
           explanationEn: 'Unstable angina involves myocardial ischemia without detectable myocyte necrosis.'
         },
         {
           id: 'q-acs-4',
-          type: 'clinical_case',
+          type: 'matching',
           topicId: 'tp-acs-overview',
           difficulty: 'hard',
-          questionEn: 'A 62-year-old man presents with crushing retrosternal pain radiating to the left arm and ST elevation in V1-V4. Most likely culprit artery?',
-          options: [
-            { key: 'A', textEn: 'Left Anterior Descending (LAD)', textAr: 'الشريان التاجي الأمامي النازل' },
-            { key: 'B', textEn: 'Right Coronary Artery (RCA)', textAr: 'الشريان التاجي الأيمن' }
+          questionEn: 'Match each coronary territory with the localized ECG leads:',
+          matchingPairs: [
+            { id: 'mp-1', leftEn: 'LAD (Anterior)', rightEn: 'V1-V4' },
+            { id: 'mp-2', leftEn: 'RCA (Inferior)', rightEn: 'II, III, aVF' }
           ],
-          correctOptionKeys: ['A'],
-          explanationEn: 'Leads V1-V4 reflect the anterior wall supplied by the LAD.'
+          options: [],
+          correctOptionKeys: [],
+          explanationEn: 'ECG lead territories localize the culprit coronary artery.'
         },
         {
           id: 'q-acs-5',
-          type: 'term_meaning',
+          type: 'fill_blank',
           topicId: 'tp-acs-overview',
           difficulty: 'easy',
-          questionEn: 'Select the accurate Arabic meaning of "Ischemia":',
-          options: [
-            { key: 'A', textEn: 'نقص التروية الدموية' },
-            { key: 'B', textEn: 'توسع الأوعية الدموية' }
-          ],
-          correctOptionKeys: ['A'],
-          explanationEn: 'Ischemia refers to inadequate blood supply to tissues.'
+          questionEn: 'Cardiac _____ I/T is the preferred biomarker for diagnosing acute MI.',
+          acceptableAnswers: ['Troponin', 'troponin'],
+          options: [],
+          correctOptionKeys: [],
+          explanationEn: 'Troponin I and T are specific markers of myocardial cell injury.'
         },
         {
           id: 'q-acs-6',
-          type: 'image_question',
+          type: 'image_based',
           topicId: 'tp-acs-overview',
           difficulty: 'medium',
-          mediaUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Anterior_STEMI.jpg/640px-Anterior_STEMI.jpg',
+          imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Anterior_STEMI.jpg/640px-Anterior_STEMI.jpg',
           questionEn: 'Identify the primary ECG abnormality shown in the tracing:',
           options: [
             { key: 'A', textEn: 'Anterior ST-segment elevation' },
@@ -419,8 +418,9 @@ const JSON_TEMPLATES: Record<
           type: 'short_answer',
           topicId: 'tp-acs-overview',
           difficulty: 'easy',
-          questionEn: 'Name the acronym for Staged emergency coronary artery blockage with ST-segment elevation:',
-          acceptedShortAnswers: ['STEMI', 'ST elevation myocardial infarction'],
+          questionEn: 'Name the acronym for ST-elevation myocardial infarction:',
+          acceptableAnswers: ['STEMI', 'ST elevation myocardial infarction'],
+          options: [],
           correctOptionKeys: ['STEMI'],
           explanationEn: 'STEMI stands for ST-Elevation Myocardial Infarction.'
         }
@@ -437,11 +437,14 @@ const JSON_TEMPLATES: Record<
           titleEn: 'ACS Clinical Mastery Exam',
           titleAr: 'اختبار إتقان المتلازمة التاجية الحادة',
           descriptionAr: 'تقييم شامل للتشخيص والتخطيط والتدبير الدوائي.',
+          examType: 'comprehensive',
           blockId: 'blk-cardio',
           subjectId: 'subj-cardiology',
-          topicId: 'tp-acs-overview',
+          topicIds: ['tp-acs-overview'],
           durationMinutes: 15,
           passingScorePercent: 70,
+          totalPoints: 100,
+          shuffleQuestions: true,
           questionIds: ['q-acs-1', 'q-acs-2', 'q-acs-3', 'q-acs-4']
         }
       ]
@@ -456,13 +459,18 @@ const JSON_TEMPLATES: Record<
           id: 'book-cardio-manual',
           titleEn: 'Clinical Cardiology Reference Manual',
           titleAr: 'المرجع السريري لأمراض القلب',
+          subtitleAr: 'مذكرة مركزة للطوارئ القلبية وقراءة التخطيط',
           authors: ['UMEDT Medical Board'],
-          edition: '2026 Ed.',
+          publisher: 'UMEDT Academic Press',
+          publicationYear: 2026,
+          resourceKind: 'study_notes',
+          format: 'pdf',
+          mimeType: 'application/pdf',
           blockId: 'blk-cardio',
           subjectId: 'subj-cardiology',
           topicIds: ['tp-acs-overview'],
-          fileFormat: 'pdf',
-          pdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+          downloadUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+          relativePath: 'books/clinical-cardiology-manual.pdf',
           pageCount: 240,
           sizeBytes: 1850000,
           chapters: [
@@ -479,13 +487,17 @@ const JSON_TEMPLATES: Record<
       mediaAssets: [
         {
           id: 'asset-ecg-anterior',
-          kind: 'image',
+          mediaType: 'diagram',
           titleEn: 'Anterior STEMI ECG Strip',
           titleAr: 'مخطط احتشاء أمامي',
+          fileName: 'anterior-stemi-ecg.jpg',
+          relativePath: 'media/ecg/anterior-stemi-ecg.jpg',
           mimeType: 'image/jpeg',
-          url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Anterior_STEMI.jpg/640px-Anterior_STEMI.jpg',
-          blockId: 'blk-cardio',
-          topicId: 'tp-acs-overview'
+          rawUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Anterior_STEMI.jpg/640px-Anterior_STEMI.jpg',
+          linkedEntityType: 'topic',
+          linkedEntityId: 'tp-acs-overview',
+          captionAr: 'تخطيط ECG يوضح ارتفاع ST في الاتصالات الصدرية',
+          downloadable: true
         }
       ]
     }
@@ -821,12 +833,12 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
                     'topics.json',
                     'terms.json',
                     'sentences.json',
-                    'customAffixes.json',
-                    'customAbbreviations.json',
+                    'custom-affixes.json',
+                    'custom-abbreviations.json',
                     'books.json',
                     'questions.json',
                     'exams.json',
-                    'mediaAssets.json'
+                    'media-index.json'
                   ].map((f) => (
                     <div
                       key={f}

@@ -38,7 +38,8 @@ import {
   SCHEDULE_LABELS_AR,
   loadTelegramBackupConfig,
   saveTelegramBackupConfig,
-  testTelegramConnection
+  testTelegramConnection,
+  uploadPendingMediaToTelegramChannel
 } from '../services/telegramBackupService';
 import {
   LocalDownloadRecord,
@@ -280,6 +281,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [isSendingTelegram, setIsSendingTelegram] = useState<boolean>(false);
   const [isTestingTelegram, setIsTestingTelegram] = useState<boolean>(false);
+  const [isSyncingTelegramMedia, setIsSyncingTelegramMedia] = useState<boolean>(false);
   const [telegramFeedback, setTelegramFeedback] = useState<{
     ok: boolean;
     message: string;
@@ -480,6 +482,38 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     });
     setTelegramFeedback({ ok: res.ok, message: res.message });
     setIsSendingTelegram(false);
+  };
+
+  const handleSyncTelegramMediaNow = async () => {
+    const currentToken = (
+      botTokenInputRef.current?.value ??
+      draftBotToken ??
+      telegramConfig?.botToken ??
+      ''
+    ).trim();
+    const currentChatId = (
+      chatIdInputRef.current?.value ??
+      draftChatId ??
+      telegramConfig?.chatId ??
+      ''
+    ).trim();
+
+    setDraftBotToken(currentToken);
+    setDraftChatId(currentChatId);
+    const savedCfg = syncAndPersistTelegramDraft({
+      botToken: currentToken,
+      chatId: currentChatId
+    });
+
+    setIsSyncingTelegramMedia(true);
+    setTelegramFeedback(null);
+    const mediaRes = await uploadPendingMediaToTelegramChannel(savedCfg, {
+      skipIfSimulatedOffline: simulatedOffline
+    });
+    const fresh = loadTelegramBackupConfig();
+    onUpdateTelegramConfig?.(fresh);
+    setTelegramFeedback({ ok: mediaRes.ok, message: mediaRes.message });
+    setIsSyncingTelegramMedia(false);
   };
 
   const summaryToShow =
@@ -1096,6 +1130,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       />
                       <span>تضمين المواضيع والبلوكات والمواد والاختبارات</span>
                     </label>
+
+                    <label className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={telegramConfig.includeMediaFilesOnSync !== false}
+                        onChange={(e) =>
+                          syncAndPersistTelegramDraft({
+                            includeMediaFilesOnSync: e.target.checked
+                          })
+                        }
+                        className="w-4 h-4 rounded text-emerald-600"
+                      />
+                      <span>مزامنة ملفات الوسائط تلقائياً مع القناة (ببصمة SHA-256)</span>
+                    </label>
                   </div>
 
                   {telegramFeedback && (
@@ -1113,7 +1161,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <button
                       type="button"
-                      disabled={isTestingTelegram || isSendingTelegram}
+                      disabled={isTestingTelegram || isSendingTelegram || isSyncingTelegramMedia}
                       onClick={() => void handleTestTelegram()}
                       className="min-h-[42px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
@@ -1125,7 +1173,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                     <button
                       type="button"
-                      disabled={isSendingTelegram || isTestingTelegram}
+                      disabled={isSendingTelegram || isTestingTelegram || isSyncingTelegramMedia}
                       onClick={() => void handleSendTelegramNow()}
                       className="min-h-[42px] px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
@@ -1133,6 +1181,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       <span>{isSendingTelegram ? 'جاري الإرسال...' : 'نسخ الآن لتليجرام'}</span>
                     </button>
                   </div>
+
+                  <button
+                    type="button"
+                    disabled={isSyncingTelegramMedia || isSendingTelegram || isTestingTelegram}
+                    onClick={() => void handleSyncTelegramMediaNow()}
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Upload className={`w-3.5 h-3.5 ${isSyncingTelegramMedia ? 'animate-pulse' : ''}`} />
+                    <span>
+                      {isSyncingTelegramMedia
+                        ? 'جاري مزامنة الوسائط...'
+                        : 'مزامنة الوسائط الآن'}
+                    </span>
+                  </button>
                 </div>
               </>
             )}

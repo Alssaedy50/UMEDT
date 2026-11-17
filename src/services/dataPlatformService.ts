@@ -25,12 +25,27 @@ import {
   SignatureAlgorithm,
   TopicArticle,
   TopicCategory,
+  TopicSection,
+  TopicContentBlock,
   VersionBumpStrategy,
   VersionMetadata,
   ZipSecurityInspectionResult,
   ZipSecurityPolicy,
-  ZipSecurityViolationCode
+  ZipSecurityViolationCode,
+  MedicalBlock,
+  MedicalSubject,
+  AcademicBookResource,
+  UnifiedQuizQuestion,
+  AcademicExamPackage,
+  MediaAssetRecord,
+  DataCatalogDocument
 } from '../types/lexicon';
+import {
+  normalizeAcademicBookResource,
+  normalizeAcademicExamPackage,
+  normalizeMediaAssetRecord,
+  normalizeQuizQuestionRecord
+} from './learningHierarchyService';
 
 /**
  * UMED-2 Separated Version Architecture
@@ -394,10 +409,18 @@ function validateTopicEntry(raw: unknown, index: number, errors: string[]): Topi
   const item = raw as Record<string, unknown>;
   const itemErrors: string[] = [];
 
+  const resolvedTitle = isNonEmptyString(item.title)
+    ? String(item.title).trim()
+    : isNonEmptyString(item.titleEn)
+      ? String(item.titleEn).trim()
+      : isNonEmptyString(item.titleAr)
+        ? String(item.titleAr).trim()
+        : '';
+
   if (!isNonEmptyString(item.id)) {
     itemErrors.push(`topics[${index}]: المعرف 'id' مفقود.`);
   }
-  if (!isNonEmptyString(item.title)) {
+  if (!resolvedTitle) {
     itemErrors.push(`topics[${index}]: العنوان 'title' مفقود.`);
   }
   if (!Array.isArray(item.sections)) {
@@ -414,11 +437,40 @@ function validateTopicEntry(raw: unknown, index: number, errors: string[]): Topi
       ? (item.category as TopicCategory)
       : 'Medical';
 
+  const sections: TopicSection[] = (item.sections as Array<Record<string, unknown>>).map(
+    (sec, sIdx) => ({
+      id: isNonEmptyString(sec?.id) ? String(sec.id).trim() : `sec-${index}-${sIdx}`,
+      heading: isNonEmptyString(sec?.heading)
+        ? String(sec.heading).trim()
+        : isNonEmptyString(sec?.headingEn)
+          ? String(sec.headingEn).trim()
+          : isNonEmptyString(sec?.headingAr)
+            ? String(sec.headingAr).trim()
+            : undefined,
+      headingEn: isNonEmptyString(sec?.headingEn) ? String(sec.headingEn).trim() : undefined,
+      headingAr: isNonEmptyString(sec?.headingAr) ? String(sec.headingAr).trim() : undefined,
+      paragraphs: Array.isArray(sec?.paragraphs) ? sec.paragraphs.map(String) : [],
+      ...(Array.isArray(sec?.contentBlocks)
+        ? { contentBlocks: sec.contentBlocks as TopicContentBlock[] }
+        : {})
+    })
+  );
+
   return {
     id: String(item.id).trim(),
-    title: String(item.title).trim(),
+    title: resolvedTitle,
+    ...(isNonEmptyString(item.titleEn) ? { titleEn: String(item.titleEn).trim() } : {}),
+    ...(isNonEmptyString(item.titleAr) ? { titleAr: String(item.titleAr).trim() } : {}),
     subtitle: isNonEmptyString(item.subtitle) ? item.subtitle.trim() : '',
     category: cat,
+    ...(isNonEmptyString(item.blockId) ? { blockId: String(item.blockId).trim() } : {}),
+    ...(isNonEmptyString(item.subjectId) ? { subjectId: String(item.subjectId).trim() } : {}),
+    ...(Array.isArray(item.relatedTopicIds)
+      ? { relatedTopicIds: item.relatedTopicIds.map(String) }
+      : {}),
+    ...(isNonEmptyString(item.lastOpenedAt)
+      ? { lastOpenedAt: String(item.lastOpenedAt).trim() }
+      : {}),
     author: isNonEmptyString(item.author) ? item.author.trim() : 'UMED-2 Editorial',
     publishedAt: isNonEmptyString(item.publishedAt)
       ? item.publishedAt.trim()
@@ -428,11 +480,7 @@ function validateTopicEntry(raw: unknown, index: number, errors: string[]): Topi
         ? item.readingTimeMinutes
         : 5,
     favorite: Boolean(item.favorite),
-    sections: (item.sections as Array<Record<string, unknown>>).map((sec, sIdx) => ({
-      id: isNonEmptyString(sec?.id) ? String(sec.id).trim() : `sec-${index}-${sIdx}`,
-      heading: isNonEmptyString(sec?.heading) ? String(sec.heading).trim() : undefined,
-      paragraphs: Array.isArray(sec?.paragraphs) ? sec.paragraphs.map(String) : []
-    })),
+    sections,
     images: Array.isArray(item.images) ? (item.images as TopicArticle['images']) : [],
     links: Array.isArray(item.links) ? (item.links as TopicArticle['links']) : [],
     attachments: Array.isArray(item.attachments)
@@ -453,7 +501,13 @@ function validateAffixEntry(
   const item = raw as Record<string, unknown>;
   const itemErrors: string[] = [];
 
-  if (!isNonEmptyString(item.affix)) {
+  const affixText = isNonEmptyString(item.affix)
+    ? String(item.affix).trim()
+    : isNonEmptyString(item.morpheme)
+    ? String(item.morpheme).trim()
+    : '';
+
+  if (!affixText) {
     itemErrors.push(`customAffixes[${index}]: الحقل 'affix' مفقود.`);
   }
   if (!isNonEmptyString(item.meaningAr)) {
@@ -471,17 +525,15 @@ function validateAffixEntry(
 
   const cleanKey = isNonEmptyString(item.cleanKey)
     ? item.cleanKey.trim().toLowerCase()
-    : String(item.affix)
-        .replace(/[^a-zA-Z]/g, '')
-        .toLowerCase();
+    : affixText.replace(/[^a-zA-Z]/g, '').toLowerCase();
 
   return {
     id: isNonEmptyString(item.id) ? item.id.trim() : `pkg-affix-${index + 1}-${cleanKey}`,
-    affix: String(item.affix).trim(),
+    affix: affixText,
     cleanKey: cleanKey || 'root',
     type: type as MorphologicalAffix['type'],
     meaningAr: String(item.meaningAr).trim(),
-    meaningEn: isNonEmptyString(item.meaningEn) ? item.meaningEn.trim() : String(item.affix).trim(),
+    meaningEn: isNonEmptyString(item.meaningEn) ? item.meaningEn.trim() : affixText,
     combiningRule: isNonEmptyString(item.combiningRule)
       ? item.combiningRule.trim()
       : 'دمج قياسي للمركبات الطبية (WHO UMD)',
@@ -501,13 +553,24 @@ function validateAbbreviationEntry(
   const item = raw as Record<string, unknown>;
   const itemErrors: string[] = [];
 
+  const expEn = isNonEmptyString(item.defaultExpansionEn)
+    ? String(item.defaultExpansionEn).trim()
+    : isNonEmptyString(item.fullEn)
+    ? String(item.fullEn).trim()
+    : '';
+  const transAr = isNonEmptyString(item.defaultTranslationAr)
+    ? String(item.defaultTranslationAr).trim()
+    : isNonEmptyString(item.fullAr)
+    ? String(item.fullAr).trim()
+    : '';
+
   if (!isNonEmptyString(item.abbr)) {
     itemErrors.push(`customAbbreviations[${index}]: الاختصار 'abbr' مفقود.`);
   }
-  if (!isNonEmptyString(item.defaultExpansionEn)) {
+  if (!expEn) {
     itemErrors.push(`customAbbreviations[${index}]: الحقل 'defaultExpansionEn' مفقود.`);
   }
-  if (!isNonEmptyString(item.defaultTranslationAr)) {
+  if (!transAr) {
     itemErrors.push(`customAbbreviations[${index}]: الحقل 'defaultTranslationAr' مفقود.`);
   }
 
@@ -528,16 +591,16 @@ function validateAbbreviationEntry(
       : `pkg-abbr-${index + 1}-${String(item.abbr).trim().toUpperCase()}`,
     abbr: String(item.abbr).trim(),
     isAmbiguous: Boolean(item.isAmbiguous),
-    defaultExpansionEn: String(item.defaultExpansionEn).trim(),
-    defaultTranslationAr: String(item.defaultTranslationAr).trim(),
+    defaultExpansionEn: expEn,
+    defaultTranslationAr: transAr,
     category: cat,
     priority: typeof item.priority === 'number' ? item.priority : 90,
     candidates: Array.isArray(item.candidates)
       ? (item.candidates as ClinicalAbbreviation['candidates'])
       : [
           {
-            expansionEn: String(item.defaultExpansionEn).trim(),
-            translationAr: String(item.defaultTranslationAr).trim(),
+            expansionEn: expEn,
+            translationAr: transAr,
             specialty: cat,
             triggers: []
           }
@@ -644,12 +707,35 @@ export function validateDataPackageObject(raw: unknown): DataValidationResult {
     ? obj.abbreviations
     : [];
 
+  const rawBlocks = Array.isArray(obj.blocks) ? obj.blocks : [];
+  const rawSubjects = Array.isArray(obj.subjects) ? obj.subjects : [];
+  const rawBooks = Array.isArray(obj.books) ? obj.books : [];
+  const rawQuestions = Array.isArray(obj.questions)
+    ? obj.questions
+    : Array.isArray(obj.quizQuestions)
+    ? obj.quizQuestions
+    : [];
+  const rawExams = Array.isArray(obj.exams) ? obj.exams : [];
+  const rawMediaAssets = Array.isArray(obj.mediaAssets)
+    ? obj.mediaAssets
+    : Array.isArray(obj.mediaIndex)
+    ? obj.mediaIndex
+    : Array.isArray(obj['media-index'])
+    ? obj['media-index']
+    : [];
+
   const totalItems =
     rawTerms.length +
     rawSentences.length +
     rawTopics.length +
     rawAffixes.length +
-    rawAbbreviations.length;
+    rawAbbreviations.length +
+    rawBlocks.length +
+    rawSubjects.length +
+    rawBooks.length +
+    rawQuestions.length +
+    rawExams.length +
+    rawMediaAssets.length;
 
   if (totalItems === 0 && errors.length === 0) {
     errors.push(
@@ -687,6 +773,59 @@ export function validateDataPackageObject(raw: unknown): DataValidationResult {
     const entry = validateAbbreviationEntry(rawAbbreviations[i], i, errors);
     if (entry) validatedAbbreviations.push(entry);
   }
+
+  const validatedBlocks: MedicalBlock[] = rawBlocks
+    .filter((b): b is Record<string, unknown> => Boolean(b && typeof b === 'object' && !Array.isArray(b)))
+    .filter((b) => isNonEmptyString(b.id))
+    .map((b, idx) => ({
+      id: String(b.id).trim(),
+      code: isNonEmptyString(b.code) ? String(b.code).trim() : String(b.id).trim().toUpperCase(),
+      titleEn: isNonEmptyString(b.titleEn) ? String(b.titleEn).trim() : String(b.titleAr || b.id),
+      titleAr: isNonEmptyString(b.titleAr) ? String(b.titleAr).trim() : String(b.titleEn || b.id),
+      descriptionEn: typeof b.descriptionEn === 'string' ? b.descriptionEn : '',
+      descriptionAr: typeof b.descriptionAr === 'string' ? b.descriptionAr : '',
+      colorAccent: typeof b.colorAccent === 'string' ? b.colorAccent : 'emerald',
+      order: typeof b.order === 'number' ? b.order : idx + 1,
+      createdAt: typeof b.createdAt === 'string' ? b.createdAt : new Date().toISOString().slice(0, 10),
+      updatedAt: typeof b.updatedAt === 'string' ? b.updatedAt : new Date().toISOString().slice(0, 10)
+    }));
+
+  const validatedSubjects: MedicalSubject[] = rawSubjects
+    .filter((s): s is Record<string, unknown> => Boolean(s && typeof s === 'object' && !Array.isArray(s)))
+    .filter((s) => isNonEmptyString(s.id))
+    .map((s, idx) => ({
+      id: String(s.id).trim(),
+      code: isNonEmptyString(s.code) ? String(s.code).trim() : String(s.id).trim().toUpperCase(),
+      blockId: isNonEmptyString(s.blockId) ? String(s.blockId).trim() : undefined,
+      isStandalone: typeof s.isStandalone === 'boolean' ? s.isStandalone : !isNonEmptyString(s.blockId),
+      titleEn: isNonEmptyString(s.titleEn) ? String(s.titleEn).trim() : String(s.titleAr || s.id),
+      titleAr: isNonEmptyString(s.titleAr) ? String(s.titleAr).trim() : String(s.titleEn || s.id),
+      descriptionEn: typeof s.descriptionEn === 'string' ? s.descriptionEn : '',
+      descriptionAr: typeof s.descriptionAr === 'string' ? s.descriptionAr : '',
+      order: typeof s.order === 'number' ? s.order : idx + 1,
+      createdAt: typeof s.createdAt === 'string' ? s.createdAt : new Date().toISOString().slice(0, 10),
+      updatedAt: typeof s.updatedAt === 'string' ? s.updatedAt : new Date().toISOString().slice(0, 10)
+    }));
+
+  const validatedBooks: AcademicBookResource[] = rawBooks
+    .filter((bk): bk is Record<string, unknown> => Boolean(bk && typeof bk === 'object' && !Array.isArray(bk)))
+    .filter((bk) => isNonEmptyString(bk.id))
+    .map((bk) => normalizeAcademicBookResource(bk));
+
+  const validatedQuestions: UnifiedQuizQuestion[] = rawQuestions
+    .filter((q): q is Record<string, unknown> => Boolean(q && typeof q === 'object' && !Array.isArray(q)))
+    .filter((q) => isNonEmptyString(q.id) && isNonEmptyString(q.questionEn || q.stemEn || q.question))
+    .map((q, idx) => normalizeQuizQuestionRecord(q, idx));
+
+  const validatedExams: AcademicExamPackage[] = rawExams
+    .filter((ex): ex is Record<string, unknown> => Boolean(ex && typeof ex === 'object' && !Array.isArray(ex)))
+    .filter((ex) => isNonEmptyString(ex.id))
+    .map((ex) => normalizeAcademicExamPackage(ex));
+
+  const validatedMediaAssets: MediaAssetRecord[] = rawMediaAssets
+    .filter((ma): ma is Record<string, unknown> => Boolean(ma && typeof ma === 'object' && !Array.isArray(ma)))
+    .filter((ma) => isNonEmptyString(ma.id))
+    .map((ma) => normalizeMediaAssetRecord(ma));
 
   // Verify declared manifest counts if present
   if (rawManifest.counts && typeof rawManifest.counts === 'object') {
@@ -729,9 +868,48 @@ export function validateDataPackageObject(raw: unknown): DataValidationResult {
       : new Date().toISOString(),
     channel: rawManifest.channel === 'beta' ? 'beta' : 'stable',
     checksum: isNonEmptyString(rawManifest.checksum) ? rawManifest.checksum.trim() : undefined,
+    sha256: isNonEmptyString(rawManifest.sha256) ? rawManifest.sha256.trim() : undefined,
+    signature: typeof rawManifest.signature === 'string' ? rawManifest.signature.trim() : undefined,
     description: isNonEmptyString(rawManifest.description)
       ? rawManifest.description.trim()
       : undefined,
+    packageFormat: isNonEmptyString(rawManifest.packageFormat)
+      ? rawManifest.packageFormat.trim()
+      : undefined,
+    manifestUrl: isNonEmptyString(rawManifest.manifestUrl)
+      ? rawManifest.manifestUrl.trim()
+      : undefined,
+    catalogVersion: isNonEmptyString(rawManifest.catalogVersion)
+      ? rawManifest.catalogVersion.trim()
+      : undefined,
+    filesSha256:
+      rawManifest.filesSha256 && typeof rawManifest.filesSha256 === 'object'
+        ? (rawManifest.filesSha256 as Record<string, string>)
+        : undefined,
+    extendedCounts:
+      rawManifest.extendedCounts && typeof rawManifest.extendedCounts === 'object'
+        ? (rawManifest.extendedCounts as Record<string, number>)
+        : validatedBlocks.length +
+            validatedSubjects.length +
+            validatedBooks.length +
+            validatedQuestions.length +
+            validatedExams.length +
+            validatedMediaAssets.length >
+          0
+        ? {
+            blocks: validatedBlocks.length,
+            subjects: validatedSubjects.length,
+            topics: validatedTopics.length,
+            terms: validatedTerms.length,
+            sentences: validatedSentences.length,
+            customAffixes: validatedAffixes.length,
+            customAbbreviations: validatedAbbreviations.length,
+            books: validatedBooks.length,
+            questions: validatedQuestions.length,
+            exams: validatedExams.length,
+            mediaAssets: validatedMediaAssets.length
+          }
+        : undefined,
     counts: {
       terms: validatedTerms.length,
       sentences: validatedSentences.length,
@@ -757,6 +935,15 @@ export function validateDataPackageObject(raw: unknown): DataValidationResult {
     topics: validatedTopics,
     customAffixes: validatedAffixes,
     customAbbreviations: validatedAbbreviations,
+    ...(validatedBlocks.length > 0 ? { blocks: validatedBlocks } : {}),
+    ...(validatedSubjects.length > 0 ? { subjects: validatedSubjects } : {}),
+    ...(validatedBooks.length > 0 ? { books: validatedBooks } : {}),
+    ...(validatedQuestions.length > 0 ? { questions: validatedQuestions } : {}),
+    ...(validatedExams.length > 0 ? { exams: validatedExams } : {}),
+    ...(validatedMediaAssets.length > 0 ? { mediaAssets: validatedMediaAssets } : {}),
+    ...(obj.catalog && typeof obj.catalog === 'object' && !Array.isArray(obj.catalog)
+      ? { catalog: obj.catalog as DataCatalogDocument }
+      : {}),
     studyStats:
       obj.studyStats && typeof obj.studyStats === 'object' && !Array.isArray(obj.studyStats)
         ? (obj.studyStats as DataPackagePayload['studyStats'])
@@ -1428,9 +1615,23 @@ export async function extractJsonFilesFromZipBytes(
   return jsonFiles;
 }
 
+function extractZipJsonArray(content: unknown, domainKey?: string): unknown[] | null {
+  if (Array.isArray(content)) return content;
+  if (content && typeof content === 'object') {
+    const obj = content as Record<string, unknown>;
+    if (domainKey && Array.isArray(obj[domainKey])) return obj[domainKey] as unknown[];
+    if (Array.isArray(obj.items)) return obj.items as unknown[];
+    if (Array.isArray(obj.records)) return obj.records as unknown[];
+    if (Array.isArray(obj.data)) return obj.data as unknown[];
+  }
+  return null;
+}
+
 /**
- * Combines modular JSON files from a ZIP archive (`manifest.json`, `terms.json`, `sentences.json`,
- * `topics.json`, `affixes.json`, `abbreviations.json`) OR a single unified JSON file inside the ZIP
+ * Combines modular JSON files from a ZIP archive (including all 13 UMEDT-DATA files:
+ * `manifest.json`, `catalog.json`, `terms.json`, `sentences.json`, `topics.json`,
+ * `affixes.json`, `abbreviations.json`, `blocks.json`, `subjects.json`, `books.json`,
+ * `questions.json`, `exams.json`, `media-index.json`) OR a single unified JSON file inside the ZIP
  * into a unified object ready for `validateDataPackageObject`.
  */
 export function assemblePackageFromZipJsonMap(
@@ -1448,25 +1649,63 @@ export function assemblePackageFromZipJsonMap(
 
   const combined: Record<string, unknown> = {};
 
-  for (const [name, content] of Object.entries(jsonFiles)) {
-    if (name === 'manifest.json' && content && typeof content === 'object') {
+  for (const [rawName, content] of Object.entries(jsonFiles)) {
+    const name = (rawName.split('/').pop() || rawName).toLowerCase();
+    if (name === 'manifest.json' && content && typeof content === 'object' && !Array.isArray(content)) {
       combined.manifest = content;
-    } else if (name === 'terms.json' && Array.isArray(content)) {
-      combined.terms = content;
-    } else if (name === 'sentences.json' && Array.isArray(content)) {
-      combined.sentences = content;
-    } else if (name === 'topics.json' && Array.isArray(content)) {
-      combined.topics = content;
+    } else if (name === 'catalog.json' && content && typeof content === 'object' && !Array.isArray(content)) {
+      combined.catalog = content;
+    } else if (name === 'terms.json') {
+      const arr = extractZipJsonArray(content, 'terms');
+      if (arr) combined.terms = arr;
+    } else if (name === 'sentences.json') {
+      const arr = extractZipJsonArray(content, 'sentences');
+      if (arr) combined.sentences = arr;
+    } else if (name === 'topics.json') {
+      const arr = extractZipJsonArray(content, 'topics');
+      if (arr) combined.topics = arr;
     } else if (
-      (name === 'affixes.json' || name === 'customaffixes.json' || name === 'morphology.json') &&
-      Array.isArray(content)
+      name === 'affixes.json' ||
+      name === 'custom-affixes.json' ||
+      name === 'customaffixes.json' ||
+      name === 'morphology.json'
     ) {
-      combined.customAffixes = content;
+      const arr = extractZipJsonArray(content, 'affixes') || extractZipJsonArray(content, 'customAffixes');
+      if (arr) combined.customAffixes = arr;
     } else if (
-      (name === 'abbreviations.json' || name === 'customabbreviations.json') &&
-      Array.isArray(content)
+      name === 'abbreviations.json' ||
+      name === 'custom-abbreviations.json' ||
+      name === 'customabbreviations.json'
     ) {
-      combined.customAbbreviations = content;
+      const arr =
+        extractZipJsonArray(content, 'abbreviations') ||
+        extractZipJsonArray(content, 'customAbbreviations');
+      if (arr) combined.customAbbreviations = arr;
+    } else if (name === 'blocks.json') {
+      const arr = extractZipJsonArray(content, 'blocks');
+      if (arr) combined.blocks = arr;
+    } else if (name === 'subjects.json') {
+      const arr = extractZipJsonArray(content, 'subjects');
+      if (arr) combined.subjects = arr;
+    } else if (name === 'books.json') {
+      const arr = extractZipJsonArray(content, 'books');
+      if (arr) combined.books = arr;
+    } else if (name === 'questions.json' || name === 'quiz-questions.json') {
+      const arr =
+        extractZipJsonArray(content, 'questions') || extractZipJsonArray(content, 'quizQuestions');
+      if (arr) combined.questions = arr;
+    } else if (name === 'exams.json') {
+      const arr = extractZipJsonArray(content, 'exams');
+      if (arr) combined.exams = arr;
+    } else if (
+      name === 'media-index.json' ||
+      name === 'mediaassets.json' ||
+      name === 'media-assets.json' ||
+      name === 'media.json'
+    ) {
+      const arr =
+        extractZipJsonArray(content, 'mediaAssets') || extractZipJsonArray(content, 'media');
+      if (arr) combined.mediaAssets = arr;
     } else if (
       (name === 'data.json' ||
         name === 'package.json' ||
@@ -1485,7 +1724,13 @@ export function assemblePackageFromZipJsonMap(
     !combined.sentences &&
     !combined.topics &&
     !combined.customAffixes &&
-    !combined.customAbbreviations
+    !combined.customAbbreviations &&
+    !combined.blocks &&
+    !combined.subjects &&
+    !combined.books &&
+    !combined.questions &&
+    !combined.exams &&
+    !combined.mediaAssets
   ) {
     for (const content of Object.values(jsonFiles)) {
       if (content && typeof content === 'object' && !Array.isArray(content)) {
@@ -1493,7 +1738,10 @@ export function assemblePackageFromZipJsonMap(
         if (
           Array.isArray(candidate.terms) ||
           Array.isArray(candidate.sentences) ||
-          Array.isArray(candidate.topics)
+          Array.isArray(candidate.topics) ||
+          Array.isArray(candidate.blocks) ||
+          Array.isArray(candidate.books) ||
+          Array.isArray(candidate.questions)
         ) {
           Object.assign(combined, candidate);
         }
@@ -1641,7 +1889,20 @@ export function buildDataPackageZipBytes(payload: DataPackagePayload): Uint8Arra
     'sentences.json': payload.sentences,
     'topics.json': payload.topics,
     'affixes.json': payload.customAffixes,
-    'abbreviations.json': payload.customAbbreviations
+    'abbreviations.json': payload.customAbbreviations,
+    ...(payload.catalog ? { 'catalog.json': payload.catalog } : {}),
+    ...(payload.blocks && payload.blocks.length > 0 ? { 'blocks.json': payload.blocks } : {}),
+    ...(payload.subjects && payload.subjects.length > 0
+      ? { 'subjects.json': payload.subjects }
+      : {}),
+    ...(payload.books && payload.books.length > 0 ? { 'books.json': payload.books } : {}),
+    ...(payload.questions && payload.questions.length > 0
+      ? { 'questions.json': payload.questions }
+      : {}),
+    ...(payload.exams && payload.exams.length > 0 ? { 'exams.json': payload.exams } : {}),
+    ...(payload.mediaAssets && payload.mediaAssets.length > 0
+      ? { 'media-index.json': payload.mediaAssets }
+      : {})
   };
 
   for (const [name, content] of Object.entries(fileMap)) {

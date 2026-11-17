@@ -13,7 +13,10 @@ import {
   DataCatalogDocument,
   UnifiedQuizQuestion,
   MorphologicalAffix,
-  ClinicalAbbreviation
+  ClinicalAbbreviation,
+  ContentTypeRegistryEntry,
+  DynamicCatalogCollection,
+  DynamicCatalogItem
 } from '../types/lexicon';
 import {
   INITIAL_TERMS,
@@ -33,7 +36,11 @@ import {
   saveAcademicExams,
   loadMediaAssetsIndex,
   saveMediaAssetsIndex,
-  enrichAllTopicsWithHierarchy
+  enrichAllTopicsWithHierarchy,
+  normalizeAcademicBookResource,
+  normalizeAcademicExamPackage,
+  normalizeMediaAssetRecord,
+  normalizeQuizQuestionRecord
 } from './learningHierarchyService';
 import { loadQuizQuestions, saveQuizQuestions } from './quizEngineService';
 import { computeSha256Hex } from './dataPlatformService';
@@ -155,14 +162,18 @@ export interface CloudCatalogBookEntry {
   titleEn: string;
   titleAr: string;
   authorsLabel: string;
+  resourceKind?: string;
   fileFormat: string;
   sizeBytes: number;
   sizeLabel: string;
   pageCount?: number;
+  downloadUrl?: string;
   pdfUrl?: string;
   coverUrl?: string;
   isDownloaded: boolean;
   hasOfflineMediaCached: boolean;
+  favorite?: boolean;
+  readingProgressPercent?: number;
   sha256?: string;
   updatedAt?: string;
 }
@@ -182,6 +193,8 @@ export interface UnifiedCloudStoreSnapshot {
   mediaAssets?: MediaAssetRecord[];
   customAffixes?: MorphologicalAffix[];
   customAbbreviations?: ClinicalAbbreviation[];
+  contentTypesRegistry?: ContentTypeRegistryEntry[];
+  dynamicCollections?: DynamicCatalogCollection[];
   collectionHashes?: Record<string, string>;
   catalogVersion?: string;
   hashes: Record<string, string>;
@@ -207,6 +220,9 @@ export interface CloudLibraryStateSummary {
   totalCloudExamsCount?: number;
   catalogVersion?: string;
   books?: CloudCatalogBookEntry[];
+  exams?: AcademicExamPackage[];
+  contentTypesRegistry?: ContentTypeRegistryEntry[];
+  dynamicCollections?: DynamicCatalogCollection[];
   blocks: CloudCatalogBlockEntry[];
   queue: SyncQueueItem[];
 }
@@ -321,15 +337,20 @@ export function computeEntitySizeBytes(entity: unknown): number {
 /**
  * Canonical JSON serialization for stable SHA-256 content hashing (ignores transient UI fields like lastOpenedAt).
  */
+const TRANSIENT_HASH_KEYS = new Set([
+  'lastOpenedAt',
+  'lastStudiedAt',
+  'studyCount',
+  'srsData',
+  'mediaIdbKey',
+  'coverIdbKey',
+  'localCachedPath'
+]);
+
 export function canonicalizeForHash(entityType: CloudEntityType, entity: unknown): string {
   if (!entity || typeof entity !== 'object') {
     return String(entity ?? '');
   }
-  const clone = { ...(entity as Record<string, unknown>) };
-  delete clone.lastOpenedAt;
-  delete clone.lastStudiedAt;
-  delete clone.studyCount;
-  delete clone.srsData;
 
   const sortKeysDeep = (val: unknown): unknown => {
     if (Array.isArray(val)) {
@@ -339,6 +360,7 @@ export function canonicalizeForHash(entityType: CloudEntityType, entity: unknown
       const obj = val as Record<string, unknown>;
       const sorted: Record<string, unknown> = {};
       for (const k of Object.keys(obj).sort()) {
+        if (TRANSIENT_HASH_KEYS.has(k)) continue;
         sorted[k] = sortKeysDeep(obj[k]);
       }
       return sorted;
@@ -346,7 +368,7 @@ export function canonicalizeForHash(entityType: CloudEntityType, entity: unknown
     return val;
   };
 
-  return `${entityType}:${JSON.stringify(sortKeysDeep(clone))}`;
+  return `${entityType}:${JSON.stringify(sortKeysDeep(entity))}`;
 }
 
 /**
@@ -610,6 +632,12 @@ export function loadUnifiedCloudMirror(): UnifiedCloudStoreSnapshot {
           customAbbreviations: Array.isArray(parsed.customAbbreviations)
             ? parsed.customAbbreviations
             : [],
+          contentTypesRegistry: Array.isArray(parsed.contentTypesRegistry)
+            ? parsed.contentTypesRegistry
+            : [],
+          dynamicCollections: Array.isArray(parsed.dynamicCollections)
+            ? parsed.dynamicCollections
+            : [],
           collectionHashes:
             parsed.collectionHashes && typeof parsed.collectionHashes === 'object'
               ? parsed.collectionHashes
@@ -649,6 +677,8 @@ export function loadUnifiedCloudMirror(): UnifiedCloudStoreSnapshot {
     mediaAssets: [],
     customAffixes: [],
     customAbbreviations: [],
+    contentTypesRegistry: [],
+    dynamicCollections: [],
     collectionHashes: {},
     hashes
   };
@@ -696,6 +726,8 @@ export function mergeRecordsIntoCloudSnapshot(
     mediaAssets?: MediaAssetRecord[];
     customAffixes?: MorphologicalAffix[];
     customAbbreviations?: ClinicalAbbreviation[];
+    contentTypesRegistry?: ContentTypeRegistryEntry[];
+    dynamicCollections?: DynamicCatalogCollection[];
     collectionHashes?: Record<string, string>;
     catalogVersion?: string;
   }
@@ -740,13 +772,17 @@ export function mergeRecordsIntoCloudSnapshot(
   for (const rawTopic of incoming.topics || []) {
     if (!rawTopic || !rawTopic.id) continue;
     const cleanTopic = deduplicateTopicMediaAndAttachments(rawTopic);
-    const key = `topic:${cleanTopic.id}`;
-    const hash = computeDeterministicFastHashHex(canonicalizeForHash('topic', cleanTopic));
-    if (nextHashes[key] === hash && topicsMap.has(cleanTopic.id)) {
+    const existingTopic = topicsMap.get(cleanTopic.id);
+    const preservedTopic: TopicArticle = existingTopic
+      ? { ...cleanTopic, favorite: existingTopic.favorite || cleanTopic.favorite }
+      : cleanTopic;
+    const key = `topic:${preservedTopic.id}`;
+    const hash = computeDeterministicFastHashHex(canonicalizeForHash('topic', preservedTopic));
+    if (nextHashes[key] === hash && existingTopic) {
       skippedIdenticalCount += 1;
       continue;
     }
-    topicsMap.set(cleanTopic.id, cleanTopic);
+    topicsMap.set(preservedTopic.id, preservedTopic);
     nextHashes[key] = hash;
     appliedCount += 1;
   }
@@ -761,14 +797,22 @@ export function mergeRecordsIntoCloudSnapshot(
     const resolvedId = termsMap.has(term.id)
       ? term.id
       : termByNormName.get(norm) || term.id;
+    const existingTerm = termsMap.get(resolvedId);
     const normalizedTerm: DictionaryTerm = {
       ...term,
       id: resolvedId,
-      termNormalized: norm
+      termNormalized: norm,
+      favorite: existingTerm ? Boolean(existingTerm.favorite || term.favorite) : Boolean(term.favorite),
+      collections: existingTerm
+        ? Array.from(new Set([...(existingTerm.collections || []), ...(term.collections || [])]))
+        : term.collections || [],
+      srsData: existingTerm?.srsData || term.srsData,
+      lastStudiedAt: existingTerm?.lastStudiedAt || term.lastStudiedAt,
+      studyCount: existingTerm?.studyCount ?? term.studyCount
     };
     const key = `term:${resolvedId}`;
     const hash = computeDeterministicFastHashHex(canonicalizeForHash('term', normalizedTerm));
-    if (nextHashes[key] === hash && termsMap.has(resolvedId)) {
+    if (nextHashes[key] === hash && existingTerm) {
       skippedIdenticalCount += 1;
       continue;
     }
@@ -788,15 +832,18 @@ export function mergeRecordsIntoCloudSnapshot(
     const resolvedId = sentencesMap.has(sen.id)
       ? sen.id
       : sentenceByEn.get(normEn) || sen.id;
+    const existingSen = sentencesMap.get(resolvedId);
     const normalizedSen: LinkedSentence = {
       ...sen,
-      id: resolvedId
+      id: resolvedId,
+      favorite: existingSen ? Boolean(existingSen.favorite || sen.favorite) : Boolean(sen.favorite),
+      srsData: existingSen?.srsData || sen.srsData
     };
     const key = `sentence:${resolvedId}`;
     const hash = computeDeterministicFastHashHex(
       canonicalizeForHash('sentence', normalizedSen)
     );
-    if (nextHashes[key] === hash && sentencesMap.has(resolvedId)) {
+    if (nextHashes[key] === hash && existingSen) {
       skippedIdenticalCount += 1;
       continue;
     }
@@ -825,22 +872,42 @@ export function mergeRecordsIntoCloudSnapshot(
   }
 
   const booksMap = new Map((current.books || []).map((b) => [b.id, b]));
-  for (const book of incoming.books || []) {
-    if (!book || !book.id) continue;
-    const key = `book:${book.id}`;
-    const hash = computeDeterministicFastHashHex(canonicalizeForHash('book', book));
-    if (nextHashes[key] === hash && booksMap.has(book.id)) {
+  for (const rawBook of incoming.books || []) {
+    if (!rawBook || !rawBook.id) continue;
+    const normalizedBook = normalizeAcademicBookResource(
+      rawBook as Partial<AcademicBookResource> & Record<string, unknown>
+    );
+    const existingBook = booksMap.get(normalizedBook.id);
+    const preservedBook: AcademicBookResource = existingBook
+      ? {
+          ...normalizedBook,
+          favorite: existingBook.favorite ?? normalizedBook.favorite,
+          bookmarks: existingBook.bookmarks?.length ? existingBook.bookmarks : normalizedBook.bookmarks,
+          lastReadPage: existingBook.lastReadPage ?? normalizedBook.lastReadPage,
+          readingProgressPercent:
+            existingBook.readingProgressPercent ?? normalizedBook.readingProgressPercent,
+          notes: existingBook.notes ?? normalizedBook.notes,
+          mediaIdbKey: existingBook.mediaIdbKey || normalizedBook.mediaIdbKey,
+          coverIdbKey: existingBook.coverIdbKey || normalizedBook.coverIdbKey
+        }
+      : normalizedBook;
+    const key = `book:${preservedBook.id}`;
+    const hash = computeDeterministicFastHashHex(canonicalizeForHash('book', preservedBook));
+    if (nextHashes[key] === hash && existingBook) {
       skippedIdenticalCount += 1;
       continue;
     }
-    booksMap.set(book.id, book);
+    booksMap.set(preservedBook.id, preservedBook);
     nextHashes[key] = hash;
     appliedCount += 1;
   }
 
   const examsMap = new Map((current.exams || []).map((ex) => [ex.id, ex]));
-  for (const ex of incoming.exams || []) {
-    if (!ex || !ex.id) continue;
+  for (const rawEx of incoming.exams || []) {
+    if (!rawEx || !rawEx.id) continue;
+    const ex = normalizeAcademicExamPackage(
+      rawEx as Partial<AcademicExamPackage> & Record<string, unknown>
+    );
     const key = `exam:${ex.id}`;
     const hash = computeDeterministicFastHashHex(canonicalizeForHash('exam', ex));
     if (nextHashes[key] === hash && examsMap.has(ex.id)) {
@@ -867,8 +934,11 @@ export function mergeRecordsIntoCloudSnapshot(
   }
 
   const mediaAssetsMap = new Map((current.mediaAssets || []).map((ma) => [ma.id, ma]));
-  for (const ma of incoming.mediaAssets || []) {
-    if (!ma || !ma.id) continue;
+  for (const rawMa of incoming.mediaAssets || []) {
+    if (!rawMa || !rawMa.id) continue;
+    const ma = normalizeMediaAssetRecord(
+      rawMa as Partial<MediaAssetRecord> & Record<string, unknown>
+    );
     const key = `media_asset:${ma.id}`;
     const hash = computeDeterministicFastHashHex(canonicalizeForHash('media_asset', ma));
     if (nextHashes[key] === hash && mediaAssetsMap.has(ma.id)) {
@@ -899,6 +969,20 @@ export function mergeRecordsIntoCloudSnapshot(
     abbrMap.set(ab.abbr.toLowerCase(), ab);
   }
 
+  const dynamicColMap = new Map(
+    (current.dynamicCollections || []).map((dc) => [dc.id, dc])
+  );
+  for (const dc of incoming.dynamicCollections || []) {
+    if (!dc || !dc.id) continue;
+    dynamicColMap.set(dc.id, dc);
+    appliedCount += 1;
+  }
+
+  const nextRegistry =
+    incoming.contentTypesRegistry && incoming.contentTypesRegistry.length > 0
+      ? incoming.contentTypesRegistry
+      : current.contentTypesRegistry || [];
+
   const snapshot: UnifiedCloudStoreSnapshot = {
     version: current.version,
     updatedAt: appliedCount > 0 ? new Date().toISOString() : current.updatedAt,
@@ -914,6 +998,8 @@ export function mergeRecordsIntoCloudSnapshot(
     mediaAssets: Array.from(mediaAssetsMap.values()),
     customAffixes: Array.from(affixMap.values()),
     customAbbreviations: Array.from(abbrMap.values()),
+    contentTypesRegistry: nextRegistry,
+    dynamicCollections: Array.from(dynamicColMap.values()),
     collectionHashes: {
       ...(current.collectionHashes || {}),
       ...(incoming.collectionHashes || {})
@@ -1291,10 +1377,40 @@ function extractCollectionArray<T>(raw: unknown, keyHint: string): T[] {
   return [];
 }
 
+function toDynamicCatalogItem(raw: unknown, idx: number): DynamicCatalogItem | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  const id = String(obj.id || obj.code || obj.slug || `dyn-${Date.now()}-${idx}`);
+  return {
+    id,
+    titleEn: typeof obj.titleEn === 'string' ? obj.titleEn : typeof obj.title === 'string' ? obj.title : typeof obj.name === 'string' ? obj.name : id,
+    titleAr: typeof obj.titleAr === 'string' ? obj.titleAr : typeof obj.nameAr === 'string' ? obj.nameAr : typeof obj.title === 'string' ? obj.title : undefined,
+    subtitleEn: typeof obj.subtitleEn === 'string' ? obj.subtitleEn : typeof obj.subtitle === 'string' ? obj.subtitle : undefined,
+    subtitleAr: typeof obj.subtitleAr === 'string' ? obj.subtitleAr : undefined,
+    summaryEn: typeof obj.summaryEn === 'string' ? obj.summaryEn : typeof obj.descriptionEn === 'string' ? obj.descriptionEn : undefined,
+    summaryAr: typeof obj.summaryAr === 'string' ? obj.summaryAr : typeof obj.descriptionAr === 'string' ? obj.descriptionAr : undefined,
+    descriptionEn: typeof obj.descriptionEn === 'string' ? obj.descriptionEn : undefined,
+    descriptionAr: typeof obj.descriptionAr === 'string' ? obj.descriptionAr : undefined,
+    blockId: typeof obj.blockId === 'string' ? obj.blockId : undefined,
+    subjectId: typeof obj.subjectId === 'string' ? obj.subjectId : undefined,
+    topicId: typeof obj.topicId === 'string' ? obj.topicId : undefined,
+    downloadUrl: typeof obj.downloadUrl === 'string' ? obj.downloadUrl : typeof obj.pdfUrl === 'string' ? obj.pdfUrl : undefined,
+    rawUrl: typeof obj.rawUrl === 'string' ? obj.rawUrl : typeof obj.url === 'string' ? obj.url : undefined,
+    url: typeof obj.url === 'string' ? obj.url : typeof obj.rawUrl === 'string' ? obj.rawUrl : undefined,
+    mimeType: typeof obj.mimeType === 'string' ? obj.mimeType : undefined,
+    sha256: typeof obj.sha256 === 'string' ? obj.sha256 : undefined,
+    sizeBytes: typeof obj.sizeBytes === 'number' ? obj.sizeBytes : undefined,
+    tags: Array.isArray(obj.tags) ? obj.tags.map((t) => String(t)) : undefined,
+    updatedAt: typeof obj.updatedAt === 'string' ? obj.updatedAt : undefined,
+    rawPayload: obj
+  };
+}
+
 /**
  * Reads the external GitHub UMEDT-DATA repository via its canonical `data/catalog.json` entrypoint,
  * compares collection SHA-256 digests against cached hashes so unchanged files are skipped,
- * and returns parsed collections for all supported UMEDT-DATA schemas.
+ * dynamically inspects `contentTypesRegistry` + `collections`, and returns parsed collections for all
+ * core and newly discovered UMEDT-DATA schemas.
  */
 export async function syncFromUmedtDataRepository(options?: {
   catalogUrl?: string;
@@ -1303,6 +1419,7 @@ export async function syncFromUmedtDataRepository(options?: {
 }): Promise<{
   fetched: boolean;
   catalogVersion?: string;
+  contentTypesRegistry?: ContentTypeRegistryEntry[];
   updatedCollectionsCount: number;
   skippedCollectionsCount: number;
   collectionHashes: Record<string, string>;
@@ -1318,6 +1435,8 @@ export async function syncFromUmedtDataRepository(options?: {
     exams?: AcademicExamPackage[];
     quizQuestions?: UnifiedQuizQuestion[];
     mediaAssets?: MediaAssetRecord[];
+    contentTypesRegistry?: ContentTypeRegistryEntry[];
+    dynamicCollections?: DynamicCatalogCollection[];
   };
 }> {
   const fetchFn =
@@ -1359,6 +1478,15 @@ export async function syncFromUmedtDataRepository(options?: {
     };
   }
 
+  const registryEntries: ContentTypeRegistryEntry[] = Array.isArray(
+    catalog.contentTypesRegistry
+  )
+    ? catalog.contentTypesRegistry
+    : [];
+  const registryByType = new Map(
+    registryEntries.map((r) => [r.contentType.toLowerCase(), r])
+  );
+
   const nextHashes = { ...prevHashes };
   const incoming: {
     blocks?: MedicalBlock[];
@@ -1372,7 +1500,11 @@ export async function syncFromUmedtDataRepository(options?: {
     exams?: AcademicExamPackage[];
     quizQuestions?: UnifiedQuizQuestion[];
     mediaAssets?: MediaAssetRecord[];
-  } = {};
+    contentTypesRegistry?: ContentTypeRegistryEntry[];
+    dynamicCollections?: DynamicCatalogCollection[];
+  } = {
+    contentTypesRegistry: registryEntries
+  };
 
   let updatedCollectionsCount = 0;
   let skippedCollectionsCount = 0;
@@ -1396,49 +1528,146 @@ export async function syncFromUmedtDataRepository(options?: {
       continue;
     }
 
-    // Verify per-collection SHA-256 if provided by catalog
+    // Verify per-collection SHA-256 strictly when 64-hex digest is provided by catalog
     if (expectedHash && /^[0-9a-f]{64}$/i.test(expectedHash)) {
       const actualHash = await computeSha256Hex(new TextEncoder().encode(rawText));
       if (actualHash.toLowerCase() !== expectedHash.toLowerCase()) {
-        // Still allow if JSON parses cleanly when upstream catalog wasn't regenerated after manual edit
-        // but keep actualHash recorded so next sync checks accurately
-        nextHashes[col.id] = actualHash;
-      } else {
-        nextHashes[col.id] = expectedHash;
+        console.warn(
+          `[UMEDT-DATA] SHA-256 mismatch for collection "${col.id}": expected ${expectedHash}, got ${actualHash}. Skipping corrupted payload.`
+        );
+        continue;
       }
+      nextHashes[col.id] = expectedHash;
     } else if (expectedHash) {
       nextHashes[col.id] = expectedHash;
     }
 
     const idLower = col.id.toLowerCase();
     const ctLower = (col.contentType || '').toLowerCase();
-    const rtLower = (col.rendererType || '').toLowerCase();
+    const regEntry = registryByType.get(ctLower);
+    const rtLower = (
+      col.rendererType ||
+      regEntry?.rendererType ||
+      ''
+    ).toLowerCase();
 
-    if (idLower === 'blocks' || ctLower === 'blocks' || rtLower === 'block_hub') {
+    if (
+      idLower === 'blocks' ||
+      ctLower === 'block' ||
+      ctLower === 'blocks' ||
+      rtLower === 'block_hub' ||
+      rtLower === 'hierarchy_grid'
+    ) {
       incoming.blocks = extractCollectionArray<MedicalBlock>(parsedJson, 'blocks');
-    } else if (idLower === 'subjects' || ctLower === 'subjects' || rtLower === 'subject_list') {
+    } else if (
+      idLower === 'subjects' ||
+      ctLower === 'subject' ||
+      ctLower === 'subjects' ||
+      rtLower === 'subject_list'
+    ) {
       incoming.subjects = extractCollectionArray<MedicalSubject>(parsedJson, 'subjects');
-    } else if (idLower === 'topics' || ctLower === 'topics' || rtLower === 'topic_article') {
+    } else if (
+      idLower === 'topics' ||
+      ctLower === 'topic' ||
+      ctLower === 'topics' ||
+      rtLower === 'topic_article' ||
+      rtLower === 'rich_article'
+    ) {
       incoming.topics = extractCollectionArray<TopicArticle>(parsedJson, 'topics');
-    } else if (idLower === 'terms' || ctLower === 'terms' || rtLower === 'lexicon_term') {
+    } else if (
+      idLower === 'terms' ||
+      ctLower === 'term' ||
+      ctLower === 'terms' ||
+      rtLower === 'lexicon_term' ||
+      rtLower === 'lexicon_entry'
+    ) {
       incoming.terms = extractCollectionArray<DictionaryTerm>(parsedJson, 'terms');
-    } else if (idLower === 'sentences' || ctLower === 'sentences' || rtLower === 'bilingual_sentence') {
+    } else if (
+      idLower === 'sentences' ||
+      ctLower === 'sentence' ||
+      ctLower === 'sentences' ||
+      rtLower === 'bilingual_sentence' ||
+      rtLower === 'sentence_pair'
+    ) {
       incoming.sentences = extractCollectionArray<LinkedSentence>(parsedJson, 'sentences');
-    } else if (idLower.includes('affix') || rtLower === 'morphology_rule') {
+    } else if (
+      idLower.includes('affix') ||
+      ctLower === 'affix' ||
+      ctLower === 'affixes' ||
+      rtLower === 'morphology_rule'
+    ) {
       incoming.customAffixes = extractCollectionArray<MorphologicalAffix>(parsedJson, 'affixes');
-    } else if (idLower.includes('abbr') || rtLower === 'clinical_abbr') {
+    } else if (
+      idLower.includes('abbr') ||
+      ctLower === 'abbreviation' ||
+      ctLower === 'abbreviations' ||
+      rtLower === 'clinical_abbr' ||
+      rtLower === 'abbreviation_rule'
+    ) {
       incoming.customAbbreviations = extractCollectionArray<ClinicalAbbreviation>(
         parsedJson,
         'abbreviations'
       );
-    } else if (idLower === 'books' || ctLower === 'books' || rtLower === 'book_pdf_reader') {
-      incoming.books = extractCollectionArray<AcademicBookResource>(parsedJson, 'books');
-    } else if (idLower === 'questions' || ctLower === 'questions' || rtLower === 'quiz_runner') {
-      incoming.quizQuestions = extractCollectionArray<UnifiedQuizQuestion>(parsedJson, 'questions');
-    } else if (idLower === 'exams' || ctLower === 'exams' || rtLower === 'exam_blueprint') {
-      incoming.exams = extractCollectionArray<AcademicExamPackage>(parsedJson, 'exams');
-    } else if (idLower.includes('media') || rtLower === 'media_gallery') {
-      incoming.mediaAssets = extractCollectionArray<MediaAssetRecord>(parsedJson, 'mediaAssets');
+    } else if (
+      idLower === 'books' ||
+      ctLower === 'book' ||
+      ctLower === 'books' ||
+      rtLower === 'book_pdf_reader'
+    ) {
+      incoming.books = extractCollectionArray<
+        Partial<AcademicBookResource> & Record<string, unknown>
+      >(parsedJson, 'books').map((b) => normalizeAcademicBookResource(b));
+    } else if (
+      idLower === 'questions' ||
+      ctLower === 'question' ||
+      ctLower === 'questions' ||
+      rtLower === 'quiz_runner' ||
+      rtLower === 'quiz_question'
+    ) {
+      incoming.quizQuestions = extractCollectionArray<Record<string, unknown>>(
+        parsedJson,
+        'questions'
+      ).map((q, qIdx) => normalizeQuizQuestionRecord(q, qIdx));
+    } else if (
+      idLower === 'exams' ||
+      ctLower === 'exam' ||
+      ctLower === 'exams' ||
+      rtLower === 'exam_blueprint'
+    ) {
+      incoming.exams = extractCollectionArray<
+        Partial<AcademicExamPackage> & Record<string, unknown>
+      >(parsedJson, 'exams').map((ex) => normalizeAcademicExamPackage(ex));
+    } else if (
+      idLower.includes('media') ||
+      ctLower === 'media' ||
+      ctLower === 'media_asset' ||
+      rtLower === 'media_gallery'
+    ) {
+      incoming.mediaAssets = extractCollectionArray<
+        Partial<MediaAssetRecord> & Record<string, unknown>
+      >(parsedJson, 'mediaAssets').map((ma) => normalizeMediaAssetRecord(ma));
+    } else {
+      // Unknown or extensible future collection type -> auto-discover as dynamicCollection (`generic_card` fallback)
+      const rawItems = extractCollectionArray<unknown>(parsedJson, col.id);
+      const dynItems = rawItems
+        .map((item, idx) => toDynamicCatalogItem(item, idx))
+        .filter((x): x is DynamicCatalogItem => x !== null);
+      if (!incoming.dynamicCollections) incoming.dynamicCollections = [];
+      incoming.dynamicCollections.push({
+        id: col.id,
+        name: col.name,
+        contentType: col.contentType || col.id,
+        rendererType: (col.rendererType || regEntry?.rendererType || 'generic_card') as
+          | 'generic_card'
+          | string,
+        displayNameAr: regEntry?.displayNameAr || col.name || col.id,
+        displayNameEn: regEntry?.displayNameEn || col.name || col.id,
+        rawUrl: col.rawUrl,
+        sha256: expectedHash || undefined,
+        recordCount: col.recordCount ?? dynItems.length,
+        sizeBytes: col.sizeBytes,
+        items: dynItems
+      });
     }
 
     updatedCollectionsCount += 1;
@@ -1447,6 +1676,7 @@ export async function syncFromUmedtDataRepository(options?: {
   return {
     fetched: true,
     catalogVersion: catalog.catalogVersion,
+    contentTypesRegistry: registryEntries,
     updatedCollectionsCount,
     skippedCollectionsCount,
     collectionHashes: nextHashes,
@@ -1472,8 +1702,29 @@ export async function syncWithRemoteCloudLibrary(params: {
   autoMergedSentences: LinkedSentence[];
   autoMergedBlocks: MedicalBlock[];
   autoMergedSubjects: MedicalSubject[];
+  autoMergedAffixes: MorphologicalAffix[];
+  autoMergedAbbreviations: ClinicalAbbreviation[];
   newUpdatesApplied: number;
 }> {
+  const loadLocalAffixes = (): MorphologicalAffix[] => {
+    try {
+      const raw = getSafeStorage().getItem('dictengine_umd_custom_affixes_v2');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+  const loadLocalAbbreviations = (): ClinicalAbbreviation[] => {
+    try {
+      const raw = getSafeStorage().getItem('dictengine_umd_custom_abbreviations_v2');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
   if (!isCloudSyncOnline()) {
     const offlineMirror = loadUnifiedCloudMirror();
     return {
@@ -1483,6 +1734,8 @@ export async function syncWithRemoteCloudLibrary(params: {
       autoMergedSentences: params.localSentences,
       autoMergedBlocks: loadMedicalBlocks(),
       autoMergedSubjects: loadMedicalSubjects(),
+      autoMergedAffixes: loadLocalAffixes(),
+      autoMergedAbbreviations: loadLocalAbbreviations(),
       newUpdatesApplied: 0
     };
   }
@@ -1514,8 +1767,8 @@ export async function syncWithRemoteCloudLibrary(params: {
         catalogVersion: umedtRes.catalogVersion
       });
       saveUnifiedCloudMirror(mergedUmedt.snapshot);
-      if (umedtRes.incoming.mediaAssets && umedtRes.incoming.mediaAssets.length > 0) {
-        saveMediaAssetsIndex(mergedUmedt.snapshot.mediaAssets || []);
+      if (mergedUmedt.snapshot.mediaAssets && mergedUmedt.snapshot.mediaAssets.length > 0) {
+        saveMediaAssetsIndex(mergedUmedt.snapshot.mediaAssets);
       }
       fetchedRemoteSnapshot = true;
     }
@@ -1628,6 +1881,50 @@ export async function syncWithRemoteCloudLibrary(params: {
   }
   const autoMergedSubjects = Array.from(localSubjMap.values()).sort((a, b) => a.order - b.order);
 
+  const preserveTopicOfflineMediaKeys = (
+    incomingTopic: TopicArticle,
+    existingTopic: TopicArticle
+  ): TopicArticle => {
+    const oldMediaKeyByCbId = new Map<string, string>();
+    for (const sec of existingTopic.sections || []) {
+      for (const cb of sec.contentBlocks || []) {
+        if (cb.id && cb.mediaIdbKey) oldMediaKeyByCbId.set(cb.id, cb.mediaIdbKey);
+      }
+    }
+    const oldImgKeyById = new Map(
+      (existingTopic.images || [])
+        .filter((img) => img.id && img.mediaIdbKey)
+        .map((img) => [img.id, img.mediaIdbKey!])
+    );
+    const oldAttKeyById = new Map(
+      (existingTopic.attachments || [])
+        .filter((att) => att.id && att.mediaIdbKey)
+        .map((att) => [att.id, att.mediaIdbKey!])
+    );
+    return {
+      ...incomingTopic,
+      favorite: existingTopic.favorite,
+      lastOpenedAt: existingTopic.lastOpenedAt || incomingTopic.lastOpenedAt,
+      sections: (incomingTopic.sections || []).map((sec) => ({
+        ...sec,
+        contentBlocks: sec.contentBlocks
+          ? sec.contentBlocks.map((cb) => ({
+              ...cb,
+              mediaIdbKey: cb.mediaIdbKey || oldMediaKeyByCbId.get(cb.id)
+            }))
+          : undefined
+      })),
+      images: (incomingTopic.images || []).map((img) => ({
+        ...img,
+        mediaIdbKey: img.mediaIdbKey || oldImgKeyById.get(img.id)
+      })),
+      attachments: (incomingTopic.attachments || []).map((att) => ({
+        ...att,
+        mediaIdbKey: att.mediaIdbKey || oldAttKeyById.get(att.id)
+      }))
+    };
+  };
+
   const localTopicMap = new Map(params.localTopics.map((t) => [t.id, t]));
   for (const ct of mirror.topics) {
     if (
@@ -1642,7 +1939,7 @@ export async function syncWithRemoteCloudLibrary(params: {
     const localHash = computeDeterministicFastHashHex(canonicalizeForHash('topic', existing));
     const cloudHash = computeDeterministicFastHashHex(canonicalizeForHash('topic', ct));
     if (localHash !== cloudHash) {
-      localTopicMap.set(ct.id, { ...ct, favorite: existing.favorite });
+      localTopicMap.set(ct.id, preserveTopicOfflineMediaKeys(ct, existing));
       newUpdatesApplied += 1;
     }
   }
@@ -1662,7 +1959,12 @@ export async function syncWithRemoteCloudLibrary(params: {
         localTermMap.set(ctm.id, {
           ...ctm,
           favorite: existing.favorite,
-          srsData: existing.srsData || ctm.srsData
+          collections: Array.from(
+            new Set([...(existing.collections || []), ...(ctm.collections || [])])
+          ),
+          srsData: existing.srsData || ctm.srsData,
+          lastStudiedAt: existing.lastStudiedAt || ctm.lastStudiedAt,
+          studyCount: existing.studyCount ?? ctm.studyCount
         });
         newUpdatesApplied += 1;
       }
@@ -1674,9 +1976,145 @@ export async function syncWithRemoteCloudLibrary(params: {
   for (const csn of mirror.sentences) {
     if (!localSentenceMap.has(csn.id)) {
       localSentenceMap.set(csn.id, csn);
+    } else {
+      const prev = localSentenceMap.get(csn.id)!;
+      if (prev.favorite || prev.srsData) {
+        localSentenceMap.set(csn.id, {
+          ...csn,
+          favorite: prev.favorite,
+          srsData: prev.srsData || csn.srsData
+        });
+      }
     }
   }
   const autoMergedSentences = Array.from(localSentenceMap.values());
+
+  // Sync Affixes & Abbreviations from Unified Cloud Mirror into local lexicon dictionaries
+  const localAffixesList = loadLocalAffixes();
+  const affixMap = new Map<string, MorphologicalAffix>(
+    localAffixesList.map((a) => [`${(a.cleanKey || a.affix).toLowerCase()}_${a.type}`, a])
+  );
+  let affixesChanged = false;
+  for (const af of mirror.customAffixes || []) {
+    if (!af || !af.affix) continue;
+    const key = `${(af.cleanKey || af.affix).toLowerCase()}_${af.type}`;
+    if (!affixMap.has(key)) {
+      affixMap.set(key, af);
+      affixesChanged = true;
+      newUpdatesApplied += 1;
+    }
+  }
+  const autoMergedAffixes = Array.from(affixMap.values());
+  if (affixesChanged) {
+    getSafeStorage().setItem(
+      'dictengine_umd_custom_affixes_v2',
+      JSON.stringify(autoMergedAffixes)
+    );
+  }
+
+  const localAbbrsList = loadLocalAbbreviations();
+  const abbrMap = new Map<string, ClinicalAbbreviation>(
+    localAbbrsList.map((a) => [a.abbr.toLowerCase(), a])
+  );
+  let abbrsChanged = false;
+  for (const ab of mirror.customAbbreviations || []) {
+    if (!ab || !ab.abbr) continue;
+    const key = ab.abbr.toLowerCase();
+    if (!abbrMap.has(key)) {
+      abbrMap.set(key, ab);
+      abbrsChanged = true;
+      newUpdatesApplied += 1;
+    }
+  }
+  const autoMergedAbbreviations = Array.from(abbrMap.values());
+  if (abbrsChanged) {
+    getSafeStorage().setItem(
+      'dictengine_umd_custom_abbreviations_v2',
+      JSON.stringify(autoMergedAbbreviations)
+    );
+  }
+
+  // Update already-downloaded local Books, Exams, and Quiz Questions linked to downloaded hierarchy
+  const localBooks = loadAcademicBooks();
+  const localBookIdsSet = new Set(localBooks.map((b) => b.id));
+  let booksUpdated = false;
+  const nextLocalBooks = localBooks.map((existingBk) => {
+    const cloudBk = (mirror.books || []).find((b) => b.id === existingBk.id);
+    if (!cloudBk) return existingBk;
+    const localH = computeDeterministicFastHashHex(canonicalizeForHash('book', existingBk));
+    const cloudH = computeDeterministicFastHashHex(canonicalizeForHash('book', cloudBk));
+    if (localH === cloudH) return existingBk;
+    booksUpdated = true;
+    newUpdatesApplied += 1;
+    return {
+      ...cloudBk,
+      favorite: existingBk.favorite ?? cloudBk.favorite,
+      bookmarks: existingBk.bookmarks?.length ? existingBk.bookmarks : cloudBk.bookmarks,
+      lastReadPage: existingBk.lastReadPage ?? cloudBk.lastReadPage,
+      readingProgressPercent:
+        existingBk.readingProgressPercent ?? cloudBk.readingProgressPercent,
+      notes: existingBk.notes ?? cloudBk.notes,
+      mediaIdbKey: existingBk.mediaIdbKey || cloudBk.mediaIdbKey,
+      coverIdbKey: existingBk.coverIdbKey || cloudBk.coverIdbKey
+    };
+  });
+  if (booksUpdated) {
+    saveAcademicBooks(nextLocalBooks);
+  }
+
+  const downloadedBlockIds = new Set(autoMergedBlocks.map((b) => b.id));
+  const downloadedSubjectIds = new Set(autoMergedSubjects.map((s) => s.id));
+  const downloadedTopicIds = new Set(autoMergedTopics.map((t) => t.id));
+  const hasDownloadedHierarchy =
+    downloadedBlockIds.size > 0 || downloadedSubjectIds.size > 0 || downloadedTopicIds.size > 0;
+
+  if (hasDownloadedHierarchy && (mirror.quizQuestions || []).length > 0) {
+    const matchingQuestions = (mirror.quizQuestions || []).filter(
+      (q) =>
+        (q.topicId && downloadedTopicIds.has(q.topicId)) ||
+        (q.subjectId && downloadedSubjectIds.has(q.subjectId)) ||
+        (q.blockId && downloadedBlockIds.has(q.blockId))
+    );
+    if (matchingQuestions.length > 0) {
+      const currentQuestions = loadQuizQuestions(autoMergedTopics, autoMergedTerms);
+      const qMap = new Map(currentQuestions.map((q) => [q.id, q]));
+      let qChanged = false;
+      for (const mq of matchingQuestions) {
+        if (!qMap.has(mq.id)) {
+          qMap.set(mq.id, mq);
+          qChanged = true;
+        }
+      }
+      if (qChanged) {
+        saveQuizQuestions(Array.from(qMap.values()));
+      }
+    }
+  }
+
+  if (hasDownloadedHierarchy && (mirror.exams || []).length > 0) {
+    const removedExamsSet = new Set(removed.exams || []);
+    const matchingExams = (mirror.exams || []).filter(
+      (ex) =>
+        !removedExamsSet.has(ex.id) &&
+        ((ex.blockId && downloadedBlockIds.has(ex.blockId)) ||
+          (ex.subjectId && downloadedSubjectIds.has(ex.subjectId)) ||
+          (ex.topicIds || []).some((tid) => downloadedTopicIds.has(tid)))
+    );
+    if (matchingExams.length > 0 || localBookIdsSet.size > 0) {
+      const currentExams = loadAcademicExams();
+      const exMap = new Map(currentExams.map((e) => [e.id, e]));
+      let exChanged = false;
+      for (const ex of matchingExams) {
+        if (!exMap.has(ex.id)) {
+          exMap.set(ex.id, ex);
+          exChanged = true;
+        }
+      }
+      if (exChanged) {
+        saveAcademicExams(Array.from(exMap.values()));
+      }
+    }
+  }
 
   if (newUpdatesApplied > 0) {
     saveMedicalBlocks(autoMergedBlocks);
@@ -1691,6 +2129,8 @@ export async function syncWithRemoteCloudLibrary(params: {
     autoMergedSentences,
     autoMergedBlocks,
     autoMergedSubjects,
+    autoMergedAffixes,
+    autoMergedAbbreviations,
     newUpdatesApplied
   };
 }
@@ -1951,6 +2391,18 @@ export function buildCloudLibraryCatalogView(params: {
     const sz = bk.sizeBytes || computeEntitySizeBytes(bk);
     if (isDl) localTotalBytes += computeEntitySizeBytes(localBk || bk);
     cloudTotalBytes += sz;
+    const resolvedDocUrl =
+      localBk?.downloadUrl ||
+      localBk?.pdfUrl ||
+      bk.downloadUrl ||
+      bk.pdfUrl ||
+      bk.mediaUrl ||
+      bk.externalUrl;
+    const resolvedFormat = (
+      bk.format ||
+      bk.fileFormat ||
+      (resolvedDocUrl?.toLowerCase().includes('.epub') ? 'epub' : 'pdf')
+    ).toUpperCase();
     return {
       id: bk.id,
       blockId: bk.blockId,
@@ -1958,14 +2410,18 @@ export function buildCloudLibraryCatalogView(params: {
       titleEn: bk.titleEn,
       titleAr: bk.titleAr || bk.titleEn,
       authorsLabel: Array.isArray(bk.authors) ? bk.authors.join('، ') : '',
-      fileFormat: (bk.fileFormat || 'pdf').toUpperCase(),
+      resourceKind: bk.resourceKind,
+      fileFormat: resolvedFormat,
       sizeBytes: sz,
       sizeLabel: formatBytesLabel(sz),
       pageCount: bk.pageCount,
-      pdfUrl: bk.pdfUrl || bk.mediaUrl || bk.externalUrl,
+      downloadUrl: resolvedDocUrl,
+      pdfUrl: resolvedDocUrl,
       coverUrl: bk.coverUrl,
       isDownloaded: isDl,
       hasOfflineMediaCached: Boolean(localBk?.mediaIdbKey),
+      favorite: localBk?.favorite ?? bk.favorite,
+      readingProgressPercent: localBk?.readingProgressPercent ?? bk.readingProgressPercent,
       sha256: bk.sha256,
       updatedAt: bk.updatedAt
     };
@@ -2009,6 +2465,9 @@ export function buildCloudLibraryCatalogView(params: {
     totalCloudExamsCount: (mirror.exams || []).length,
     catalogVersion: mirror.catalogVersion,
     books: bookEntries,
+    exams: mirror.exams || [],
+    contentTypesRegistry: mirror.contentTypesRegistry || [],
+    dynamicCollections: mirror.dynamicCollections || [],
     blocks: blockEntries,
     queue
   };
@@ -2030,10 +2489,11 @@ async function resolveAndCacheRemoteUrlForEntity(params: {
   }
 
   const matchedAsset = (params.mediaAssets || []).find(
-    (ma) => ma.url === cleanUrl || ma.id === params.preferredIdbKey
+    (ma) => ma.url === cleanUrl || ma.rawUrl === cleanUrl || ma.id === params.preferredIdbKey
   );
   const stableId =
     params.preferredIdbKey ||
+    matchedAsset?.mediaIdbKey ||
     `idb-${computeDeterministicFastHashHex(cleanUrl).slice(0, 16)}`;
 
   const existing = await getLocalMediaRecord(stableId);
@@ -2151,18 +2611,36 @@ export async function downloadCloudLibraryTarget(params: {
     }
 
     const existingBooks = loadAcademicBooks();
+    const existingBook = existingBooks.find((b) => b.id === targetBook.id);
     let downloadedMediaCount = 0;
     let skippedIdenticalCount = 0;
     let bytesDownloaded = 0;
-    let nextBook: AcademicBookResource = { ...targetBook };
+    const nextBook: AcademicBookResource = {
+      ...targetBook,
+      ...(existingBook
+        ? {
+            favorite: existingBook.favorite ?? targetBook.favorite,
+            bookmarks: existingBook.bookmarks?.length ? existingBook.bookmarks : targetBook.bookmarks,
+            lastReadPage: existingBook.lastReadPage ?? targetBook.lastReadPage,
+            readingProgressPercent:
+              existingBook.readingProgressPercent ?? targetBook.readingProgressPercent,
+            notes: existingBook.notes ?? targetBook.notes
+          }
+        : {})
+    };
 
-    const mainDocUrl = targetBook.pdfUrl || targetBook.mediaUrl || targetBook.externalUrl;
+    const mainDocUrl =
+      targetBook.downloadUrl || targetBook.pdfUrl || targetBook.mediaUrl || targetBook.externalUrl;
     if (mainDocUrl && /^https?:\/\//i.test(mainDocUrl)) {
       const pdfCacheRes = await resolveAndCacheRemoteUrlForEntity({
         url: mainDocUrl,
         preferredIdbKey: targetBook.mediaIdbKey,
-        fileName: `${targetBook.id}.${(targetBook.fileFormat || 'pdf').toLowerCase()}`,
-        mimeType: targetBook.fileFormat === 'epub' ? 'application/epub+zip' : 'application/pdf',
+        fileName: `${targetBook.id}.${(targetBook.format || targetBook.fileFormat || 'pdf').toLowerCase()}`,
+        mimeType:
+          targetBook.mimeType ||
+          ((targetBook.format || targetBook.fileFormat) === 'epub'
+            ? 'application/epub+zip'
+            : 'application/pdf'),
         mediaAssets: mirror.mediaAssets,
         customFetch: params.customFetch
       });
@@ -2360,9 +2838,94 @@ export async function downloadCloudLibraryTarget(params: {
       })
     );
 
+    // Prefetch external images & attachments on topic level as well
+    const updatedImages = await Promise.all(
+      (tp.images || []).map(async (img) => {
+        const candidateUrl =
+          img.externalUrl && /^https?:\/\//i.test(img.externalUrl)
+            ? img.externalUrl
+            : /^https?:\/\//i.test(img.url || '')
+              ? img.url
+              : '';
+        if (!candidateUrl) return img;
+        const cached = await resolveAndCacheRemoteUrlForEntity({
+          url: candidateUrl,
+          preferredIdbKey: img.mediaIdbKey,
+          topicId: tp.id,
+          fileName: img.fileName || img.caption,
+          mimeType: img.mimeType,
+          mediaAssets: mirror.mediaAssets,
+          customFetch: params.customFetch
+        });
+        if (cached.cachedNew) {
+          downloadedMediaCount += 1;
+          bytesDownloaded += cached.sizeBytes;
+        } else if (cached.skippedDuplicate) {
+          skippedIdenticalCount += 1;
+        }
+        return cached.idbKey ? { ...img, mediaIdbKey: cached.idbKey } : img;
+      })
+    );
+
+    const updatedAttachments = await Promise.all(
+      (tp.attachments || []).map(async (att) => {
+        const candidateUrl =
+          att.externalUrl && /^https?:\/\//i.test(att.externalUrl)
+            ? att.externalUrl
+            : /^https?:\/\//i.test(att.contentDataUrlOrText || '')
+              ? att.contentDataUrlOrText
+              : '';
+        if (!candidateUrl) return att;
+        const cached = await resolveAndCacheRemoteUrlForEntity({
+          url: candidateUrl,
+          preferredIdbKey: att.mediaIdbKey,
+          topicId: tp.id,
+          fileName: att.fileName,
+          mimeType: att.mimeType || att.fileType,
+          mediaAssets: mirror.mediaAssets,
+          customFetch: params.customFetch
+        });
+        if (cached.cachedNew) {
+          downloadedMediaCount += 1;
+          bytesDownloaded += cached.sizeBytes;
+        } else if (cached.skippedDuplicate) {
+          skippedIdenticalCount += 1;
+        }
+        return cached.idbKey ? { ...att, mediaIdbKey: cached.idbKey } : att;
+      })
+    );
+
+    // Prefetch any media-index assets linked to this topic via linkedEntityType/linkedEntityId or topicId
+    const linkedMediaAssets = (mirror.mediaAssets || []).filter(
+      (ma) =>
+        ma.topicId === tp.id ||
+        (ma.linkedEntityType === 'topic' && ma.linkedEntityId === tp.id)
+    );
+    for (const ma of linkedMediaAssets) {
+      const assetUrl = ma.url || ma.rawUrl || '';
+      if (!assetUrl || !/^https?:\/\//i.test(assetUrl)) continue;
+      const cached = await resolveAndCacheRemoteUrlForEntity({
+        url: assetUrl,
+        preferredIdbKey: ma.mediaIdbKey,
+        topicId: tp.id,
+        fileName: ma.fileName || ma.titleEn || ma.id,
+        mimeType: ma.mimeType,
+        mediaAssets: mirror.mediaAssets,
+        customFetch: params.customFetch
+      });
+      if (cached.cachedNew) {
+        downloadedMediaCount += 1;
+        bytesDownloaded += cached.sizeBytes;
+      } else if (cached.skippedDuplicate) {
+        skippedIdenticalCount += 1;
+      }
+    }
+
     const updatedTopicWithCachedMedia: TopicArticle = {
       ...tp,
-      sections: updatedSections
+      sections: updatedSections,
+      images: updatedImages,
+      attachments: updatedAttachments
     };
 
     const existing = nextTopicsMap.get(updatedTopicWithCachedMedia.id);
@@ -2401,6 +2964,10 @@ export async function downloadCloudLibraryTarget(params: {
   }
   const updatedTopics = Array.from(nextTopicsMap.values());
 
+  if ((mirror.mediaAssets || []).length > 0) {
+    saveMediaAssetsIndex(mirror.mediaAssets || []);
+  }
+
   // 4. Merge Linked Terms & Sentences for these topics/subjects/blocks with SHA-256 deduplication
   const targetSubjIds = new Set(targetSubjects.map((s) => s.id));
   const targetBlockIds = new Set(targetBlocks.map((b) => b.id));
@@ -2430,7 +2997,7 @@ export async function downloadCloudLibraryTarget(params: {
   }
   const updatedTerms = Array.from(nextTermsMap.values());
 
-  // 4b. Sync linked Questions, Exams & Books associated with this Block/Subject/Topic
+  // 4b. Sync linked Questions, Exams & Books associated with this Block/Subject/Topic + prefetch offline media
   const matchingCloudQuestions = (mirror.quizQuestions || []).filter(
     (q) =>
       (q.topicId && targetTopicIds.has(q.topicId)) ||
@@ -2440,8 +3007,58 @@ export async function downloadCloudLibraryTarget(params: {
   if (matchingCloudQuestions.length > 0) {
     const existingQuestions = loadQuizQuestions(updatedTopics, updatedTerms);
     const qMap = new Map(existingQuestions.map((q) => [q.id, q]));
-    for (const q of matchingCloudQuestions) qMap.set(q.id, q);
+    for (const q of matchingCloudQuestions) {
+      qMap.set(q.id, q);
+      if (q.imageUrl && /^https?:\/\//i.test(q.imageUrl)) {
+        const qImgRes = await resolveAndCacheRemoteUrlForEntity({
+          url: q.imageUrl,
+          topicId: q.topicId,
+          fileName: `${q.id}-diagram`,
+          mediaAssets: mirror.mediaAssets,
+          customFetch: params.customFetch
+        });
+        if (qImgRes.cachedNew) {
+          downloadedMediaCount += 1;
+          bytesDownloaded += qImgRes.sizeBytes;
+        } else if (qImgRes.skippedDuplicate) {
+          skippedIdenticalCount += 1;
+        }
+      }
+    }
     saveQuizQuestions(Array.from(qMap.values()));
+  }
+
+  // Prefetch subject/block/question-level mediaAssets from media-index.json
+  const targetQuestionIds = new Set(matchingCloudQuestions.map((q) => q.id));
+  const extraHierarchyMedia = (mirror.mediaAssets || []).filter((ma) => {
+    const lt = (ma.linkedEntityType || '').toLowerCase();
+    const lid = ma.linkedEntityId || '';
+    return (
+      (ma.subjectId && targetSubjIds.has(ma.subjectId)) ||
+      (ma.blockId && targetBlockIds.has(ma.blockId)) ||
+      (lt === 'subject' && targetSubjIds.has(lid)) ||
+      (lt === 'block' && targetBlockIds.has(lid)) ||
+      (lt === 'question' && targetQuestionIds.has(lid))
+    );
+  });
+  for (const ma of extraHierarchyMedia) {
+    const assetUrl = ma.url || ma.rawUrl || '';
+    if (!assetUrl || !/^https?:\/\//i.test(assetUrl)) continue;
+    const cached = await resolveAndCacheRemoteUrlForEntity({
+      url: assetUrl,
+      preferredIdbKey: ma.mediaIdbKey,
+      topicId: ma.topicId,
+      fileName: ma.fileName || ma.titleEn || ma.id,
+      mimeType: ma.mimeType,
+      mediaAssets: mirror.mediaAssets,
+      customFetch: params.customFetch
+    });
+    if (cached.cachedNew) {
+      downloadedMediaCount += 1;
+      bytesDownloaded += cached.sizeBytes;
+    } else if (cached.skippedDuplicate) {
+      skippedIdenticalCount += 1;
+    }
   }
 
   const matchingCloudExams = (mirror.exams || []).filter(

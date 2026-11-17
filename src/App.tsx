@@ -96,9 +96,13 @@ import {
 import {
   saveMedicalBlocks,
   saveMedicalSubjects,
+  loadAcademicBooks,
   saveAcademicBooks,
   saveAcademicExams,
-  saveMediaAssetsIndex
+  saveMediaAssetsIndex,
+  loadUserStudyNotes,
+  saveUserStudyNotes,
+  normalizeAcademicBookResource
 } from './services/learningHierarchyService';
 import { saveQuizQuestions, saveQuizAttempts } from './services/quizEngineService';
 import {
@@ -737,12 +741,23 @@ export default function App() {
   useEffect(() => {
     setCloudSyncSimulatedOffline(simulatedOffline);
     if (!simulatedOffline) {
-      void processCloudSyncQueue().then(() => {
-        void syncWithRemoteCloudLibrary({
+      void processCloudSyncQueue().then(async () => {
+        const res = await syncWithRemoteCloudLibrary({
           localTopics: topics,
           localTerms: terms,
           localSentences: sentences
         });
+        if (res.newUpdatesApplied > 0) {
+          setTopics(res.autoMergedTopics);
+          setTerms(res.autoMergedTerms);
+          setSentences(res.autoMergedSentences);
+          if (res.autoMergedAffixes.length > 0) {
+            setCustomAffixes(res.autoMergedAffixes);
+          }
+          if (res.autoMergedAbbreviations.length > 0) {
+            setCustomAbbreviations(res.autoMergedAbbreviations);
+          }
+        }
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -753,11 +768,22 @@ export default function App() {
     const runCloudSyncCycle = async () => {
       if (simulatedOffline) return;
       await processCloudSyncQueue();
-      await syncWithRemoteCloudLibrary({
+      const res = await syncWithRemoteCloudLibrary({
         localTopics: topics,
         localTerms: terms,
         localSentences: sentences
       });
+      if (res.newUpdatesApplied > 0) {
+        setTopics(res.autoMergedTopics);
+        setTerms(res.autoMergedTerms);
+        setSentences(res.autoMergedSentences);
+        if (res.autoMergedAffixes.length > 0) {
+          setCustomAffixes(res.autoMergedAffixes);
+        }
+        if (res.autoMergedAbbreviations.length > 0) {
+          setCustomAbbreviations(res.autoMergedAbbreviations);
+        }
+      }
     };
 
     const handleOnline = () => {
@@ -1478,13 +1504,41 @@ export default function App() {
           saveMedicalSubjects(inner.subjects);
         }
         if (Array.isArray(inner.books) && inner.books.length > 0) {
-          saveAcademicBooks(inner.books);
+          const existingBookById = new Map(loadAcademicBooks().map((b) => [b.id, b]));
+          const normalizedBooks = inner.books.map((rawBk: Record<string, unknown>) => {
+            const nb = normalizeAcademicBookResource(rawBk);
+            const prevBk = existingBookById.get(nb.id);
+            if (!prevBk) return nb;
+            return {
+              ...nb,
+              favorite: prevBk.favorite ?? nb.favorite,
+              bookmarks: prevBk.bookmarks?.length ? prevBk.bookmarks : nb.bookmarks,
+              lastReadPage: prevBk.lastReadPage ?? nb.lastReadPage,
+              readingProgressPercent:
+                prevBk.readingProgressPercent ?? nb.readingProgressPercent,
+              notes: prevBk.notes ?? nb.notes,
+              mediaIdbKey: prevBk.mediaIdbKey || nb.mediaIdbKey,
+              coverIdbKey: prevBk.coverIdbKey || nb.coverIdbKey
+            };
+          });
+          saveAcademicBooks(normalizedBooks);
         }
         if (Array.isArray(inner.exams) && inner.exams.length > 0) {
           saveAcademicExams(inner.exams);
         }
         if (Array.isArray(inner.mediaAssets) && inner.mediaAssets.length > 0) {
           saveMediaAssetsIndex(inner.mediaAssets);
+        }
+        if (Array.isArray(inner.userNotes) && inner.userNotes.length > 0) {
+          const notesMap = new Map(loadUserStudyNotes().map((n) => [n.id, n]));
+          for (const incomingNote of inner.userNotes) {
+            if (!incomingNote || !incomingNote.id) continue;
+            const prevNote = notesMap.get(incomingNote.id);
+            if (!prevNote || (incomingNote.updatedAt || '') > (prevNote.updatedAt || '')) {
+              notesMap.set(incomingNote.id, incomingNote);
+            }
+          }
+          saveUserStudyNotes(Array.from(notesMap.values()));
         }
         if (Array.isArray(inner.quizQuestions || inner.questions)) {
           const qArr = inner.quizQuestions || inner.questions;
@@ -1986,7 +2040,8 @@ export default function App() {
       topics,
       'نسخة احتياطية فورية',
       studyStats,
-      versionMetadata
+      versionMetadata,
+      { simulatedOffline }
     );
     if (res.ok && res.summary) {
       const fresh = loadTelegramBackupConfig();
@@ -2408,11 +2463,19 @@ export default function App() {
             onSyncStateUpdated={({
               topics: nextTopics,
               terms: nextTerms,
-              sentences: nextSentences
+              sentences: nextSentences,
+              customAffixes: nextAffixes,
+              customAbbreviations: nextAbbreviations
             }) => {
               setTopics(nextTopics);
               setTerms(nextTerms);
               setSentences(nextSentences);
+              if (nextAffixes && nextAffixes.length > 0) {
+                setCustomAffixes(nextAffixes);
+              }
+              if (nextAbbreviations && nextAbbreviations.length > 0) {
+                setCustomAbbreviations(nextAbbreviations);
+              }
               triggerTelegramAutoSync('تحديث المكتبة السحابية', {
                 topics: nextTopics,
                 terms: nextTerms,

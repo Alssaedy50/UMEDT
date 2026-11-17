@@ -12,7 +12,11 @@ import {
   downloadRemotePackageBytes,
   verifyPublisherKeyPairMatch,
   signPackageBytesWithPrivateKey,
-  verifyPackageSignature
+  verifyPackageSignature,
+  assemblePackageFromZipJsonMap,
+  validateDataPackageObject,
+  buildDataPackageZipBytes,
+  computeSha256Hex
 } from '../src/services/dataPlatformService';
 import {
   DEFAULT_ONLINE_UPDATE_CONFIG,
@@ -59,7 +63,13 @@ import {
   loadMedicalSubjects,
   loadAcademicBooks,
   loadAcademicExams,
-  loadMediaAssetsIndex
+  loadMediaAssetsIndex,
+  loadUserStudyNotes,
+  saveUserStudyNotes,
+  saveBookReadingProgress,
+  toggleBookFavorite,
+  normalizeMediaAssetRecord,
+  saveAcademicBooks
 } from '../src/services/learningHierarchyService';
 import {
   saveLocalMediaRecord,
@@ -79,10 +89,14 @@ import {
   setCloudSyncSimulatedOffline,
   syncWithRemoteCloudLibrary,
   syncFromUmedtDataRepository,
+  loadUnifiedCloudMirror,
+  saveUnifiedCloudMirror,
+  mergeRecordsIntoCloudSnapshot,
   buildCloudLibraryCatalogView,
   downloadCloudLibraryTarget,
   deleteCloudLibraryTargetLocally,
-  clearLocallyRemovedRegistry
+  clearLocallyRemovedRegistry,
+  canonicalizeForHash
 } from '../src/services/cloudLibrarySyncService';
 import { importUniversalAiOrLocalContent } from '../src/services/aiUniversalImportService';
 import {
@@ -96,7 +110,8 @@ import {
   createUnifiedBackupPackage,
   sendBackupToTelegram,
   scheduleDebouncedTelegramAutoSync,
-  flushPendingTelegramAutoSync
+  flushPendingTelegramAutoSync,
+  uploadPendingMediaToTelegramChannel
 } from '../src/services/telegramBackupService';
 import {
   generateStandaloneHtmlDocument,
@@ -2698,8 +2713,763 @@ async function main() {
   console.log(
     '[PASS] 18. UMEDT-DATA Repository Sync & Incremental Hash Skip, Offline Book/Media Prefetch, Universal AI/Local Markdown/JSON Importer with User-State Protection, Sanitized Interactive Standalone HTML/ZIP Export, and Complete Telegram Backup Package Verified'
   );
+
+  // =========================================================================
+  // 19. UMEDT-DATA v2 Auto-Discovery, Normalized Media/Books/Exams, Offline Notes,
+  //     and SHA-256 Deduplicated Telegram Media Upload (Preserving Channel Media)
+  // =========================================================================
+  const v2MockSvgUrl = 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/media/ecg_lead_map.svg';
+  const v2MockSvgBody = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 40"><rect width="100" height="40" fill="#10b981"/></svg>';
+  const v2MockCatalog = {
+    schemaVersion: '2.0.0',
+    catalogVersion: '2026.11.0-v2',
+    updatedAt: new Date().toISOString(),
+    contentTypesRegistry: [
+      { contentType: 'block', displayNameEn: 'Blocks', displayNameAr: 'البلوكات', rendererType: 'block_card', supportsDownload: true },
+      { contentType: 'flashcard_deck', displayNameEn: 'Flashcards', displayNameAr: 'بطاقات استذكار', rendererType: 'generic_card', supportsDownload: true }
+    ],
+    collections: [
+      {
+        id: 'topics',
+        contentType: 'topic',
+        rendererType: 'topic_article',
+        rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/topics.json',
+        sha256: 'h-topics-v2'
+      },
+      {
+        id: 'books',
+        contentType: 'book',
+        rendererType: 'book_pdf_reader',
+        rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/books.json',
+        sha256: 'h-books-v2'
+      },
+      {
+        id: 'exams',
+        contentType: 'exam',
+        rendererType: 'exam_blueprint',
+        rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/exams.json',
+        sha256: 'h-exams-v2'
+      },
+      {
+        id: 'media',
+        contentType: 'media',
+        rendererType: 'media_gallery',
+        rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/media-index.json',
+        sha256: 'h-media-v2'
+      },
+      {
+        id: 'flashcards',
+        contentType: 'flashcard_deck',
+        rendererType: 'generic_card',
+        rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/flashcards.json',
+        sha256: 'h-flashcards-v2'
+      }
+    ]
+  };
+
+  const originalFetchForV2 = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const urlStr = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    if (urlStr.includes('/catalog.json')) {
+      return new Response(JSON.stringify(v2MockCatalog), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (urlStr.includes('/topics.json')) {
+      return new Response(
+        JSON.stringify([
+          {
+            id: 'topic-v2-ecg',
+            blockId: 'blk-ai-neuro',
+            subjectId: 'subj-ai-neuro',
+            title: 'ECG Essentials v2',
+            titleEn: 'ECG Essentials v2',
+            titleAr: 'أساسيات تخطيط القلب v2',
+            subtitle: '12-Lead Interpretation',
+            sections: [
+              {
+                id: 'sec-v2-1',
+                headingEn: 'Lead Groups',
+                headingAr: 'مجموعات المساري',
+                paragraphs: ['Limb and precordial leads assess depolarization vectors.']
+              }
+            ]
+          }
+        ]),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    if (urlStr.includes('/books.json')) {
+      return new Response(
+        JSON.stringify([
+          {
+            id: 'book-v2-ecg',
+            titleEn: 'ECG Pocket Atlas',
+            titleAr: 'أطلس تخطيط القلب المختصر',
+            blockId: 'blk-ai-neuro',
+            downloadUrl: mockBookPdfUrl,
+            format: 'pdf',
+            resourceKind: 'reference_book',
+            publicationYear: 2026
+          }
+        ]),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    if (urlStr.includes('/exams.json')) {
+      return new Response(
+        JSON.stringify([
+          {
+            id: 'exam-v2-ecg',
+            titleEn: 'ECG Mastery Quiz',
+            titleAr: 'اختبار قراءة التخطيط',
+            topicIds: ['topic-v2-ecg'],
+            questionIds: ['q-ai-1'],
+            passingScorePercent: 80,
+            durationMinutes: 15
+          }
+        ]),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    if (urlStr.includes('/media-index.json')) {
+      return new Response(
+        JSON.stringify([
+          {
+            id: 'media-v2-svg-1',
+            titleEn: 'ECG Lead Diagram',
+            titleAr: 'مخطط مساري القلب',
+            kind: 'svg',
+            format: 'svg',
+            rawUrl: v2MockSvgUrl,
+            linkedEntityType: 'topic',
+            linkedEntityId: 'topic-v2-ecg'
+          }
+        ]),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    if (urlStr.includes('/flashcards.json')) {
+      return new Response(
+        JSON.stringify([
+          {
+            id: 'fc-v2-1',
+            titleEn: 'Murmurs High-Yield Deck',
+            titleAr: 'ملخص النفخات القلبية',
+            descriptionAr: 'مجموعة مكتشفة تلقائياً عبر contentTypesRegistry'
+          }
+        ]),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    if (urlStr === v2MockSvgUrl) {
+      return new Response(v2MockSvgBody, { status: 200, headers: { 'Content-Type': 'image/svg+xml' } });
+    }
+    if (urlStr === mockBookPdfUrl) {
+      return new Response(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/pdf' }
+      });
+    }
+    return new Response(JSON.stringify({}), { status: 404 });
+  }) as typeof fetch;
+
+  try {
+    const v2Sync = await syncFromUmedtDataRepository({
+      currentCollectionHashes: {}
+    });
+    const mergedV2 = mergeRecordsIntoCloudSnapshot(loadUnifiedCloudMirror(), v2Sync.incoming);
+    saveUnifiedCloudMirror(mergedV2.snapshot);
+
+    assertCondition(
+      v2Sync.fetched &&
+        Boolean(mergedV2.snapshot.books?.some(
+          (b) =>
+            b.id === 'book-v2-ecg' &&
+            b.downloadUrl === mockBookPdfUrl &&
+            b.pdfUrl === mockBookPdfUrl &&
+            b.format === 'pdf'
+        )) &&
+        Boolean(mergedV2.snapshot.exams?.some(
+          (ex) =>
+            ex.id === 'exam-v2-ecg' &&
+            ex.passingScorePercent === 80 &&
+            ex.passingPercent === 80
+        )) &&
+        Boolean(mergedV2.snapshot.mediaAssets?.some(
+          (ma) =>
+            ma.id === 'media-v2-svg-1' &&
+            ma.rawUrl === v2MockSvgUrl &&
+            ma.topicId === 'topic-v2-ecg'
+        )) &&
+        (mergedV2.snapshot.dynamicCollections || []).some(
+          (col) => col.id === 'flashcards' && col.items.length === 1
+        ),
+      'UMEDT-DATA v2 parser must normalize downloadUrl books, passingScorePercent exams, rawUrl+linkedEntityId media-index, and auto-discover unknown collections'
+    );
+
+    const v2CatalogView = buildCloudLibraryCatalogView({
+      localTopics: loadAppState().topics,
+      localTerms: loadAppState().terms,
+      localSentences: loadAppState().sentences
+    });
+    assertCondition(
+      v2CatalogView.dynamicCollections.some((c) => c.id === 'flashcards' && c.rendererType === 'generic_card'),
+      'buildCloudLibraryCatalogView must expose auto-discovered collections with generic_card renderer'
+    );
+
+    // Offline download of topic-v2-ecg must prefetch linked media-index SVG into IndexedDB
+    const topicV2Download = await downloadCloudLibraryTarget({
+      targetType: 'topic',
+      targetId: 'topic-v2-ecg',
+      currentTopics: loadAppState().topics,
+      currentTerms: loadAppState().terms,
+      currentSentences: loadAppState().sentences
+    });
+    const svgCacheKey = `idb-${computeDeterministicFastHashHex(v2MockSvgUrl).slice(0, 16)}`;
+    const cachedSvgRec = await getLocalMediaRecord(svgCacheKey);
+    assertCondition(
+      topicV2Download.success &&
+        Boolean(cachedSvgRec) &&
+        loadMediaAssetsIndex().some((m) => m.id === 'media-v2-svg-1'),
+      'Downloading a cloud topic must prefetch its linked media-index.json SVG asset into IndexedDB'
+    );
+
+    // Book user-state preservation across cloud/AI merge + UserStudyNote standalone export & Telegram backup
+    await downloadCloudLibraryTarget({
+      targetType: 'book',
+      targetId: 'book-v2-ecg',
+      currentTopics: topicV2Download.updatedTopics,
+      currentTerms: topicV2Download.updatedTerms,
+      currentSentences: topicV2Download.updatedSentences
+    });
+    toggleBookFavorite('book-v2-ecg');
+    saveBookReadingProgress('book-v2-ecg', { lastReadPage: 42, readingProgressPercent: 68 });
+    saveUserStudyNotes([
+      {
+        id: 'note-v2-1',
+        entityType: 'topic',
+        entityId: 'topic-v2-ecg',
+        content: 'مراجعة مسار تفعيل الجلطة خلال 4.5 ساعات',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    ]);
+
+    // Trigger re-sync of v2 catalog and verify local book user progress wasn't clobbered when merged
+    const mergedBookSnapshot = await downloadCloudLibraryTarget({
+      targetType: 'book',
+      targetId: 'book-v2-ecg',
+      currentTopics: topicV2Download.updatedTopics,
+      currentTerms: topicV2Download.updatedTerms,
+      currentSentences: topicV2Download.updatedSentences
+    });
+    const localV2Book = loadAcademicBooks().find((b) => b.id === 'book-v2-ecg');
+    assertCondition(
+      mergedBookSnapshot.success &&
+        localV2Book?.favorite === true &&
+        localV2Book?.lastReadPage === 42 &&
+        localV2Book?.readingProgressPercent === 68 &&
+        loadUserStudyNotes().some((n) => n.id === 'note-v2-1'),
+      'Cloud sync/download must strictly preserve book favorite, lastReadPage, readingProgressPercent, and userNotes'
+    );
+
+    const v2StandaloneHtml = await generateStandaloneHtmlDocument({
+      scope: 'topic',
+      topic: topicV2Download.updatedTopics.find((t) => t.id === 'topic-v2-ecg')!,
+      allTopics: topicV2Download.updatedTopics,
+      allTerms: topicV2Download.updatedTerms,
+      allQuestions: [],
+      books: loadAcademicBooks(),
+      exams: loadAcademicExams(),
+      mediaAssets: loadMediaAssetsIndex(),
+      userNotes: loadUserStudyNotes(),
+      includeLocalMedia: true
+    });
+    assertCondition(
+      v2StandaloneHtml.htmlText.includes('ECG Lead Diagram') &&
+        v2StandaloneHtml.htmlText.includes('مراجعة مسار تفعيل الجلطة'),
+      'Standalone HTML export must embed linked media-index assets and userNotes for offline viewing'
+    );
+
+    // Telegram SHA-256 deduplicated media upload + backup rotation isolation
+    const tgActions: Array<{ method: string; messageId?: number }> = [];
+    let tgMsgCounter = 500;
+    const mockTgFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.endsWith('/sendDocument')) {
+        tgMsgCounter += 1;
+        tgActions.push({ method: 'sendDocument', messageId: tgMsgCounter });
+        return new Response(JSON.stringify({ ok: true, result: { message_id: tgMsgCounter } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (url.endsWith('/deleteMessage')) {
+        const parsedBody = init?.body ? JSON.parse(String(init.body)) : {};
+        tgActions.push({ method: 'deleteMessage', messageId: Number(parsedBody.message_id) });
+        return new Response(JSON.stringify({ ok: true, result: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      return new Response(JSON.stringify({ ok: false }), { status: 400 });
+    }) as typeof fetch;
+
+    const tgCfgSaved = saveTelegramBackupConfig({
+      enabled: true,
+      botToken: '123456:TEST_TOKEN_SECRET_XYZ_999',
+      chatId: '-100999888777',
+      schedule: 'on_change',
+      includeTopicsAndHierarchy: true,
+      includeDictionaryAndTerms: true,
+      includeQuizzesAndStats: true,
+      includeMediaFilesOnSync: true,
+      syncedMediaSha256Map: {},
+      appBackupMessageIds: [111]
+    });
+
+    const sampleMediaMap = new Map([
+      [
+        svgCacheKey,
+        {
+          id: svgCacheKey,
+          topicId: 'topic-ai-stroke',
+          mediaType: 'image' as const,
+          fileName: 'ecg_lead_map.svg',
+          mimeType: 'image/svg+xml',
+          sizeBytes: v2MockSvgBody.length,
+          dataUrl: `data:image/svg+xml;base64,${Buffer.from(v2MockSvgBody).toString('base64')}`,
+          createdAt: new Date().toISOString()
+        }
+      ]
+    ]);
+
+    const firstMediaSync = await uploadPendingMediaToTelegramChannel(tgCfgSaved, {
+      customFetch: mockTgFetch,
+      mediaMapOverride: sampleMediaMap
+    });
+    const secondMediaSync = await uploadPendingMediaToTelegramChannel(loadTelegramBackupConfig(), {
+      customFetch: mockTgFetch,
+      mediaMapOverride: sampleMediaMap
+    });
+    const afterMediaCfg = loadTelegramBackupConfig();
+    assertCondition(
+      firstMediaSync.ok &&
+        firstMediaSync.uploadedCount === 1 &&
+        secondMediaSync.ok &&
+        secondMediaSync.uploadedCount === 0 &&
+        secondMediaSync.skippedDeduplicatedCount === 1 &&
+        !afterMediaCfg.appBackupMessageIds?.includes(501),
+      'Telegram media sync must deduplicate via SHA-256 and never add uploaded media message_id to appBackupMessageIds'
+    );
+
+    const backupSyncRes = await sendBackupToTelegram(
+      afterMediaCfg,
+      topicV2Download.updatedTerms,
+      topicV2Download.updatedSentences,
+      topicV2Download.updatedTopics,
+      'اختبار الحفاظ على الوسائط',
+      undefined,
+      undefined,
+      { customFetch: mockTgFetch }
+    );
+    assertCondition(
+      backupSyncRes.ok &&
+        Boolean(backupSyncRes.deletedPreviousMessageIds?.includes(111)) &&
+        !tgActions.some((a) => a.method === 'deleteMessage' && a.messageId === 501),
+      'Telegram JSON backup rotation must delete old JSON backup ID (111) while NEVER deleting channel media message ID (501)'
+    );
+  } finally {
+    globalThis.fetch = originalFetchForV2;
+  }
+
+  console.log(
+    '[PASS] 19. UMEDT-DATA v2 Auto-Discovery, Normalized Media/Books/Exams, Offline Note & Media Prefetch, User Progress Preservation, and SHA-256 Deduplicated Telegram Media Sync Verified'
+  );
+
+  // ==========================================================================
+  // 20. UMEDT-DATA 13-File ZIP Assembly, Extended Atomic Import & User-Field
+  //     Preservation, Media Kind Fallback, Canonical Hash Stability, Strict
+  //     64-Hex SHA-256 Rejection & Affix/Abbreviation Cloud Propagation
+  // ==========================================================================
+  const umedt13ZipJsonMap: Record<string, unknown> = {
+    'manifest.json': {
+      dataVersion: '2026.12.9-umd',
+      schemaVersion: DB_SCHEMA_VERSION,
+      packageFormat: 'umedt-data-bundle-v2',
+      createdAt: new Date().toISOString(),
+      counts: { terms: 1, sentences: 1, topics: 1, customAffixes: 1, customAbbreviations: 1 }
+    },
+    'catalog.json': {
+      catalogVersion: '2026.12.9-umd',
+      collections: [{ id: 'blocks', name: 'Blocks', contentType: 'block', rawUrl: 'https://example.invalid/blocks.json' }]
+    },
+    'blocks.json': {
+      items: [
+        {
+          id: 'blk-sec20',
+          code: 'BLK-SEC20',
+          titleEn: 'Cardiopulmonary Integration Block',
+          titleAr: 'بلوك التكامل القلبي الرئوي',
+          order: 10
+        }
+      ]
+    },
+    'subjects.json': {
+      items: [
+        {
+          id: 'subj-sec20',
+          blockId: 'blk-sec20',
+          code: 'SUBJ-SEC20',
+          titleEn: 'Pulmonary Physiology',
+          titleAr: 'فسيولوجيا الرئة',
+          order: 1
+        }
+      ]
+    },
+    'topics.json': {
+      items: [
+        {
+          id: 'topic-sec20-v2',
+          title: 'Ventilation-Perfusion Matching — مطابقة التهوية والتروية',
+          titleEn: 'Ventilation-Perfusion Matching',
+          titleAr: 'مطابقة التهوية والتروية',
+          subtitle: 'اختبار التوافق الشامل',
+          category: 'Medical',
+          blockId: 'blk-sec20',
+          subjectId: 'subj-sec20',
+          author: 'UMEDT-DATA',
+          publishedAt: '2026-12-01',
+          readingTimeMinutes: 7,
+          favorite: false,
+          sections: [
+            {
+              id: 'sec-vq-1',
+              heading: 'Zones of West',
+              headingEn: 'Zones of West',
+              headingAr: 'مناطق ويست الرئوية',
+              paragraphs: ['Updated remote V/Q clinical explanation.'],
+              contentBlocks: [
+                {
+                  id: 'cb-vq-1',
+                  type: 'clinical_pearl',
+                  order: 1,
+                  titleEn: 'Zone 1 Dead Space',
+                  titleAr: 'المنطقة الأولى الحيز الميت',
+                  contentEn: 'PA > Pa > Pv in alveolar overdistension.'
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    'terms.json': {
+      items: [
+        {
+          id: 'term-sec20-1',
+          term: 'Atelectasis',
+          termNormalized: 'atelectasis',
+          translation: 'انخماص الرئة',
+          phonetic: '/ˌætɪˈlɛktəsɪs/',
+          pos: 'Noun',
+          category: 'Medical',
+          specialty: 'Pulmonology',
+          definitionAr: 'انهيار جزئي أو كلي للحويصلات الهوائية.',
+          definitionEn: 'Complete or partial collapse of a lung or lobe.',
+          keepEnglish: false,
+          favorite: false,
+          collections: ['Pulmonology'],
+          ingestedAt: new Date().toISOString(),
+          examples: [],
+          relations: { synonyms: [], broader: [], related: [] }
+        }
+      ]
+    },
+    'sentences.json': {
+      items: [
+        {
+          id: 'sent-sec20-1',
+          termId: 'term-sec20-1',
+          en: 'Postoperative atelectasis commonly causes early fever within 24 hours.',
+          ar: 'يسبب انخماص الرئة بعد الجراحة حمى مبكرة خلال 24 ساعة.',
+          specialty: 'Pulmonology'
+        }
+      ]
+    },
+    'affixes.json': {
+      items: [
+        {
+          id: 'aff-sec20-ectasis',
+          morpheme: '-ectasis',
+          type: 'Suffix',
+          origin: 'Greek',
+          meaningAr: 'توسع أو تمدد',
+          meaningEn: 'dilation or expansion',
+          exampleTerm: 'Bronchiectasis',
+          exampleTranslation: 'توسع القصبات',
+          isCustom: true
+        }
+      ]
+    },
+    'abbreviations.json': {
+      items: [
+        {
+          id: 'abbr-sec20-peep',
+          abbr: 'PEEP',
+          fullEn: 'Positive End-Expiratory Pressure',
+          fullAr: 'الضغط الإيجابي في نهاية الزفير',
+          specialty: 'Critical Care',
+          notes: 'Recruits collapsed alveoli.',
+          isCustom: true
+        }
+      ]
+    },
+    'books.json': {
+      items: [
+        {
+          id: 'book-sec20-1',
+          titleEn: 'Pulmonary Casebook',
+          titleAr: 'مرجع أمراض الرئة السريري',
+          blockId: 'blk-sec20',
+          subjectId: 'subj-sec20',
+          downloadUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/media/books/pulm.pdf',
+          format: 'pdf'
+        }
+      ]
+    },
+    'questions.json': {
+      items: [
+        {
+          id: 'q-sec20-1',
+          stemEn: 'Which West zone exhibits PA > Pa > Pv?',
+          questionAr: 'أي منطقة من مناطق ويست يكون فيها PA > Pa > Pv؟',
+          options: [
+            { key: 'A', textEn: 'Zone 1', textAr: 'المنطقة 1' },
+            { key: 'B', textEn: 'Zone 3', textAr: 'المنطقة 3' }
+          ],
+          correctAnswer: 'A',
+          explanationEn: 'Alveolar pressure exceeds arterial and venous pressures at the apex.'
+        }
+      ]
+    },
+    'exams.json': {
+      items: [
+        {
+          id: 'exam-sec20-1',
+          titleEn: 'Pulmonary V/Q Quiz',
+          titleAr: 'اختبار تهوية الرئة',
+          topicIds: ['topic-sec20-v2'],
+          questionIds: ['q-sec20-1'],
+          passingScorePercent: 75,
+          durationMinutes: 10
+        }
+      ]
+    },
+    'media-index.json': {
+      items: [
+        {
+          id: 'media-sec20-no-kind',
+          titleEn: 'West Zones SVG',
+          titleAr: 'مخطط مناطق ويست',
+          mediaType: 'svg',
+          url: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/media/diagrams/west-zones.svg',
+          linkedEntityType: 'topic',
+          linkedEntityId: 'topic-sec20-v2'
+        }
+      ]
+    }
+  };
+
+  // 20.1 13-file ZIP assembly, serialization round-trip, & extended validation
+  const assembled13 = assemblePackageFromZipJsonMap(umedt13ZipJsonMap);
+  const validated13 = validateDataPackageObject(assembled13);
+  assertCondition(
+    validated13.valid &&
+      validated13.payload !== undefined &&
+      validated13.payload.blocks?.length === 1 &&
+      validated13.payload.subjects?.length === 1 &&
+      validated13.payload.books?.length === 1 &&
+      validated13.payload.questions?.length === 1 &&
+      validated13.payload.exams?.length === 1 &&
+      validated13.payload.mediaAssets?.length === 1 &&
+      validated13.payload.topics[0].blockId === 'blk-sec20' &&
+      validated13.payload.topics[0].sections[0].contentBlocks?.length === 1,
+    `Expected 13-file UMEDT-DATA ZIP assembly & validation to preserve all extended collections & topic contentBlocks`
+  );
+
+  const built13Zip = buildDataPackageZipBytes(validated13.payload!);
+  assertCondition(
+    built13Zip.byteLength > 500,
+    'buildDataPackageZipBytes must serialize extended 13-file payloads'
+  );
+
+  // 20.2 normalizeMediaAssetRecord without .kind & canonicalizeForHash transient key filtering
+  const normalizedNoKindMedia = normalizeMediaAssetRecord({
+    id: 'media-sec20-no-kind',
+    mediaType: 'svg',
+    url: 'https://example.org/west.svg',
+    linkedEntityType: 'topic',
+    linkedEntityId: 'topic-sec20-v2'
+  });
+  assertCondition(
+    normalizedNoKindMedia.kind === 'svg' &&
+      normalizedNoKindMedia.topicId === 'topic-sec20-v2' &&
+      normalizedNoKindMedia.titleEn.length > 0,
+    `Expected normalizeMediaAssetRecord to backfill kind='svg' when .kind is omitted, got kind='${normalizedNoKindMedia.kind}'`
+  );
+
+  const hashCanonicalA = canonicalizeForHash('topic', {
+    id: 't-hash-test',
+    title: 'Sample',
+    mediaIdbKey: 'idb-111',
+    coverIdbKey: 'idb-cov-1',
+    lastOpenedAt: '2026-01-01',
+    srsData: { interval: 4 }
+  });
+  const hashCanonicalB = canonicalizeForHash('topic', {
+    id: 't-hash-test',
+    title: 'Sample',
+    mediaIdbKey: 'idb-999',
+    coverIdbKey: 'idb-cov-9',
+    lastOpenedAt: '2026-12-31',
+    srsData: { interval: 10 }
+  });
+  assertCondition(
+    hashCanonicalA === hashCanonicalB,
+    'canonicalizeForHash must strip mediaIdbKey, coverIdbKey, lastOpenedAt, and srsData so cached local offline keys never trigger false diffs'
+  );
+
+  // 20.3 Atomic import preserves user bookmarks, lastReadPage, readingProgressPercent, favorite, srsData
+  saveAcademicBooks([
+    {
+      id: 'book-sec20-1',
+      titleEn: 'Old Title',
+      titleAr: 'عنوان قديم',
+      favorite: true,
+      bookmarks: [12, 44],
+      lastReadPage: 44,
+      readingProgressPercent: 88,
+      notes: 'ملاحظتي المهمة',
+      mediaIdbKey: 'idb-local-book-pdf',
+      format: 'pdf'
+    }
+  ]);
+  const atomic13Import = await executeAtomicPackageImport(built13Zip, {
+    mode: 'merge',
+    fileNameHint: 'umedt13-test.zip',
+    skipAutoBackup: true
+  });
+  const bookAfterAtomic13 = loadAcademicBooks().find((b) => b.id === 'book-sec20-1');
+  assertCondition(
+    atomic13Import.result.success &&
+      atomic13Import.result.summary.booksImported === 1 &&
+      atomic13Import.result.summary.questionsImported === 1 &&
+      atomic13Import.result.summary.examsImported === 1 &&
+      atomic13Import.result.summary.mediaAssetsImported === 1 &&
+      bookAfterAtomic13?.titleAr === 'مرجع أمراض الرئة السريري' &&
+      bookAfterAtomic13?.favorite === true &&
+      bookAfterAtomic13?.lastReadPage === 44 &&
+      bookAfterAtomic13?.readingProgressPercent === 88 &&
+      bookAfterAtomic13?.mediaIdbKey === 'idb-local-book-pdf' &&
+      Boolean(bookAfterAtomic13?.bookmarks?.includes(12)),
+    'executeAtomicPackageImport must import all extended collections while preserving existing user favorite, bookmarks, lastReadPage, readingProgressPercent, and mediaIdbKey'
+  );
+
+  // 20.4 Strict 64-hex SHA-256 rejection + affix/abbreviation propagation via syncWithRemoteCloudLibrary
+  const validBlocksJsonStr = JSON.stringify(umedt13ZipJsonMap['blocks.json']);
+  const validBlocksSha256 = await computeSha256Hex(new TextEncoder().encode(validBlocksJsonStr));
+  const corruptExpectedSha256 = '0'.repeat(64);
+  const sec20OrigFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const u = typeof input === 'string' ? input : input.toString();
+    if (u.includes('catalog.json')) {
+      return new Response(
+        JSON.stringify({
+          catalogVersion: '2026.12.10-sec20',
+          collections: [
+            {
+              id: 'blocks',
+              name: 'Blocks Corrupt Test',
+              contentType: 'block',
+              rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/blocks.json',
+              sha256: corruptExpectedSha256
+            },
+            {
+              id: 'affixes',
+              name: 'Affixes',
+              contentType: 'affix',
+              rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/affixes.json',
+              sha256: await computeSha256Hex(
+                new TextEncoder().encode(JSON.stringify(umedt13ZipJsonMap['affixes.json']))
+              )
+            },
+            {
+              id: 'abbreviations',
+              name: 'Abbreviations',
+              contentType: 'abbreviation',
+              rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/abbreviations.json',
+              sha256: await computeSha256Hex(
+                new TextEncoder().encode(JSON.stringify(umedt13ZipJsonMap['abbreviations.json']))
+              )
+            }
+          ]
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    if (u.endsWith('/blocks.json')) {
+      assertCondition(validBlocksSha256.length === 64, 'Valid blocks hash computed');
+      return new Response(validBlocksJsonStr, {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    if (u.endsWith('/affixes.json')) {
+      return new Response(JSON.stringify(umedt13ZipJsonMap['affixes.json']), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    if (u.endsWith('/abbreviations.json')) {
+      return new Response(JSON.stringify(umedt13ZipJsonMap['abbreviations.json']), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    return new Response('{}', { status: 404 });
+  }) as typeof fetch;
+
+  try {
+    const corruptCheck = await syncFromUmedtDataRepository({ currentCollectionHashes: {} });
+    assertCondition(
+      corruptCheck.fetched &&
+        corruptCheck.incoming.blocks === undefined &&
+        corruptCheck.incoming.customAffixes?.length === 1 &&
+        corruptCheck.incoming.customAbbreviations?.length === 1,
+      'syncFromUmedtDataRepository must reject payload on 64-hex SHA-256 mismatch while accepting verified affixes & abbreviations'
+    );
+
+    const cloudSyncPropagated = await syncWithRemoteCloudLibrary({
+      localTopics: loadAppState().topics,
+      localTerms: loadAppState().terms,
+      localSentences: loadAppState().sentences
+    });
+    assertCondition(
+      Boolean(cloudSyncPropagated.autoMergedAffixes?.some((a) => a.id === 'aff-sec20-ectasis')) &&
+        Boolean(
+          cloudSyncPropagated.autoMergedAbbreviations?.some((ab) => ab.id === 'abbr-sec20-peep')
+        ),
+      'syncWithRemoteCloudLibrary must return autoMergedAffixes and autoMergedAbbreviations for React state propagation'
+    );
+  } finally {
+    globalThis.fetch = sec20OrigFetch;
+  }
+
+  console.log(
+    '[PASS] 20. UMEDT-DATA 13-File ZIP Assembly, Extended Atomic Import, Media Kind Fallback, Canonical Hash Stability, Strict 64-Hex SHA-256 Rejection & Affix/Abbreviation Sync Verified'
+  );
   console.log('================================================================');
-  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (18/18 — 100%)');
+  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (20/20 — 100%)');
   console.log('================================================================');
 }
 

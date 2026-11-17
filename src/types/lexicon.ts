@@ -1,4 +1,13 @@
-import type { TopicContentBlock } from './learningPlatform';
+import type {
+  TopicContentBlock,
+  MedicalBlock,
+  MedicalSubject,
+  AcademicBookResource,
+  UnifiedQuizQuestion,
+  AcademicExamPackage,
+  MediaAssetRecord,
+  DataCatalogDocument
+} from './learningPlatform';
 
 export interface TermExample {
   en: string;
@@ -262,6 +271,11 @@ export interface DataPackageManifest {
   packageSizeKb?: number;
   author?: string;
   downloadUrl?: string;
+  packageFormat?: string;
+  manifestUrl?: string;
+  catalogVersion?: string;
+  filesSha256?: Record<string, string>;
+  extendedCounts?: Record<string, number>;
   counts: DataPackageCounts;
 }
 
@@ -318,6 +332,13 @@ export interface DataPackagePayload {
   topics: TopicArticle[];
   customAffixes: MorphologicalAffix[];
   customAbbreviations: ClinicalAbbreviation[];
+  blocks?: MedicalBlock[];
+  subjects?: MedicalSubject[];
+  books?: AcademicBookResource[];
+  questions?: UnifiedQuizQuestion[];
+  exams?: AcademicExamPackage[];
+  mediaAssets?: MediaAssetRecord[];
+  catalog?: DataCatalogDocument;
   studyStats?: StudyStats;
   settings?: AppSettings;
 }
@@ -343,6 +364,12 @@ export interface AtomicImportResult {
     topicsImported: number;
     affixesImported: number;
     abbreviationsImported: number;
+    blocksImported?: number;
+    subjectsImported?: number;
+    booksImported?: number;
+    questionsImported?: number;
+    examsImported?: number;
+    mediaAssetsImported?: number;
     totalTermsAfter: number;
     totalSentencesAfter: number;
   };

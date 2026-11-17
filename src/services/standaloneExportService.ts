@@ -6,7 +6,9 @@ import {
   UnifiedQuizQuestion,
   LocalMediaRecord,
   AcademicBookResource,
-  AcademicExamPackage
+  AcademicExamPackage,
+  MediaAssetRecord,
+  UserStudyNoteRecord
 } from '../types/lexicon';
 import {
   getAllLocalMediaRecordsMap,
@@ -42,6 +44,8 @@ export interface StandaloneExportParams {
   allQuestions: UnifiedQuizQuestion[];
   books?: AcademicBookResource[];
   exams?: AcademicExamPackage[];
+  mediaAssets?: MediaAssetRecord[];
+  userNotes?: UserStudyNoteRecord[];
   includeLocalMedia: boolean;
   /**
    * When true, local media inside HTML will reference relative `media/<filename>` paths
@@ -611,12 +615,13 @@ export async function generateStandaloneHtmlDocument(
             }
             if (cb.type === 'book_reference') {
               const refBook = (params.books || []).find((bk) => bk.id === cb.bookId);
-              const resolvedBookPdf = refBook?.pdfUrl || refBook?.mediaIdbKey
+              const bookPrimaryUrl = refBook?.downloadUrl || refBook?.pdfUrl || '';
+              const resolvedBookPdf = bookPrimaryUrl || refBook?.mediaIdbKey
                 ? resolveMediaUrlForStandalone({
-                    rawUrl: refBook.pdfUrl,
-                    externalUrl: refBook.pdfUrl,
-                    mediaIdbKey: refBook.mediaIdbKey,
-                    fileName: `${refBook.id}.pdf`,
+                    rawUrl: bookPrimaryUrl,
+                    externalUrl: bookPrimaryUrl,
+                    mediaIdbKey: refBook?.mediaIdbKey,
+                    fileName: `${refBook?.id || 'book'}.pdf`,
                     fallbackExt: 'pdf'
                   })
                 : { resolvedSrc: cb.externalUrl || '', externalHref: cb.externalUrl || '', isOmittedLocal: false };
@@ -692,6 +697,123 @@ export async function generateStandaloneHtmlDocument(
             .join('')}</ul></div>`
         : '';
 
+    // Linked media-index assets not already rendered inside contentBlocks
+    const renderedMediaKeys = new Set<string>();
+    const renderedMediaUrls = new Set<string>();
+    for (const sec of topic.sections || []) {
+      for (const cb of sec.contentBlocks || []) {
+        if (cb.mediaIdbKey) renderedMediaKeys.add(cb.mediaIdbKey);
+        if (cb.mediaUrl) renderedMediaUrls.add(cb.mediaUrl.trim());
+        if (cb.externalUrl) renderedMediaUrls.add(cb.externalUrl.trim());
+      }
+    }
+    const extraTopicMedia = (params.mediaAssets || []).filter((ma) => {
+      const linkedToThisTopic =
+        ma.topicId === topic.id ||
+        (ma.linkedEntityType === 'topic' && ma.linkedEntityId === topic.id);
+      if (!linkedToThisTopic) return false;
+      const maUrl = (ma.rawUrl || ma.url || '').trim();
+      if (ma.mediaIdbKey && renderedMediaKeys.has(ma.mediaIdbKey)) return false;
+      if (maUrl && renderedMediaUrls.has(maUrl)) return false;
+      return true;
+    });
+    const extraMediaHtml =
+      extraTopicMedia.length > 0
+        ? `<section class="topic-section">
+            <div class="section-header">
+              <h3 dir="ltr">Linked Visual & Reference Media</h3>
+              <span class="section-ar">الوسائط والمخططات المرفقة (${extraTopicMedia.length})</span>
+            </div>
+            ${extraTopicMedia
+              .map((ma) => {
+                const maUrl = ma.rawUrl || ma.url || '';
+                const fallbackExt =
+                  ma.kind === 'svg' || ma.format === 'svg'
+                    ? 'svg'
+                    : ma.kind === 'audio'
+                      ? 'webm'
+                      : ma.kind === 'video'
+                        ? 'mp4'
+                        : ma.kind === 'pdf' || ma.kind === 'attachment'
+                          ? 'pdf'
+                          : 'png';
+                const resolved = resolveMediaUrlForStandalone({
+                  rawUrl: maUrl,
+                  externalUrl: maUrl,
+                  mediaIdbKey: ma.mediaIdbKey,
+                  fileName: ma.fileName || `${ma.id}.${fallbackExt}`,
+                  fallbackExt
+                });
+                const mediaSrc = resolved.resolvedSrc || resolved.externalHref;
+                const title = ma.titleEn || ma.titleAr || ma.captionEn || ma.captionAr || ma.fileName || 'Media Asset';
+                const subtitle = ma.captionAr || ma.titleAr || '';
+                if (ma.kind === 'audio') {
+                  return `<div class="media-card"><div class="media-header"><strong dir="ltr">${escapeHtml(
+                    title
+                  )}</strong><span>${escapeHtml(subtitle || 'ملف صوتي')}</span></div>${
+                    mediaSrc
+                      ? `<audio controls preload="metadata" src="${escapeHtml(mediaSrc)}" class="audio-player"></audio>`
+                      : `<div class="omitted-media">ملف صوتي محلي غير مضمّن</div>`
+                  }</div>`;
+                }
+                if (ma.kind === 'video') {
+                  return `<div class="media-card"><div class="media-header"><strong dir="ltr">${escapeHtml(
+                    title
+                  )}</strong><span>${escapeHtml(subtitle || 'فيديو طبي')}</span></div>${
+                    mediaSrc
+                      ? `<video controls preload="metadata" src="${escapeHtml(mediaSrc)}" class="video-player"></video>`
+                      : `<div class="omitted-media">فيديو محلي غير مضمّن</div>`
+                  }</div>`;
+                }
+                if (ma.kind === 'pdf' || ma.kind === 'attachment' || fallbackExt === 'pdf') {
+                  return `<div class="media-card"><div class="media-header"><strong dir="ltr">${escapeHtml(
+                    title
+                  )}</strong><span>${escapeHtml(subtitle || 'مرفق PDF')}</span></div>${
+                    mediaSrc
+                      ? `<div class="media-actions"><a href="${escapeHtml(
+                          mediaSrc
+                        )}" download="${escapeHtml(
+                          ma.fileName || `${ma.id}.pdf`
+                        )}" target="_blank" rel="noopener noreferrer" class="ext-btn">فتح / تنزيل المرفق ↗</a></div>`
+                      : `<div class="omitted-media">مرفق محلي غير مضمّن</div>`
+                  }</div>`;
+                }
+                return `<figure class="media-card">${
+                  mediaSrc
+                    ? `<img src="${escapeHtml(mediaSrc)}" alt="${escapeHtml(title)}" loading="lazy" />`
+                    : `<div class="omitted-media">وسائط محلية غير مضمّنة (${escapeHtml(title)})</div>`
+                }<figcaption>${escapeHtml(subtitle ? `${title} · ${subtitle}` : title)}${
+                  resolved.externalHref
+                    ? ` · <a href="${escapeHtml(
+                        resolved.externalHref
+                      )}" target="_blank" rel="noopener noreferrer">المصدر ↗</a>`
+                    : ''
+                }</figcaption></figure>`;
+              })
+              .join('\n')}
+          </section>`
+        : '';
+
+    const topicNotes = (params.userNotes || []).filter(
+      (n) => n.entityType === 'topic' && n.entityId === topic.id && n.content?.trim()
+    );
+    const topicNotesHtml =
+      topicNotes.length > 0
+        ? `<section class="topic-section">
+            <div class="section-header">
+              <h3 dir="ltr">Personal Study Notes</h3>
+              <span class="section-ar">ملاحظاتي الدراسية (${topicNotes.length})</span>
+            </div>
+            ${topicNotes
+              .map(
+                (n) => `<div class="clinical-note"><div class="note-head"><span>ملاحظة دراسية</span><span>${escapeHtml(
+                  new Date(n.updatedAt).toLocaleDateString('ar-SA')
+                )}</span></div><p dir="auto">${escapeHtml(n.content)}</p></div>`
+              )
+              .join('\n')}
+          </section>`
+        : '';
+
     return `<article class="topic-article" id="topic-${escapeHtml(topic.id)}" data-search="${escapeHtml(
       `${topic.titleEn || ''} ${topic.titleAr || ''} ${topic.title || ''} ${topic.subtitle || ''}`.toLowerCase()
     )}">
@@ -706,6 +828,8 @@ export async function generateStandaloneHtmlDocument(
         <p class="topic-title-ar">${escapeHtml(topic.titleAr || topic.subtitle)}</p>
       </header>
       ${sectionsHtml}
+      ${extraMediaHtml}
+      ${topicNotesHtml}
       ${linksHtml}
     </article>`;
   };
@@ -1034,12 +1158,13 @@ export async function generateStandaloneHtmlDocument(
             <h2>الكتب والمراجع الأكاديمية (${linkedBooks.length})</h2>
             <div class="grid-terms">${linkedBooks
               .map((bk) => {
+                const bookPrimaryUrl = bk.downloadUrl || bk.pdfUrl || '';
                 const resolvedPdf = resolveMediaUrlForStandalone({
-                  rawUrl: bk.pdfUrl,
-                  externalUrl: bk.pdfUrl,
+                  rawUrl: bookPrimaryUrl,
+                  externalUrl: bookPrimaryUrl,
                   mediaIdbKey: bk.mediaIdbKey,
-                  fileName: `${bk.id}.pdf`,
-                  fallbackExt: 'pdf'
+                  fileName: `${bk.id}.${bk.format || bk.fileFormat || 'pdf'}`,
+                  fallbackExt: bk.format || bk.fileFormat || 'pdf'
                 });
                 const bookHref = resolvedPdf.resolvedSrc || resolvedPdf.externalHref;
                 return `<div class="term-card" data-search="${escapeHtml(
@@ -1225,6 +1350,22 @@ export async function generateStandaloneZipArchiveBytes(
       (normalizedScope === 'complete_block' && params.block && ex.blockId === params.block.id) ||
       (normalizedScope === 'complete_subject' && params.subject && ex.subjectId === params.subject.id)
   );
+  const linkedMediaAssets = (params.mediaAssets || []).filter(
+    (ma) =>
+      (ma.topicId && topicIdSet.has(ma.topicId)) ||
+      (ma.linkedEntityType === 'topic' && ma.linkedEntityId && topicIdSet.has(ma.linkedEntityId)) ||
+      (normalizedScope === 'complete_block' &&
+        params.block &&
+        (ma.blockId === params.block.id ||
+          (ma.linkedEntityType === 'block' && ma.linkedEntityId === params.block.id))) ||
+      (normalizedScope === 'complete_subject' &&
+        params.subject &&
+        (ma.subjectId === params.subject.id ||
+          (ma.linkedEntityType === 'subject' && ma.linkedEntityId === params.subject.id)))
+  );
+  const linkedNotes = (params.userNotes || []).filter(
+    (n) => n.entityType === 'topic' && topicIdSet.has(n.entityId)
+  );
 
   const dataJsonObject = {
     format: 'umed-granular-export-v1',
@@ -1249,7 +1390,9 @@ export async function generateStandaloneZipArchiveBytes(
       terms: linkedTerms,
       quizQuestions: linkedQuestions,
       books: linkedBooks,
-      exams: linkedExams
+      exams: linkedExams,
+      mediaAssets: linkedMediaAssets,
+      userNotes: linkedNotes
     }
   };
 

@@ -24,7 +24,10 @@ import {
   Cloud,
   Download,
   RefreshCw,
-  HardDrive
+  HardDrive,
+  GraduationCap,
+  Star,
+  ExternalLink
 } from 'lucide-react';
 import {
   DictionaryTerm,
@@ -35,7 +38,8 @@ import {
   LexiconCategory,
   TermExample,
   MorphologicalAffix,
-  ClinicalAbbreviation
+  ClinicalAbbreviation,
+  AcademicExamPackage
 } from '../types/lexicon';
 import {
   decomposeMedicalWord,
@@ -59,13 +63,30 @@ import {
   CloudLibraryStateSummary,
   CloudCatalogBookEntry
 } from '../services/cloudLibrarySyncService';
-import { loadAcademicBooks } from '../services/learningHierarchyService';
-import { getLocalMediaRecord } from '../services/mediaStorageService';
+import {
+  loadAcademicBooks,
+  loadMedicalBlocks,
+  loadMedicalSubjects,
+  toggleBookFavorite,
+  saveBookReadingProgress
+} from '../services/learningHierarchyService';
+import {
+  loadQuizQuestions,
+  saveQuizQuestions,
+  loadQuizAttempts,
+  saveQuizAttempt
+} from '../services/quizEngineService';
+import {
+  getLocalMediaRecord,
+  downloadRemoteMediaToOfflineCache
+} from '../services/mediaStorageService';
+import { base64ToUint8Array } from '../utils/downloadHelper';
 import {
   importUniversalAiOrLocalContent,
   UniversalImportReport
 } from '../services/aiUniversalImportService';
 import { AiContentGuideModal } from './AiContentGuideModal';
+import { QuizCenterModal } from './QuizCenterModal';
 
 export interface StagedTermItem {
   id: string;
@@ -138,6 +159,8 @@ interface LibraryViewProps {
     topics: TopicArticle[];
     terms: DictionaryTerm[];
     sentences: LinkedSentence[];
+    customAffixes?: MorphologicalAffix[];
+    customAbbreviations?: ClinicalAbbreviation[];
   }) => void;
   onUniversalImportComplete?: (report: UniversalImportReport) => void;
   onBackupNowTriggered?: (reason: string) => void;
@@ -236,10 +259,25 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [busyTargetKey, setBusyTargetKey] = useState<string | null>(null);
   const [syncRevision, setSyncRevision] = useState(0);
   const [isAiGuideOpen, setIsAiGuideOpen] = useState(false);
+  const [activeExamModal, setActiveExamModal] = useState<AcademicExamPackage | null>(null);
   const [bookPdfPreview, setBookPdfPreview] = useState<{
     title: string;
     url: string;
+    bookId?: string;
+    isObjectUrl?: boolean;
   } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (bookPdfPreview?.isObjectUrl && bookPdfPreview.url.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(bookPdfPreview.url);
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, [bookPdfPreview]);
 
   useEffect(() => {
     const unsub = subscribeToCloudLibraryChanges(() => {
@@ -793,20 +831,72 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     }
   };
 
+  const closeBookPdfPreview = () => {
+    setBookPdfPreview((prev) => {
+      if (prev?.isObjectUrl && prev.url.startsWith('blob:') && typeof URL !== 'undefined') {
+        try {
+          URL.revokeObjectURL(prev.url);
+        } catch {
+          // ignore
+        }
+      }
+      return null;
+    });
+  };
+
   const handleOpenCloudBook = async (bk: CloudCatalogBookEntry) => {
     const localBook = loadAcademicBooks().find((item) => item.id === bk.id);
-    const pdfHref = (localBook?.pdfUrl || bk.pdfUrl || '').trim();
+    const pdfHref = (
+      localBook?.downloadUrl ||
+      localBook?.pdfUrl ||
+      bk.downloadUrl ||
+      bk.pdfUrl ||
+      ''
+    ).trim();
     const idbKey =
       localBook?.mediaIdbKey ||
       (pdfHref.startsWith('http://') || pdfHref.startsWith('https://')
         ? `idb-${computeDeterministicFastHashHex(pdfHref).slice(0, 16)}`
         : '');
+
+    if (localBook) {
+      saveBookReadingProgress(bk.id, {
+        lastReadPage: Math.max(1, localBook.lastReadPage || 1),
+        readingProgressPercent: Math.max(5, localBook.readingProgressPercent || 0)
+      });
+      setSyncRevision((prev) => prev + 1);
+    }
+
     if (idbKey) {
       const cached = await getLocalMediaRecord(idbKey);
       if (cached?.dataUrl) {
+        let previewUrl = cached.dataUrl;
+        let isObjectUrl = false;
+        if (cached.dataUrl.startsWith('data:') && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+          try {
+            const commaIdx = cached.dataUrl.indexOf(',');
+            const header = commaIdx !== -1 ? cached.dataUrl.slice(5, commaIdx) : '';
+            const mime = header.split(';')[0] || 'application/pdf';
+            const body = commaIdx !== -1 ? cached.dataUrl.slice(commaIdx + 1) : '';
+            if (header.includes('base64') && body) {
+              const bytes = base64ToUint8Array(body);
+              previewUrl = URL.createObjectURL(
+                new Blob(
+                  [bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer],
+                  { type: mime }
+                )
+              );
+              isObjectUrl = true;
+            }
+          } catch {
+            previewUrl = cached.dataUrl;
+          }
+        }
         setBookPdfPreview({
           title: bk.titleAr || bk.titleEn,
-          url: cached.dataUrl
+          url: previewUrl,
+          bookId: bk.id,
+          isObjectUrl
         });
         return;
       }
@@ -814,7 +904,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     if (pdfHref) {
       setBookPdfPreview({
         title: bk.titleAr || bk.titleEn,
-        url: pdfHref
+        url: pdfHref,
+        bookId: bk.id,
+        isObjectUrl: false
       });
       return;
     }
@@ -838,7 +930,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         onSyncStateUpdated?.({
           topics: res.autoMergedTopics,
           terms: res.autoMergedTerms,
-          sentences: res.autoMergedSentences
+          sentences: res.autoMergedSentences,
+          customAffixes: res.autoMergedAffixes,
+          customAbbreviations: res.autoMergedAbbreviations
         });
         onBackupNowTriggered?.('تحديث المكتبة السحابية');
       }
@@ -869,6 +963,34 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       );
     });
   }, [cloudSummary.books, cloudFilterTab, cloudSearchQuery]);
+
+  const filteredCloudExams = useMemo(() => {
+    const q = cloudSearchQuery.trim().toLowerCase();
+    return (cloudSummary.exams || []).filter((ex) => {
+      if (!q) return true;
+      return (
+        (ex.titleAr || '').toLowerCase().includes(q) ||
+        (ex.titleEn || '').toLowerCase().includes(q) ||
+        (ex.descriptionAr || '').toLowerCase().includes(q)
+      );
+    });
+  }, [cloudSummary.exams, cloudSearchQuery]);
+
+  const filteredDynamicCollections = useMemo(() => {
+    const q = cloudSearchQuery.trim().toLowerCase();
+    return (cloudSummary.dynamicCollections || []).map((col) => {
+      const matchedItems = (col.items || []).filter((it) => {
+        if (!q) return true;
+        return (
+          (it.titleAr || '').toLowerCase().includes(q) ||
+          (it.titleEn || '').toLowerCase().includes(q) ||
+          (it.summaryAr || '').toLowerCase().includes(q) ||
+          (it.summaryEn || '').toLowerCase().includes(q)
+        );
+      });
+      return { ...col, items: matchedItems };
+    }).filter((col) => col.items.length > 0);
+  }, [cloudSummary.dynamicCollections, cloudSearchQuery]);
 
   const filteredCloudBlocks = useMemo(() => {
     const q = cloudSearchQuery.trim().toLowerCase();
@@ -1455,8 +1577,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           <div className="font-extrabold text-slate-900 dark:text-white leading-snug break-words">
                             {bk.titleAr || bk.titleEn}
                           </div>
-                          <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">
-                            {bk.authorsLabel} · {bk.fileFormat.toUpperCase()} · {bk.sizeLabel} ·{' '}
+                          <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate font-mono tabular-nums">
+                            {bk.authorsLabel} · {bk.fileFormat.toUpperCase()} · {bk.sizeLabel}
+                            {bk.readingProgressPercent ? ` · ${bk.readingProgressPercent}%` : ''} ·{' '}
                             <span
                               className={
                                 bk.isDownloaded
@@ -1470,6 +1593,26 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
+                          {bk.isDownloaded && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                toggleBookFavorite(bk.id);
+                                setSyncRevision((prev) => prev + 1);
+                                onBackupNowTriggered?.('تحديث مفضلة الكتاب');
+                              }}
+                              aria-label="مفضلة الكتاب"
+                              className="min-h-[40px] min-w-[40px] rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center shrink-0"
+                            >
+                              <Star
+                                className={`w-4 h-4 ${
+                                  bk.favorite
+                                    ? 'fill-amber-400 text-amber-400'
+                                    : 'text-slate-400'
+                                }`}
+                              />
+                            </button>
+                          )}
                           {bk.isDownloaded ? (
                             <>
                               <button
@@ -1504,6 +1647,152 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Academic Exam Packages Section */}
+            {filteredCloudExams.length > 0 && (
+              <div className="pt-2 space-y-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between text-xs font-extrabold text-slate-700 dark:text-slate-200">
+                  <span className="flex items-center gap-1.5">
+                    <GraduationCap className="w-4 h-4 text-emerald-500" />
+                    <span>الاختبارات التقييمية ({filteredCloudExams.length})</span>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {filteredCloudExams.map((ex) => {
+                    const qCount = ex.questions?.length || ex.questionIds?.length || 0;
+                    const passPct = ex.passingScorePercent ?? ex.passingPercent;
+                    return (
+                      <div
+                        key={ex.id}
+                        className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 flex items-center justify-between gap-2.5 text-xs"
+                      >
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div className="font-extrabold text-slate-900 dark:text-white leading-snug break-words">
+                            {ex.titleAr || ex.titleEn}
+                          </div>
+                          <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 font-mono tabular-nums truncate">
+                            {qCount > 0 ? `${qCount} سؤال` : 'اختبار مقرر'}
+                            {ex.durationMinutes ? ` · ${ex.durationMinutes} د` : ''}
+                            {typeof passPct === 'number' ? ` · نجاح ${passPct}%` : ''}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setActiveExamModal(ex)}
+                          className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs whitespace-nowrap shrink-0"
+                        >
+                          بدء الاختبار
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Auto-Discovered Extensible Catalog Collections (generic_card fallback) */}
+            {filteredDynamicCollections.length > 0 && (
+              <div className="pt-2 space-y-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between text-xs font-extrabold text-slate-700 dark:text-slate-200">
+                  <span className="flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-emerald-500" />
+                    <span>مجموعات مكتشفة تلقائياً ({filteredDynamicCollections.length})</span>
+                  </span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {filteredDynamicCollections.map((col) => (
+                    <div
+                      key={col.id}
+                      className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 space-y-2"
+                    >
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="font-extrabold text-slate-900 dark:text-white">
+                          {col.displayNameAr || col.displayNameEn || col.name || col.id}
+                        </span>
+                        <span className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                          {col.items.length} عنصر · {col.contentType}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {col.items.map((item) => {
+                          const extHref = item.downloadUrl || item.rawUrl || item.url || '';
+                          const cacheKey = extHref
+                            ? `idb-${computeDeterministicFastHashHex(extHref).slice(0, 16)}`
+                            : '';
+                          const cacheBusy = busyTargetKey === `dyn:${col.id}:${item.id}`;
+                          return (
+                            <div
+                              key={item.id}
+                              className="p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-1.5 text-xs"
+                            >
+                              <div className="font-extrabold text-slate-900 dark:text-white break-words">
+                                {item.titleAr || item.titleEn || item.id}
+                              </div>
+                              {(item.summaryAr || item.summaryEn || item.descriptionAr || item.descriptionEn) && (
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                                  {item.summaryAr || item.summaryEn || item.descriptionAr || item.descriptionEn}
+                                </p>
+                              )}
+                              <div className="flex items-center justify-between gap-2 pt-0.5 text-[11px] text-slate-400">
+                                <span className="truncate">
+                                  {(item.tags || []).slice(0, 3).join(' · ') || col.id}
+                                </span>
+                                {extHref && (
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <button
+                                      type="button"
+                                      disabled={cacheBusy}
+                                      onClick={async () => {
+                                        if (!cacheKey) return;
+                                        setBusyTargetKey(`dyn:${col.id}:${item.id}`);
+                                        try {
+                                          const cached = await downloadRemoteMediaToOfflineCache({
+                                            url: extHref,
+                                            id: cacheKey,
+                                            fileName: `${item.id}`,
+                                            mimeType: item.mimeType
+                                          });
+                                          showToast?.(
+                                            cached.success
+                                              ? 'تم حفظ العنصر للعمل دون إنترنت'
+                                              : cached.errorAr || cached.messageAr || 'تعذر حفظ العنصر',
+                                            cached.success ? undefined : 'info'
+                                          );
+                                        } finally {
+                                          setBusyTargetKey(null);
+                                        }
+                                      }}
+                                      className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300 font-bold whitespace-nowrap"
+                                      title="تنزيل أوفلاين"
+                                    >
+                                      <Download className="w-3 h-3" />
+                                      <span>أوفلاين</span>
+                                    </button>
+                                    <a
+                                      href={extHref}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold whitespace-nowrap shrink-0"
+                                    >
+                                      <span>فتح</span>
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -2365,9 +2654,37 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         showToast={showToast}
       />
 
+      {activeExamModal && (
+        <QuizCenterModal
+          isOpen={true}
+          onClose={() => setActiveExamModal(null)}
+          blocks={loadMedicalBlocks()}
+          subjects={loadMedicalSubjects()}
+          topics={topics}
+          terms={terms}
+          questions={loadQuizQuestions(topics, terms)}
+          attempts={loadQuizAttempts()}
+          initialBlockId={activeExamModal.blockId || null}
+          initialSubjectId={activeExamModal.subjectId || null}
+          initialTopicId={activeExamModal.topicIds?.[0] || null}
+          initialExam={activeExamModal}
+          onSaveQuestions={(nextQ) => saveQuizQuestions(nextQ)}
+          onDeleteQuestion={(qId) => {
+            const current = loadQuizQuestions(topics, terms);
+            saveQuizQuestions(current.filter((item) => item.id !== qId));
+          }}
+          onSaveAttempt={(attempt) => saveQuizAttempt(attempt)}
+          onOpenTermDetail={(termId) => {
+            setActiveExamModal(null);
+            onOpenTermDetail(termId);
+          }}
+          showToast={(msg, tp) => showToast?.(msg, tp)}
+        />
+      )}
+
       {bookPdfPreview && (
         <div
-          onClick={() => setBookPdfPreview(null)}
+          onClick={closeBookPdfPreview}
           className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5"
         >
           <div
@@ -2380,7 +2697,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               </h3>
               <button
                 type="button"
-                onClick={() => setBookPdfPreview(null)}
+                onClick={closeBookPdfPreview}
                 className="min-h-[44px] min-w-[44px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0"
               >
                 <X className="w-4 h-4" />

@@ -17,7 +17,9 @@ import {
   UnifiedMatchingPair,
   UnifiedQuestionType,
   UnifiedQuizOption,
-  UnifiedQuizQuestion
+  UnifiedQuizQuestion,
+  DynamicCatalogCollection,
+  DynamicCatalogItem
 } from '../types/lexicon';
 import {
   createDataBackupSnapshot,
@@ -42,7 +44,10 @@ import {
   saveAcademicExams,
   saveMediaAssetsIndex,
   saveMedicalBlocks,
-  saveMedicalSubjects
+  saveMedicalSubjects,
+  normalizeAcademicBookResource,
+  normalizeAcademicExamPackage,
+  normalizeMediaAssetRecord
 } from './learningHierarchyService';
 import {
   loadQuizQuestions,
@@ -266,11 +271,19 @@ function normalizeQuestionItem(
     : baseQEn;
   if (!qEn) return null;
 
-  const rawTypeStr = String(raw.type || 'single_choice');
+  const rawTypeStr = String(raw.type || 'single_choice').toLowerCase();
   const mappedTypeStr =
-    rawTypeStr === 'clinical_vignette' || rawTypeStr === 'term_definition'
+    rawTypeStr === 'clinical_vignette' ||
+    rawTypeStr === 'term_definition' ||
+    rawTypeStr === 'term_meaning' ||
+    rawTypeStr === 'mcq_single' ||
+    rawTypeStr === 'clinical_case'
       ? 'single_choice'
-      : rawTypeStr;
+      : rawTypeStr === 'mcq_multi'
+        ? 'multiple_select'
+        : rawTypeStr === 'image_question'
+          ? 'image_based'
+          : rawTypeStr;
   const qType: UnifiedQuestionType = VALID_QUESTION_TYPES.has(
     mappedTypeStr as UnifiedQuestionType
   )
@@ -672,6 +685,7 @@ interface ParsedBuckets {
   exams: AcademicExamPackage[];
   questions: UnifiedQuizQuestion[];
   mediaAssets: MediaAssetRecord[];
+  dynamicCollections: DynamicCatalogCollection[];
   sourceFormat: string;
 }
 
@@ -691,9 +705,34 @@ function collectFromParsedJson(parsed: unknown, buckets: ParsedBuckets): void {
         const q = normalizeQuestionItem(obj, idx);
         if (q) buckets.questions.push(q);
       } else if (obj.questionIds && (obj.titleEn || obj.titleAr)) {
-        buckets.exams.push(obj as unknown as AcademicExamPackage);
-      } else if (obj.pdfUrl || obj.fileFormat || obj.chapters) {
-        buckets.books.push(obj as unknown as AcademicBookResource);
+        buckets.exams.push(
+          normalizeAcademicExamPackage(
+            obj as Partial<AcademicExamPackage> & Record<string, unknown>
+          )
+        );
+      } else if (
+        obj.downloadUrl ||
+        obj.pdfUrl ||
+        obj.fileFormat ||
+        obj.resourceKind ||
+        obj.chapters
+      ) {
+        buckets.books.push(
+          normalizeAcademicBookResource(
+            obj as Partial<AcademicBookResource> & Record<string, unknown>
+          )
+        );
+      } else if (
+        obj.linkedEntityType ||
+        obj.linkedEntityId ||
+        obj.rawUrl ||
+        (obj.mediaType && obj.url)
+      ) {
+        buckets.mediaAssets.push(
+          normalizeMediaAssetRecord(
+            obj as Partial<MediaAssetRecord> & Record<string, unknown>
+          )
+        );
       } else if (obj.blockId && obj.code && !obj.sections && !obj.term) {
         buckets.subjects.push(obj as unknown as MedicalSubject);
       } else if (
@@ -855,51 +894,32 @@ function collectFromParsedJson(parsed: unknown, buckets: ParsedBuckets): void {
     if (bk && typeof bk === 'object') {
       const obj = bk as Record<string, unknown>;
       if (!obj.id && !obj.titleEn && !obj.titleAr) continue;
-      buckets.books.push({
-        id: String(obj.id || `book-imp-${Date.now()}-${buckets.books.length}`),
-        blockId: typeof obj.blockId === 'string' ? obj.blockId : undefined,
-        subjectId: typeof obj.subjectId === 'string' ? obj.subjectId : undefined,
-        topicIds: Array.isArray(obj.topicIds) ? (obj.topicIds as string[]) : undefined,
-        titleEn: String(obj.titleEn || obj.titleAr || 'Medical Book'),
-        titleAr: String(obj.titleAr || obj.titleEn || 'كتاب طبي'),
-        authors: Array.isArray(obj.authors)
-          ? obj.authors.map((a) => String(a))
-          : typeof obj.authors === 'string'
-            ? [obj.authors]
-            : [],
-        edition: typeof obj.edition === 'string' ? obj.edition : undefined,
-        year:
-          typeof obj.year === 'number'
-            ? obj.year
-            : typeof obj.publishYear === 'number'
-              ? obj.publishYear
-              : undefined,
-        language:
-          obj.language === 'ar' || obj.language === 'en' || obj.language === 'bilingual'
-            ? obj.language
-            : 'en',
-        fileFormat:
-          obj.fileFormat === 'pdf' || obj.fileFormat === 'epub' || obj.fileFormat === 'html'
-            ? obj.fileFormat
-            : 'pdf',
-        pdfUrl: typeof obj.pdfUrl === 'string' ? obj.pdfUrl : undefined,
-        mediaUrl: typeof obj.mediaUrl === 'string' ? obj.mediaUrl : undefined,
-        externalUrl: typeof obj.externalUrl === 'string' ? obj.externalUrl : undefined,
-        coverUrl: typeof obj.coverUrl === 'string' ? obj.coverUrl : undefined,
-        sizeBytes: typeof obj.sizeBytes === 'number' ? obj.sizeBytes : undefined,
-        pageCount: typeof obj.pageCount === 'number' ? obj.pageCount : undefined,
-        chapters: Array.isArray(obj.chapters)
-          ? (obj.chapters as AcademicBookResource['chapters'])
-          : undefined,
-        descriptionAr:
-          typeof obj.descriptionAr === 'string'
-            ? obj.descriptionAr
-            : typeof obj.summaryAr === 'string'
-              ? obj.summaryAr
-              : undefined,
-        sha256: typeof obj.sha256 === 'string' ? obj.sha256 : undefined,
-        updatedAt: String(obj.updatedAt || new Date().toISOString())
-      });
+      buckets.books.push(
+        normalizeAcademicBookResource({
+          ...obj,
+          id: String(obj.id || `book-imp-${Date.now()}-${buckets.books.length}`),
+          authors: Array.isArray(obj.authors)
+            ? obj.authors.map((a) => String(a))
+            : typeof obj.authors === 'string'
+              ? [obj.authors]
+              : [],
+          year:
+            typeof obj.year === 'number'
+              ? obj.year
+              : typeof obj.publicationYear === 'number'
+                ? obj.publicationYear
+                : typeof obj.publishYear === 'number'
+                  ? obj.publishYear
+                  : undefined,
+          descriptionAr:
+            typeof obj.descriptionAr === 'string'
+              ? obj.descriptionAr
+              : typeof obj.summaryAr === 'string'
+                ? obj.summaryAr
+                : undefined,
+          updatedAt: String(obj.updatedAt || new Date().toISOString())
+        })
+      );
     }
   }
 
@@ -921,32 +941,23 @@ function collectFromParsedJson(parsed: unknown, buckets: ParsedBuckets): void {
       for (const iq of inlineQs) {
         buckets.questions.push(iq);
       }
-      buckets.exams.push({
-        id: String(obj.id || `exam-imp-${Date.now()}-${buckets.exams.length}`),
-        titleEn: String(obj.titleEn || obj.titleAr || 'Medical Exam'),
-        titleAr: String(obj.titleAr || obj.titleEn || 'اختبار طبي'),
-        blockId: typeof obj.blockId === 'string' ? obj.blockId : undefined,
-        subjectId: typeof obj.subjectId === 'string' ? obj.subjectId : undefined,
-        topicIds: Array.isArray(obj.topicIds) ? (obj.topicIds as string[]) : undefined,
-        durationMinutes:
-          typeof obj.durationMinutes === 'number'
-            ? obj.durationMinutes
-            : typeof obj.timeLimitMinutes === 'number'
-              ? obj.timeLimitMinutes
-              : undefined,
-        passingPercent:
-          typeof obj.passingPercent === 'number'
-            ? obj.passingPercent
-            : typeof obj.passingScorePercent === 'number'
-              ? obj.passingScorePercent
-              : undefined,
-        questionIds: Array.isArray(obj.questionIds)
-          ? obj.questionIds.map((id) => String(id))
-          : inlineQs.map((q) => q.id),
-        questions: inlineQs.length > 0 ? inlineQs : undefined,
-        sha256: typeof obj.sha256 === 'string' ? obj.sha256 : undefined,
-        updatedAt: String(obj.updatedAt || new Date().toISOString())
-      });
+      buckets.exams.push(
+        normalizeAcademicExamPackage({
+          ...obj,
+          id: String(obj.id || `exam-imp-${Date.now()}-${buckets.exams.length}`),
+          durationMinutes:
+            typeof obj.durationMinutes === 'number'
+              ? obj.durationMinutes
+              : typeof obj.timeLimitMinutes === 'number'
+                ? obj.timeLimitMinutes
+                : undefined,
+          questionIds: Array.isArray(obj.questionIds)
+            ? obj.questionIds.map((id) => String(id))
+            : inlineQs.map((q) => q.id),
+          questions: inlineQs.length > 0 ? inlineQs : undefined,
+          updatedAt: String(obj.updatedAt || new Date().toISOString())
+        })
+      );
     }
   }
 
@@ -960,13 +971,76 @@ function collectFromParsedJson(parsed: unknown, buckets: ParsedBuckets): void {
     }
   });
 
-  const pushMediaAssets = Array.isArray(inner.mediaAssets) ? inner.mediaAssets : [];
+  const pushMediaAssets = Array.isArray(
+    inner.mediaAssets || inner.mediaIndex || inner.assets
+  )
+    ? ((inner.mediaAssets || inner.mediaIndex || inner.assets) as unknown[])
+    : [];
   for (const ma of pushMediaAssets) {
     if (ma && typeof ma === 'object') {
       const obj = ma as Record<string, unknown>;
-      if (obj.id && (obj.url || obj.fileName)) {
-        buckets.mediaAssets.push(obj as unknown as MediaAssetRecord);
+      if (obj.id && (obj.url || obj.rawUrl || obj.fileName)) {
+        buckets.mediaAssets.push(
+          normalizeMediaAssetRecord(
+            obj as Partial<MediaAssetRecord> & Record<string, unknown>
+          )
+        );
       }
+    }
+  }
+
+  // Auto-discover any extensible/unknown custom array collections cleanly as `generic_card`
+  const knownInnerKeys = new Set([
+    'blocks',
+    'subjects',
+    'topics',
+    'terms',
+    'sentences',
+    'customAffixes',
+    'affixes',
+    'customAbbreviations',
+    'abbreviations',
+    'books',
+    'exams',
+    'quizQuestions',
+    'questions',
+    'mediaAssets',
+    'mediaIndex',
+    'assets',
+    'mediaRecords',
+    'contentTypesRegistry',
+    'changelog',
+    'tags'
+  ]);
+  for (const [key, val] of Object.entries(inner)) {
+    if (knownInnerKeys.has(key) || !Array.isArray(val) || val.length === 0) continue;
+    const dynItems: DynamicCatalogItem[] = [];
+    val.forEach((entry, idx) => {
+      if (!entry || typeof entry !== 'object') return;
+      const obj = entry as Record<string, unknown>;
+      if (!obj.id && !obj.title && !obj.titleEn && !obj.titleAr && !obj.name) return;
+      dynItems.push({
+        id: String(obj.id || `${key}-${idx + 1}`),
+        titleEn: typeof obj.titleEn === 'string' ? obj.titleEn : typeof obj.title === 'string' ? obj.title : typeof obj.name === 'string' ? obj.name : `${key} #${idx + 1}`,
+        titleAr: typeof obj.titleAr === 'string' ? obj.titleAr : typeof obj.title === 'string' ? obj.title : undefined,
+        summaryEn: typeof obj.summaryEn === 'string' ? obj.summaryEn : typeof obj.descriptionEn === 'string' ? obj.descriptionEn : undefined,
+        summaryAr: typeof obj.summaryAr === 'string' ? obj.summaryAr : typeof obj.descriptionAr === 'string' ? obj.descriptionAr : undefined,
+        downloadUrl: typeof obj.downloadUrl === 'string' ? obj.downloadUrl : undefined,
+        rawUrl: typeof obj.rawUrl === 'string' ? obj.rawUrl : typeof obj.url === 'string' ? obj.url : undefined,
+        rawPayload: obj
+      });
+    });
+    if (dynItems.length > 0) {
+      buckets.dynamicCollections.push({
+        id: key,
+        name: key,
+        contentType: key,
+        rendererType: 'generic_card',
+        displayNameAr: key,
+        displayNameEn: key,
+        recordCount: dynItems.length,
+        items: dynItems
+      });
     }
   }
 
@@ -979,7 +1053,9 @@ function collectFromParsedJson(parsed: unknown, buckets: ParsedBuckets): void {
     pushSentences.length === 0 &&
     pushBooks.length === 0 &&
     pushExams.length === 0 &&
-    pushQuestions.length === 0
+    pushQuestions.length === 0 &&
+    pushMediaAssets.length === 0 &&
+    buckets.dynamicCollections.length === 0
   ) {
     collectFromParsedJson([inner], buckets);
   }
@@ -1033,6 +1109,7 @@ export function importUniversalAiOrLocalContent(params: {
     exams: [],
     questions: [],
     mediaAssets: [],
+    dynamicCollections: [],
     sourceFormat: 'unknown'
   };
 
@@ -1100,7 +1177,8 @@ export function importUniversalAiOrLocalContent(params: {
     buckets.books.length +
     buckets.exams.length +
     buckets.questions.length +
-    buckets.mediaAssets.length;
+    buckets.mediaAssets.length +
+    buckets.dynamicCollections.reduce((acc, dc) => acc + dc.items.length, 0);
 
   if (totalParsed === 0) {
     return {
@@ -1335,15 +1413,33 @@ export function importUniversalAiOrLocalContent(params: {
     }
     const nextAbbrs = Array.from(abbrMap.values());
 
-    // 7. Merge Books, Exams, Validated Questions, and MediaAssets
+    // 7. Merge Books (preserving user-protected bookmarks, favorite, progress, notes), Exams, Validated Questions, and MediaAssets
     const booksMap = new Map(currentBooks.map((b) => [b.id, b]));
     for (const bk of buckets.books) {
       removed.books = (removed.books || []).filter((id) => id !== bk.id);
-      if (booksMap.has(bk.id) && mode === 'ignore') {
+      const existingBook = booksMap.get(bk.id);
+      if (existingBook && mode === 'ignore') {
         skippedDuplicates++;
         continue;
       }
-      booksMap.set(bk.id, bk);
+      booksMap.set(
+        bk.id,
+        existingBook
+          ? {
+              ...bk,
+              favorite: existingBook.favorite ?? bk.favorite,
+              bookmarks: existingBook.bookmarks?.length
+                ? existingBook.bookmarks
+                : bk.bookmarks,
+              lastReadPage: existingBook.lastReadPage ?? bk.lastReadPage,
+              readingProgressPercent:
+                existingBook.readingProgressPercent ?? bk.readingProgressPercent,
+              notes: existingBook.notes ?? bk.notes,
+              mediaIdbKey: existingBook.mediaIdbKey || bk.mediaIdbKey,
+              coverIdbKey: existingBook.coverIdbKey || bk.coverIdbKey
+            }
+          : bk
+      );
       counts.books++;
     }
     const nextBooks = Array.from(booksMap.values());
@@ -1417,7 +1513,8 @@ export function importUniversalAiOrLocalContent(params: {
       quizQuestions: buckets.questions,
       mediaAssets: buckets.mediaAssets,
       customAffixes: buckets.affixes,
-      customAbbreviations: buckets.abbreviations
+      customAbbreviations: buckets.abbreviations,
+      dynamicCollections: buckets.dynamicCollections
     });
     saveUnifiedCloudMirror(updatedMirror.snapshot);
 
