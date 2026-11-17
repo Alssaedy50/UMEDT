@@ -1213,7 +1213,27 @@ export function loadAppState(): PersistedAppState {
     rawTerms = [...INITIAL_TERMS];
   }
 
-  const terms = autoEnrichAllTermsRelations(rawTerms);
+  const sanitizedRawTerms = rawTerms
+    .filter((t): t is DictionaryTerm => Boolean(t && t.id && t.term))
+    .map((t) => ({
+      ...t,
+      translation: typeof t.translation === 'string' ? t.translation : '',
+      phonetic: typeof t.phonetic === 'string' ? t.phonetic : '',
+      pos: typeof t.pos === 'string' ? t.pos : 'noun',
+      definitionAr: typeof t.definitionAr === 'string' ? t.definitionAr : '',
+      definitionEn: typeof t.definitionEn === 'string' ? t.definitionEn : '',
+      collections: Array.isArray(t.collections) ? t.collections : [],
+      examples: Array.isArray(t.examples)
+        ? t.examples.filter((ex) => Boolean(ex && typeof ex.en === 'string'))
+        : [],
+      relations: {
+        synonyms: Array.isArray(t.relations?.synonyms) ? t.relations.synonyms : [],
+        broader: Array.isArray(t.relations?.broader) ? t.relations.broader : [],
+        related: Array.isArray(t.relations?.related) ? t.relations.related : []
+      }
+    }));
+
+  const terms = autoEnrichAllTermsRelations(sanitizedRawTerms);
 
   let rawSentences: LinkedSentence[];
   if (isBrowserRuntime) {
@@ -2859,8 +2879,7 @@ export async function runOnlineUpdateCycle(options?: {
       return { status };
     }
 
-    const shouldAutoInstall =
-      Boolean(options?.forceInstall) || config.autoUpdatePolicy === 'auto-install';
+    const shouldAutoInstall = !options?.isStartup && Boolean(options?.forceInstall);
 
     if (!shouldAutoInstall) {
       const status = emit({

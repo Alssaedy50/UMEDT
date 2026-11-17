@@ -117,7 +117,6 @@ import { parseUploadedFile } from './services/fileParserService';
 import {
   enqueueEntitiesForCloudSync,
   processCloudSyncQueue,
-  syncWithRemoteCloudLibrary,
   setCloudSyncSimulatedOffline,
   clearLocallyRemovedRegistry
 } from './services/cloudLibrarySyncService';
@@ -764,80 +763,37 @@ export default function App() {
     void putAllInStore(IDB_STORES.SENTENCES, sentences);
   }, [sentences]);
 
-  // Sync simulatedOffline flag with Unified Cloud Library Sync Engine
+  // Sync simulatedOffline flag with Unified Cloud Library Sync Engine (NEVER auto-download remote data)
   useEffect(() => {
     setCloudSyncSimulatedOffline(simulatedOffline);
     if (!simulatedOffline) {
-      void processCloudSyncQueue().then(async () => {
-        const res = await syncWithRemoteCloudLibrary({
-          localTopics: topics,
-          localTerms: terms,
-          localSentences: sentences
-        });
-        if (res.newUpdatesApplied > 0) {
-          setTopics(res.autoMergedTopics);
-          setTerms(res.autoMergedTerms);
-          setSentences(res.autoMergedSentences);
-          if (res.autoMergedAffixes.length > 0) {
-            setCustomAffixes(res.autoMergedAffixes);
-          }
-          if (res.autoMergedAbbreviations.length > 0) {
-            setCustomAbbreviations(res.autoMergedAbbreviations);
-          }
-        }
-      });
+      void processCloudSyncQueue();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simulatedOffline]);
 
-  // Automatic Cloud Library Sync on connectivity restoration & periodic retry for pending queue
+  // Flush outgoing user upload queue on connectivity restoration (no automatic cloud data download)
   useEffect(() => {
-    const runCloudSyncCycle = async () => {
+    const flushUploadQueueIfOnline = () => {
       if (simulatedOffline) return;
-      await processCloudSyncQueue();
-      const res = await syncWithRemoteCloudLibrary({
-        localTopics: topics,
-        localTerms: terms,
-        localSentences: sentences
-      });
-      if (res.newUpdatesApplied > 0) {
-        setTopics(res.autoMergedTopics);
-        setTerms(res.autoMergedTerms);
-        setSentences(res.autoMergedSentences);
-        if (res.autoMergedAffixes.length > 0) {
-          setCustomAffixes(res.autoMergedAffixes);
-        }
-        if (res.autoMergedAbbreviations.length > 0) {
-          setCustomAbbreviations(res.autoMergedAbbreviations);
-        }
-      }
-    };
-
-    const handleOnline = () => {
-      void runCloudSyncCycle();
+      void processCloudSyncQueue();
     };
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('online', handleOnline);
+      window.addEventListener('online', flushUploadQueueIfOnline);
     }
-
-    const startupTimer = setTimeout(() => {
-      void runCloudSyncCycle();
-    }, 800);
 
     const retryInterval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
+      if (simulatedOffline) return;
       void processCloudSyncQueue();
     }, 30 * 1000);
 
     return () => {
       if (typeof window !== 'undefined') {
-        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('online', flushUploadQueueIfOnline);
       }
-      clearTimeout(startupTimer);
       clearInterval(retryInterval);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simulatedOffline]);
 
   // Periodic Telegram Auto-Backup Check (Runs on startup and every minute)
@@ -1304,7 +1260,9 @@ export default function App() {
   const concordanceMatches = useMemo(() => {
     if (!activeDetailTerm) return [];
     const directExampleSet = new Set(
-      activeDetailTerm.examples.map((e) => e.en.trim().toLowerCase())
+      (Array.isArray(activeDetailTerm.examples) ? activeDetailTerm.examples : []).map((e) =>
+        e.en.trim().toLowerCase()
+      )
     );
     const occurrences =
       bidirectionalGraph.termToSentencesMap[activeDetailTerm.id] || [];
@@ -1894,14 +1852,15 @@ export default function App() {
         const idx = nextTerms.findIndex((t) => t.id === enh.termId);
         if (idx !== -1) {
           const current = nextTerms[idx];
+          const curExamples = Array.isArray(current.examples) ? current.examples : [];
           if (
-            !current.examples.some(
+            !curExamples.some(
               (e) => e.en.toLowerCase() === enh.example.en.toLowerCase()
             )
           ) {
             nextTerms[idx] = {
               ...current,
-              examples: [...current.examples, enh.example]
+              examples: [...curExamples, enh.example]
             };
             updatedCount += 1;
           }
@@ -1909,6 +1868,7 @@ export default function App() {
       });
 
       stagedTerms.forEach((staged) => {
+        const stagedExamples = Array.isArray(staged.examples) ? staged.examples : [];
         const existingIndex = nextTerms.findIndex(
           (t) => t.term.toLowerCase() === staged.term.toLowerCase()
         );
@@ -1927,15 +1887,17 @@ export default function App() {
               umdCode: staged.umdCode || nextTerms[existingIndex].umdCode,
               definitionAr: staged.definitionAr,
               definitionEn: staged.definitionEn,
-              examples: staged.examples,
+              examples: stagedExamples,
               relations: staged.relations,
               ingestedAt: 'الآن · تحديث مباشر'
             };
             updatedCount += 1;
           } else if (conflictPolicy === 'merge') {
             const current = nextTerms[existingIndex];
-            const mergedExamples = [...current.examples];
-            staged.examples.forEach((ex) => {
+            const mergedExamples = [
+              ...(Array.isArray(current.examples) ? current.examples : [])
+            ];
+            stagedExamples.forEach((ex) => {
               if (!mergedExamples.some((e) => e.en === ex.en)) {
                 mergedExamples.push(ex);
               }
@@ -2569,10 +2531,10 @@ export default function App() {
               setTopics(nextTopics);
               setTerms(nextTerms);
               setSentences(nextSentences);
-              if (nextAffixes && nextAffixes.length > 0) {
+              if (nextAffixes !== undefined) {
                 setCustomAffixes(nextAffixes);
               }
-              if (nextAbbreviations && nextAbbreviations.length > 0) {
+              if (nextAbbreviations !== undefined) {
                 setCustomAbbreviations(nextAbbreviations);
               }
               triggerTelegramAutoSync('تحديث المكتبة السحابية', {

@@ -219,7 +219,11 @@ export interface CloudLibraryStateSummary {
   totalCloudBlocksCount: number;
   downloadedBooksCount?: number;
   totalCloudBooksCount?: number;
+  downloadedExamIds?: string[];
+  downloadedExamsCount?: number;
   totalCloudExamsCount?: number;
+  cloudDictionaryTotalCount?: number;
+  cloudDictionaryDownloadedCount?: number;
   catalogVersion?: string;
   books?: CloudCatalogBookEntry[];
   exams?: AcademicExamPackage[];
@@ -853,14 +857,56 @@ export function mergeRecordsIntoCloudSnapshot(
       ? term.id
       : termByNormName.get(norm) || term.id;
     const existingTerm = termsMap.get(resolvedId);
+    const rawAny = term as unknown as Record<string, unknown>;
+    const normalizedExamples = Array.isArray(term.examples)
+      ? term.examples
+      : Array.isArray(rawAny.examples)
+        ? (rawAny.examples as DictionaryTerm['examples'])
+        : [];
+    const normalizedRelations = {
+      synonyms: Array.isArray(term.relations?.synonyms) ? term.relations.synonyms : [],
+      broader: Array.isArray(term.relations?.broader) ? term.relations.broader : [],
+      related: Array.isArray(term.relations?.related) ? term.relations.related : []
+    };
     const normalizedTerm: DictionaryTerm = {
       ...term,
       id: resolvedId,
       termNormalized: norm,
+      translation:
+        typeof term.translation === 'string'
+          ? term.translation
+          : typeof rawAny.arabicTranslation === 'string'
+            ? rawAny.arabicTranslation
+            : typeof rawAny.ar === 'string'
+              ? rawAny.ar
+              : existingTerm?.translation || '',
+      phonetic: typeof term.phonetic === 'string' ? term.phonetic : existingTerm?.phonetic || '',
+      pos: typeof term.pos === 'string' ? term.pos : existingTerm?.pos || 'noun',
+      category: term.category || existingTerm?.category || 'Medical',
+      keepEnglish: term.keepEnglish ?? existingTerm?.keepEnglish ?? true,
+      ingestedAt: term.ingestedAt || existingTerm?.ingestedAt || new Date().toISOString().slice(0, 10),
+      definitionAr:
+        typeof term.definitionAr === 'string'
+          ? term.definitionAr
+          : typeof rawAny.arabicDefinition === 'string'
+            ? rawAny.arabicDefinition
+            : existingTerm?.definitionAr || '',
+      definitionEn:
+        typeof term.definitionEn === 'string'
+          ? term.definitionEn
+          : typeof rawAny.englishDefinition === 'string'
+            ? rawAny.englishDefinition
+            : typeof rawAny.definition === 'string'
+              ? rawAny.definition
+              : existingTerm?.definitionEn || '',
+      examples: normalizedExamples,
+      relations: normalizedRelations,
       favorite: existingTerm ? Boolean(existingTerm.favorite || term.favorite) : Boolean(term.favorite),
       collections: existingTerm
-        ? Array.from(new Set([...(existingTerm.collections || []), ...(term.collections || [])]))
-        : term.collections || [],
+        ? Array.from(new Set([...(existingTerm.collections || []), ...(Array.isArray(term.collections) ? term.collections : [])]))
+        : Array.isArray(term.collections)
+          ? term.collections
+          : [],
       srsData: existingTerm?.srsData || term.srsData,
       lastStudiedAt: existingTerm?.lastStudiedAt || term.lastStudiedAt,
       studyCount: existingTerm?.studyCount ?? term.studyCount
@@ -1005,15 +1051,26 @@ export function mergeRecordsIntoCloudSnapshot(
     appliedCount += 1;
   }
 
-  const affixMap = new Map(
-    (current.customAffixes || []).map((af) => [
-      `${af.cleanKey.toLowerCase()}_${af.type}`,
-      af
-    ])
-  );
-  for (const af of incoming.customAffixes || []) {
-    if (!af || !af.cleanKey) continue;
-    affixMap.set(`${af.cleanKey.toLowerCase()}_${af.type}`, af);
+  const normalizeMirrorAffix = (rawAf: MorphologicalAffix & { morpheme?: string }): MorphologicalAffix | null => {
+    if (!rawAf) return null;
+    const rawAffix = String(rawAf.affix || rawAf.morpheme || '').trim();
+    const cleanKey = String(rawAf.cleanKey || rawAffix.replace(/^-+|-+$/g, '') || rawAf.id || '').trim();
+    if (!cleanKey) return null;
+    return {
+      ...rawAf,
+      affix: rawAffix || cleanKey,
+      cleanKey
+    };
+  };
+
+  const affixMap = new Map<string, MorphologicalAffix>();
+  for (const existingAf of current.customAffixes || []) {
+    const norm = normalizeMirrorAffix(existingAf as MorphologicalAffix & { morpheme?: string });
+    if (norm) affixMap.set(`${norm.cleanKey.toLowerCase()}_${norm.type}`, norm);
+  }
+  for (const incomingAf of incoming.customAffixes || []) {
+    const norm = normalizeMirrorAffix(incomingAf as MorphologicalAffix & { morpheme?: string });
+    if (norm) affixMap.set(`${norm.cleanKey.toLowerCase()}_${norm.type}`, norm);
   }
 
   const abbrMap = new Map(
@@ -1652,7 +1709,17 @@ export async function syncFromUmedtDataRepository(options?: {
       ctLower === 'affixes' ||
       rtLower === 'morphology_rule'
     ) {
-      incoming.customAffixes = extractCollectionArray<MorphologicalAffix>(parsedJson, 'affixes');
+      incoming.customAffixes = extractCollectionArray<
+        MorphologicalAffix & { morpheme?: string }
+      >(parsedJson, 'affixes').map((af) => {
+        const rawAffix = String(af.affix || af.morpheme || '').trim();
+        const cleanKey = String(af.cleanKey || rawAffix.replace(/^-+|-+$/g, '') || af.id || '').trim();
+        return {
+          ...af,
+          affix: rawAffix || cleanKey,
+          cleanKey
+        };
+      });
     } else if (
       idLower.includes('abbr') ||
       ctLower === 'abbreviation' ||
@@ -1906,13 +1973,7 @@ export async function syncWithRemoteCloudLibrary(params: {
     new Date().toISOString()
   );
 
-  // Also ensure any local items that aren't in the cloud mirror yet (and aren't locally deleted) are represented
-  const removed = loadLocallyRemovedRegistry();
-  const removedBlocksSet = new Set(removed.blocks);
-  const removedSubjectsSet = new Set(removed.subjects);
-  const removedTopicsSet = new Set(removed.topics);
-  const removedTermsSet = new Set(removed.terms);
-
+  // Also ensure any local items that aren't in the cloud mirror yet are represented in the catalog mirror
   const localBlocks = loadMedicalBlocks();
   const localSubjects = loadMedicalSubjects();
 
@@ -1927,288 +1988,20 @@ export async function syncWithRemoteCloudLibrary(params: {
   const mirror = syncedMirrorRes.snapshot;
   saveUnifiedCloudMirror(mirror);
 
-  let newUpdatesApplied = 0;
-
-  // Merge cloud updates into local state ONLY for blocks/subjects/topics already downloaded locally
-  const localBlockMap = new Map(localBlocks.map((b) => [b.id, b]));
-  for (const cb of mirror.blocks) {
-    if (removedBlocksSet.has(cb.id)) continue;
-    const existing = localBlockMap.get(cb.id);
-    if (!existing) continue;
-    const localHash = computeDeterministicFastHashHex(canonicalizeForHash('block', existing));
-    const cloudHash = computeDeterministicFastHashHex(canonicalizeForHash('block', cb));
-    if (localHash !== cloudHash && (cb.updatedAt || '') > (existing.updatedAt || '')) {
-      localBlockMap.set(cb.id, cb);
-      newUpdatesApplied += 1;
-    }
-  }
-  const autoMergedBlocks = Array.from(localBlockMap.values()).sort((a, b) => a.order - b.order);
-
-  const localSubjMap = new Map(localSubjects.map((s) => [s.id, s]));
-  for (const cs of mirror.subjects) {
-    if (removedSubjectsSet.has(cs.id) || removedBlocksSet.has(cs.blockId || '')) continue;
-    const existing = localSubjMap.get(cs.id);
-    if (!existing) continue;
-    const localHash = computeDeterministicFastHashHex(canonicalizeForHash('subject', existing));
-    const cloudHash = computeDeterministicFastHashHex(canonicalizeForHash('subject', cs));
-    if (localHash !== cloudHash && (cs.updatedAt || '') > (existing.updatedAt || '')) {
-      localSubjMap.set(cs.id, cs);
-      newUpdatesApplied += 1;
-    }
-  }
-  const autoMergedSubjects = Array.from(localSubjMap.values()).sort((a, b) => a.order - b.order);
-
-  const preserveTopicOfflineMediaKeys = (
-    incomingTopic: TopicArticle,
-    existingTopic: TopicArticle
-  ): TopicArticle => {
-    const oldMediaKeyByCbId = new Map<string, string>();
-    for (const sec of existingTopic.sections || []) {
-      for (const cb of sec.contentBlocks || []) {
-        if (cb.id && cb.mediaIdbKey) oldMediaKeyByCbId.set(cb.id, cb.mediaIdbKey);
-      }
-    }
-    const oldImgKeyById = new Map(
-      (existingTopic.images || [])
-        .filter((img) => img.id && img.mediaIdbKey)
-        .map((img) => [img.id, img.mediaIdbKey!])
-    );
-    const oldAttKeyById = new Map(
-      (existingTopic.attachments || [])
-        .filter((att) => att.id && att.mediaIdbKey)
-        .map((att) => [att.id, att.mediaIdbKey!])
-    );
-    return {
-      ...incomingTopic,
-      favorite: existingTopic.favorite,
-      lastOpenedAt: existingTopic.lastOpenedAt || incomingTopic.lastOpenedAt,
-      sections: (incomingTopic.sections || []).map((sec) => ({
-        ...sec,
-        contentBlocks: sec.contentBlocks
-          ? sec.contentBlocks.map((cb) => ({
-              ...cb,
-              mediaIdbKey: cb.mediaIdbKey || oldMediaKeyByCbId.get(cb.id)
-            }))
-          : undefined
-      })),
-      images: (incomingTopic.images || []).map((img) => ({
-        ...img,
-        mediaIdbKey: img.mediaIdbKey || oldImgKeyById.get(img.id)
-      })),
-      attachments: (incomingTopic.attachments || []).map((att) => ({
-        ...att,
-        mediaIdbKey: att.mediaIdbKey || oldAttKeyById.get(att.id)
-      }))
-    };
-  };
-
-  const localTopicMap = new Map(params.localTopics.map((t) => [t.id, t]));
-  for (const ct of mirror.topics) {
-    if (
-      removedTopicsSet.has(ct.id) ||
-      removedSubjectsSet.has(ct.subjectId || '') ||
-      removedBlocksSet.has(ct.blockId || '')
-    ) {
-      continue;
-    }
-    const existing = localTopicMap.get(ct.id);
-    if (!existing) continue;
-    const localHash = computeDeterministicFastHashHex(canonicalizeForHash('topic', existing));
-    const cloudHash = computeDeterministicFastHashHex(canonicalizeForHash('topic', ct));
-    if (localHash !== cloudHash) {
-      localTopicMap.set(ct.id, preserveTopicOfflineMediaKeys(ct, existing));
-      newUpdatesApplied += 1;
-    }
-  }
-  const autoMergedTopics = Array.from(localTopicMap.values());
-
-  const localTermMap = new Map(params.localTerms.map((t) => [t.id, t]));
-  for (const ctm of mirror.terms) {
-    if (removedTermsSet.has(ctm.id)) continue;
-    const existing = localTermMap.get(ctm.id);
-    if (!existing) {
-      localTermMap.set(ctm.id, ctm);
-      newUpdatesApplied += 1;
-    } else {
-      const localHash = computeDeterministicFastHashHex(canonicalizeForHash('term', existing));
-      const cloudHash = computeDeterministicFastHashHex(canonicalizeForHash('term', ctm));
-      if (localHash !== cloudHash) {
-        localTermMap.set(ctm.id, {
-          ...ctm,
-          favorite: existing.favorite,
-          collections: Array.from(
-            new Set([...(existing.collections || []), ...(ctm.collections || [])])
-          ),
-          srsData: existing.srsData || ctm.srsData,
-          lastStudiedAt: existing.lastStudiedAt || ctm.lastStudiedAt,
-          studyCount: existing.studyCount ?? ctm.studyCount
-        });
-        newUpdatesApplied += 1;
-      }
-    }
-  }
-  const autoMergedTerms = Array.from(localTermMap.values());
-
-  const localSentenceMap = new Map(params.localSentences.map((s) => [s.id, s]));
-  for (const csn of mirror.sentences) {
-    if (!localSentenceMap.has(csn.id)) {
-      localSentenceMap.set(csn.id, csn);
-    } else {
-      const prev = localSentenceMap.get(csn.id)!;
-      if (prev.favorite || prev.srsData) {
-        localSentenceMap.set(csn.id, {
-          ...csn,
-          favorite: prev.favorite,
-          srsData: prev.srsData || csn.srsData
-        });
-      }
-    }
-  }
-  const autoMergedSentences = Array.from(localSentenceMap.values());
-
-  // Sync Affixes & Abbreviations from Unified Cloud Mirror into local lexicon dictionaries
-  const localAffixesList = loadLocalAffixes();
-  const affixMap = new Map<string, MorphologicalAffix>(
-    localAffixesList.map((a) => [`${(a.cleanKey || a.affix).toLowerCase()}_${a.type}`, a])
-  );
-  let affixesChanged = false;
-  for (const af of mirror.customAffixes || []) {
-    if (!af || !af.affix) continue;
-    const key = `${(af.cleanKey || af.affix).toLowerCase()}_${af.type}`;
-    if (!affixMap.has(key)) {
-      affixMap.set(key, af);
-      affixesChanged = true;
-      newUpdatesApplied += 1;
-    }
-  }
-  const autoMergedAffixes = Array.from(affixMap.values());
-  if (affixesChanged) {
-    getSafeStorage().setItem(
-      'dictengine_umd_custom_affixes_v2',
-      JSON.stringify(autoMergedAffixes)
-    );
-  }
-
-  const localAbbrsList = loadLocalAbbreviations();
-  const abbrMap = new Map<string, ClinicalAbbreviation>(
-    localAbbrsList.map((a) => [a.abbr.toLowerCase(), a])
-  );
-  let abbrsChanged = false;
-  for (const ab of mirror.customAbbreviations || []) {
-    if (!ab || !ab.abbr) continue;
-    const key = ab.abbr.toLowerCase();
-    if (!abbrMap.has(key)) {
-      abbrMap.set(key, ab);
-      abbrsChanged = true;
-      newUpdatesApplied += 1;
-    }
-  }
-  const autoMergedAbbreviations = Array.from(abbrMap.values());
-  if (abbrsChanged) {
-    getSafeStorage().setItem(
-      'dictengine_umd_custom_abbreviations_v2',
-      JSON.stringify(autoMergedAbbreviations)
-    );
-  }
-
-  // Update already-downloaded local Books, Exams, and Quiz Questions linked to downloaded hierarchy
-  const localBooks = loadAcademicBooks();
-  const localBookIdsSet = new Set(localBooks.map((b) => b.id));
-  let booksUpdated = false;
-  const nextLocalBooks = localBooks.map((existingBk) => {
-    const cloudBk = (mirror.books || []).find((b) => b.id === existingBk.id);
-    if (!cloudBk) return existingBk;
-    const localH = computeDeterministicFastHashHex(canonicalizeForHash('book', existingBk));
-    const cloudH = computeDeterministicFastHashHex(canonicalizeForHash('book', cloudBk));
-    if (localH === cloudH) return existingBk;
-    booksUpdated = true;
-    newUpdatesApplied += 1;
-    return {
-      ...cloudBk,
-      favorite: existingBk.favorite ?? cloudBk.favorite,
-      bookmarks: existingBk.bookmarks?.length ? existingBk.bookmarks : cloudBk.bookmarks,
-      lastReadPage: existingBk.lastReadPage ?? cloudBk.lastReadPage,
-      readingProgressPercent:
-        existingBk.readingProgressPercent ?? cloudBk.readingProgressPercent,
-      notes: existingBk.notes ?? cloudBk.notes,
-      mediaIdbKey: existingBk.mediaIdbKey || cloudBk.mediaIdbKey,
-      coverIdbKey: existingBk.coverIdbKey || cloudBk.coverIdbKey
-    };
-  });
-  if (booksUpdated) {
-    saveAcademicBooks(nextLocalBooks);
-  }
-
-  const downloadedBlockIds = new Set(autoMergedBlocks.map((b) => b.id));
-  const downloadedSubjectIds = new Set(autoMergedSubjects.map((s) => s.id));
-  const downloadedTopicIds = new Set(autoMergedTopics.map((t) => t.id));
-  const hasDownloadedHierarchy =
-    downloadedBlockIds.size > 0 || downloadedSubjectIds.size > 0 || downloadedTopicIds.size > 0;
-
-  if (hasDownloadedHierarchy && (mirror.quizQuestions || []).length > 0) {
-    const matchingQuestions = (mirror.quizQuestions || []).filter(
-      (q) =>
-        (q.topicId && downloadedTopicIds.has(q.topicId)) ||
-        (q.subjectId && downloadedSubjectIds.has(q.subjectId)) ||
-        (q.blockId && downloadedBlockIds.has(q.blockId))
-    );
-    if (matchingQuestions.length > 0) {
-      const currentQuestions = loadQuizQuestions(autoMergedTopics, autoMergedTerms);
-      const qMap = new Map(currentQuestions.map((q) => [q.id, q]));
-      let qChanged = false;
-      for (const mq of matchingQuestions) {
-        if (!qMap.has(mq.id)) {
-          qMap.set(mq.id, mq);
-          qChanged = true;
-        }
-      }
-      if (qChanged) {
-        saveQuizQuestions(Array.from(qMap.values()));
-      }
-    }
-  }
-
-  if (hasDownloadedHierarchy && (mirror.exams || []).length > 0) {
-    const removedExamsSet = new Set(removed.exams || []);
-    const matchingExams = (mirror.exams || []).filter(
-      (ex) =>
-        !removedExamsSet.has(ex.id) &&
-        ((ex.blockId && downloadedBlockIds.has(ex.blockId)) ||
-          (ex.subjectId && downloadedSubjectIds.has(ex.subjectId)) ||
-          (ex.topicIds || []).some((tid) => downloadedTopicIds.has(tid)))
-    );
-    if (matchingExams.length > 0 || localBookIdsSet.size > 0) {
-      const currentExams = loadAcademicExams();
-      const exMap = new Map(currentExams.map((e) => [e.id, e]));
-      let exChanged = false;
-      for (const ex of matchingExams) {
-        if (!exMap.has(ex.id)) {
-          exMap.set(ex.id, ex);
-          exChanged = true;
-        }
-      }
-      if (exChanged) {
-        saveAcademicExams(Array.from(exMap.values()));
-      }
-    }
-  }
-
-  if (newUpdatesApplied > 0) {
-    saveMedicalBlocks(autoMergedBlocks);
-    saveMedicalSubjects(autoMergedSubjects);
-  }
-
+  // STRICT POLICY: Never auto-download or auto-merge cloud data into local app storage/state.
+  // Syncing with the remote catalog only updates the Unified Cloud Mirror index so the user
+  // can browse available items and download them ONLY when clicking Download explicitly.
   notifyCloudLibraryListeners();
   return {
     mirror,
-    autoMergedTopics,
-    autoMergedTerms,
-    autoMergedSentences,
-    autoMergedBlocks,
-    autoMergedSubjects,
-    autoMergedAffixes,
-    autoMergedAbbreviations,
-    newUpdatesApplied
+    autoMergedTopics: params.localTopics,
+    autoMergedTerms: params.localTerms,
+    autoMergedSentences: params.localSentences,
+    autoMergedBlocks: localBlocks,
+    autoMergedSubjects: localSubjects,
+    autoMergedAffixes: loadLocalAffixes(),
+    autoMergedAbbreviations: loadLocalAbbreviations(),
+    newUpdatesApplied: 0
   };
 }
 
@@ -2566,9 +2359,83 @@ export function buildCloudLibraryCatalogView(params: {
     : 'synced';
 
   const downloadedBlocksCount = blockEntries.filter((b) => b.isDownloaded).length;
-  const visibleExams = (mirror.exams || []).filter(
-    (ex) => !permExams.has(ex.id) && !permBlocks.has(ex.blockId || '')
+
+  const localExams = loadAcademicExams();
+  const localExamIdsSet = new Set(
+    localExams
+      .filter(
+        (ex) =>
+          !(removed.exams || []).includes(ex.id) &&
+          !permExams.has(ex.id) &&
+          !permBlocks.has(ex.blockId || '')
+      )
+      .map((ex) => ex.id)
   );
+  const cloudExamsMap = new Map<string, AcademicExamPackage>();
+  for (const ex of mirror.exams || []) {
+    if (!permExams.has(ex.id) && !permBlocks.has(ex.blockId || '')) {
+      cloudExamsMap.set(ex.id, ex);
+    }
+  }
+  for (const ex of localExams) {
+    if (
+      !(removed.exams || []).includes(ex.id) &&
+      !permExams.has(ex.id) &&
+      !permBlocks.has(ex.blockId || '')
+    ) {
+      cloudExamsMap.set(ex.id, ex);
+    }
+  }
+  const visibleExams = Array.from(cloudExamsMap.values());
+  const downloadedExamIds = visibleExams
+    .filter((ex) => localExamIdsSet.has(ex.id))
+    .map((ex) => ex.id);
+
+  // Cloud Dictionary Pack counts (Terms, Sentences, Affixes, Abbreviations in mirror vs local)
+  const localTermIdsSet = new Set(params.localTerms.map((t) => t.id));
+  const localSentenceIdsSet = new Set(params.localSentences.map((s) => s.id));
+  const cloudDictTerms = (mirror.terms || []).filter(
+    (tm) => !(permDeleted.terms || []).includes(tm.id)
+  );
+  const cloudDictSentences = mirror.sentences || [];
+  const cloudDictAffixes = mirror.customAffixes || [];
+  const cloudDictAbbrs = mirror.customAbbreviations || [];
+
+  let localAffixKeysSet = new Set<string>();
+  try {
+    const rawAf = getSafeStorage().getItem('dictengine_umd_custom_affixes_v2');
+    const parsedAf = rawAf ? (JSON.parse(rawAf) as MorphologicalAffix[]) : [];
+    if (Array.isArray(parsedAf)) {
+      localAffixKeysSet = new Set(
+        parsedAf.map((a) => `${(a.cleanKey || a.affix).toLowerCase()}_${a.type}`)
+      );
+    }
+  } catch {
+    // ignore
+  }
+  let localAbbrKeysSet = new Set<string>();
+  try {
+    const rawAb = getSafeStorage().getItem('dictengine_umd_custom_abbreviations_v2');
+    const parsedAb = rawAb ? (JSON.parse(rawAb) as ClinicalAbbreviation[]) : [];
+    if (Array.isArray(parsedAb)) {
+      localAbbrKeysSet = new Set(parsedAb.map((a) => a.abbr.toLowerCase()));
+    }
+  } catch {
+    // ignore
+  }
+
+  const cloudDictionaryTotalCount =
+    cloudDictTerms.length +
+    cloudDictSentences.length +
+    cloudDictAffixes.length +
+    cloudDictAbbrs.length;
+  const cloudDictionaryDownloadedCount =
+    cloudDictTerms.filter((t) => localTermIdsSet.has(t.id)).length +
+    cloudDictSentences.filter((s) => localSentenceIdsSet.has(s.id)).length +
+    cloudDictAffixes.filter((a) =>
+      localAffixKeysSet.has(`${(a.cleanKey || a.affix).toLowerCase()}_${a.type}`)
+    ).length +
+    cloudDictAbbrs.filter((a) => localAbbrKeysSet.has(a.abbr.toLowerCase())).length;
 
   return {
     overallSyncStatus,
@@ -2587,7 +2454,11 @@ export function buildCloudLibraryCatalogView(params: {
     totalCloudBlocksCount: blockEntries.length,
     downloadedBooksCount: bookEntries.filter((b) => b.isDownloaded).length,
     totalCloudBooksCount: bookEntries.length,
+    downloadedExamIds,
+    downloadedExamsCount: downloadedExamIds.length,
     totalCloudExamsCount: visibleExams.length,
+    cloudDictionaryTotalCount,
+    cloudDictionaryDownloadedCount,
     catalogVersion: mirror.catalogVersion,
     books: bookEntries,
     exams: visibleExams,
@@ -2670,12 +2541,13 @@ async function resolveAndCacheRemoteUrlForEntity(params: {
 
 /**
  * Selective Granular Download:
- * Downloads a specific Block, Subject, Topic, or Book from the Unified Cloud Library to local storage.
+ * Downloads ONLY when the user explicitly clicks Download on a Block, Subject, Topic, Book, Exam, or Dictionary pack
+ * from the Unified Cloud Library into local device storage.
  * Prefetches referenced remote media/PDFs into IndexedDB and enforces SHA-256 deduplication so identical
  * local content/media is never downloaded twice.
  */
 export async function downloadCloudLibraryTarget(params: {
-  targetType: 'block' | 'subject' | 'topic' | 'book';
+  targetType: 'block' | 'subject' | 'topic' | 'book' | 'exam' | 'dictionary';
   targetId: string;
   currentTopics: TopicArticle[];
   currentTerms: DictionaryTerm[];
@@ -2693,6 +2565,8 @@ export async function downloadCloudLibraryTarget(params: {
   updatedSentences: LinkedSentence[];
   updatedBlocks: MedicalBlock[];
   updatedSubjects: MedicalSubject[];
+  updatedAffixes?: MorphologicalAffix[];
+  updatedAbbreviations?: ClinicalAbbreviation[];
   messageAr: string;
 }> {
   // STRICT REQUIREMENT: Cloud downloads require an active internet connection
@@ -2715,7 +2589,10 @@ export async function downloadCloudLibraryTarget(params: {
 
   let mirror = loadUnifiedCloudMirror();
   if (
-    (mirror.topics.length === 0 && (mirror.books || []).length === 0) ||
+    mirror.topics.length === 0 &&
+    (mirror.books || []).length === 0 &&
+    (mirror.exams || []).length === 0 &&
+    mirror.terms.length === 0 &&
     mirror.blocks.length === 0
   ) {
     const syncRes = await syncWithRemoteCloudLibrary({
@@ -2728,8 +2605,237 @@ export async function downloadCloudLibraryTarget(params: {
   }
 
   const removed = loadLocallyRemovedRegistry();
+  const permDeleted = loadPermanentlyDeletedRegistry();
   const localBlocks = loadMedicalBlocks();
   const localSubjects = loadMedicalSubjects();
+
+  // Handle Cloud Dictionary Pack (Terms, Sentences, Affixes & Abbreviations) explicit download
+  if (params.targetType === 'dictionary') {
+    const permTermIds = new Set(permDeleted.terms || []);
+    const permSentenceIds = new Set(permDeleted.sentences || []);
+    let downloadedTermsCount = 0;
+    let skippedIdenticalCount = 0;
+    let bytesDownloaded = 0;
+
+    const nextTermsMap = new Map(params.currentTerms.map((t) => [t.id, t]));
+    for (const ctm of mirror.terms || []) {
+      if (permTermIds.has(ctm.id)) continue;
+      removed.terms = removed.terms.filter((id) => id !== ctm.id);
+      const existing = nextTermsMap.get(ctm.id);
+      const incomingHash = await computeEntitySha256('term', ctm);
+      const existingHash = existing ? await computeEntitySha256('term', existing) : '';
+      if (existing && existingHash === incomingHash) {
+        skippedIdenticalCount += 1;
+      } else {
+        nextTermsMap.set(
+          ctm.id,
+          existing
+            ? {
+                ...ctm,
+                favorite: existing.favorite,
+                collections: Array.from(
+                  new Set([...(existing.collections || []), ...(ctm.collections || [])])
+                ),
+                srsData: existing.srsData || ctm.srsData,
+                lastStudiedAt: existing.lastStudiedAt || ctm.lastStudiedAt,
+                studyCount: existing.studyCount ?? ctm.studyCount
+              }
+            : ctm
+        );
+        downloadedTermsCount += 1;
+        bytesDownloaded += computeEntitySizeBytes(ctm);
+      }
+    }
+    const updatedTerms = Array.from(nextTermsMap.values());
+
+    const nextSentenceMap = new Map(params.currentSentences.map((s) => [s.id, s]));
+    for (const csn of mirror.sentences || []) {
+      if (permSentenceIds.has(csn.id)) continue;
+      removed.sentences = removed.sentences.filter((id) => id !== csn.id);
+      const existing = nextSentenceMap.get(csn.id);
+      if (!existing) {
+        nextSentenceMap.set(csn.id, csn);
+        bytesDownloaded += computeEntitySizeBytes(csn);
+      } else if (existing.favorite || existing.srsData) {
+        nextSentenceMap.set(csn.id, {
+          ...csn,
+          favorite: existing.favorite,
+          srsData: existing.srsData || csn.srsData
+        });
+      }
+    }
+    const updatedSentences = Array.from(nextSentenceMap.values());
+
+    let localAffixesList: MorphologicalAffix[] = [];
+    try {
+      const rawAf = getSafeStorage().getItem('dictengine_umd_custom_affixes_v2');
+      const parsedAf = rawAf ? JSON.parse(rawAf) : [];
+      if (Array.isArray(parsedAf)) localAffixesList = parsedAf;
+    } catch {
+      // ignore
+    }
+    const affixMap = new Map<string, MorphologicalAffix>(
+      localAffixesList.map((a) => [`${(a.cleanKey || a.affix).toLowerCase()}_${a.type}`, a])
+    );
+    let affixesChanged = false;
+    for (const af of mirror.customAffixes || []) {
+      if (!af || !af.affix) continue;
+      const key = `${(af.cleanKey || af.affix).toLowerCase()}_${af.type}`;
+      if (!affixMap.has(key)) {
+        affixMap.set(key, af);
+        affixesChanged = true;
+        downloadedTermsCount += 1;
+        bytesDownloaded += computeEntitySizeBytes(af);
+      }
+    }
+    const updatedAffixes = Array.from(affixMap.values());
+    if (affixesChanged) {
+      getSafeStorage().setItem(
+        'dictengine_umd_custom_affixes_v2',
+        JSON.stringify(updatedAffixes)
+      );
+    }
+
+    let localAbbrsList: ClinicalAbbreviation[] = [];
+    try {
+      const rawAb = getSafeStorage().getItem('dictengine_umd_custom_abbreviations_v2');
+      const parsedAb = rawAb ? JSON.parse(rawAb) : [];
+      if (Array.isArray(parsedAb)) localAbbrsList = parsedAb;
+    } catch {
+      // ignore
+    }
+    const abbrMap = new Map<string, ClinicalAbbreviation>(
+      localAbbrsList.map((a) => [a.abbr.toLowerCase(), a])
+    );
+    let abbrsChanged = false;
+    for (const ab of mirror.customAbbreviations || []) {
+      if (!ab || !ab.abbr) continue;
+      const key = ab.abbr.toLowerCase();
+      if (!abbrMap.has(key)) {
+        abbrMap.set(key, ab);
+        abbrsChanged = true;
+        downloadedTermsCount += 1;
+        bytesDownloaded += computeEntitySizeBytes(ab);
+      }
+    }
+    const updatedAbbreviations = Array.from(abbrMap.values());
+    if (abbrsChanged) {
+      getSafeStorage().setItem(
+        'dictengine_umd_custom_abbreviations_v2',
+        JSON.stringify(updatedAbbreviations)
+      );
+    }
+
+    saveLocallyRemovedRegistry(removed);
+    notifyCloudLibraryListeners();
+
+    return {
+      success: true,
+      downloadedTopicsCount: 0,
+      downloadedTermsCount,
+      downloadedMediaCount: 0,
+      skippedIdenticalCount,
+      bytesDownloaded,
+      updatedTopics: params.currentTopics,
+      updatedTerms,
+      updatedSentences,
+      updatedBlocks: localBlocks,
+      updatedSubjects: localSubjects,
+      updatedAffixes,
+      updatedAbbreviations,
+      messageAr:
+        downloadedTermsCount === 0 && skippedIdenticalCount > 0
+          ? 'بيانات القاموس منزّلة ومحدّثة مسبقاً'
+          : `تم تنزيل بيانات القاموس السحابية (${formatBytesLabel(bytesDownloaded)})`
+    };
+  }
+
+  // Handle single Exam explicit download
+  if (params.targetType === 'exam') {
+    const targetExam = (mirror.exams || []).find((e) => e.id === params.targetId);
+    if (!targetExam) {
+      return {
+        success: false,
+        downloadedTopicsCount: 0,
+        downloadedTermsCount: 0,
+        downloadedMediaCount: 0,
+        skippedIdenticalCount: 0,
+        bytesDownloaded: 0,
+        updatedTopics: params.currentTopics,
+        updatedTerms: params.currentTerms,
+        updatedSentences: params.currentSentences,
+        updatedBlocks: localBlocks,
+        updatedSubjects: localSubjects,
+        messageAr: 'الاختبار غير موجود في الفهرس السحابي'
+      };
+    }
+
+    let downloadedMediaCount = 0;
+    let skippedIdenticalCount = 0;
+    let bytesDownloaded = computeEntitySizeBytes(targetExam);
+
+    const targetQIds = new Set(targetExam.questionIds || []);
+    const targetTopicIds = new Set(targetExam.topicIds || []);
+    const matchingQuestions = (mirror.quizQuestions || []).filter(
+      (q) =>
+        targetQIds.has(q.id) ||
+        (targetExam.subjectId && q.subjectId === targetExam.subjectId) ||
+        (targetExam.blockId && q.blockId === targetExam.blockId) ||
+        (q.topicId && targetTopicIds.has(q.topicId))
+    );
+    const embeddedQuestions = Array.isArray(targetExam.questions) ? targetExam.questions : [];
+    const allLinkedQuestions = [...matchingQuestions, ...embeddedQuestions];
+
+    if (allLinkedQuestions.length > 0) {
+      const existingQuestions = loadQuizQuestions(params.currentTopics, params.currentTerms);
+      const qMap = new Map(existingQuestions.map((q) => [q.id, q]));
+      for (const q of allLinkedQuestions) {
+        qMap.set(q.id, q);
+        bytesDownloaded += computeEntitySizeBytes(q);
+        if (q.imageUrl && /^https?:\/\//i.test(q.imageUrl)) {
+          const qImgRes = await resolveAndCacheRemoteUrlForEntity({
+            url: q.imageUrl,
+            topicId: q.topicId,
+            fileName: `${q.id}-diagram`,
+            mediaAssets: mirror.mediaAssets,
+            customFetch: params.customFetch
+          });
+          if (qImgRes.cachedNew) {
+            downloadedMediaCount += 1;
+            bytesDownloaded += qImgRes.sizeBytes;
+          } else if (qImgRes.skippedDuplicate) {
+            skippedIdenticalCount += 1;
+          }
+        }
+      }
+      saveQuizQuestions(Array.from(qMap.values()));
+    }
+
+    const existingExams = loadAcademicExams();
+    const updatedExams = [
+      ...existingExams.filter((e) => e.id !== targetExam.id),
+      targetExam
+    ];
+    removed.exams = (removed.exams || []).filter((id) => id !== targetExam.id);
+    saveLocallyRemovedRegistry(removed);
+    saveAcademicExams(updatedExams);
+    notifyCloudLibraryListeners();
+
+    return {
+      success: true,
+      downloadedTopicsCount: 0,
+      downloadedTermsCount: 0,
+      downloadedMediaCount,
+      skippedIdenticalCount,
+      bytesDownloaded,
+      updatedTopics: params.currentTopics,
+      updatedTerms: params.currentTerms,
+      updatedSentences: params.currentSentences,
+      updatedBlocks: localBlocks,
+      updatedSubjects: localSubjects,
+      messageAr: `تم تنزيل الاختبار (${formatBytesLabel(bytesDownloaded)}) للعمل دون إنترنت`
+    };
+  }
 
   // Handle single Book download cleanly
   if (params.targetType === 'book') {
@@ -3234,6 +3340,22 @@ export async function downloadCloudLibraryTarget(params: {
     saveAcademicBooks(Array.from(bkMap.values()));
   }
 
+  // Also merge cloud sentences linked to the downloaded terms or topics
+  const downloadedTermIds = new Set(cloudTermsForTarget.map((tm) => tm.id));
+  const nextSentenceMap = new Map(params.currentSentences.map((s) => [s.id, s]));
+  for (const csn of mirror.sentences || []) {
+    const matchesTarget =
+      (csn.linkedTermIds || []).some((id) => downloadedTermIds.has(id)) ||
+      targetTopics.some((tp) => tp.category === csn.category);
+    if (!matchesTarget) continue;
+    removed.sentences = removed.sentences.filter((id) => id !== csn.id);
+    if (!nextSentenceMap.has(csn.id)) {
+      nextSentenceMap.set(csn.id, csn);
+      bytesDownloaded += computeEntitySizeBytes(csn);
+    }
+  }
+  const updatedSentences = Array.from(nextSentenceMap.values());
+
   saveLocallyRemovedRegistry(removed);
   notifyCloudLibraryListeners();
 
@@ -3251,7 +3373,7 @@ export async function downloadCloudLibraryTarget(params: {
     bytesDownloaded,
     updatedTopics,
     updatedTerms,
-    updatedSentences: params.currentSentences,
+    updatedSentences,
     updatedBlocks,
     updatedSubjects,
     messageAr
@@ -3260,12 +3382,12 @@ export async function downloadCloudLibraryTarget(params: {
 
 /**
  * Local-Only Deletion:
- * Completely deletes a Block, Subject, Topic, or Book (and its associated media in IndexedDB)
+ * Completely deletes a Block, Subject, Topic, Book, or Exam (and its associated media in IndexedDB)
  * from local device storage while preserving it in the Unified Cloud Mirror so it appears
  * under `المكتبة السحابية` and can be re-downloaded at any time.
  */
 export async function deleteCloudLibraryTargetLocally(params: {
-  targetType: 'block' | 'subject' | 'topic' | 'book';
+  targetType: 'block' | 'subject' | 'topic' | 'book' | 'exam';
   targetId: string;
   currentTopics: TopicArticle[];
   currentTerms: DictionaryTerm[];
@@ -3297,6 +3419,27 @@ export async function deleteCloudLibraryTargetLocally(params: {
   saveUnifiedCloudMirror(preservedMirror.snapshot);
 
   const removed = loadLocallyRemovedRegistry();
+
+  if (params.targetType === 'exam') {
+    const localExams = loadAcademicExams();
+    const targetExam = localExams.find((e) => e.id === params.targetId);
+    const freed = targetExam ? computeEntitySizeBytes(targetExam) : 0;
+    removed.exams = [...(removed.exams || []), params.targetId];
+    saveAcademicExams(localExams.filter((e) => e.id !== params.targetId));
+    saveLocallyRemovedRegistry(removed);
+    notifyCloudLibraryListeners();
+
+    return {
+      success: true,
+      removedTopicsCount: 0,
+      freedBytes: freed,
+      updatedTopics: params.currentTopics,
+      updatedTerms: params.currentTerms,
+      updatedBlocks: localBlocks,
+      updatedSubjects: localSubjects,
+      messageAr: `تم حذف الاختبار محلياً (${formatBytesLabel(freed)})`
+    };
+  }
 
   if (params.targetType === 'book') {
     const targetBook = localBooks.find((b) => b.id === params.targetId);

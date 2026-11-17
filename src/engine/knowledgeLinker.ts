@@ -199,8 +199,9 @@ function buildSortedCandidateEntries(terms: DictionaryTerm[]): CandidateLookupEn
     }
 
     // 2. Synonyms from term.relations.synonyms
-    const synonyms = t.relations?.synonyms || [];
+    const synonyms = Array.isArray(t.relations?.synonyms) ? t.relations!.synonyms : [];
     for (const syn of synonyms) {
+      if (typeof syn !== 'string') continue;
       const cleanSyn = syn.trim();
       const lowerSyn = cleanSyn.toLowerCase();
       if (cleanSyn.length >= 2 && !seenKeys.has(`en:${lowerSyn}`)) {
@@ -210,7 +211,7 @@ function buildSortedCandidateEntries(terms: DictionaryTerm[]): CandidateLookupEn
           keyLower: lowerSyn,
           termId: t.id,
           term: t.term,
-          translation: t.translation,
+          translation: t.translation || '',
           matchSource: 'synonym',
           isArabic: isAr,
           wordRegex: isAr
@@ -221,7 +222,7 @@ function buildSortedCandidateEntries(terms: DictionaryTerm[]): CandidateLookupEn
     }
 
     // 3. Arabic primary translation segments
-    const rawAr = t.translation.trim();
+    const rawAr = typeof t.translation === 'string' ? t.translation.trim() : '';
     const arSegments = rawAr
       .split(/[/(،·-]/)
       .map((s) => s.trim())
@@ -491,8 +492,9 @@ function buildTopicCandidateIndex(terms: DictionaryTerm[]): {
       }
     }
 
-    const synonyms = t.relations?.synonyms || [];
+    const synonyms = Array.isArray(t.relations?.synonyms) ? t.relations!.synonyms : [];
     for (const syn of synonyms) {
+      if (typeof syn !== 'string') continue;
       const cleanSyn = syn.trim();
       const lowerSyn = cleanSyn.toLowerCase();
       if (
@@ -506,7 +508,7 @@ function buildTopicCandidateIndex(terms: DictionaryTerm[]): {
           keyLower: lowerSyn,
           termId: t.id,
           term: t.term,
-          translation: t.translation,
+          translation: t.translation || '',
           matchSource: 'synonym',
           isArabic: isAr,
           wordRegex: isAr
@@ -520,7 +522,7 @@ function buildTopicCandidateIndex(terms: DictionaryTerm[]): {
       }
     }
 
-    const rawAr = t.translation.trim();
+    const rawAr = typeof t.translation === 'string' ? t.translation.trim() : '';
     const arSegments = rawAr
       .split(/[/(،·-]/)
       .map((s) => s.trim())
@@ -675,16 +677,21 @@ export function syncBidirectionalLinks(
   terms: DictionaryTerm[],
   sentences: LinkedSentence[]
 ): BidirectionalSyncResult {
-  const validTermIds = new Set(terms.map((t) => t.id));
+  const safeTerms = Array.isArray(terms) ? terms.filter((t) => Boolean(t && t.id)) : [];
+  const safeSentences = Array.isArray(sentences)
+    ? sentences.filter((s) => Boolean(s && s.id))
+    : [];
+
+  const validTermIds = new Set(safeTerms.map((t) => t.id));
   const termById = new Map<string, DictionaryTerm>();
-  for (const t of terms) {
+  for (const t of safeTerms) {
     termById.set(t.id, t);
   }
 
   const termToSentencesMap: Record<string, TermSentenceOccurrence[]> = {};
   const seenSentencePerTerm: Record<string, Set<string>> = {};
 
-  for (const t of terms) {
+  for (const t of safeTerms) {
     termToSentencesMap[t.id] = [];
     seenSentencePerTerm[t.id] = new Set<string>();
   }
@@ -735,17 +742,19 @@ export function syncBidirectionalLinks(
   let totalActiveLinks = 0;
 
   // Step 1: Update standalone sentences and index them in `termToSentencesMap`
-  const updatedSentences: LinkedSentence[] = sentences.map((sent) => {
-    const combinedText = `${sent.en} || ${sent.ar}`;
-    const detectedIds = extractLinkedTermsFromText(combinedText, terms);
-    const preservedValidIds = (sent.linkedTermIds || []).filter((id) =>
-      validTermIds.has(id)
+  const updatedSentences: LinkedSentence[] = safeSentences.map((sent) => {
+    const enText = typeof sent.en === 'string' ? sent.en : '';
+    const arText = typeof sent.ar === 'string' ? sent.ar : '';
+    const combinedText = `${enText} || ${arText}`;
+    const detectedIds = extractLinkedTermsFromText(combinedText, safeTerms);
+    const preservedValidIds = (Array.isArray(sent.linkedTermIds) ? sent.linkedTermIds : []).filter(
+      (id) => validTermIds.has(id)
     );
     const mergedLinkedIds = Array.from(new Set([...preservedValidIds, ...detectedIds]));
 
     totalActiveLinks += mergedLinkedIds.length;
 
-    const normEnKey = sent.en.trim().toLowerCase();
+    const normEnKey = enText.trim().toLowerCase();
     for (const termId of mergedLinkedIds) {
       if (!seenSentencePerTerm[termId]) {
         seenSentencePerTerm[termId] = new Set<string>();
@@ -759,12 +768,12 @@ export function syncBidirectionalLinks(
 
         termToSentencesMap[termId].push({
           id: sent.id,
-          en: sent.en,
-          ar: sent.ar,
+          en: enText,
+          ar: arText,
           sourceType: sent.sourceType,
           specialty: sent.specialty,
           sourceLabel: otherTerm
-            ? `${otherTerm.term} (${otherTerm.translation})`
+            ? `${otherTerm.term} (${otherTerm.translation || ''})`
             : sent.specialty || sent.createdAt || 'موسوعة الجمل السياقية',
           sourceTermId: otherTerm?.id,
           coOccurringTermIds: mergedLinkedIds.filter((id) => id !== termId)
@@ -772,26 +781,32 @@ export function syncBidirectionalLinks(
       }
     }
 
-    recordCoOccurrences(mergedLinkedIds, sent.en, sent.ar);
+    recordCoOccurrences(mergedLinkedIds, enText, arText);
 
     return {
       ...sent,
+      en: enText,
+      ar: arText,
       linkedTermIds: mergedLinkedIds
     };
   });
 
   // Step 2: Scan all embedded `term.examples` across all terms so every term card
   // sees cross-references from other terms' examples even if not yet in `sentences`
-  for (const sourceTerm of terms) {
-    for (let idx = 0; idx < sourceTerm.examples.length; idx++) {
-      const ex = sourceTerm.examples[idx];
-      const combinedText = `${ex.en} || ${ex.ar}`;
-      const detectedIds = extractLinkedTermsFromText(combinedText, terms);
+  for (const sourceTerm of safeTerms) {
+    const sourceExamples = Array.isArray(sourceTerm.examples) ? sourceTerm.examples : [];
+    for (let idx = 0; idx < sourceExamples.length; idx++) {
+      const ex = sourceExamples[idx];
+      if (!ex || typeof ex.en !== 'string') continue;
+      const exEn = ex.en;
+      const exAr = typeof ex.ar === 'string' ? ex.ar : '';
+      const combinedText = `${exEn} || ${exAr}`;
+      const detectedIds = extractLinkedTermsFromText(combinedText, safeTerms);
       if (!detectedIds.includes(sourceTerm.id)) {
         detectedIds.unshift(sourceTerm.id);
       }
 
-      const normEnKey = ex.en.trim().toLowerCase();
+      const normEnKey = exEn.trim().toLowerCase();
       for (const targetTermId of detectedIds) {
         if (!seenSentencePerTerm[targetTermId]) {
           seenSentencePerTerm[targetTermId] = new Set<string>();
@@ -801,24 +816,24 @@ export function syncBidirectionalLinks(
           seenSentencePerTerm[targetTermId].add(normEnKey);
           termToSentencesMap[targetTermId].push({
             id: `term-ex-${sourceTerm.id}-${idx}`,
-            en: ex.en,
-            ar: ex.ar,
+            en: exEn,
+            ar: exAr,
             sourceType: 'term_example',
             specialty: sourceTerm.specialty,
-            sourceLabel: `${sourceTerm.term} (${sourceTerm.translation})`,
+            sourceLabel: `${sourceTerm.term} (${sourceTerm.translation || ''})`,
             sourceTermId: sourceTerm.id,
             coOccurringTermIds: detectedIds.filter((id) => id !== targetTermId)
           });
         }
       }
 
-      recordCoOccurrences(detectedIds, ex.en, ex.ar);
+      recordCoOccurrences(detectedIds, exEn, exAr);
     }
   }
 
   // Step 3: Build `suggestedRelationsMap` from sentence co-occurrences
   const suggestedRelationsMap: Record<string, SuggestedTermRelation[]> = {};
-  for (const t of terms) {
+  for (const t of safeTerms) {
     suggestedRelationsMap[t.id] = [];
   }
 
@@ -830,7 +845,7 @@ export function syncBidirectionalLinks(
     suggestedRelationsMap[pair.termA].push({
       relatedTermId: termObjB.id,
       relatedTerm: termObjB.term,
-      relatedTranslation: termObjB.translation,
+      relatedTranslation: termObjB.translation || '',
       sharedSentenceCount: pair.count,
       sampleSentenceEn: pair.sampleEn,
       sampleSentenceAr: pair.sampleAr
@@ -839,7 +854,7 @@ export function syncBidirectionalLinks(
     suggestedRelationsMap[pair.termB].push({
       relatedTermId: termObjA.id,
       relatedTerm: termObjA.term,
-      relatedTranslation: termObjA.translation,
+      relatedTranslation: termObjA.translation || '',
       sharedSentenceCount: pair.count,
       sampleSentenceEn: pair.sampleEn,
       sampleSentenceAr: pair.sampleAr

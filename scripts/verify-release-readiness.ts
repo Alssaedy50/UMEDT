@@ -26,6 +26,8 @@ import {
   exportFullDatabaseZipBytes,
   loadAppState,
   saveTopics,
+  saveCustomAffixes,
+  saveCustomAbbreviations,
   loadOnlineUpdateConfig,
   saveOnlineUpdateConfig,
   loadPublisherReleaseConfig,
@@ -63,6 +65,7 @@ import {
   loadMedicalSubjects,
   loadAcademicBooks,
   loadAcademicExams,
+  saveAcademicExams,
   loadMediaAssetsIndex,
   loadUserStudyNotes,
   saveUserStudyNotes,
@@ -3477,17 +3480,44 @@ async function main() {
       'syncFromUmedtDataRepository must reject payload on 64-hex SHA-256 mismatch while accepting verified affixes & abbreviations'
     );
 
+    saveCustomAffixes([]);
+    saveCustomAbbreviations([]);
     const cloudSyncPropagated = await syncWithRemoteCloudLibrary({
       localTopics: loadAppState().topics,
       localTerms: loadAppState().terms,
       localSentences: loadAppState().sentences
     });
     assertCondition(
-      Boolean(cloudSyncPropagated.autoMergedAffixes?.some((a) => a.id === 'aff-sec20-ectasis')) &&
+      cloudSyncPropagated.newUpdatesApplied === 0 &&
         Boolean(
-          cloudSyncPropagated.autoMergedAbbreviations?.some((ab) => ab.id === 'abbr-sec20-peep')
+          cloudSyncPropagated.mirror.customAffixes?.some((a) => a.id === 'aff-sec20-ectasis')
+        ) &&
+        Boolean(
+          cloudSyncPropagated.mirror.customAbbreviations?.some(
+            (ab) => ab.id === 'abbr-sec20-peep'
+          )
+        ) &&
+        !cloudSyncPropagated.autoMergedAffixes?.some((a) => a.id === 'aff-sec20-ectasis') &&
+        !cloudSyncPropagated.autoMergedAbbreviations?.some(
+          (ab) => ab.id === 'abbr-sec20-peep'
         ),
-      'syncWithRemoteCloudLibrary must return autoMergedAffixes and autoMergedAbbreviations for React state propagation'
+      'syncWithRemoteCloudLibrary must index affixes/abbreviations into mirror WITHOUT auto-downloading them into local state'
+    );
+
+    const dictDownloadRes = await downloadCloudLibraryTarget({
+      targetType: 'dictionary',
+      targetId: 'all',
+      currentTopics: loadAppState().topics,
+      currentTerms: loadAppState().terms,
+      currentSentences: loadAppState().sentences
+    });
+    assertCondition(
+      dictDownloadRes.success &&
+        Boolean(dictDownloadRes.updatedAffixes?.some((a) => a.id === 'aff-sec20-ectasis')) &&
+        Boolean(
+          dictDownloadRes.updatedAbbreviations?.some((ab) => ab.id === 'abbr-sec20-peep')
+        ),
+      'Explicit downloadCloudLibraryTarget(dictionary) must download cloud affixes and abbreviations on click'
     );
   } finally {
     globalThis.fetch = sec20OrigFetch;
@@ -4284,8 +4314,95 @@ async function main() {
     );
   }
 
+  // ============================================================================
+  // 24. Strict Manual-Only Download Policy (Zero Auto-Downloads)
+  // ============================================================================
+  {
+    const appSource = fs.readFileSync(path.join(ROOT_DIR, 'src', 'App.tsx'), 'utf8');
+    assertCondition(
+      !appSource.includes('syncWithRemoteCloudLibrary('),
+      'App.tsx must NEVER automatically call syncWithRemoteCloudLibrary on startup, online reconnect, or offline toggle'
+    );
+
+    const libraryViewSource = fs.readFileSync(
+      path.join(ROOT_DIR, 'src', 'components', 'LibraryView.tsx'),
+      'utf8'
+    );
+    assertCondition(
+      libraryViewSource.includes("handleDownloadTarget('exam'") &&
+        libraryViewSource.includes("handleDownloadTarget('dictionary'"),
+      'LibraryView.tsx must provide explicit Download buttons for Cloud Exams and Cloud Dictionary Packs'
+    );
+
+    // Clear exams & verify catalog refresh leaves local topics/terms/exams untouched while selective exam download pulls on click
+    saveAcademicExams([]);
+    const beforeRefresh = loadAppState();
+    const freshMirrorSeed = loadUnifiedCloudMirror();
+    freshMirrorSeed.exams = [
+      ...(freshMirrorSeed.exams || []),
+      {
+        id: 'exam-manual-only-24',
+        blockId: 'block-manual-24',
+        titleEn: 'Manual Exam 24',
+        titleAr: 'اختبار يدوي 24',
+        questionIds: ['q-manual-24'],
+        questions: [
+          {
+            id: 'q-manual-24',
+            type: 'single_choice',
+            blockId: 'block-manual-24',
+            questionEn: 'Sample manual question?',
+            questionAr: 'سؤال اختبار يدوي؟',
+            options: [
+              { key: 'A', textEn: 'Correct', textAr: 'الإجابة الصحيحة' },
+              { key: 'B', textEn: 'Wrong', textAr: 'خطأ' }
+            ],
+            correctOptionKeys: ['A'],
+            explanationEn: 'Explanation',
+            explanationAr: 'شرح',
+            linkedTermIds: [],
+            difficulty: 'easy',
+            createdAt: '2026-11-17T00:00:00.000Z'
+          }
+        ]
+      }
+    ];
+    saveUnifiedCloudMirror(freshMirrorSeed);
+
+    const refreshRes = await syncWithRemoteCloudLibrary({
+      localTopics: beforeRefresh.topics,
+      localTerms: beforeRefresh.terms,
+      localSentences: beforeRefresh.sentences,
+      customFetch: async () => new Response('{}', { status: 404 })
+    });
+    assertCondition(
+      refreshRes.newUpdatesApplied === 0 &&
+        refreshRes.autoMergedTopics.length === beforeRefresh.topics.length &&
+        refreshRes.autoMergedTerms.length === beforeRefresh.terms.length &&
+        !loadAcademicExams().some((e) => e.id === 'exam-manual-only-24'),
+      'syncWithRemoteCloudLibrary must NOT auto-download exams, topics, or terms into local app state/storage'
+    );
+
+    const examDownloadRes = await downloadCloudLibraryTarget({
+      targetType: 'exam',
+      targetId: 'exam-manual-only-24',
+      currentTopics: beforeRefresh.topics,
+      currentTerms: beforeRefresh.terms,
+      currentSentences: beforeRefresh.sentences
+    });
+    assertCondition(
+      examDownloadRes.success &&
+        loadAcademicExams().some((e) => e.id === 'exam-manual-only-24'),
+      'Explicit downloadCloudLibraryTarget(exam) must download the exam only when clicked by the user'
+    );
+
+    console.log(
+      '[PASS] 24. Strict Manual-Only Download Policy (Zero Auto-Downloads & Explicit Click Downloads for All Content) Verified'
+    );
+  }
+
   console.log('================================================================');
-  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (23/23 — 100%)');
+  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (24/24 — 100%)');
   console.log('================================================================');
 }
 

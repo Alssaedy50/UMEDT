@@ -107,16 +107,16 @@ export const SearchHub: React.FC<SearchHubProps> = ({
       if (!q) return true;
 
       const inTerm =
-        item.term.toLowerCase().includes(q) ||
-        item.translation.toLowerCase().includes(q) ||
+        (item.term || '').toLowerCase().includes(q) ||
+        (item.translation || '').toLowerCase().includes(q) ||
         (item.umdCode && item.umdCode.toLowerCase().includes(q)) ||
         (item.specialty && item.specialty.toLowerCase().includes(q));
       const inDef =
-        item.definitionAr.toLowerCase().includes(q) ||
-        item.definitionEn.toLowerCase().includes(q) ||
+        (item.definitionAr || '').toLowerCase().includes(q) ||
+        (item.definitionEn || '').toLowerCase().includes(q) ||
         (item.clinicalNote && item.clinicalNote.toLowerCase().includes(q));
-      const inExamples = item.examples.some(
-        (ex) => ex.en.toLowerCase().includes(q) || ex.ar.toLowerCase().includes(q)
+      const inExamples = (Array.isArray(item.examples) ? item.examples : []).some(
+        (ex) => (ex.en || '').toLowerCase().includes(q) || (ex.ar || '').toLowerCase().includes(q)
       );
 
       if (searchScope === 'terms') return inTerm;

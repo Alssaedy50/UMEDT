@@ -830,7 +830,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   };
 
   const handleDownloadTarget = async (
-    targetType: 'block' | 'subject' | 'topic' | 'book',
+    targetType: 'block' | 'subject' | 'topic' | 'book' | 'exam' | 'dictionary',
     targetId: string
   ) => {
     if (!isCloudSyncOnline()) {
@@ -851,7 +851,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         onSyncStateUpdated?.({
           topics: res.updatedTopics,
           terms: res.updatedTerms,
-          sentences: res.updatedSentences
+          sentences: res.updatedSentences,
+          ...(res.updatedAffixes ? { customAffixes: res.updatedAffixes } : {}),
+          ...(res.updatedAbbreviations
+            ? { customAbbreviations: res.updatedAbbreviations }
+            : {})
         });
         setSyncRevision((prev) => prev + 1);
         onBackupNowTriggered?.(`تنزيل سحابي (${targetType})`);
@@ -863,7 +867,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   };
 
   const handleDeleteTargetLocally = async (
-    targetType: 'block' | 'subject' | 'topic' | 'book',
+    targetType: 'block' | 'subject' | 'topic' | 'book' | 'exam',
     targetId: string
   ) => {
     const key = `${targetType}:${targetId}`;
@@ -1006,29 +1010,19 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
   const handleRefreshCloudCatalog = async () => {
     if (!isCloudSyncOnline()) {
-      showToast?.('يلزم الاتصال بالإنترنت لتحديث المكتبة السحابية', 'info');
+      showToast?.('يلزم الاتصال بالإنترنت لتحديث قائمة المكتبة السحابية', 'info');
       return;
     }
     setBusyTargetKey('catalog:refresh');
     try {
       await processCloudSyncQueue({ forceRetryFailed: true });
-      const res = await syncWithRemoteCloudLibrary({
+      await syncWithRemoteCloudLibrary({
         localTerms: terms,
         localSentences: sentences,
         localTopics: topics
       });
-      if (res.newUpdatesApplied > 0) {
-        onSyncStateUpdated?.({
-          topics: res.autoMergedTopics,
-          terms: res.autoMergedTerms,
-          sentences: res.autoMergedSentences,
-          customAffixes: res.autoMergedAffixes,
-          customAbbreviations: res.autoMergedAbbreviations
-        });
-        onBackupNowTriggered?.('تحديث المكتبة السحابية');
-      }
       setSyncRevision((prev) => prev + 1);
-      showToast?.('تم التحديث');
+      showToast?.('تم تحديث فهرس المكتبة السحابية؛ اضغط تنزيل على أي عنصر لتحميله');
     } finally {
       setBusyTargetKey(null);
     }
@@ -1057,7 +1051,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
   const filteredCloudExams = useMemo(() => {
     const q = cloudSearchQuery.trim().toLowerCase();
+    const downloadedIds = new Set(cloudSummary.downloadedExamIds || []);
     return (cloudSummary.exams || []).filter((ex) => {
+      const isDl = downloadedIds.has(ex.id);
+      if (cloudFilterTab === 'local' && !isDl) return false;
+      if (cloudFilterTab === 'cloud' && isDl) return false;
       if (!q) return true;
       return (
         (ex.titleAr || '').toLowerCase().includes(q) ||
@@ -1065,7 +1063,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         (ex.descriptionAr || '').toLowerCase().includes(q)
       );
     });
-  }, [cloudSummary.exams, cloudSearchQuery]);
+  }, [cloudSummary.exams, cloudSummary.downloadedExamIds, cloudFilterTab, cloudSearchQuery]);
 
   const filteredDynamicCollections = useMemo(() => {
     const q = cloudSearchQuery.trim().toLowerCase();
@@ -1771,6 +1769,48 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               </div>
             )}
 
+            {/* Cloud Dictionary & Lexicon Pack (Manual Download Only) */}
+            {(cloudSummary.cloudDictionaryTotalCount || 0) > 0 && (
+              <div className="pt-2 space-y-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 flex items-center justify-between gap-2.5 text-xs">
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <div className="font-extrabold text-slate-900 dark:text-white leading-snug">
+                      حزمة القاموس والسوابق واللواحق السحابية
+                    </div>
+                    <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 font-mono tabular-nums">
+                      {cloudSummary.cloudDictionaryDownloadedCount || 0}/
+                      {cloudSummary.cloudDictionaryTotalCount || 0} عنصر ·{' '}
+                      <span
+                        className={
+                          (cloudSummary.cloudDictionaryDownloadedCount || 0) >=
+                          (cloudSummary.cloudDictionaryTotalCount || 0)
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-amber-600 dark:text-amber-400'
+                        }
+                      >
+                        {(cloudSummary.cloudDictionaryDownloadedCount || 0) >=
+                        (cloudSummary.cloudDictionaryTotalCount || 0)
+                          ? 'محلي'
+                          : 'سحابي'}
+                      </span>
+                    </div>
+                  </div>
+                  {(cloudSummary.cloudDictionaryDownloadedCount || 0) <
+                    (cloudSummary.cloudDictionaryTotalCount || 0) && (
+                    <button
+                      type="button"
+                      disabled={busyTargetKey === 'dictionary:all'}
+                      onClick={() => void handleDownloadTarget('dictionary', 'all')}
+                      className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center gap-1 disabled:opacity-50 whitespace-nowrap shrink-0"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>تنزيل</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Academic Exam Packages Section */}
             {filteredCloudExams.length > 0 && (
               <div className="pt-2 space-y-2 border-t border-slate-100 dark:border-slate-800">
@@ -1785,6 +1825,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   {filteredCloudExams.map((ex) => {
                     const qCount = ex.questions?.length || ex.questionIds?.length || 0;
                     const passPct = ex.passingScorePercent ?? ex.passingPercent;
+                    const isExDownloaded = Boolean(
+                      cloudSummary.downloadedExamIds?.includes(ex.id)
+                    );
+                    const exBusy = busyTargetKey === `exam:${ex.id}`;
                     return (
                       <div
                         key={ex.id}
@@ -1797,29 +1841,51 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 font-mono tabular-nums truncate">
                             {qCount > 0 ? `${qCount} سؤال` : 'اختبار مقرر'}
                             {ex.durationMinutes ? ` · ${ex.durationMinutes} د` : ''}
-                            {typeof passPct === 'number' ? ` · نجاح ${passPct}%` : ''}
+                            {typeof passPct === 'number' ? ` · نجاح ${passPct}%` : ''} ·{' '}
+                            <span
+                              className={
+                                isExDownloaded
+                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  : 'text-amber-600 dark:text-amber-400'
+                              }
+                            >
+                              {isExDownloaded ? 'محلي' : 'سحابي'}
+                            </span>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
+                          {isExDownloaded ? (
+                            <button
+                              type="button"
+                              onClick={() => setActiveExamModal(ex)}
+                              className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold text-xs whitespace-nowrap shrink-0"
+                            >
+                              بدء الاختبار
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={exBusy}
+                              onClick={() => void handleDownloadTarget('exam', ex.id)}
+                              className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center gap-1 disabled:opacity-50 whitespace-nowrap shrink-0"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>تنزيل</span>
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={() => setActiveExamModal(ex)}
-                            className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs whitespace-nowrap shrink-0"
-                          >
-                            بدء الاختبار
-                          </button>
-                          <button
-                            type="button"
+                            disabled={exBusy}
                             onClick={() =>
                               setPendingDeleteTarget({
                                 targetType: 'exam',
                                 targetId: ex.id,
                                 titleLabel: ex.titleAr || ex.titleEn,
-                                isDownloaded: true
+                                isDownloaded: isExDownloaded
                               })
                             }
-                            className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 text-rose-700 dark:text-rose-300 font-extrabold text-xs flex items-center gap-1 whitespace-nowrap shrink-0"
+                            className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 text-rose-700 dark:text-rose-300 font-extrabold text-xs flex items-center gap-1 disabled:opacity-50 whitespace-nowrap shrink-0"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -3159,13 +3225,17 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
             <div className="space-y-2.5">
               {pendingDeleteTarget.isDownloaded &&
-                pendingDeleteTarget.targetType !== 'all_data' &&
-                pendingDeleteTarget.targetType !== 'exam' && (
+                pendingDeleteTarget.targetType !== 'all_data' && (
                   <button
                     type="button"
                     onClick={() =>
                       void handleDeleteTargetLocally(
-                        pendingDeleteTarget.targetType as 'block' | 'subject' | 'topic' | 'book',
+                        pendingDeleteTarget.targetType as
+                          | 'block'
+                          | 'subject'
+                          | 'topic'
+                          | 'book'
+                          | 'exam',
                         pendingDeleteTarget.targetId
                       )
                     }

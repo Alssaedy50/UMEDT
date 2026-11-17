@@ -142,12 +142,12 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
       definitionEn: activeDetailTerm.definitionEn || '',
       clinicalNote: activeDetailTerm.clinicalNote || '',
       examples:
-        activeDetailTerm.examples.length > 0
+        Array.isArray(activeDetailTerm.examples) && activeDetailTerm.examples.length > 0
           ? activeDetailTerm.examples.map((ex) => ({ ...ex }))
           : [{ en: '', ar: '' }],
-      synonymsText: (activeDetailTerm.relations.synonyms || []).join(', '),
-      broaderText: (activeDetailTerm.relations.broader || []).join(', '),
-      relatedText: (activeDetailTerm.relations.related || []).join(', ')
+      synonymsText: (activeDetailTerm.relations?.synonyms || []).join(', '),
+      broaderText: (activeDetailTerm.relations?.broader || []).join(', '),
+      relatedText: (activeDetailTerm.relations?.related || []).join(', ')
     });
     setIsEditModalOpen(true);
   };
@@ -453,8 +453,9 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
                   <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                   <span>
                     الأمثلة والجمل السياقية (
-                    {activeDetailTerm.examples.length +
-                      linkedStandaloneSentences.length}
+                    {(Array.isArray(activeDetailTerm.examples)
+                      ? activeDetailTerm.examples.length
+                      : 0) + linkedStandaloneSentences.length}
                     )
                   </span>
                 </h2>
@@ -522,7 +523,7 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
               )}
 
               <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                {activeDetailTerm.examples.map((ex, idx) => (
+                {(Array.isArray(activeDetailTerm.examples) ? activeDetailTerm.examples : []).map((ex, idx) => (
                   <div key={`direct-${idx}`} className="py-2.5 first:pt-0.5 last:pb-0.5 space-y-1">
                     <div
                       dir="ltr"

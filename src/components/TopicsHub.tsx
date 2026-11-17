@@ -4636,7 +4636,10 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     )}
 
                     {selectionState.quotedSentenceEn &&
-                      !selectionState.matchedTerm.examples.some(
+                      !(Array.isArray(selectionState.matchedTerm.examples)
+                        ? selectionState.matchedTerm.examples
+                        : []
+                      ).some(
                         (e) =>
                           e.en.trim().toLowerCase() ===
                           selectionState.quotedSentenceEn.trim().toLowerCase()
