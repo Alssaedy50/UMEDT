@@ -200,7 +200,7 @@ export default function App() {
     initialPersisted.settings.fontFamily || 'cairo'
   );
   const [fontSizeScale, setFontSizeScale] = useState<AppFontSizeScale>(
-    initialPersisted.settings.fontSizeScale || 'md'
+    initialPersisted.settings.fontSizeScale || 'auto'
   );
   const [fontScalePercent, setFontScalePercent] = useState<number>(() => {
     try {
@@ -208,19 +208,20 @@ export default function App() {
       if (saved) {
         const parsed = Number(saved);
         if (Number.isFinite(parsed)) {
-          return Math.max(75, Math.min(125, parsed));
+          return Math.max(75, Math.min(100, parsed));
         }
       }
     } catch {
       // ignore
     }
     const scaleMap: Record<AppFontSizeScale, number> = {
+      auto: 85,
       sm: 75,
-      md: 100,
-      lg: 115,
-      xl: 125
+      md: 85,
+      lg: 95,
+      xl: 100
     };
-    return scaleMap[initialPersisted.settings.fontSizeScale || 'md'] || 100;
+    return scaleMap[initialPersisted.settings.fontSizeScale || 'auto'] || 85;
   });
   const [colorTheme, setColorTheme] = useState<AppColorTheme>(
     initialPersisted.settings.colorTheme || 'emerald'
@@ -285,11 +286,34 @@ export default function App() {
       amiri: "'Amiri', Georgia, serif",
       system: "system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif"
     };
-    const clampedPercent = Math.max(75, Math.min(125, fontScalePercent));
-    const scaleRatio = Number((clampedPercent / 100).toFixed(3));
+    const clampedPercent = Math.max(75, Math.min(100, fontScalePercent));
+    const isAutoSystemFont = fontSizeScale === 'auto';
+
+    try {
+      const bridge = (window as unknown as {
+        UMEDAndroidBridge?: {
+          setUseSystemFontScale?: (useSystem: boolean) => void;
+          getSystemFontScale?: () => number;
+        };
+      }).UMEDAndroidBridge;
+      bridge?.setUseSystemFontScale?.(isAutoSystemFont);
+    } catch {
+      // ignore
+    }
+
     root.style.setProperty('--app-font-family', fontMap[fontFamily] || fontMap.cairo);
-    root.style.setProperty('--app-font-scale', String(scaleRatio));
-    root.style.fontSize = `${Number((16 * scaleRatio).toFixed(2))}px`;
+    if (isAutoSystemFont) {
+      root.style.setProperty('--app-font-scale', '0.85');
+      root.style.fontSize = '13.5px';
+      root.style.setProperty('-webkit-text-size-adjust', 'auto');
+      root.style.setProperty('text-size-adjust', 'auto');
+    } else {
+      const scaleRatio = Number((clampedPercent / 100).toFixed(3));
+      root.style.setProperty('--app-font-scale', String(scaleRatio));
+      root.style.fontSize = `${Number((16 * scaleRatio).toFixed(2))}px`;
+      root.style.setProperty('-webkit-text-size-adjust', '100%');
+      root.style.setProperty('text-size-adjust', '100%');
+    }
     try {
       window.localStorage.setItem('umed_font_scale_percent_v1', String(clampedPercent));
     } catch {
@@ -2607,18 +2631,19 @@ export default function App() {
             onChangeFontSizeScale={(nextScale) => {
               setFontSizeScale(nextScale);
               const pctMap: Record<AppFontSizeScale, number> = {
+                auto: 85,
                 sm: 75,
-                md: 100,
-                lg: 115,
-                xl: 125
+                md: 85,
+                lg: 95,
+                xl: 100
               };
-              if (Math.abs(fontScalePercent - pctMap[nextScale]) > 6) {
+              if (nextScale !== 'auto' && Math.abs(fontScalePercent - pctMap[nextScale]) > 3) {
                 setFontScalePercent(pctMap[nextScale]);
               }
             }}
             fontScalePercent={fontScalePercent}
             onChangeFontScalePercent={(nextPct) => {
-              setFontScalePercent(Math.max(75, Math.min(125, nextPct)));
+              setFontScalePercent(Math.max(75, Math.min(100, nextPct)));
             }}
             colorTheme={colorTheme}
             onChangeColorTheme={(nextTheme) => {

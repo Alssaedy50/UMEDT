@@ -630,12 +630,8 @@ function normalizeDictionaryTerm(
   const translation = String(
     raw.translation || raw.ar || raw.meaning || raw.titleAr || 'مصطلح طبي'
   ).trim();
-  const defAr = String(
-    raw.definitionAr || raw.definition || `مصطلح طبي سريري يعني ${translation}.`
-  ).trim();
-  const defEn = String(
-    raw.definitionEn || `Clinical medical concept referring to ${termEn}.`
-  ).trim();
+  const defAr = String(raw.definitionAr || raw.definition || '').trim();
+  const defEn = String(raw.definitionEn || '').trim();
 
   return {
     id: String(raw.id || `u-imp-${Date.now()}-${idx}`),

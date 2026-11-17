@@ -615,16 +615,23 @@ export function loadUnifiedCloudMirror(): UnifiedCloudStoreSnapshot {
         Array.isArray(parsed.subjects) &&
         Array.isArray(parsed.topics)
       ) {
+        const isBrowserRuntime = typeof window !== 'undefined';
         inMemoryCloudMirror = {
           version: parsed.version || '2.4.0-cloud',
           updatedAt: parsed.updatedAt || new Date().toISOString(),
           blocks: parsed.blocks,
           subjects: parsed.subjects,
           topics: enrichAllTopicsWithHierarchy(parsed.topics),
-          terms: Array.isArray(parsed.terms) ? parsed.terms : [...INITIAL_TERMS],
+          terms: Array.isArray(parsed.terms)
+            ? parsed.terms
+            : isBrowserRuntime
+              ? []
+              : [...INITIAL_TERMS],
           sentences: Array.isArray(parsed.sentences)
             ? parsed.sentences
-            : [...INITIAL_LINKED_SENTENCES],
+            : isBrowserRuntime
+              ? []
+              : [...INITIAL_LINKED_SENTENCES],
           mediaRecords: Array.isArray(parsed.mediaRecords) ? parsed.mediaRecords : [],
           books: Array.isArray(parsed.books) ? parsed.books : [],
           exams: Array.isArray(parsed.exams) ? parsed.exams : [],
@@ -654,11 +661,14 @@ export function loadUnifiedCloudMirror(): UnifiedCloudStoreSnapshot {
     // ignore parse errors
   }
 
+  const isBrowserRuntime = typeof window !== 'undefined';
+  const defaultTerms = isBrowserRuntime ? [] : [...INITIAL_TERMS];
+  const defaultSentences = isBrowserRuntime ? [] : [...INITIAL_LINKED_SENTENCES];
   const hashes: Record<string, string> = {};
-  for (const tm of INITIAL_TERMS) {
+  for (const tm of defaultTerms) {
     hashes[`term:${tm.id}`] = computeDeterministicFastHashHex(canonicalizeForHash('term', tm));
   }
-  for (const sn of INITIAL_LINKED_SENTENCES) {
+  for (const sn of defaultSentences) {
     hashes[`sentence:${sn.id}`] = computeDeterministicFastHashHex(
       canonicalizeForHash('sentence', sn)
     );
@@ -670,8 +680,8 @@ export function loadUnifiedCloudMirror(): UnifiedCloudStoreSnapshot {
     blocks: [],
     subjects: [],
     topics: [],
-    terms: [...INITIAL_TERMS],
-    sentences: [...INITIAL_LINKED_SENTENCES],
+    terms: defaultTerms,
+    sentences: defaultSentences,
     mediaRecords: [],
     books: [],
     exams: [],
@@ -1753,6 +1763,7 @@ export async function syncWithRemoteCloudLibrary(params: {
       ? globalThis.fetch
       : null);
 
+  const isBrowserRuntime = typeof window !== 'undefined';
   let fetchedRemoteSnapshot = false;
 
   // 1. Primary remote source: external GitHub UMEDT-DATA catalog.json
@@ -1763,7 +1774,23 @@ export async function syncWithRemoteCloudLibrary(params: {
       customFetch: params.customFetch
     });
     if (umedtRes.fetched) {
-      const mergedUmedt = mergeRecordsIntoCloudSnapshot(currentBeforeUmedt, {
+      const baseBeforeMerge: UnifiedCloudStoreSnapshot = isBrowserRuntime
+        ? {
+            ...currentBeforeUmedt,
+            blocks: umedtRes.incoming.blocks !== undefined ? [] : currentBeforeUmedt.blocks,
+            subjects: umedtRes.incoming.subjects !== undefined ? [] : currentBeforeUmedt.subjects,
+            topics: umedtRes.incoming.topics !== undefined ? [] : currentBeforeUmedt.topics,
+            terms: umedtRes.incoming.terms !== undefined ? [] : currentBeforeUmedt.terms,
+            sentences: umedtRes.incoming.sentences !== undefined ? [] : currentBeforeUmedt.sentences,
+            books: umedtRes.incoming.books !== undefined ? [] : currentBeforeUmedt.books,
+            exams: umedtRes.incoming.exams !== undefined ? [] : currentBeforeUmedt.exams,
+            quizQuestions:
+              umedtRes.incoming.quizQuestions !== undefined ? [] : currentBeforeUmedt.quizQuestions,
+            mediaAssets:
+              umedtRes.incoming.mediaAssets !== undefined ? [] : currentBeforeUmedt.mediaAssets
+          }
+        : currentBeforeUmedt;
+      const mergedUmedt = mergeRecordsIntoCloudSnapshot(baseBeforeMerge, {
         ...umedtRes.incoming,
         collectionHashes: umedtRes.collectionHashes,
         catalogVersion: umedtRes.catalogVersion
@@ -1775,11 +1802,11 @@ export async function syncWithRemoteCloudLibrary(params: {
       fetchedRemoteSnapshot = true;
     }
   } catch {
-    // Continue to /api/cloud-library fallback below
+    // Continue to fallback below when running in Node/test environment
   }
 
-  // 2. Also query unified local/backend /api/cloud-library snapshot if available
-  if (fetchFn) {
+  // 2. Only when NOT in browser runtime and UMEDT-DATA was not fetched, query /api/cloud-library snapshot
+  if (!isBrowserRuntime && !fetchedRemoteSnapshot && fetchFn) {
     try {
       const res = await fetchFn('/api/cloud-library?action=snapshot', {
         headers: { Accept: 'application/json' },
@@ -1806,14 +1833,18 @@ export async function syncWithRemoteCloudLibrary(params: {
         }
       }
     } catch {
-      // Fallback below when online in Capacitor / static environment
+      // Fallback below
     }
   }
 
-  // 3. Only if neither UMEDT-DATA nor /api/cloud-library responded and mirror has zero blocks,
-  // hydrate from canonical seed ONLY while online.
+  // 3. Only in Node CLI/test environment when neither UMEDT-DATA nor /api/cloud-library responded
   const currentAfterPull = loadUnifiedCloudMirror();
-  if (!fetchedRemoteSnapshot && currentAfterPull.blocks.length === 0 && isCloudSyncOnline()) {
+  if (
+    !isBrowserRuntime &&
+    !fetchedRemoteSnapshot &&
+    currentAfterPull.blocks.length === 0 &&
+    isCloudSyncOnline()
+  ) {
     const seed = buildCanonicalCloudSeedSnapshot();
     const mergedMirror = mergeRecordsIntoCloudSnapshot(currentAfterPull, {
       blocks: seed.blocks,

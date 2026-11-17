@@ -1115,8 +1115,33 @@ export function loadAppState(): PersistedAppState {
   // Section 4: Run safe, versioned, idempotent storage migration with backup & rollback
   runSafeVersionedStorageMigration();
 
-  // Clean pre-bundled topics & blocks on first boot after installation while keeping dictionary terms
-  if (getStorageRawItem('umed_post_install_clean_topics_blocks_v2') !== 'done') {
+  const isBrowserRuntime = typeof window !== 'undefined';
+
+  // Clean pre-bundled seed data on first boot in browser/Android so UMEDT-DATA is the sole source
+  if (isBrowserRuntime && getStorageRawItem('umed_post_install_zero_bundled_data_v3') !== 'done') {
+    const builtInTermIds = new Set(INITIAL_TERMS.map((t) => t.id));
+    const builtInSentIds = new Set(INITIAL_LINKED_SENTENCES.map((s) => s.id));
+    const existingTerms = safeReadJson<DictionaryTerm[]>(STORAGE_KEYS.TERMS, []);
+    const userOrRemoteTerms = existingTerms.filter(
+      (t) =>
+        !builtInTermIds.has(t.id) ||
+        Boolean(t.favorite) ||
+        Boolean(t.srsData) ||
+        (Array.isArray(t.collections) &&
+          t.collections.some((c) => c === 'مضاف يدوياً' || c === 'استيراد ذكي'))
+    );
+    setStorageRawItem(STORAGE_KEYS.TERMS, JSON.stringify(userOrRemoteTerms));
+
+    const existingSents = safeReadJson<LinkedSentence[]>(STORAGE_KEYS.SENTENCES, []);
+    const userOrRemoteSents = existingSents.filter(
+      (s) => !builtInSentIds.has(s.id) || Boolean(s.favorite) || Boolean(s.srsData)
+    );
+    setStorageRawItem(STORAGE_KEYS.SENTENCES, JSON.stringify(userOrRemoteSents));
+
+    removeStorageRawItem('umed_unified_cloud_mirror_v1');
+    setStorageRawItem('umed_post_install_clean_topics_blocks_v2', 'done');
+    setStorageRawItem('umed_post_install_zero_bundled_data_v3', 'done');
+  } else if (getStorageRawItem('umed_post_install_clean_topics_blocks_v2') !== 'done') {
     setStorageRawItem(STORAGE_KEYS.TOPICS, '[]');
     setStorageRawItem('dictengine_umd_blocks_v2', '[]');
     setStorageRawItem('dictengine_umd_subjects_v2', '[]');
@@ -1137,7 +1162,9 @@ export function loadAppState(): PersistedAppState {
   const versionMetadata = loadVersionMetadata();
 
   let rawTerms: DictionaryTerm[];
-  if (Array.isArray(storedTerms) && storedTerms.length > 0) {
+  if (isBrowserRuntime) {
+    rawTerms = Array.isArray(storedTerms) ? storedTerms : [];
+  } else if (Array.isArray(storedTerms) && storedTerms.length > 0) {
     const seedById = new Map(INITIAL_TERMS.map((s) => [s.id, s]));
     const upgradedStored = storedTerms.map((t) => {
       if (t.id === 'ge-2026-0495' && t.translation.includes('فشل العضو')) {
@@ -1189,7 +1216,9 @@ export function loadAppState(): PersistedAppState {
   const terms = autoEnrichAllTermsRelations(rawTerms);
 
   let rawSentences: LinkedSentence[];
-  if (Array.isArray(storedSentences) && storedSentences.length > 0) {
+  if (isBrowserRuntime) {
+    rawSentences = Array.isArray(storedSentences) ? storedSentences : [];
+  } else if (Array.isArray(storedSentences) && storedSentences.length > 0) {
     const existingSentEn = new Set(storedSentences.map((s) => s.en.trim().toLowerCase()));
     const missingSentSeeds = INITIAL_LINKED_SENTENCES.filter(
       (seed) => !existingSentEn.has(seed.en.trim().toLowerCase())
@@ -2370,13 +2399,18 @@ export function importFullDatabaseJson(
  * Resets all stored data in localStorage back to the initial WHO UMD defaults.
  */
 export function resetToDefaults(): PersistedAppState {
+  const isBrowserRuntime = typeof window !== 'undefined';
   try {
     Object.values(STORAGE_KEYS).forEach((k) => removeStorageRawItem(k));
     removeStorageRawItem('umed_locally_removed_cloud_ids_v1');
+    removeStorageRawItem('umed_unified_cloud_mirror_v1');
     setStorageRawItem('dictengine_umd_blocks_v2', '[]');
     setStorageRawItem('dictengine_umd_subjects_v2', '[]');
     setStorageRawItem('dictengine_umd_quiz_questions_v2', '[]');
+    setStorageRawItem('dictengine_umd_books_v2', '[]');
+    setStorageRawItem('dictengine_umd_exams_v2', '[]');
     setStorageRawItem('umed_post_install_clean_topics_blocks_v2', 'done');
+    setStorageRawItem('umed_post_install_zero_bundled_data_v3', 'done');
   } catch (err) {
     console.warn('[StorageService] Error clearing localStorage:', err);
   }
@@ -2386,8 +2420,8 @@ export function resetToDefaults(): PersistedAppState {
   const defaults: PersistedAppState = {
     version: DB_SCHEMA_VERSION,
     versionMetadata: defaultVersionMeta,
-    terms: [...INITIAL_TERMS],
-    sentences: [...INITIAL_LINKED_SENTENCES],
+    terms: isBrowserRuntime ? [] : [...INITIAL_TERMS],
+    sentences: isBrowserRuntime ? [] : [...INITIAL_LINKED_SENTENCES],
     topics: [],
     customAffixes: [],
     customAbbreviations: [],
@@ -6069,25 +6103,30 @@ export async function runStage7FinalReleaseReadinessSuite(
   let androidOfflinePassed = false;
   {
     const t0 = Date.now();
+    const diagTerms = currentState.terms.some((t) => t.term.toLowerCase().includes('infarction'))
+      ? currentState.terms
+      : [...currentState.terms, ...INITIAL_TERMS];
+    const diagSentences =
+      currentState.sentences.length > 0 ? currentState.sentences : INITIAL_LINKED_SENTENCES;
     // 1a. Verify offline dictionary search (EN + AR + UMD Code)
-    const offlineSearchEn = currentState.terms.filter((t) =>
+    const offlineSearchEn = diagTerms.filter((t) =>
       t.term.toLowerCase().includes('infarction')
     );
-    const offlineSearchAr = currentState.terms.filter((t) =>
+    const offlineSearchAr = diagTerms.filter((t) =>
       t.translation.includes('احتشاء')
     );
 
     // 1b. Verify offline 4-layer clinical translator, morphology, and abbreviation disambiguator
     const offlineTrans = runHybridGcNmtPipeline(
       'Auscultation revealed rheumatic MS and Hyperbilirubinemia complicated by Myocardial Infarction.',
-      currentState.terms,
-      currentState.sentences,
+      diagTerms,
+      diagSentences,
       currentState.customAffixes,
       currentState.customAbbreviations
     );
     const offlineMorph = decomposeMedicalWord(
       'Hepatosplenomegaly',
-      currentState.terms,
+      diagTerms,
       currentState.customAffixes
     );
     const offlineAbbr = resolveAbbreviationInContext(

@@ -1340,12 +1340,13 @@ async function main() {
       !settingsTsxContent.includes("setActiveModal('updates')") &&
       !settingsTsxContent.includes("activeModal === 'updates'") &&
       settingsTsxContent.includes('min={75}') &&
-      settingsTsxContent.includes('max={125}') &&
+      settingsTsxContent.includes('max={100}') &&
+      settingsTsxContent.includes("id: 'auto'") &&
       settingsTsxContent.includes("id: 'almarai'") &&
       settingsTsxContent.includes("id: 'readex'") &&
       settingsTsxContent.includes("id: 'kufi'") &&
       indexCssContent.includes('--color-slate-950'),
-    'App.tsx, SettingsView.tsx, and index.css must enforce no Updates modal in Settings, 75-125 font scale, multiple fonts, and full-system themes'
+    'App.tsx, SettingsView.tsx, and index.css must enforce no Updates modal in Settings, 75-100 font scale + auto system font, multiple fonts, and full-system themes'
   );
 
   const testCloudTopic = {

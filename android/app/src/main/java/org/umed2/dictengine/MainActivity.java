@@ -185,6 +185,37 @@ public class MainActivity extends BridgeActivity {
         }
 
         @JavascriptInterface
+        public float getSystemFontScale() {
+            try {
+                return MainActivity.this.getResources().getConfiguration().fontScale;
+            } catch (Exception ignored) {
+                return 1.0f;
+            }
+        }
+
+        @JavascriptInterface
+        public void setUseSystemFontScale(final boolean useSystemFont) {
+            try {
+                MainActivity.this.runOnUiThread(() -> {
+                    try {
+                        if (MainActivity.this.bridge != null && MainActivity.this.bridge.getWebView() != null) {
+                            WebSettings settings = MainActivity.this.bridge.getWebView().getSettings();
+                            if (useSystemFont) {
+                                float sysScale = MainActivity.this.getResources().getConfiguration().fontScale;
+                                int zoom = Math.max(75, Math.min(130, Math.round(sysScale * 100f)));
+                                settings.setTextZoom(zoom);
+                            } else {
+                                settings.setTextZoom(100);
+                            }
+                        }
+                    } catch (Exception ignored) {
+                    }
+                });
+            } catch (Exception ignored) {
+            }
+        }
+
+        @JavascriptInterface
         public boolean hasMicrophonePermission() {
             return ContextCompat.checkSelfPermission(
                     MainActivity.this,

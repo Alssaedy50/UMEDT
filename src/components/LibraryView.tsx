@@ -304,12 +304,15 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [manualPhonetic, setManualPhonetic] = useState('');
   const [manualCategory, setManualCategory] = useState<LexiconCategory>('Medical');
   const [manualPos, setManualPos] = useState('noun');
-  const [manualCollection, setManualCollection] = useState('مضاف يدوياً');
+  const [manualCollection, setManualCollection] = useState('');
   const [manualDefAr, setManualDefAr] = useState('');
   const [manualDefEn, setManualDefEn] = useState('');
   const [manualSentenceEn, setManualSentenceEn] = useState('');
   const [manualSentenceAr, setManualSentenceAr] = useState('');
   const [addAlsoToFavorites, setAddAlsoToFavorites] = useState(true);
+  const [showOptionalManualFields, setShowOptionalManualFields] = useState(false);
+  const manualTermInputRef = useRef<HTMLInputElement | null>(null);
+  const manualTranslationInputRef = useRef<HTMLInputElement | null>(null);
   const [offlineFeedback, setOfflineFeedback] = useState<{
     type: 'success' | 'error';
     message: string;
@@ -427,9 +430,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     }, 140);
   };
 
-  // Offline auto-assist using local morphology + GC-NMT engine
+  // Offline auto-assist using local morphology + GC-NMT engine + common vocabulary fallback
   const handleAutoAssistOffline = () => {
-    const clean = manualTerm.trim();
+    const clean = (manualTermInputRef.current?.value ?? manualTerm).trim();
     if (!clean) {
       setOfflineFeedback({
         type: 'error',
@@ -437,6 +440,52 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       });
       return;
     }
+    if (clean !== manualTerm) {
+      setManualTerm(clean);
+    }
+
+    const commonFallbackMap: Record<string, string> = {
+      world: 'عالم',
+      heart: 'قلب',
+      blood: 'دم',
+      pressure: 'ضغط',
+      'blood pressure': 'ضغط الدم',
+      hypertension: 'ارتفاع ضغط الدم',
+      hypotension: 'انخفاض ضغط الدم',
+      cell: 'خلية',
+      pain: 'ألم',
+      disease: 'مرض',
+      patient: 'مريض',
+      treatment: 'علاج',
+      therapy: 'معالجة',
+      brain: 'دماغ',
+      liver: 'كبد',
+      kidney: 'كلية',
+      lung: 'رئة',
+      bone: 'عظم',
+      muscle: 'عضلة',
+      nerve: 'عصب',
+      artery: 'شريان',
+      vein: 'وريد',
+      fever: 'حمى',
+      infection: 'عدوى',
+      inflammation: 'التهاب',
+      surgery: 'جراحة',
+      medicine: 'طب / دواء',
+      symptom: 'عرض',
+      diagnosis: 'تشخيص',
+      syndrome: 'متلازمة',
+      acute: 'حاد',
+      chronic: 'مزمن',
+      normal: 'طبيعي',
+      high: 'مرتفع',
+      low: 'منخفض',
+      health: 'صحة',
+      system: 'جهاز / نظام',
+      science: 'علم',
+      study: 'دراسة',
+      test: 'اختبار / فحص'
+    };
 
     const morph = decomposeMedicalWord(clean, terms);
     const quick = lookupQuickWordOrPhraseAr(clean, terms);
@@ -447,18 +496,20 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     );
     const bestTranslation =
       quick?.translationAr ||
+      commonFallbackMap[clean.toLowerCase()] ||
       (hasMorph && morph.synthesizedAr && morph.synthesizedAr !== 'مصطلح أحادي الجذر'
         ? morph.synthesizedAr
-        : gcNmt.layer4FinalOutputAr && gcNmt.layer4FinalOutputAr !== clean
+        : gcNmt.layer4FinalOutputAr && gcNmt.layer4FinalOutputAr.toLowerCase() !== clean.toLowerCase()
         ? gcNmt.layer4FinalOutputAr
         : '');
 
-    if (!manualTranslation.trim() && bestTranslation) {
+    const currentAr = (manualTranslationInputRef.current?.value ?? manualTranslation).trim();
+    if (!currentAr && bestTranslation) {
       setManualTranslation(bestTranslation);
-    }
-
-    if (!manualPhonetic.trim()) {
-      setManualPhonetic(`/${clean.toLowerCase()}/`);
+      if (manualTranslationInputRef.current) {
+        manualTranslationInputRef.current.value = bestTranslation;
+      }
+      setOfflineFeedback(null);
     }
 
     const morphSummary = [
@@ -469,32 +520,28 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       .filter(Boolean)
       .join(' + ');
 
-    if (!manualDefAr.trim()) {
-      if (morphSummary) {
-        setManualDefAr(
-          `مصطلح طبي سريري يعني "${bestTranslation || manualTranslation || clean}". التحليل الصرفي: ${morphSummary}.`
-        );
-      } else {
-        setManualDefAr(
-          `مفهوم طبي سريري يشير إلى ${bestTranslation || manualTranslation || clean}.`
-        );
-      }
-    }
-
-    if (!manualDefEn.trim()) {
-      setManualDefEn(`Clinical medical term referring to ${clean}.`);
+    if (!manualDefAr.trim() && morphSummary) {
+      setManualDefAr(`التحليل الصرفي: ${morphSummary}.`);
     }
   };
 
-  const handleSaveManualEntry = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanEn = manualTerm.trim();
-    const cleanAr = manualTranslation.trim();
+  const handleSaveManualEntry = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const domEn = manualTermInputRef.current?.value ?? '';
+    const domAr = manualTranslationInputRef.current?.value ?? '';
+    const cleanEn = (domEn || manualTerm).trim();
+    const cleanAr = (domAr || manualTranslation).trim();
+
     if (!cleanEn || !cleanAr) {
       setOfflineFeedback({
         type: 'error',
         message: 'يرجى إدخال المصطلح بالإنجليزية وترجمته العربية.'
       });
+      if (!cleanEn) {
+        manualTermInputRef.current?.focus();
+      } else {
+        manualTranslationInputRef.current?.focus();
+      }
       return;
     }
 
@@ -518,26 +565,25 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         linkedTermIds: [newId],
         tags: [cleanEn],
         favorite: addAlsoToFavorites,
-        createdAt: 'الآن · مكتبتي أوفلاين'
+        createdAt: 'الآن'
       });
     }
 
+    const cleanCollection = manualCollection.trim();
     const newTermObj: DictionaryTerm = {
       id: newId,
       term: cleanEn,
       termNormalized: cleanEn.toLowerCase(),
       translation: cleanAr,
-      phonetic: manualPhonetic.trim() || `/${cleanEn.toLowerCase()}/`,
-      pos: manualPos,
-      category: manualCategory,
+      phonetic: manualPhonetic.trim(),
+      pos: manualPos || 'noun',
+      category: manualCategory || 'Medical',
       keepEnglish: true,
       favorite: addAlsoToFavorites,
-      collections: [manualCollection.trim() || 'مضاف يدوياً'],
-      ingestedAt: 'الآن · مكتبتي أوفلاين',
-      definitionAr:
-        manualDefAr.trim() || `مصطلح طبي سريري يشير إلى ${cleanAr} (${cleanEn}).`,
-      definitionEn:
-        manualDefEn.trim() || `Clinical medical term referring to ${cleanEn}.`,
+      collections: cleanCollection ? [cleanCollection] : ['مضاف يدوياً'],
+      ingestedAt: 'الآن',
+      definitionAr: manualDefAr.trim(),
+      definitionEn: manualDefEn.trim(),
       examples,
       relations: {
         synonyms: [],
@@ -556,7 +602,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         blocks: [],
         subjects: [],
         questions: [],
-        sourceLabel: 'إضافة يدوية أوفلاين'
+        sourceLabel: 'إضافة يدوية'
       })
     );
 
@@ -567,6 +613,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
     setManualTerm('');
     setManualTranslation('');
+    if (manualTermInputRef.current) manualTermInputRef.current.value = '';
+    if (manualTranslationInputRef.current) manualTranslationInputRef.current.value = '';
     setManualPhonetic('');
     setManualDefAr('');
     setManualDefEn('');
@@ -652,12 +700,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         'مصطلح طبي';
 
       const tAr = (parts[1] || '').trim().replace(/^["']|["']$/g, '') || autoAr;
-      const defAr =
-        (parts[2] || '').trim().replace(/^["']|["']$/g, '') ||
-        `مصطلح طبي سريري يعني ${tAr}.`;
-      const defEn =
-        (parts[3] || '').trim().replace(/^["']|["']$/g, '') ||
-        `Clinical medical term: ${tEn}.`;
+      const defAr = (parts[2] || '').trim().replace(/^["']|["']$/g, '');
+      const defEn = (parts[3] || '').trim().replace(/^["']|["']$/g, '');
 
       nextStaged.push({
         id: `stg-line-${Date.now()}-${idx}`,
@@ -2143,7 +2187,21 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
                   <button
                     type="button"
-                    onClick={() => setOfflineAddTab('manual')}
+                    onClick={() => {
+                      if (offlineAddTab === 'manual') {
+                        const hasEn = Boolean(
+                          (manualTermInputRef.current?.value ?? manualTerm).trim()
+                        );
+                        const hasAr = Boolean(
+                          (manualTranslationInputRef.current?.value ?? manualTranslation).trim()
+                        );
+                        if (hasEn && hasAr) {
+                          handleSaveManualEntry();
+                          return;
+                        }
+                      }
+                      setOfflineAddTab('manual');
+                    }}
                     className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
                       offlineAddTab === 'manual'
                         ? 'bg-emerald-600 text-white shadow-2xs'
@@ -2151,7 +2209,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     }`}
                   >
                     <PlusCircle className="w-3.5 h-3.5" />
-                    <span>إضافة مصطلح</span>
+                    <span>إضافة يدوية</span>
                   </button>
                   <button
                     type="button"
@@ -2195,65 +2253,21 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               </div>
             )}
 
-            {/* CONCISE DATA SUMMARY CARD (تعريف مختصر بالبيانات المنسوخة أو المستوردة) */}
+            {/* CONCISE DATA SUMMARY CARD */}
             {lastDataSummary && (
-              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-emerald-500/40 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-extrabold text-emerald-700 dark:text-emerald-400">
-                    تعريف البيانات ({lastDataSummary.sourceLabel})
-                  </span>
-                  <span className="text-[11px] font-mono text-slate-400">
-                    {lastDataSummary.sizeKB} KB ·{' '}
-                    {new Date(lastDataSummary.timestamp).toLocaleTimeString('ar-SA', {
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
-                  <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
-                    <div className="text-xs font-extrabold font-mono text-slate-900 dark:text-white">
-                      {lastDataSummary.termsCount}
-                    </div>
-                    <div className="text-[10px] text-slate-500">مصطلح</div>
-                  </div>
-                  <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
-                    <div className="text-xs font-extrabold font-mono text-slate-900 dark:text-white">
-                      {lastDataSummary.topicsCount}
-                    </div>
-                    <div className="text-[10px] text-slate-500">موضوع</div>
-                  </div>
-                  <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
-                    <div className="text-xs font-extrabold font-mono text-slate-900 dark:text-white">
-                      {lastDataSummary.blocksCount}
-                    </div>
-                    <div className="text-[10px] text-slate-500">بلوك</div>
-                  </div>
-                  <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
-                    <div className="text-xs font-extrabold font-mono text-slate-900 dark:text-white">
-                      {lastDataSummary.subjectsCount}
-                    </div>
-                    <div className="text-[10px] text-slate-500">مادة</div>
-                  </div>
-                  <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
-                    <div className="text-xs font-extrabold font-mono text-slate-900 dark:text-white">
-                      {lastDataSummary.sentencesCount}
-                    </div>
-                    <div className="text-[10px] text-slate-500">جملة</div>
-                  </div>
-                  <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
-                    <div className="text-xs font-extrabold font-mono text-slate-900 dark:text-white">
-                      {lastDataSummary.favoritesCount}
-                    </div>
-                    <div className="text-[10px] text-slate-500">مفضلة</div>
-                  </div>
-                </div>
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-emerald-500/40 flex flex-wrap items-center justify-between gap-2 text-xs font-bold">
+                <span className="text-emerald-700 dark:text-emerald-400">
+                  {lastDataSummary.sourceLabel}: {lastDataSummary.shortText}
+                </span>
+                <span className="font-mono text-[11px] text-slate-400">
+                  {lastDataSummary.sizeKB} KB
+                </span>
               </div>
             )}
 
             {/* SUB-TAB 1: MANUAL OFFLINE ENTRY */}
             {offlineAddTab === 'manual' && (
-              <form onSubmit={handleSaveManualEntry} className="space-y-3.5 pt-1">
+              <form onSubmit={handleSaveManualEntry} noValidate className="space-y-3.5 pt-1">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <div className="flex items-center justify-between gap-2">
@@ -2270,11 +2284,29 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       </button>
                     </div>
                     <input
+                      ref={manualTermInputRef}
                       type="text"
                       dir="ltr"
-                      required
                       value={manualTerm}
-                      onChange={(e) => setManualTerm(e.target.value)}
+                      onChange={(e) => {
+                        setManualTerm(e.target.value);
+                        if (offlineFeedback) setOfflineFeedback(null);
+                      }}
+                      onInput={(e) => {
+                        setManualTerm((e.target as HTMLInputElement).value);
+                        if (offlineFeedback) setOfflineFeedback(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const currentAr = (
+                            manualTranslationInputRef.current?.value ?? manualTranslation
+                          ).trim();
+                          if (!currentAr) {
+                            e.preventDefault();
+                            manualTranslationInputRef.current?.focus();
+                          }
+                        }
+                      }}
                       placeholder="e.g., Cardiomyopathy"
                       className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-mono font-bold text-left focus:outline-none focus:border-emerald-500"
                     />
@@ -2285,115 +2317,147 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       الترجمة بالعربية *
                     </label>
                     <input
+                      ref={manualTranslationInputRef}
                       type="text"
-                      required
                       value={manualTranslation}
-                      onChange={(e) => setManualTranslation(e.target.value)}
-                      placeholder="اعتلال عضلة القلب"
+                      onChange={(e) => {
+                        setManualTranslation(e.target.value);
+                        if (offlineFeedback) setOfflineFeedback(null);
+                      }}
+                      onInput={(e) => {
+                        setManualTranslation((e.target as HTMLInputElement).value);
+                        if (offlineFeedback) setOfflineFeedback(null);
+                      }}
+                      placeholder="اكتب الترجمة بالعربية..."
                       className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-bold focus:outline-none focus:border-emerald-500"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                      التخصص
+                {/* Primary Save Bar Directly Below Required Inputs */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <div className="flex items-center gap-3">
+                    <label className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={addAlsoToFavorites}
+                        onChange={(e) => setAddAlsoToFavorites(e.target.checked)}
+                        className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span>إضافة للمفضلة</span>
                     </label>
-                    <select
-                      value={manualCategory}
-                      onChange={(e) => setManualCategory(e.target.value as LexiconCategory)}
-                      className="w-full min-h-[42px] px-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+
+                    <button
+                      type="button"
+                      onClick={() => setShowOptionalManualFields((prev) => !prev)}
+                      className="text-xs font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1"
                     >
-                      {CATEGORY_OPTIONS.map((cat) => (
-                        <option key={cat.value} value={cat.value}>
-                          {cat.label}
-                        </option>
-                      ))}
-                    </select>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 transition-transform ${
+                          showOptionalManualFields ? 'rotate-180' : ''
+                        }`}
+                      />
+                      <span>
+                        {showOptionalManualFields
+                          ? 'إخفاء الحقول الاختيارية'
+                          : 'حقول إضافية (اختياري)'}
+                      </span>
+                    </button>
                   </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                      النوع اللغوي
-                    </label>
-                    <select
-                      value={manualPos}
-                      onChange={(e) => setManualPos(e.target.value)}
-                      className="w-full min-h-[42px] px-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
-                    >
-                      {POS_OPTIONS.map((p) => (
-                        <option key={p.value} value={p.value}>
-                          {p.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                      المجلد
-                    </label>
-                    <input
-                      type="text"
-                      value={manualCollection}
-                      onChange={(e) => setManualCollection(e.target.value)}
-                      placeholder="طوارئ القلب"
-                      className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                    التعريف العلمي بالعربية
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={manualDefAr}
-                    onChange={(e) => setManualDefAr(e.target.value)}
-                    placeholder="تعريف مختصر للمفهوم الطبي..."
-                    className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    dir="ltr"
-                    value={manualSentenceEn}
-                    onChange={(e) => setManualSentenceEn(e.target.value)}
-                    placeholder="Example sentence (optional)..."
-                    className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-left"
-                  />
-                  <input
-                    type="text"
-                    value={manualSentenceAr}
-                    onChange={(e) => setManualSentenceAr(e.target.value)}
-                    placeholder="ترجمة الجملة (اختياري)..."
-                    className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
-                  />
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={addAlsoToFavorites}
-                      onChange={(e) => setAddAlsoToFavorites(e.target.checked)}
-                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
-                    />
-                    <span>إضافة للمفضلة</span>
-                  </label>
 
                   <button
                     type="submit"
                     className="min-h-[42px] px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-xs transition-all"
                   >
                     <Check className="w-4 h-4" />
-                    <span>حفظ المصطلح أوفلاين</span>
+                    <span>حفظ المصطلح</span>
                   </button>
                 </div>
+
+                {/* Collapsible Strictly Optional Fields */}
+                {showOptionalManualFields && (
+                  <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                          التخصص (اختياري)
+                        </label>
+                        <select
+                          value={manualCategory}
+                          onChange={(e) => setManualCategory(e.target.value as LexiconCategory)}
+                          className="w-full min-h-[40px] px-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                        >
+                          {CATEGORY_OPTIONS.map((cat) => (
+                            <option key={cat.value} value={cat.value}>
+                              {cat.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                          النوع اللغوي (اختياري)
+                        </label>
+                        <select
+                          value={manualPos}
+                          onChange={(e) => setManualPos(e.target.value)}
+                          className="w-full min-h-[40px] px-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                        >
+                          {POS_OPTIONS.map((p) => (
+                            <option key={p.value} value={p.value}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                          المجلد (اختياري)
+                        </label>
+                        <input
+                          type="text"
+                          value={manualCollection}
+                          onChange={(e) => setManualCollection(e.target.value)}
+                          placeholder="مضاف يدوياً"
+                          className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                        التعريف (اختياري)
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={manualDefAr}
+                        onChange={(e) => setManualDefAr(e.target.value)}
+                        placeholder="تعريف مختصر (اختياري)..."
+                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        dir="ltr"
+                        value={manualSentenceEn}
+                        onChange={(e) => setManualSentenceEn(e.target.value)}
+                        placeholder="Example sentence (optional)..."
+                        className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-left"
+                      />
+                      <input
+                        type="text"
+                        value={manualSentenceAr}
+                        onChange={(e) => setManualSentenceAr(e.target.value)}
+                        placeholder="ترجمة الجملة (اختياري)..."
+                        className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
               </form>
             )}
 

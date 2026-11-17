@@ -369,6 +369,8 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   const [editableCategory, setEditableCategory] =
     useState<DictionaryTerm['category']>('Medical');
   const [isRefiningWithAI, setIsRefiningWithAI] = useState<boolean>(false);
+  const topicNewTermInputRef = useRef<HTMLInputElement | null>(null);
+  const topicTranslationArInputRef = useRef<HTMLInputElement | null>(null);
 
   // Rich Publisher / Editor State
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
@@ -1236,12 +1238,8 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     const defaultDefAr = quickLookup?.definitionAr
       ? quickLookup.definitionAr
       : morphPartsSummary
-        ? `مصطلح مستخرج من موضوع "${
-            activeTopic.titleEn || activeTopic.title
-          }" (${morphPartsSummary}).`
-        : `مصطلح مستخرج من موضوع "${
-            activeTopic.titleEn || activeTopic.title
-          }".`;
+        ? `التحليل الصرفي: ${morphPartsSummary}.`
+        : '';
 
     const mappedCat = mapTopicCategoryToDictionaryCategory(activeTopic.category);
 
@@ -1263,7 +1261,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
       matchedTerm: null,
       suggestedTranslationAr: suggestedTranslation,
       suggestedDefinitionAr: defaultDefAr,
-      suggestedPhonetic: `/${cleaned.toLowerCase()}/`,
+      suggestedPhonetic: '',
       suggestedPos: cleaned.includes(' ') ? 'phrase' : 'noun',
       morphologySummary: morphPartsSummary || undefined
     });
@@ -1299,8 +1297,10 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
 
   const handleInstantSaveUnknownTerm = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanTerm = editableNewTerm.trim();
-    const cleanTrans = editableTranslationAr.trim();
+    const domTerm = topicNewTermInputRef.current?.value ?? '';
+    const domTrans = topicTranslationArInputRef.current?.value ?? '';
+    const cleanTerm = (domTerm || editableNewTerm).trim();
+    const cleanTrans = (domTrans || editableTranslationAr).trim();
     if (!cleanTerm || !cleanTrans) {
       showToast('يرجى إدخال المصطلح وترجمته العربية قبل الحفظ', 'info');
       return;
@@ -1331,7 +1331,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
       term: cleanTerm,
       termNormalized: cleanTerm.toLowerCase(),
       translation: cleanTrans,
-      phonetic: selectionState?.suggestedPhonetic || `/${cleanTerm.toLowerCase()}/`,
+      phonetic: selectionState?.suggestedPhonetic || '',
       pos: selectionState?.suggestedPos || 'noun',
       category: editableCategory,
       specialty:
@@ -1350,13 +1350,9 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
       linkedBlockIds: activeTopic?.blockId ? [activeTopic.blockId] : [],
       lastStudiedAt: new Date().toISOString(),
       studyCount: 1,
-      ingestedAt: `الآن · من موضوع: ${
-        activeTopic?.titleEn || activeTopic?.title || 'موضوع'
-      }`,
-      definitionAr:
-        editableDefinitionAr.trim() ||
-        `مصطلح معرفي (${cleanTrans}) مضاف من تبويب المواضيع.`,
-      definitionEn: cleanExEn || `Contextual term extracted from topic article.`,
+      ingestedAt: 'الآن',
+      definitionAr: editableDefinitionAr.trim(),
+      definitionEn: cleanExEn || '',
       examples,
       relations: {
         synonyms: [],
@@ -4754,27 +4750,33 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div>
                       <label className="text-[11px] font-bold text-slate-500 block mb-1">
-                        المصطلح الطبي (English Term):
+                        المصطلح بالإنجليزية *
                       </label>
                       <input
+                        ref={topicNewTermInputRef}
                         type="text"
                         dir="auto"
-                        required
                         value={editableNewTerm}
                         onChange={(e) => setEditableNewTerm(e.target.value)}
+                        onInput={(e) =>
+                          setEditableNewTerm((e.target as HTMLInputElement).value)
+                        }
                         className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                       />
                     </div>
                     <div>
                       <label className="text-[11px] font-bold text-slate-500 block mb-1">
-                        الترجمة العربية للمصطلح:
+                        الترجمة بالعربية *
                       </label>
                       <input
+                        ref={topicTranslationArInputRef}
                         type="text"
-                        required
                         value={editableTranslationAr}
                         onChange={(e) => setEditableTranslationAr(e.target.value)}
-                        placeholder="اكتب أو عدّل الترجمة العربية..."
+                        onInput={(e) =>
+                          setEditableTranslationAr((e.target as HTMLInputElement).value)
+                        }
+                        placeholder="اكتب الترجمة العربية..."
                         className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-emerald-500/50 text-xs font-bold text-emerald-700 dark:text-emerald-300"
                       />
                     </div>
@@ -4782,12 +4784,13 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
 
                   <div>
                     <label className="text-[11px] font-bold text-slate-500 block mb-1">
-                      الشرح والتعريف المختصر:
+                      التعريف المختصر (اختياري):
                     </label>
                     <input
                       type="text"
                       value={editableDefinitionAr}
                       onChange={(e) => setEditableDefinitionAr(e.target.value)}
+                      placeholder="اختياري..."
                       className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                     />
                   </div>

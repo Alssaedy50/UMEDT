@@ -140,7 +140,7 @@ export type AppFontFamily =
   | 'amiri'
   | 'changa'
   | 'system';
-export type AppFontSizeScale = 'sm' | 'md' | 'lg' | 'xl';
+export type AppFontSizeScale = 'auto' | 'sm' | 'md' | 'lg' | 'xl';
 export type AppColorTheme =
   | 'emerald'
   | 'blue'

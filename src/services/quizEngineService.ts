@@ -1008,13 +1008,17 @@ export function loadQuizQuestions(
   topics: TopicArticle[],
   terms: DictionaryTerm[]
 ): UnifiedQuizQuestion[] {
-  const seedBank = buildInitialSeedQuizBank(topics, terms);
+  const isBrowserRuntime = typeof window !== 'undefined';
+  const seedBank = isBrowserRuntime ? [] : buildInitialSeedQuizBank(topics, terms);
   try {
     const raw = getSafeQuizStorage().getItem(LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS);
     if (!raw) return seedBank;
     const parsed = JSON.parse(raw) as UnifiedQuizQuestion[];
     if (!Array.isArray(parsed) || parsed.length === 0) {
       return seedBank;
+    }
+    if (isBrowserRuntime) {
+      return parsed;
     }
     const existingIds = new Set(parsed.map((q) => q.id));
     const missingSeeds = seedBank.filter((sq) => !existingIds.has(sq.id));

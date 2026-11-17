@@ -186,10 +186,11 @@ const FONT_SIZE_OPTIONS: Array<{
   percent: number;
   pxLabel: string;
 }> = [
+  { id: 'auto', label: 'تلقائي', percent: 85, pxLabel: 'خط الهاتف' },
   { id: 'sm', label: 'صغير', percent: 75, pxLabel: '75%' },
-  { id: 'md', label: 'متوسط', percent: 100, pxLabel: '100%' },
-  { id: 'lg', label: 'كبير', percent: 115, pxLabel: '115%' },
-  { id: 'xl', label: 'أكبر', percent: 125, pxLabel: '125%' }
+  { id: 'md', label: 'متوسط', percent: 85, pxLabel: '85%' },
+  { id: 'lg', label: 'مريح', percent: 95, pxLabel: '95%' },
+  { id: 'xl', label: 'كامل', percent: 100, pxLabel: '100%' }
 ];
 
 const COLOR_THEME_OPTIONS: Array<{
@@ -310,24 +311,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [previewDownloadedFile, setPreviewDownloadedFile] =
     useState<LocalDownloadRecord | null>(null);
 
+  const isAutoFontScale = fontSizeScale === 'auto';
   const effectiveScalePercent = Math.max(
     75,
     Math.min(
-      125,
+      100,
       typeof fontScalePercent === 'number'
         ? fontScalePercent
-        : FONT_SIZE_OPTIONS.find((s) => s.id === fontSizeScale)?.percent || 100
+        : FONT_SIZE_OPTIONS.find((s) => s.id === fontSizeScale)?.percent || 85
     )
   );
 
   const applyDynamicScalePercent = (nextPct: number) => {
-    const clamped = Math.max(75, Math.min(125, Math.round(nextPct)));
+    const clamped = Math.max(75, Math.min(100, Math.round(nextPct)));
     onChangeFontScalePercent?.(clamped);
-    if (clamped <= 85) {
+    if (clamped <= 78) {
       onChangeFontSizeScale('sm');
-    } else if (clamped <= 105) {
+    } else if (clamped <= 89) {
       onChangeFontSizeScale('md');
-    } else if (clamped <= 118) {
+    } else if (clamped <= 97) {
       onChangeFontSizeScale('lg');
     } else {
       onChangeFontSizeScale('xl');
@@ -625,7 +627,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400 min-w-0">
             <span className="truncate font-mono">
               {FONT_FAMILY_OPTIONS.find((f) => f.id === fontFamily)?.label || 'Cairo'} ·{' '}
-              {effectiveScalePercent}%
+              {isAutoFontScale ? 'تلقائي' : `${effectiveScalePercent}%`}
             </span>
             <ChevronLeft className="w-4 h-4 shrink-0" />
           </div>
@@ -854,15 +856,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </button>
                 </div>
 
-                <div className="space-y-4 text-xs">
-                  {/* Dynamic Font Scale Slider + Stepper */}
+                 <div className="space-y-4 text-xs">
+                  {/* Dynamic Font Scale Slider + Auto Phone Option */}
                   <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="font-extrabold text-slate-800 dark:text-slate-100">
-                        المقياس الديناميكي
+                        حجم النص (75% – 100%)
                       </span>
                       <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-mono font-extrabold">
-                        {effectiveScalePercent}% ({Math.round((16 * effectiveScalePercent) / 100)}px)
+                        {isAutoFontScale
+                          ? 'تلقائي (خط الهاتف)'
+                          : `${effectiveScalePercent}% (${Math.round((16 * effectiveScalePercent) / 100)}px)`}
                       </span>
                     </div>
 
@@ -879,7 +883,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       <input
                         type="range"
                         min={75}
-                        max={125}
+                        max={100}
                         step={5}
                         value={effectiveScalePercent}
                         onChange={(e) => applyDynamicScalePercent(Number(e.target.value))}
@@ -896,33 +900,42 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       </button>
                     </div>
 
-                    {/* Quick Presets */}
-                    <div className="grid grid-cols-4 gap-1.5">
+                    {/* Quick Presets including Phone Auto */}
+                    <div className="grid grid-cols-5 gap-1.5">
                       {FONT_SIZE_OPTIONS.map((sizeOpt) => {
-                        const active = Math.abs(effectiveScalePercent - sizeOpt.percent) <= 3;
+                        const active =
+                          sizeOpt.id === 'auto'
+                            ? isAutoFontScale
+                            : !isAutoFontScale && Math.abs(effectiveScalePercent - sizeOpt.percent) <= 2;
                         return (
                           <button
                             key={sizeOpt.id}
                             type="button"
-                            onClick={() => applyDynamicScalePercent(sizeOpt.percent)}
-                            className={`min-h-[38px] px-2 py-1.5 rounded-xl border font-bold flex flex-col items-center justify-center transition-colors ${
+                            onClick={() => {
+                              if (sizeOpt.id === 'auto') {
+                                onChangeFontSizeScale('auto');
+                              } else {
+                                applyDynamicScalePercent(sizeOpt.percent);
+                              }
+                            }}
+                            className={`min-h-[38px] px-1.5 py-1.5 rounded-xl border font-bold flex flex-col items-center justify-center transition-colors ${
                               active
                                 ? 'bg-emerald-600 border-emerald-600 text-white'
                                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
                             }`}
                           >
                             <span className="text-[11px] leading-tight">{sizeOpt.label}</span>
-                            <span className="font-mono text-[10px] opacity-80">{sizeOpt.pxLabel}</span>
+                            <span className="font-mono text-[9px] opacity-80">{sizeOpt.pxLabel}</span>
                           </button>
                         );
                       })}
                     </div>
                   </div>
 
-                  {/* Font Family */}
+                  {/* Font Family (Clean Grid Without Filler Descriptions) */}
                   <div className="space-y-2">
                     <span className="font-extrabold text-slate-700 dark:text-slate-200 block">
-                      نوع الخط ({FONT_FAMILY_OPTIONS.length})
+                      نوع الخط
                     </span>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {FONT_FAMILY_OPTIONS.map((fontOpt) => {
@@ -933,27 +946,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             type="button"
                             onClick={() => onChangeFontFamily(fontOpt.id)}
                             style={{ fontFamily: fontOpt.cssFamily }}
-                            className={`px-3 py-2.5 rounded-xl border text-right flex flex-col justify-between gap-1 transition-colors ${
+                            className={`min-h-[40px] px-3 py-2 rounded-xl border text-right flex items-center justify-between gap-1.5 transition-colors ${
                               active
                                 ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300'
                                 : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200'
                             }`}
                           >
-                            <div className="flex items-center justify-between gap-1.5 w-full">
-                              <span className="font-extrabold text-xs truncate">{fontOpt.label}</span>
-                              {active && <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
-                            </div>
-                            <span className="text-[10px] opacity-75 truncate">{fontOpt.preview}</span>
+                            <span className="font-extrabold text-xs truncate">{fontOpt.label}</span>
+                            {active && <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
                           </button>
                         );
                       })}
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
-                    <div className="text-[11px] font-bold text-slate-400">معاينة:</div>
-                    <div className="text-sm font-bold text-slate-900 dark:text-white leading-relaxed">
-                      فقر الدم بعوز الحديد (Iron Deficiency Anemia)
                     </div>
                   </div>
                 </div>
@@ -1116,10 +1119,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     />
                   </div>
 
-                  {/* Backup Mode Selection */}
+                  {/* Backup Mode Selection (Clean, Single-Line, Zero Duplicates) */}
                   <div className="space-y-1.5">
                     <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
-                      طريقة النسخ إلى قناة تليجرام:
+                      طريقة النسخ:
                     </label>
                     <div className="space-y-1.5">
                       {(
@@ -1139,22 +1142,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             onClick={() =>
                               syncAndPersistTelegramDraft({
                                 backupMode: modeKey,
-                                includeMediaFilesOnSync: modeKey === 'with_separate_media'
+                                sendInstantChangeNotes: modeKey === 'notes_and_scheduled_full',
+                                includeMediaFilesOnSync: modeKey === 'with_separate_media',
+                                includeDictionaryAndTerms: true,
+                                includeTopicsAndHierarchy: true
                               })
                             }
-                            className={`w-full min-h-[48px] p-2.5 rounded-xl border text-right transition-colors space-y-0.5 ${
+                            className={`w-full min-h-[42px] px-3 py-2 rounded-xl border text-right transition-colors flex items-center justify-between gap-2 ${
                               activeMode
                                 ? 'bg-emerald-500/10 border-emerald-500 text-emerald-800 dark:text-emerald-200'
                                 : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
                             }`}
                           >
-                            <div className="font-extrabold text-xs flex items-center justify-between gap-2">
-                              <span>{info.title}</span>
-                              {activeMode && (
-                                <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                              )}
-                            </div>
-                            <p className="text-[11px] opacity-80 leading-relaxed">{info.desc}</p>
+                            <span className="font-extrabold text-xs">{info.title}</span>
+                            {activeMode && (
+                              <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            )}
                           </button>
                         );
                       })}
@@ -1164,13 +1167,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {/* Backup File Format */}
                   <div className="space-y-1.5">
                     <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
-                      صيغة النسخة الدورية القابلة للاستيراد:
+                      صيغة النسخة:
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                       {(
                         [
-                          { key: 'json', label: 'JSON (ملف شامل واحد)' },
-                          { key: 'zip', label: 'ZIP (أرشيف مضغوط شامل)' }
+                          { key: 'json', label: 'JSON' },
+                          { key: 'zip', label: 'ZIP' }
                         ] as Array<{ key: TelegramBackupFileFormat; label: string }>
                       ).map((fmt) => {
                         const activeFmt =
@@ -1182,7 +1185,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             onClick={() =>
                               syncAndPersistTelegramDraft({ backupFileFormat: fmt.key })
                             }
-                            className={`min-h-[42px] px-3 py-2 rounded-xl border font-bold text-center transition-colors ${
+                            className={`min-h-[40px] px-3 py-2 rounded-xl border font-bold text-center transition-colors ${
                               activeFmt
                                 ? 'bg-emerald-600 border-emerald-600 text-white'
                                 : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
@@ -1198,7 +1201,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {/* Periodic Schedule Selector */}
                   <div className="space-y-1.5">
                     <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
-                      جدولة النسخ الاحتياطي الدوري:
+                      الجدولة الدورية:
                     </label>
                     <select
                       value={telegramConfig.schedule}
@@ -1209,7 +1212,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           enabled: nextSched !== 'off'
                         });
                       }}
-                      className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold"
+                      className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold"
                     >
                       {(Object.keys(SCHEDULE_LABELS_AR) as TelegramBackupSchedule[]).map(
                         (schedKey) => (
@@ -1245,51 +1248,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         <span className="text-[11px] text-slate-500">ساعة</span>
                       </div>
                     )}
-                  </div>
-
-                  {/* Scope & Instant Notes Checkboxes */}
-                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
-                    <label className="flex items-start gap-2 font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={telegramConfig.sendInstantChangeNotes !== false}
-                        onChange={(e) =>
-                          syncAndPersistTelegramDraft({
-                            sendInstantChangeNotes: e.target.checked
-                          })
-                        }
-                        className="w-4 h-4 mt-0.5 rounded text-emerald-600 shrink-0"
-                      />
-                      <span>نشر نوتات فورية في القناة عند كل إضافة أو تعديل أو حذف</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={telegramConfig.includeDictionaryAndTerms}
-                        onChange={(e) =>
-                          syncAndPersistTelegramDraft({
-                            includeDictionaryAndTerms: e.target.checked
-                          })
-                        }
-                        className="w-4 h-4 rounded text-emerald-600 shrink-0"
-                      />
-                      <span>تضمين المصطلحات والجمل والمفضلة والملاحظات</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={telegramConfig.includeTopicsAndHierarchy}
-                        onChange={(e) =>
-                          syncAndPersistTelegramDraft({
-                            includeTopicsAndHierarchy: e.target.checked
-                          })
-                        }
-                        className="w-4 h-4 rounded text-emerald-600 shrink-0"
-                      />
-                      <span>تضمين المواضيع والبلوكات والمواد والكتب والاختبارات</span>
-                    </label>
                   </div>
 
                   {telegramFeedback && (
