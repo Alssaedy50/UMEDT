@@ -224,6 +224,24 @@ export const SearchHub: React.FC<SearchHubProps> = ({
   };
 
   const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    // Android WebView keyboards do not consistently dispatch the form submit event
+    // for the IME Search/Enter action. Explicitly submit after text composition ends.
+    if (
+      event.key === 'Enter' &&
+      !event.nativeEvent.isComposing &&
+      !isComposingRef.current
+    ) {
+      event.preventDefault();
+      const form = event.currentTarget.form;
+      if (form) {
+        if (typeof form.requestSubmit === 'function') {
+          form.requestSubmit();
+        } else {
+          form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        }
+      }
+      return;
+    }
     if (event.key === 'ArrowDown' && suggestedTerms.length > 0) {
       event.preventDefault();
       setActiveSuggestionIndex((current) =>
