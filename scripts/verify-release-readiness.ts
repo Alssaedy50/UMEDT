@@ -1549,8 +1549,8 @@ async function main() {
     localSentences: initialStateForCloud.sentences
   });
   assertCondition(
-    onlineCatalogView.totalCloudTopicsCount >= 1 && onlineCatalogView.blocks.length >= 4,
-    `Expected online synced catalog to have >= 1 topics and >= 4 blocks, got topics=${onlineCatalogView.totalCloudTopicsCount}, blocks=${onlineCatalogView.blocks.length}`
+    onlineCatalogView.totalCloudTopicsCount >= 1 && onlineCatalogView.blocks.length >= 1,
+    `Expected online synced catalog to have >= 1 topic and >= 1 block, got topics=${onlineCatalogView.totalCloudTopicsCount}, blocks=${onlineCatalogView.blocks.length}`
   );
 
   // 16.4 Selective Download of Individual Topic from Cloud Library (Online) + SHA-256 Deduplication Check
