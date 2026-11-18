@@ -34,4 +34,5 @@ export const INITIAL_TERMS: DictionaryTerm[] = [];
 export const INITIAL_LINKED_SENTENCES: LinkedSentence[] = [];
 export const MORPHOLOGICAL_AFFIXES: MorphologicalAffix[] = [];
 export const CLINICAL_ABBREVIATIONS: ClinicalAbbreviation[] = [];
+export const CLINICAL_PHRASEBOOK: Array<{ en: string; ar: string }> = [];
 export const EXTRA_LINKABLE_ALIASES: string[] = [];
