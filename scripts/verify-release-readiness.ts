@@ -167,7 +167,7 @@ async function main() {
   console.log('================================================================');
 
   // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.4.1)
-  assertCondition(APP_VERSION === '2.4.1', `Expected APP_VERSION 2.4.1, got ${APP_VERSION}`);
+  assertCondition(APP_VERSION === '2.4.2', `Expected APP_VERSION 2.4.2, got ${APP_VERSION}`);
   assertCondition(DB_SCHEMA_VERSION === 2, `Expected DB_SCHEMA_VERSION 2, got ${DB_SCHEMA_VERSION}`);
   assertCondition(
     BUNDLED_DATA_VERSION === '2026.10.0-umd',
