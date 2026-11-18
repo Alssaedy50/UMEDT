@@ -19,7 +19,10 @@ import {
   X,
   Send,
   Type,
-  Palette
+  Palette,
+  Github,
+  ShieldCheck,
+  CloudUpload
 } from 'lucide-react';
 import {
   DataBackupRecord,
@@ -44,6 +47,12 @@ import {
   testTelegramConnection,
   uploadPendingMediaToTelegramChannel
 } from '../services/telegramBackupService';
+import {
+  hasSavedGitHubToken,
+  saveGitHubToken,
+  clearGitHubToken,
+  testGitHubConnection
+} from '../services/githubRepositoryService';
 import {
   LocalDownloadRecord,
   verifyLocalStoragePersistence,
@@ -93,6 +102,7 @@ interface SettingsViewProps {
   onImportPackageFile: (file: File) => void;
   onShareDataFile: () => void;
   onResetDefaults: () => void;
+  onPublishLocalData?: () => Promise<{ commitSha: string; filesUpdated: number; branch: string }>;
   lastBackupTime: string;
   telegramConfig?: TelegramBackupConfig;
   onUpdateTelegramConfig?: (nextConfig: TelegramBackupConfig) => void;
@@ -116,6 +126,7 @@ type SettingsModalType =
   | 'conflict'
   | 'backup'
   | 'telegram'
+  | 'github'
   | 'reset';
 
 const FONT_FAMILY_OPTIONS: Array<{
@@ -292,6 +303,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isTestingTelegram, setIsTestingTelegram] = useState<boolean>(false);
   const [isSyncingTelegramMedia, setIsSyncingTelegramMedia] = useState<boolean>(false);
   const [isRestoringTelegram, setIsRestoringTelegram] = useState<boolean>(false);
+  const [draftGitHubToken, setDraftGitHubToken] = useState<string>('');
+  const [hasGitHubToken, setHasGitHubToken] = useState<boolean>(() => hasSavedGitHubToken());
+  const [isTestingGitHub, setIsTestingGitHub] = useState<boolean>(false);
+  const [isPublishingGitHub, setIsPublishingGitHub] = useState<boolean>(false);
+  const [githubFeedback, setGithubFeedback] = useState<{ ok: boolean; message: string } | null>(null);
   const [telegramFeedback, setTelegramFeedback] = useState<{
     ok: boolean;
     message: string;
@@ -389,6 +405,54 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const saved = saveTelegramBackupConfig(nextCfg);
     onUpdateTelegramConfig?.(saved);
     return saved;
+  };
+
+  const handleSaveGitHubToken = () => {
+    try {
+      saveGitHubToken(draftGitHubToken);
+      setDraftGitHubToken('');
+      setHasGitHubToken(true);
+      setGithubFeedback({ ok: true, message: 'تم تشفير التوكن وحفظه بواسطة Android Keystore على هذا الجهاز.' });
+    } catch (error) {
+      setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) });
+    }
+  };
+
+  const handleTestGitHub = async () => {
+    setIsTestingGitHub(true);
+    setGithubFeedback(null);
+    try {
+      const result = await testGitHubConnection(draftGitHubToken.trim() || undefined);
+      setGithubFeedback({
+        ok: true,
+        message: `اتصال ناجح: ${result.repository} · الفرع ${result.branch} · صلاحية الكتابة متاحة.`
+      });
+    } catch (error) {
+      setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setIsTestingGitHub(false);
+    }
+  };
+
+  const handlePublishLocalData = async () => {
+    if (!onPublishLocalData) return;
+    const confirmed = window.confirm(
+      'سيتم استبدال مجموعات البيانات الرئيسية في UMEDT-DATA بالنسخة المحلية الحالية بالكامل، ثم يبدأ GitHub Actions ببناء إصدار بيانات موقع. هل راجعت بياناتك وتريد المتابعة؟'
+    );
+    if (!confirmed) return;
+    setIsPublishingGitHub(true);
+    setGithubFeedback(null);
+    try {
+      const result = await onPublishLocalData();
+      setGithubFeedback({
+        ok: true,
+        message: `تم رفع ${result.filesUpdated} ملفاً في Commit ${result.commitSha.slice(0, 8)} على ${result.branch}. بدأ مسار نشر إصدار البيانات تلقائياً؛ يلزم التحقق من نجاحه في GitHub Actions.`
+      });
+    } catch (error) {
+      setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setIsPublishingGitHub(false);
+    }
   };
 
   const { isInstallable, isCapacitorNative, install } = usePWAInstall();
@@ -715,6 +779,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               (telegramConfig?.chatId || draftChatId).trim()
                 ? SCHEDULE_LABELS_AR[telegramConfig?.schedule || 'daily']
                 : 'إعداد'}
+            </span>
+            <ChevronLeft className="w-4 h-4" />
+          </div>
+        </button>
+
+        {/* 3b. Direct GitHub repository management */}
+        <button
+          type="button"
+          onClick={() => {
+            setGithubFeedback(null);
+            setDraftGitHubToken('');
+            setHasGitHubToken(hasSavedGitHubToken());
+            setActiveModal('github');
+          }}
+          className="w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-right"
+        >
+          <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
+            <Github className="w-4 h-4 text-slate-700 dark:text-slate-200 shrink-0" />
+            <span>مستودع GitHub</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
+            <span className={hasGitHubToken ? 'text-emerald-600 dark:text-emerald-400' : ''}>
+              {hasGitHubToken ? 'توكن محفوظ' : 'إعداد'}
             </span>
             <ChevronLeft className="w-4 h-4" />
           </div>
@@ -1342,6 +1429,57 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </button>
                   )}
                 </div>
+              </>
+            )}
+
+            {/* Modal: Direct GitHub Repository Management */}
+            {activeModal === 'github' && (
+              <>
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Github className="w-4 h-4" />
+                    <span className="text-sm font-extrabold text-slate-900 dark:text-white">إدارة مستودع البيانات</span>
+                  </div>
+                  <button type="button" onClick={() => setActiveModal(null)} className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg text-slate-400">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 p-3 text-xs text-emerald-900 dark:text-emerald-200 space-y-1">
+                  <div className="flex items-center gap-2 font-bold"><ShieldCheck className="w-4 h-4" /> اتصال مباشر وآمن على Android</div>
+                  <p>المستودع: Alssaedy50/UMEDT-DATA · الصلاحيات المطلوبة: Contents Read and Write فقط.</p>
+                  <p>يُحفظ التوكن مشفراً بواسطة Android Keystore ولا يُخزن كنص مكشوف. لا تشارك هذا التوكن مع أي شخص.</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200">GitHub Fine-grained Personal Access Token</label>
+                  <input
+                    type="password"
+                    autoComplete="off"
+                    value={draftGitHubToken}
+                    onChange={(e) => setDraftGitHubToken(e.target.value)}
+                    placeholder={hasGitHubToken ? 'يوجد توكن محفوظ — أدخل بديلاً لتغييره' : 'الصق التوكن هنا'}
+                    className="w-full min-h-[44px] rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 text-sm font-mono outline-none focus:border-emerald-500"
+                  />
+                  <div className="flex gap-2">
+                    <button type="button" disabled={!draftGitHubToken.trim()} onClick={handleSaveGitHubToken} className="flex-1 min-h-[42px] rounded-xl bg-emerald-600 text-white text-xs font-extrabold disabled:opacity-40">حفظ مشفر</button>
+                    <button type="button" disabled={isTestingGitHub || (!draftGitHubToken.trim() && !hasGitHubToken)} onClick={() => void handleTestGitHub()} className="flex-1 min-h-[42px] rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-extrabold disabled:opacity-40">{isTestingGitHub ? 'يفحص...' : 'اختبار الاتصال'}</button>
+                  </div>
+                  {hasGitHubToken && (
+                    <button type="button" onClick={() => { clearGitHubToken(); setHasGitHubToken(false); setGithubFeedback({ ok: true, message: 'تم مسح التوكن المحفوظ من هذا الجهاز.' }); }} className="w-full min-h-[38px] rounded-xl border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-300 text-xs font-bold">مسح التوكن المحفوظ</button>
+                  )}
+                </div>
+                <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
+                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">نشر بيانات الجهاز إلى المكتبة السحابية</div>
+                  <p className="text-[11px] leading-5 text-slate-500 dark:text-slate-400">يرفع لقطة كاملة من مجموعات المصطلحات والجمل والمواضيع والبلوكات والمواد والكتب والأسئلة والاختبارات وفهرس الوسائط إلى ملفات data/master. هذا استبدال شامل لمجموعات المصدر، وليس رفعاً جزئياً. الوسائط الثنائية نفسها لا تُرفع بهذه العملية.</p>
+                  <button type="button" disabled={!hasGitHubToken || !onPublishLocalData || isPublishingGitHub} onClick={() => void handlePublishLocalData()} className="w-full min-h-[46px] rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold flex items-center justify-center gap-2 disabled:opacity-40">
+                    <CloudUpload className="w-4 h-4" />
+                    {isPublishingGitHub ? 'جاري رفع البيانات...' : 'نشر لقطة البيانات المحلية'}
+                  </button>
+                </div>
+                {githubFeedback && (
+                  <div className={`rounded-xl p-3 text-xs leading-5 ${githubFeedback.ok ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200' : 'bg-rose-50 text-rose-800 dark:bg-rose-950/30 dark:text-rose-200'}`}>
+                    {githubFeedback.message}
+                  </div>
+                )}
               </>
             )}
 
