@@ -287,6 +287,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onImportPackageFile,
   onShareDataFile,
   onResetDefaults,
+  onPublishLocalData,
   telegramConfig,
   onUpdateTelegramConfig,
   onTriggerTelegramBackupNow,
