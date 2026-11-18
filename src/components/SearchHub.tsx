@@ -288,7 +288,7 @@ export const SearchHub: React.FC<SearchHubProps> = ({
       <div className="space-y-2 w-full">
         <form
           onSubmit={handleSearchSubmit}
-          className="relative w-full flex items-stretch gap-2"
+          className="relative w-full"
           role="search"
         >
           <div className="relative flex-1 min-w-0">
@@ -444,15 +444,6 @@ export const SearchHub: React.FC<SearchHubProps> = ({
             )}
           </div>
 
-          <button
-            type="submit"
-            disabled={!draftQuery.trim()}
-            className="min-h-[50px] px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-45 disabled:cursor-not-allowed text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1.5 shrink-0 transition-colors shadow-sm"
-            aria-label="إدخال الكلمة والبحث عن ترجمتها"
-          >
-            <Search className="w-4 h-4 shrink-0" />
-            <span>بحث</span>
-          </button>
         </form>
 
         <div className="flex items-center justify-between gap-2 pt-0.5">
