@@ -6829,11 +6829,45 @@ export async function runStage7FinalReleaseReadinessSuite(
   let androidOfflinePassed = false;
   {
     const t0 = Date.now();
+    // Keep offline diagnostics independent from production seed data: inject one isolated fixture
+    // only when the user's installed/cloud database is empty.
     const diagTerms = currentState.terms.some((t) => t.term.toLowerCase().includes('infarction'))
       ? currentState.terms
-      : [...currentState.terms, ...INITIAL_TERMS];
-    const diagSentences =
-      currentState.sentences.length > 0 ? currentState.sentences : INITIAL_LINKED_SENTENCES;
+      : [...currentState.terms, {
+          id: 'stage7-fixture-mi',
+          term: 'Myocardial Infarction',
+          termNormalized: 'myocardial infarction',
+          translation: 'احتشاء عضلة القلب',
+          phonetic: '/test/',
+          pos: 'Noun',
+          category: 'Medical' as const,
+          keepEnglish: true,
+          favorite: false,
+          collections: [],
+          ingestedAt: 'stage7-verification-fixture',
+          definitionAr: 'مصطلح اختباري للتحقق من البحث المحلي',
+          definitionEn: 'Isolated diagnostic fixture',
+          examples: [],
+          relations: { synonyms: [], broader: [], related: [] }
+        }];
+    const diagSentences = currentState.sentences;
+    const diagAbbreviations = currentState.customAbbreviations.length > 0
+      ? currentState.customAbbreviations
+      : [{
+          id: 'stage7-fixture-ms',
+          abbr: 'MS',
+          isAmbiguous: true,
+          defaultExpansionEn: 'Mitral Stenosis',
+          defaultTranslationAr: 'تضيّق الصمام التاجي',
+          category: 'Cardiopulmonary' as const,
+          priority: 100,
+          candidates: [{
+            expansionEn: 'Mitral Stenosis',
+            translationAr: 'تضيّق الصمام التاجي',
+            specialty: 'Cardiology',
+            triggers: [{ token: 'rheumatic', weight: 10 }, { token: 'murmur', weight: 10 }]
+          }]
+        }];
     // 1a. Verify offline dictionary search (EN + AR + UMD Code)
     const offlineSearchEn = diagTerms.filter((t) =>
       t.term.toLowerCase().includes('infarction')
@@ -6848,7 +6882,7 @@ export async function runStage7FinalReleaseReadinessSuite(
       diagTerms,
       diagSentences,
       currentState.customAffixes,
-      currentState.customAbbreviations
+      diagAbbreviations
     );
     const offlineMorph = decomposeMedicalWord(
       'Hepatosplenomegaly',
@@ -6858,7 +6892,7 @@ export async function runStage7FinalReleaseReadinessSuite(
     const offlineAbbr = resolveAbbreviationInContext(
       'MS',
       'Auscultation at the apex revealed a diastolic murmur consistent with rheumatic MS.',
-      currentState.customAbbreviations
+      diagAbbreviations
     );
 
     // 1c. Verify offline OTA check graceful handling (unconfigured/offline without throwing)
