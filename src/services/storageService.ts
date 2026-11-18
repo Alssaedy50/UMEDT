@@ -2204,7 +2204,7 @@ export async function executeAtomicPackageImport(
           }
           enrichedPayloadQuestions.push({
             ...q,
-            imageUrl: persisted.dataUrl
+            imageUrl: `idb://${persisted.idbKey}`
           });
         } else {
           enrichedPayloadQuestions.push(q);
