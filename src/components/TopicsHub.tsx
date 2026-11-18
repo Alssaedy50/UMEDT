@@ -4124,6 +4124,68 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   </div>
                 )}
 
+                {topicQuizQuestions.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <GraduationCap className="w-4 h-4 text-emerald-500" />
+                        <span>أسئلة الموضوع التفاعلية ({topicQuizQuestions.length})</span>
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openQuizForScope({
+                            blockId: activeTopic.blockId,
+                            subjectId: activeTopic.subjectId,
+                            topicId: activeTopic.id,
+                            tab: 'runner'
+                          })
+                        }
+                        className="min-h-[34px] px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold"
+                      >
+                        اختبار شامل للموضوع
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {topicQuizQuestions.slice(0, 6).map((q, qIdx) => {
+                        const qImgSrc =
+                          topicOfflineMediaUrls[q.id] ||
+                          (q.imageUrl && !q.imageUrl.startsWith('idb://') ? q.imageUrl : '');
+                        return (
+                          <div
+                            key={q.id}
+                            className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <p
+                                dir="ltr"
+                                className="text-xs font-extrabold text-slate-900 dark:text-white leading-relaxed"
+                              >
+                                Q{qIdx + 1}. {q.questionEn}
+                              </p>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 shrink-0">
+                                {q.options?.length || 0} خيارات
+                              </span>
+                            </div>
+                            {q.questionAr && (
+                              <p className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed">
+                                {q.questionAr}
+                              </p>
+                            )}
+                            {qImgSrc && (
+                              <img
+                                src={qImgSrc}
+                                alt={q.questionEn}
+                                className="max-h-40 rounded-xl border border-slate-200 dark:border-slate-800 object-contain bg-white dark:bg-slate-900 p-1.5"
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {topicExams.length > 0 && (
                   <div className="space-y-2">
                     <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">

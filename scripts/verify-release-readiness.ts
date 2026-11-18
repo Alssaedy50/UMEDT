@@ -14,6 +14,7 @@ import {
   signPackageBytesWithPrivateKey,
   verifyPackageSignature,
   assemblePackageFromZipJsonMap,
+  inspectAndExtractSafeZipPackage,
   validateDataPackageObject,
   buildDataPackageZipBytes,
   computeSha256Hex
@@ -25,6 +26,7 @@ import {
   exportFullDatabaseJson,
   exportFullDatabaseZipBytes,
   loadAppState,
+  saveTerms,
   saveTopics,
   saveCustomAffixes,
   saveCustomAbbreviations,
@@ -81,12 +83,14 @@ import {
 import {
   saveLocalMediaRecord,
   getLocalMediaRecord,
+  clearMemoryMediaCacheForTesting,
   detectExternalMediaKind,
   downloadRemoteMediaToOfflineCache,
   openMediaInExternalApp,
   isDownloadableMediaUrl,
   normalizeMediaMimeType
 } from '../src/services/mediaStorageService';
+import { sanitizeSvgMarkup } from '../src/components/TopicContentBlockEditor';
 import {
   UMEDT_DATA_CATALOG_URL,
   computeDeterministicFastHashHex,
@@ -4737,8 +4741,830 @@ QUESTION || single_choice || Which vessels unite to form the basilar artery? || 
     );
   }
 
+  // 26. Mandatory 9 Acceptance Tests: Blood Pressure Package Import, Bundled Binary/SVG Media, IndexedDB Persistence Across Restart, Re-import Deduplication & User Data Preservation, Atomic Rollback on Media Failure, and Malicious ZIP Security
+  {
+    const idbStores = new Map<string, Map<string, unknown>>();
+    const previousIndexedDB = (globalThis as unknown as { indexedDB?: unknown }).indexedDB;
+
+    // Install spec-compliant in-memory IndexedDB mock for Node verification of real IDB transactions
+    (globalThis as unknown as { indexedDB: unknown }).indexedDB = {
+      open: (dbName: string) => {
+        const req: Record<string, unknown> = {
+          result: null,
+          error: null,
+          onsuccess: null,
+          onerror: null,
+          onupgradeneeded: null
+        };
+        queueMicrotask(() => {
+          const db = {
+            objectStoreNames: {
+              contains: (storeName: string) => idbStores.has(`${dbName}:${storeName}`)
+            },
+            createObjectStore: (storeName: string) => {
+              const key = `${dbName}:${storeName}`;
+              if (!idbStores.has(key)) idbStores.set(key, new Map());
+              return {
+                createIndex: () => ({})
+              };
+            },
+            transaction: (storeName: string) => {
+              const key = `${dbName}:${storeName}`;
+              if (!idbStores.has(key)) idbStores.set(key, new Map());
+              const storeMap = idbStores.get(key)!;
+              const tx: Record<string, unknown> = {
+                oncomplete: null,
+                onerror: null,
+                onabort: null,
+                error: null,
+                objectStore: () => ({
+                  put: (val: { id: string }) => {
+                    storeMap.set(val.id, JSON.parse(JSON.stringify(val)));
+                    const putReq: Record<string, unknown> = { onsuccess: null, onerror: null };
+                    queueMicrotask(() => {
+                      if (typeof putReq.onsuccess === 'function') (putReq.onsuccess as () => void)();
+                      if (typeof tx.oncomplete === 'function') (tx.oncomplete as () => void)();
+                    });
+                    return putReq;
+                  },
+                  get: (id: string) => {
+                    const getReq: Record<string, unknown> = {
+                      result: storeMap.get(id),
+                      onsuccess: null,
+                      onerror: null
+                    };
+                    queueMicrotask(() => {
+                      if (typeof getReq.onsuccess === 'function') (getReq.onsuccess as () => void)();
+                    });
+                    return getReq;
+                  },
+                  getAll: () => {
+                    const allReq: Record<string, unknown> = {
+                      result: Array.from(storeMap.values()),
+                      onsuccess: null,
+                      onerror: null
+                    };
+                    queueMicrotask(() => {
+                      if (typeof allReq.onsuccess === 'function') (allReq.onsuccess as () => void)();
+                    });
+                    return allReq;
+                  },
+                  delete: (id: string) => {
+                    storeMap.delete(id);
+                    const delReq: Record<string, unknown> = { onsuccess: null, onerror: null };
+                    queueMicrotask(() => {
+                      if (typeof delReq.onsuccess === 'function') (delReq.onsuccess as () => void)();
+                      if (typeof tx.oncomplete === 'function') (tx.oncomplete as () => void)();
+                    });
+                    return delReq;
+                  }
+                })
+              };
+              return tx;
+            },
+            close: () => {}
+          };
+          req.result = db;
+          if (typeof req.onupgradeneeded === 'function') {
+            (req.onupgradeneeded as () => void)();
+          }
+          if (typeof req.onsuccess === 'function') {
+            (req.onsuccess as () => void)();
+          }
+        });
+        return req;
+      }
+    };
+
+    try {
+      const encoder = new TextEncoder();
+      const bpSvgMarkup =
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 140"><rect width="360" height="140" fill="#ecfdf5"/><text x="20" y="75" fill="#065f46" font-size="16">Baroreceptor Reflex Arc (MAP = CO x SVR)</text></svg>';
+      const bpSvgBytes = encoder.encode(bpSvgMarkup);
+      const bpPngBytes = new Uint8Array([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44,
+        0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f,
+        0x15, 0xc4, 0x89
+      ]);
+      const bpMp3Bytes = new Uint8Array([0x49, 0x44, 0x33, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x21]);
+      const bpMp4Bytes = new Uint8Array([
+        0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x6d, 0x70, 0x34, 0x32
+      ]);
+      const bpPdfBytes = encoder.encode('%PDF-1.4\n1 0 obj\n<< /Title (Blood Pressure Guideline) >>\nendobj\n%%EOF');
+
+      const svgSha = await computeSha256Hex(bpSvgBytes);
+      const pngSha = await computeSha256Hex(bpPngBytes);
+      const mp3Sha = await computeSha256Hex(bpMp3Bytes);
+      const mp4Sha = await computeSha256Hex(bpMp4Bytes);
+      const pdfSha = await computeSha256Hex(bpPdfBytes);
+
+      const bpPackagePayload: import('../src/types/lexicon').DataPackagePayload = {
+        manifest: {
+          packageId: 'umedt-bp-test-pack',
+          dataVersion: '2026.11.0-bp-test',
+          minAppVersion: '2.0.0',
+          schemaVersion: 2,
+          releasedAt: new Date().toISOString(),
+          channel: 'stable',
+          description: 'UMEDT-DATA Blood Pressure Topic Bundle',
+          counts: {
+            terms: 2,
+            sentences: 1,
+            topics: 1,
+            affixes: 1,
+            abbreviations: 1
+          },
+          extendedCounts: {
+            blocks: 1,
+            subjects: 1,
+            books: 0,
+            questions: 2,
+            exams: 1,
+            mediaAssets: 5
+          }
+        },
+        blocks: [
+          {
+            id: 'blk-cv-bp',
+            code: 'BLK-CV-BP',
+            titleEn: 'Cardiovascular System Block',
+            titleAr: 'بلوك القلب والأوعية الدموية',
+            descriptionEn: 'Cardiovascular physiology and pathology',
+            descriptionAr: 'دراسة ضغط الدم والدورة الدموية',
+            colorAccent: '#10b981',
+            order: 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ],
+        subjects: [
+          {
+            id: 'subj-cv-physio-bp',
+            blockId: 'blk-cv-bp',
+            code: 'PHYS-CV-BP',
+            titleEn: 'Cardiovascular Physiology',
+            titleAr: 'فسيولوجيا القلب والأوعية الدموية',
+            descriptionEn: 'Arterial blood pressure regulation',
+            descriptionAr: 'تنظيم ضغط الدم الشرياني',
+            order: 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ],
+        topics: [
+          {
+            id: 'topic-cv-blood-pressure',
+            blockId: 'blk-cv-bp',
+            subjectId: 'subj-cv-physio-bp',
+            title: 'Arterial Blood Pressure Regulation',
+            titleEn: 'Arterial Blood Pressure Regulation',
+            titleAr: 'تنظيم ضغط الدم الشرياني (Blood Pressure)',
+            subtitle: 'Mean Arterial Pressure, Baroreceptors & Korotkoff Sounds',
+            category: 'Medical',
+            author: 'UMEDT Academic Board',
+            publishedAt: '2026-11-18',
+            readingTimeMinutes: 20,
+            favorite: false,
+            sections: [
+              {
+                id: 'sec-bp-hemodynamics',
+                heading: 'Hemodynamic Determinants & Reflexes',
+                headingEn: 'Hemodynamic Determinants & Reflexes',
+                headingAr: 'المحددات الهيموديناميكية والمنعكسات العصبية',
+                paragraphs: [
+                  'Arterial blood pressure is regulated acutely by the autonomic baroreceptor reflex and chronically by the renal renin-angiotensin-aldosterone system.'
+                ],
+                contentBlocks: [
+                  {
+                    id: 'cb-bp-svg-diagram',
+                    type: 'diagram',
+                    order: 1,
+                    titleEn: 'Baroreceptor Reflex SVG Diagram',
+                    titleAr: 'مخطط منعكس مستقبلات الضغط (SVG)',
+                    mediaUrl: 'media/diagrams/bp-baroreceptor-reflex.svg',
+                    mediaMimeType: 'image/svg+xml',
+                    mediaFileName: 'bp-baroreceptor-reflex.svg'
+                  },
+                  {
+                    id: 'cb-bp-png-image',
+                    type: 'image',
+                    order: 2,
+                    titleEn: 'Korotkoff Auscultatory Phases Chart',
+                    titleAr: 'صورة مراحل أصوات كوروتكوف',
+                    mediaUrl: 'media/images/korotkoff-phases.png',
+                    mediaMimeType: 'image/png',
+                    mediaFileName: 'korotkoff-phases.png'
+                  },
+                  {
+                    id: 'cb-bp-audio',
+                    type: 'audio',
+                    order: 3,
+                    titleEn: 'Korotkoff Sounds Auscultation Audio',
+                    titleAr: 'تسجيل صوتي لأصوات كوروتكوف',
+                    mediaUrl: 'media/audio/korotkoff-sounds.mp3',
+                    mediaMimeType: 'audio/mpeg',
+                    mediaFileName: 'korotkoff-sounds.mp3'
+                  },
+                  {
+                    id: 'cb-bp-video',
+                    type: 'video',
+                    order: 4,
+                    titleEn: 'Sphygmomanometer Blood Pressure Measurement Video',
+                    titleAr: 'فيديو قياس ضغط الدم السريري',
+                    mediaUrl: 'media/videos/bp-measurement.mp4',
+                    mediaMimeType: 'video/mp4',
+                    mediaFileName: 'bp-measurement.mp4'
+                  },
+                  {
+                    id: 'cb-bp-pdf',
+                    type: 'pdf_viewer',
+                    order: 5,
+                    titleEn: 'Hypertension Clinical Guideline PDF',
+                    titleAr: 'ملف إرشادات فرط ضغط الدم PDF',
+                    mediaUrl: 'media/pdfs/aha-hypertension-guideline.pdf',
+                    mediaMimeType: 'application/pdf',
+                    mediaFileName: 'aha-hypertension-guideline.pdf'
+                  }
+                ]
+              }
+            ],
+            images: [
+              {
+                id: 'img-bp-korotkoff',
+                caption: 'Korotkoff Phases Local Image',
+                url: 'media/images/korotkoff-phases.png',
+                fileName: 'korotkoff-phases.png',
+                mimeType: 'image/png'
+              }
+            ],
+            links: [],
+            attachments: [
+              {
+                id: 'att-bp-guideline',
+                fileName: 'aha-hypertension-guideline.pdf',
+                fileType: 'pdf',
+                mimeType: 'application/pdf',
+                fileSizeLabel: '1 KB',
+                contentDataUrlOrText: '',
+                externalUrl: 'media/pdfs/aha-hypertension-guideline.pdf',
+                addedAt: new Date().toISOString()
+              }
+            ]
+          }
+        ],
+        terms: [
+          {
+            id: 'term-bp-baroreceptor',
+            term: 'Baroreceptor',
+            termNormalized: 'baroreceptor',
+            translation: 'مستقبل الضغط الشرياني',
+            phonetic: '/ˌbær.oʊ.rɪˈsɛp.tər/',
+            pos: 'Noun',
+            category: 'Medical',
+            specialty: 'Physiology',
+            keepEnglish: true,
+            favorite: false,
+            collections: [],
+            ingestedAt: new Date().toISOString(),
+            definitionEn: 'Mechanoreceptor sensory neuron located in the carotid sinus and aortic arch.',
+            definitionAr: 'مستقبل ميكانيكي حسي في الجيب السباتي وقوس الأبهر يستجيب لتمدد جدار الوعاء.',
+            examples: [
+              {
+                en: 'Carotid baroreceptors fire rapidly during acute hypertension.',
+                ar: 'تطلق مستقبلات الضغط السباتية إشارات سريعة أثناء ارتفاع الضغط الحاد.'
+              }
+            ],
+            relations: {
+              synonyms: ['Pressoreceptor'],
+              broader: ['Mechanoreceptor'],
+              related: ['Korotkoff Sounds']
+            },
+            linkedTopicIds: ['topic-cv-blood-pressure'],
+            linkedSubjectIds: ['subj-cv-physio-bp'],
+            linkedBlockIds: ['blk-cv-bp']
+          },
+          {
+            id: 'term-bp-korotkoff',
+            term: 'Korotkoff Sounds',
+            termNormalized: 'korotkoff sounds',
+            translation: 'أصوات كوروتكوف',
+            phonetic: '/kəˈrɒt.kɒf saʊndz/',
+            pos: 'Noun',
+            category: 'Medical',
+            specialty: 'Physiology',
+            keepEnglish: true,
+            favorite: false,
+            collections: [],
+            ingestedAt: new Date().toISOString(),
+            definitionEn: 'Arterial sounds heard through a stethoscope during cuff deflation.',
+            definitionAr: 'الأصوات الشريانية المسموعة بالسماعة الطبية أثناء تفريغ كفة جهاز الضغط.',
+            examples: [
+              {
+                en: 'Phase I Korotkoff sound marks systolic blood pressure.',
+                ar: 'المرحلة الأولى من أصوات كوروتكوف تحدد ضغط الدم الانقباضي.'
+              }
+            ],
+            relations: {
+              synonyms: [],
+              broader: ['Auscultation'],
+              related: ['Baroreceptor']
+            },
+            linkedTopicIds: ['topic-cv-blood-pressure'],
+            linkedSubjectIds: ['subj-cv-physio-bp'],
+            linkedBlockIds: ['blk-cv-bp']
+          }
+        ],
+        sentences: [
+          {
+            id: 'sent-bp-1',
+            en: 'Mean arterial pressure equals cardiac output multiplied by systemic vascular resistance.',
+            ar: 'متوسط الضغط الشرياني يساوي النتاج القلبي مضروباً في المقاومة الوعائية الجهازية.',
+            category: 'Medical',
+            specialty: 'Physiology',
+            sourceType: 'seed',
+            linkedTermIds: ['term-bp-baroreceptor'],
+            tags: ['hemodynamics'],
+            favorite: false,
+            createdAt: new Date().toISOString()
+          }
+        ],
+        customAffixes: [
+          {
+            id: 'aff-bp-baro',
+            affix: 'baro-',
+            cleanKey: 'baro',
+            type: 'prefix',
+            meaningAr: 'ضغط / ثقل',
+            meaningEn: 'pressure / weight',
+            combiningRule: 'Combines with Greek/Latin roots to denote pressure',
+            examples: ['Baroreceptor', 'Barotrauma']
+          }
+        ],
+        customAbbreviations: [
+          {
+            id: 'abbr-bp-map',
+            abbr: 'MAP',
+            isAmbiguous: false,
+            defaultExpansionEn: 'Mean Arterial Pressure',
+            defaultTranslationAr: 'متوسط ضغط الدم الشرياني',
+            category: 'Cardiopulmonary',
+            priority: 1,
+            candidates: []
+          }
+        ],
+        books: [],
+        questions: [
+          {
+            id: 'q-bp-1',
+            type: 'single_choice',
+            topicId: 'topic-cv-blood-pressure',
+            subjectId: 'subj-cv-physio-bp',
+            blockId: 'blk-cv-bp',
+            questionEn: 'Which Korotkoff phase corresponds to diastolic blood pressure in adults?',
+            questionAr: 'أي مرحلة من أصوات كوروتكوف تمثل ضغط الدم الانبساطي لدى البالغين؟',
+            options: [
+              { key: 'A', textEn: 'Phase I' },
+              { key: 'B', textEn: 'Phase II' },
+              { key: 'C', textEn: 'Phase III' },
+              { key: 'D', textEn: 'Phase V (disappearance of sounds)' }
+            ],
+            correctOptionKeys: ['D'],
+            explanationEn: 'Phase V (complete disappearance of Korotkoff sounds) corresponds to resting diastolic blood pressure.',
+            explanationAr: 'المرحلة الخامسة (اختفاء الأصوات تماماً) تمثل ضغط الدم الانبساطي.',
+            difficulty: 'medium',
+            linkedTermIds: ['term-bp-korotkoff'],
+            imageUrl: 'media/images/korotkoff-phases.png',
+            createdAt: new Date().toISOString()
+          },
+          {
+            id: 'q-bp-2',
+            type: 'single_choice',
+            topicId: 'topic-cv-blood-pressure',
+            subjectId: 'subj-cv-physio-bp',
+            blockId: 'blk-cv-bp',
+            questionEn: 'Where are the primary high-pressure arterial baroreceptors located?',
+            questionAr: 'أين تقع مستقبلات الضغط الشرياني عالية الضغط الرئيسية؟',
+            options: [
+              { key: 'A', textEn: 'Carotid sinus and aortic arch' },
+              { key: 'B', textEn: 'Right atrium only' },
+              { key: 'C', textEn: 'Pulmonary veins' },
+              { key: 'D', textEn: 'Hepatic portal vein' }
+            ],
+            correctOptionKeys: ['A'],
+            explanationEn: 'High-pressure baroreceptors reside in the carotid sinus (glossopharyngeal nerve IX) and aortic arch (vagus nerve X).',
+            explanationAr: 'تقع في الجيب السباتي وقوس الأبهر.',
+            difficulty: 'easy',
+            linkedTermIds: ['term-bp-baroreceptor'],
+            createdAt: new Date().toISOString()
+          }
+        ],
+        exams: [
+          {
+            id: 'exam-bp-physio-1',
+            titleEn: 'Blood Pressure Regulation Assessment Exam',
+            titleAr: 'اختبار تقييمي: تنظيم ضغط الدم الشرياني',
+            descriptionAr: 'اختبار شامل لموضوع ضغط الدم ومنعكساته',
+            blockId: 'blk-cv-bp',
+            subjectId: 'subj-cv-physio-bp',
+            topicIds: ['topic-cv-blood-pressure'],
+            questionIds: ['q-bp-1', 'q-bp-2'],
+            durationMinutes: 15,
+            passingScorePercent: 70,
+            createdAt: new Date().toISOString()
+          }
+        ],
+        mediaAssets: [
+          {
+            id: 'ma-bp-svg',
+            titleEn: 'Baroreceptor Reflex SVG Diagram',
+            titleAr: 'مخطط منعكس مستقبلات الضغط',
+            mediaType: 'diagram',
+            mimeType: 'image/svg+xml',
+            fileName: 'bp-baroreceptor-reflex.svg',
+            url: 'media/diagrams/bp-baroreceptor-reflex.svg',
+            rawUrl: 'media/diagrams/bp-baroreceptor-reflex.svg',
+            sha256: svgSha,
+            sizeBytes: bpSvgBytes.byteLength,
+            topicId: 'topic-cv-blood-pressure',
+            subjectId: 'subj-cv-physio-bp',
+            blockId: 'blk-cv-bp',
+            linkedEntityType: 'topic',
+            linkedEntityId: 'topic-cv-blood-pressure'
+          },
+          {
+            id: 'ma-bp-png',
+            titleEn: 'Korotkoff Phases Chart',
+            titleAr: 'صورة مراحل أصوات كوروتكوف',
+            mediaType: 'image',
+            mimeType: 'image/png',
+            fileName: 'korotkoff-phases.png',
+            url: 'media/images/korotkoff-phases.png',
+            rawUrl: 'media/images/korotkoff-phases.png',
+            sha256: pngSha,
+            sizeBytes: bpPngBytes.byteLength,
+            topicId: 'topic-cv-blood-pressure',
+            subjectId: 'subj-cv-physio-bp',
+            blockId: 'blk-cv-bp',
+            linkedEntityType: 'topic',
+            linkedEntityId: 'topic-cv-blood-pressure'
+          },
+          {
+            id: 'ma-bp-mp3',
+            titleEn: 'Korotkoff Sounds Audio',
+            titleAr: 'صوت كوروتكوف',
+            mediaType: 'audio',
+            mimeType: 'audio/mpeg',
+            fileName: 'korotkoff-sounds.mp3',
+            url: 'media/audio/korotkoff-sounds.mp3',
+            rawUrl: 'media/audio/korotkoff-sounds.mp3',
+            sha256: mp3Sha,
+            sizeBytes: bpMp3Bytes.byteLength,
+            topicId: 'topic-cv-blood-pressure',
+            subjectId: 'subj-cv-physio-bp',
+            blockId: 'blk-cv-bp',
+            linkedEntityType: 'topic',
+            linkedEntityId: 'topic-cv-blood-pressure'
+          },
+          {
+            id: 'ma-bp-mp4',
+            titleEn: 'Blood Pressure Measurement Video',
+            titleAr: 'فيديو قياس ضغط الدم',
+            mediaType: 'video',
+            mimeType: 'video/mp4',
+            fileName: 'bp-measurement.mp4',
+            url: 'media/videos/bp-measurement.mp4',
+            rawUrl: 'media/videos/bp-measurement.mp4',
+            sha256: mp4Sha,
+            sizeBytes: bpMp4Bytes.byteLength,
+            topicId: 'topic-cv-blood-pressure',
+            subjectId: 'subj-cv-physio-bp',
+            blockId: 'blk-cv-bp',
+            linkedEntityType: 'topic',
+            linkedEntityId: 'topic-cv-blood-pressure'
+          },
+          {
+            id: 'ma-bp-pdf',
+            titleEn: 'AHA Hypertension Guideline PDF',
+            titleAr: 'ملف إرشادات فرط ضغط الدم',
+            mediaType: 'pdf',
+            mimeType: 'application/pdf',
+            fileName: 'aha-hypertension-guideline.pdf',
+            url: 'media/pdfs/aha-hypertension-guideline.pdf',
+            rawUrl: 'media/pdfs/aha-hypertension-guideline.pdf',
+            sha256: pdfSha,
+            sizeBytes: bpPdfBytes.byteLength,
+            topicId: 'topic-cv-blood-pressure',
+            subjectId: 'subj-cv-physio-bp',
+            blockId: 'blk-cv-bp',
+            linkedEntityType: 'topic',
+            linkedEntityId: 'topic-cv-blood-pressure'
+          }
+        ]
+      };
+
+      const bpZipBytes = buildDataPackageZipBytes(bpPackagePayload, {
+        mediaEntries: [
+          { path: 'media/diagrams/bp-baroreceptor-reflex.svg', bytes: bpSvgBytes },
+          { path: 'media/images/korotkoff-phases.png', bytes: bpPngBytes },
+          { path: 'media/audio/korotkoff-sounds.mp3', bytes: bpMp3Bytes },
+          { path: 'media/videos/bp-measurement.mp4', bytes: bpMp4Bytes },
+          { path: 'media/pdfs/aha-hypertension-guideline.pdf', bytes: bpPdfBytes }
+        ]
+      });
+
+      // --- Acceptance Test 1: Import Blood Pressure Topic ZIP Bundle ---
+      const { result: bpImportRes, state: bpState } = await executeAtomicPackageImport(bpZipBytes, {
+        mode: 'merge',
+        fileNameHint: 'blood-pressure-bundle.zip'
+      });
+
+      assertCondition(
+        bpImportRes.success === true &&
+          !bpImportRes.rolledBack &&
+          bpImportRes.summary.mediaFilesImported === 5 &&
+          (bpImportRes.summary.failedCount || 0) === 0,
+        `Acceptance Test 1 failed: Expected successful Blood Pressure ZIP import with 5 media files, got ${JSON.stringify(bpImportRes)}`
+      );
+
+      const importedBpTopic = bpState.topics.find((t) => t.id === 'topic-cv-blood-pressure');
+      assertCondition(
+        Boolean(importedBpTopic) &&
+          importedBpTopic!.blockId === 'blk-cv-bp' &&
+          importedBpTopic!.subjectId === 'subj-cv-physio-bp',
+        'Acceptance Test 1 failed: Blood Pressure topic must be imported with intact Block and Subject hierarchy'
+      );
+
+      const bpContentBlocks = importedBpTopic!.sections[0]?.contentBlocks || [];
+      const svgBlock = bpContentBlocks.find((b) => b.id === 'cb-bp-svg-diagram');
+      const pngBlock = bpContentBlocks.find((b) => b.id === 'cb-bp-png-image');
+      const audioBlock = bpContentBlocks.find((b) => b.id === 'cb-bp-audio');
+      const videoBlock = bpContentBlocks.find((b) => b.id === 'cb-bp-video');
+      const pdfBlock = bpContentBlocks.find((b) => b.id === 'cb-bp-pdf');
+
+      // --- Acceptance Test 2: SVG Diagram Rendering & Sanitization Inside Topic ---
+      assertCondition(
+        Boolean(svgBlock) &&
+          Boolean(svgBlock!.mediaIdbKey) &&
+          Boolean(svgBlock!.diagramSvg && svgBlock!.diagramSvg.includes('<svg')) &&
+          sanitizeSvgMarkup(svgBlock!.diagramSvg || '').includes('Baroreceptor Reflex Arc'),
+        'Acceptance Test 2 failed: SVG diagram inside Blood Pressure topic must have inline sanitized SVG markup and bound mediaIdbKey'
+      );
+
+      // --- Acceptance Test 3: Display Actual Local Image from Package (Not External Link) ---
+      assertCondition(
+        Boolean(pngBlock) &&
+          Boolean(pngBlock!.mediaIdbKey) &&
+          Boolean(pngBlock!.mediaUrl && pngBlock!.mediaUrl.startsWith('idb://')) &&
+          !pngBlock!.externalUrl,
+        'Acceptance Test 3 failed: Bundled PNG image must bind to local idb:// mediaIdbKey and never convert to an external URL'
+      );
+      const storedPngRecord = await getLocalMediaRecord(pngBlock!.mediaIdbKey!);
+      assertCondition(
+        Boolean(storedPngRecord) &&
+          storedPngRecord!.mimeType === 'image/png' &&
+          storedPngRecord!.dataUrl.startsWith('data:image/png;base64,'),
+        'Acceptance Test 3 failed: Stored local PNG record in IndexedDB must contain valid image/png dataUrl'
+      );
+
+      // --- Acceptance Test 4: Play Actual Bundled Audio & Video Files ---
+      assertCondition(
+        Boolean(audioBlock?.mediaIdbKey) &&
+          Boolean(videoBlock?.mediaIdbKey) &&
+          Boolean(pdfBlock?.mediaIdbKey),
+        'Acceptance Test 4 failed: Audio, Video, and PDF blocks must all have bound mediaIdbKey values'
+      );
+      const storedAudioRecord = await getLocalMediaRecord(audioBlock!.mediaIdbKey!);
+      const storedVideoRecord = await getLocalMediaRecord(videoBlock!.mediaIdbKey!);
+      assertCondition(
+        Boolean(storedAudioRecord) &&
+          storedAudioRecord!.mimeType === 'audio/mpeg' &&
+          storedAudioRecord!.dataUrl.startsWith('data:audio/mpeg;base64,') &&
+          Boolean(storedVideoRecord) &&
+          storedVideoRecord!.mimeType === 'video/mp4' &&
+          storedVideoRecord!.dataUrl.startsWith('data:video/mp4;base64,'),
+        'Acceptance Test 4 failed: Bundled MP3 audio and MP4 video must be stored and playable from IndexedDB'
+      );
+
+      // --- Acceptance Test 5: Linked Questions & Exams Display for Blood Pressure Topic ---
+      const bpQuestions = loadQuizQuestions(bpState.topics, bpState.terms).filter(
+        (q) => q.topicId === 'topic-cv-blood-pressure'
+      );
+      const bpExams = loadAcademicExams().filter((e) =>
+        (e.topicIds || []).includes('topic-cv-blood-pressure')
+      );
+      assertCondition(
+        bpQuestions.length >= 2 &&
+          bpQuestions.some((q) => q.id === 'q-bp-1' && q.imageUrl?.startsWith('idb://')) &&
+          bpExams.some((e) => e.id === 'exam-bp-physio-1'),
+        'Acceptance Test 5 failed: Questions and exams linked to Blood Pressure topic must be persisted with local question image resolution'
+      );
+
+      // --- Acceptance Test 6: Media Persistence Across App Close & Reopen ---
+      clearMemoryMediaCacheForTesting();
+      const reloadedStateAfterRestart = loadAppState();
+      const reloadedBpTopic = reloadedStateAfterRestart.topics.find(
+        (t) => t.id === 'topic-cv-blood-pressure'
+      );
+      const reloadedBlocks = reloadedBpTopic?.sections[0]?.contentBlocks || [];
+      for (const blk of reloadedBlocks) {
+        assertCondition(
+          Boolean(blk.mediaIdbKey),
+          `Acceptance Test 6 failed: Block ${blk.id} lost mediaIdbKey across app restart`
+        );
+        const idbRecAfterRestart = await getLocalMediaRecord(blk.mediaIdbKey!);
+        assertCondition(
+          Boolean(idbRecAfterRestart && idbRecAfterRestart.dataUrl.startsWith('data:')),
+          `Acceptance Test 6 failed: Media ${blk.mediaIdbKey} not persisted in IndexedDB after clearing memory cache and reopening app`
+        );
+      }
+
+      // --- Acceptance Test 7: Re-Import/Update Topic Without Duplicate Records or Losing User Data ---
+      const userUpdatedTopics = reloadedStateAfterRestart.topics.map((t) =>
+        t.id === 'topic-cv-blood-pressure'
+          ? { ...t, favorite: true, lastOpenedAt: '2026-11-18T08:00:00.000Z' }
+          : t
+      );
+      saveTopics(userUpdatedTopics);
+
+      const userUpdatedTerms = reloadedStateAfterRestart.terms.map((tm) =>
+        tm.id === 'term-bp-baroreceptor'
+          ? {
+              ...tm,
+              favorite: true,
+              collections: ['High-Yield CV'],
+              srsData: {
+                interval: 6,
+                repetitions: 2,
+                easeFactor: 2.6,
+                nextReviewAt: 1795000000000
+              }
+            }
+          : tm
+      );
+      saveTerms(userUpdatedTerms);
+
+      const existingNotes = loadUserStudyNotes();
+      saveUserStudyNotes([
+        ...existingNotes.filter((n) => n.id !== 'note-bp-user-1'),
+        {
+          id: 'note-bp-user-1',
+          entityType: 'topic',
+          entityId: 'topic-cv-blood-pressure',
+          title: 'ملاحظتي حول منعكس مستقبلات الضغط',
+          content: 'يرسل الجيب السباتي إشارات عبر العصب التاسع (CN IX) إلى النواة المفردة.',
+          createdAt: '2026-11-18T08:05:00.000Z',
+          updatedAt: '2026-11-18T08:05:00.000Z'
+        }
+      ]);
+
+      const { result: reimportRes, state: reimportedState } = await executeAtomicPackageImport(
+        bpZipBytes,
+        {
+          mode: 'merge',
+          fileNameHint: 'blood-pressure-bundle-reimport.zip'
+        }
+      );
+      const bpTopicsAfterReimport = reimportedState.topics.filter(
+        (t) => t.id === 'topic-cv-blood-pressure'
+      );
+      const bpTermsAfterReimport = reimportedState.terms.filter(
+        (tm) => tm.id === 'term-bp-baroreceptor'
+      );
+      const notesAfterReimport = loadUserStudyNotes().filter((n) => n.id === 'note-bp-user-1');
+
+      assertCondition(
+        reimportRes.success === true &&
+          bpTopicsAfterReimport.length === 1 &&
+          bpTopicsAfterReimport[0].favorite === true &&
+          bpTopicsAfterReimport[0].lastOpenedAt === '2026-11-18T08:00:00.000Z' &&
+          bpTermsAfterReimport.length === 1 &&
+          bpTermsAfterReimport[0].favorite === true &&
+          bpTermsAfterReimport[0].srsData?.interval === 6 &&
+          notesAfterReimport.length === 1 &&
+          (reimportRes.summary.mediaFilesSkipped || 0) >= 5,
+        'Acceptance Test 7 failed: Re-importing Blood Pressure topic must not duplicate records, must skip identical media, and must preserve user favorites, SRS progress, lastOpenedAt, and personal study notes'
+      );
+
+      // --- Acceptance Test 8: Failed Media Import Must Roll Back Atomically Without Updating dataVersion ---
+      const versionBeforeFailTest = loadAppState().versionMetadata.dataVersion;
+
+      // 8a. Missing bundled media file referenced by topic inside ZIP
+      const brokenMissingMediaPayload: import('../src/types/lexicon').DataPackagePayload = {
+        ...bpPackagePayload,
+        manifest: {
+          ...bpPackagePayload.manifest,
+          dataVersion: '2026.99.1-missing-media'
+        }
+      };
+      // Build ZIP without 'media/images/korotkoff-phases.png'
+      const brokenMissingMediaZip = buildDataPackageZipBytes(brokenMissingMediaPayload, {
+        mediaEntries: [{ path: 'media/diagrams/bp-baroreceptor-reflex.svg', bytes: bpSvgBytes }]
+      });
+      const { result: missingMediaRes } = await executeAtomicPackageImport(brokenMissingMediaZip, {
+        mode: 'merge',
+        fileNameHint: 'broken-missing-media.zip'
+      });
+      assertCondition(
+        missingMediaRes.success === false &&
+          missingMediaRes.rolledBack === true &&
+          loadAppState().versionMetadata.dataVersion === versionBeforeFailTest,
+        `Acceptance Test 8a failed: Missing bundled media file inside ZIP must fail import and preserve dataVersion (${versionBeforeFailTest})`
+      );
+
+      // 8b. Simulated IndexedDB media persistence failure midway through import
+      const simulatedIdbFailPayload: import('../src/types/lexicon').DataPackagePayload = {
+        ...bpPackagePayload,
+        manifest: {
+          ...bpPackagePayload.manifest,
+          dataVersion: '2026.99.2-idb-fail'
+        }
+      };
+      const simulatedIdbFailZip = buildDataPackageZipBytes(simulatedIdbFailPayload, {
+        mediaEntries: [
+          { path: 'media/diagrams/bp-baroreceptor-reflex.svg', bytes: bpSvgBytes },
+          { path: 'media/images/korotkoff-phases.png', bytes: bpPngBytes },
+          { path: 'media/audio/korotkoff-sounds.mp3', bytes: bpMp3Bytes },
+          { path: 'media/videos/bp-measurement.mp4', bytes: bpMp4Bytes },
+          { path: 'media/pdfs/aha-hypertension-guideline.pdf', bytes: bpPdfBytes }
+        ]
+      });
+      const { result: idbFailRes } = await executeAtomicPackageImport(simulatedIdbFailZip, {
+        mode: 'merge',
+        fileNameHint: 'simulated-idb-failure.zip',
+        simulateMediaPersistenceFailure: true
+      });
+      assertCondition(
+        idbFailRes.success === false &&
+          idbFailRes.rolledBack === true &&
+          (idbFailRes.summary.mediaFilesFailed || 0) > 0 &&
+          loadAppState().versionMetadata.dataVersion === versionBeforeFailTest,
+        `Acceptance Test 8b failed: Media persistence failure must roll back atomically and keep dataVersion at ${versionBeforeFailTest}`
+      );
+
+      // --- Acceptance Test 9: Malicious ZIP Payloads (.exe, .js, .html, XSS .svg, Zip Slip) Must Be Blocked ---
+      const maliciousExeZip = buildSimpleStoreZipBytes({
+        'manifest.json': JSON.stringify(bpPackagePayload.manifest),
+        'payload.exe': 'MZ-malicious-executable'
+      });
+      const maliciousJsZip = buildSimpleStoreZipBytes({
+        'manifest.json': JSON.stringify(bpPackagePayload.manifest),
+        'inject.js': 'window.location="https://evil.example";'
+      });
+      const maliciousHtmlZip = buildSimpleStoreZipBytes({
+        'manifest.json': JSON.stringify(bpPackagePayload.manifest),
+        'phish.html': '<html><script>alert(1)</script></html>'
+      });
+      const maliciousScriptSvgZip = buildSimpleStoreZipBytes({
+        'manifest.json': JSON.stringify(bpPackagePayload.manifest),
+        'media/diagrams/xss.svg':
+          '<svg xmlns="http://www.w3.org/2000/svg"><script>alert("xss")</script></svg>'
+      });
+      const maliciousOnloadSvgZip = buildSimpleStoreZipBytes({
+        'manifest.json': JSON.stringify(bpPackagePayload.manifest),
+        'media/diagrams/onload.svg':
+          '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><circle r="10"/></svg>'
+      });
+      const maliciousZipSlip = buildSimpleStoreZipBytes({
+        '../../etc/passwd': 'root:x:0:0'
+      });
+
+      for (const [label, badZip] of [
+        ['.exe executable', maliciousExeZip],
+        ['.js script', maliciousJsZip],
+        ['.html page', maliciousHtmlZip],
+        ['XSS <script> inside .svg', maliciousScriptSvgZip],
+        ['XSS onload= inside .svg', maliciousOnloadSvgZip],
+        ['Zip Slip traversal', maliciousZipSlip]
+      ] as const) {
+        const inspectRes = await inspectAndExtractSafeZipPackage(badZip);
+        assertCondition(
+          inspectRes.inspection.safe === false,
+          `Acceptance Test 9 failed: ZIP security inspector must block ${label}`
+        );
+        const atomicBadRes = await executeAtomicPackageImport(badZip, {
+          mode: 'merge',
+          fileNameHint: `malicious-${label}.zip`
+        });
+        assertCondition(
+          atomicBadRes.result.success === false,
+          `Acceptance Test 9 failed: executeAtomicPackageImport must reject ${label}`
+        );
+      }
+
+      console.log(
+        '[PASS] 26. Mandatory 9 Acceptance Tests Verified (Blood Pressure ZIP Import, Safe SVG, Local PNG/MP3/MP4/PDF IDB Persistence, Cold Restart Survival, Deduplicated Re-import, Atomic Media Rollback & ZIP Security)'
+      );
+    } finally {
+      if (typeof previousIndexedDB === 'undefined') {
+        delete (globalThis as unknown as { indexedDB?: unknown }).indexedDB;
+      } else {
+        (globalThis as unknown as { indexedDB: unknown }).indexedDB = previousIndexedDB;
+      }
+    }
+  }
+
   console.log('================================================================');
-  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (25/25 — 100%)');
+  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (26/26 — 100%)');
   console.log('================================================================');
 }
 

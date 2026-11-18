@@ -1711,7 +1711,40 @@ export async function syncFromUmedtDataRepository(options?: {
       rtLower === 'topic_article' ||
       rtLower === 'rich_article'
     ) {
-      incoming.topics = extractCollectionArray<TopicArticle>(parsedJson, 'topics');
+      incoming.topics = extractCollectionArray<TopicArticle>(parsedJson, 'topics').map((tp) => ({
+        ...tp,
+        sections: (tp.sections || []).map((sec) => ({
+          ...sec,
+          contentBlocks: Array.isArray(sec.contentBlocks)
+            ? sec.contentBlocks.map((cb) => ({
+                ...cb,
+                mediaUrl: cb.mediaUrl
+                  ? resolveRepoRelativeUrl(cb.mediaUrl, targetCatalogUrl)
+                  : cb.mediaUrl,
+                externalUrl: cb.externalUrl
+                  ? resolveRepoRelativeUrl(cb.externalUrl, targetCatalogUrl)
+                  : cb.externalUrl
+              }))
+            : sec.contentBlocks
+        })),
+        images: Array.isArray(tp.images)
+          ? tp.images.map((img) => ({
+              ...img,
+              url: img.url ? resolveRepoRelativeUrl(img.url, targetCatalogUrl) : img.url,
+              externalUrl: img.externalUrl
+                ? resolveRepoRelativeUrl(img.externalUrl, targetCatalogUrl)
+                : img.externalUrl
+            }))
+          : tp.images,
+        attachments: Array.isArray(tp.attachments)
+          ? tp.attachments.map((att) => ({
+              ...att,
+              externalUrl: att.externalUrl
+                ? resolveRepoRelativeUrl(att.externalUrl, targetCatalogUrl)
+                : att.externalUrl
+            }))
+          : tp.attachments
+      }));
     } else if (
       idLower === 'terms' ||
       ctLower === 'term' ||
@@ -2623,6 +2656,7 @@ export async function downloadCloudLibraryTarget(params: {
   downloadedTermsCount: number;
   downloadedMediaCount: number;
   skippedIdenticalCount: number;
+  failedMediaCount?: number;
   bytesDownloaded: number;
   updatedTopics: TopicArticle[];
   updatedTerms: DictionaryTerm[];
@@ -3076,6 +3110,7 @@ export async function downloadCloudLibraryTarget(params: {
   let downloadedTermsCount = 0;
   let downloadedMediaCount = 0;
   let skippedIdenticalCount = 0;
+  let failedMediaCount = 0;
   let bytesDownloaded = 0;
 
   // 1. Merge Blocks with SHA-256 deduplication
@@ -3153,6 +3188,8 @@ export async function downloadCloudLibraryTarget(params: {
               bytesDownloaded += cached.sizeBytes;
             } else if (cached.skippedDuplicate) {
               skippedIdenticalCount += 1;
+            } else if (!cached.idbKey) {
+              failedMediaCount += 1;
             }
             return cached.idbKey ? { ...cb, mediaIdbKey: cached.idbKey } : cb;
           })
@@ -3286,7 +3323,11 @@ export async function downloadCloudLibraryTarget(params: {
       nextTopicsMap.set(
         updatedTopicWithCachedMedia.id,
         existing
-          ? { ...updatedTopicWithCachedMedia, favorite: existing.favorite }
+          ? {
+              ...updatedTopicWithCachedMedia,
+              favorite: existing.favorite ?? updatedTopicWithCachedMedia.favorite,
+              lastOpenedAt: existing.lastOpenedAt || updatedTopicWithCachedMedia.lastOpenedAt
+            }
           : updatedTopicWithCachedMedia
       );
       downloadedTopicsCount += 1;
@@ -3463,6 +3504,8 @@ export async function downloadCloudLibraryTarget(params: {
   const messageAr =
     downloadedTopicsCount === 0 && downloadedTermsCount === 0 && skippedIdenticalCount > 0
       ? 'منزّل مسبقاً'
+      : failedMediaCount > 0
+      ? `تم التنزيل (${formatBytesLabel(bytesDownloaded)}) مع تعذر جلب ${failedMediaCount} وسيط`
       : `تم التنزيل (${formatBytesLabel(bytesDownloaded)})`;
 
   return {
@@ -3471,6 +3514,7 @@ export async function downloadCloudLibraryTarget(params: {
     downloadedTermsCount,
     downloadedMediaCount,
     skippedIdenticalCount,
+    failedMediaCount,
     bytesDownloaded,
     updatedTopics,
     updatedTerms,

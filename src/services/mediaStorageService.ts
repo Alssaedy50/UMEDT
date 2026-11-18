@@ -287,6 +287,18 @@ export async function deleteLocalMediaRecordsByKeys(
   return deletedCount;
 }
 
+export function clearMemoryMediaCacheForTesting(): void {
+  memoryMediaStore.clear();
+}
+
+export function convertBytesToMediaDataUrl(
+  bytes: Uint8Array,
+  mimeType: string
+): string {
+  const cleanMime = normalizeMediaMimeType(mimeType);
+  return `data:${cleanMime};base64,${uint8ToBase64(bytes)}`;
+}
+
 export async function deleteLocalMediaRecordsByTopicId(
   topicId: string
 ): Promise<number> {

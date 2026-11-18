@@ -52,7 +52,9 @@ import {
   AcademicExamPackage,
   MediaAssetRecord,
   QuizAttemptRecord,
-  UserStudyNoteRecord
+  UserStudyNoteRecord,
+  ExtractedZipMediaFile,
+  LocalMediaRecord
 } from '../types/lexicon';
 import {
   LEARNING_STORAGE_KEYS,
@@ -66,9 +68,23 @@ import {
   saveAcademicExams,
   loadMediaAssetsIndex,
   saveMediaAssetsIndex,
+  normalizeMediaAssetRecord,
   loadUserStudyNotes,
   saveUserStudyNotes
 } from './learningHierarchyService';
+import {
+  saveLocalMediaRecord,
+  getLocalMediaRecord,
+  deleteLocalMediaRecordsByKeys,
+  convertBytesToMediaDataUrl,
+  normalizeMediaMimeType
+} from './mediaStorageService';
+import {
+  loadQuizQuestions,
+  saveQuizQuestions,
+  loadQuizAttempts,
+  saveQuizAttempts
+} from './quizEngineService';
 import {
   INITIAL_TERMS,
   INITIAL_LINKED_SENTENCES,
@@ -387,8 +403,12 @@ function captureStorageSnapshot(): Map<string, string | null> {
     LEARNING_STORAGE_KEYS.SUBJECTS,
     LEARNING_STORAGE_KEYS.BOOKS,
     LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS,
+    LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS,
     LEARNING_STORAGE_KEYS.EXAMS,
     LEARNING_STORAGE_KEYS.MEDIA_ASSETS,
+    LEARNING_STORAGE_KEYS.USER_NOTES,
+    LEARNING_STORAGE_KEYS.RECENT_LEARNING,
+    LEARNING_STORAGE_KEYS.STUDIED_TERMS_LOG,
     'umed_unified_cloud_mirror_v1'
   ];
   for (const key of allKeys) {
@@ -1493,7 +1513,7 @@ function mergeValidatedCollections(
   const combinedSentences = [...incoming.sentences, ...current.sentences];
   const syncedSentences = syncTermExamplesToSentences(enrichedTerms, combinedSentences);
 
-  // Merge Topics
+  // Merge Topics while preserving user study state (favorite, lastOpenedAt, and existing mediaIdbKey bindings)
   const topicMap = new Map<string, TopicArticle>();
   for (const tp of current.topics) {
     topicMap.set(tp.id, tp);
@@ -1501,7 +1521,69 @@ function mergeValidatedCollections(
   for (const incTp of incoming.topics) {
     if (mode === 'ignore' && topicMap.has(incTp.id)) continue;
     const prevTp = topicMap.get(incTp.id);
-    topicMap.set(incTp.id, prevTp ? { ...prevTp, ...incTp, favorite: prevTp.favorite || incTp.favorite } : incTp);
+    if (!prevTp) {
+      topicMap.set(incTp.id, incTp);
+      continue;
+    }
+
+    const prevBlockById = new Map<string, import('../types/lexicon').TopicContentBlock>();
+    for (const sec of prevTp.sections || []) {
+      for (const cb of sec.contentBlocks || []) {
+        if (cb?.id) prevBlockById.set(cb.id, cb);
+      }
+    }
+    const prevImgById = new Map((prevTp.images || []).map((img) => [img.id, img]));
+    const prevAttById = new Map((prevTp.attachments || []).map((att) => [att.id, att]));
+    const prevLnkById = new Map((prevTp.links || []).map((lnk) => [lnk.id, lnk]));
+
+    const mergedSections = (incTp.sections || []).map((sec) => ({
+      ...sec,
+      ...(Array.isArray(sec.contentBlocks)
+        ? {
+            contentBlocks: sec.contentBlocks.map((cb) => {
+              const prevCb = prevBlockById.get(cb.id);
+              if (!prevCb) return cb;
+              return {
+                ...cb,
+                mediaIdbKey: cb.mediaIdbKey || prevCb.mediaIdbKey,
+                diagramSvg: cb.diagramSvg || prevCb.diagramSvg
+              };
+            })
+          }
+        : {})
+    }));
+
+    const mergedImages = (incTp.images || []).map((img) => {
+      const prevImg = prevImgById.get(img.id);
+      return prevImg
+        ? { ...img, mediaIdbKey: img.mediaIdbKey || prevImg.mediaIdbKey }
+        : img;
+    });
+
+    const mergedAttachments = (incTp.attachments || []).map((att) => {
+      const prevAtt = prevAttById.get(att.id);
+      return prevAtt
+        ? { ...att, mediaIdbKey: att.mediaIdbKey || prevAtt.mediaIdbKey }
+        : att;
+    });
+
+    const mergedLinks = (incTp.links || []).map((lnk) => {
+      const prevLnk = prevLnkById.get(lnk.id);
+      return prevLnk
+        ? { ...lnk, mediaIdbKey: lnk.mediaIdbKey || prevLnk.mediaIdbKey }
+        : lnk;
+    });
+
+    topicMap.set(incTp.id, {
+      ...prevTp,
+      ...incTp,
+      favorite: Boolean(prevTp.favorite || incTp.favorite),
+      lastOpenedAt: prevTp.lastOpenedAt || incTp.lastOpenedAt,
+      sections: mergedSections,
+      images: mergedImages,
+      attachments: mergedAttachments,
+      links: mergedLinks
+    });
   }
 
   // Merge Affixes
@@ -1535,6 +1617,71 @@ function mergeValidatedCollections(
   };
 }
 
+function normalizeRelativeCandidatePath(rawRef?: string): string {
+  const clean = (rawRef || '')
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/^\.?\//, '')
+    .replace(/\/+/g, '/');
+  if (!clean) return '';
+  if (/^(?:https?:|data:|blob:|idb:)/i.test(clean)) return '';
+  return clean;
+}
+
+function findBundledMediaFileMatch(
+  mediaMap: Record<string, ExtractedZipMediaFile>,
+  candidates: Array<string | undefined>
+): ExtractedZipMediaFile | null {
+  const entries = Object.values(mediaMap);
+  if (entries.length === 0) return null;
+
+  for (const cand of candidates) {
+    const rel = normalizeRelativeCandidatePath(cand);
+    const rawTrimmed = (cand || '').trim();
+    const targetLower = (rel || rawTrimmed).toLowerCase().replace(/^\/+/, '');
+    if (!targetLower) continue;
+
+    if (mediaMap[targetLower]) {
+      return mediaMap[targetLower];
+    }
+    const baseTarget = (targetLower.split('/').pop() || targetLower).split('?')[0].split('#')[0];
+    const exactSuffix = entries.find(
+      (e) =>
+        e.normalizedPath === targetLower ||
+        e.normalizedPath.endsWith(`/${targetLower}`) ||
+        targetLower.endsWith(`/${e.normalizedPath}`)
+    );
+    if (exactSuffix) return exactSuffix;
+
+    if (baseTarget && /\.[a-z0-9]{2,5}$/i.test(baseTarget)) {
+      const byBase = entries.find((e) => e.baseName === baseTarget);
+      if (byBase) return byBase;
+    }
+  }
+  return null;
+}
+
+function resolveLocalMediaRecordType(
+  mimeType: string,
+  fileName: string
+): LocalMediaRecord['mediaType'] {
+  const lowerMime = (mimeType || '').toLowerCase();
+  const lowerName = (fileName || '').toLowerCase();
+  if (lowerMime.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(lowerName)) {
+    return 'audio_file';
+  }
+  if (lowerMime.startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(lowerName)) {
+    return 'video_file';
+  }
+  if (lowerMime === 'application/pdf' || lowerName.endsWith('.pdf')) {
+    return 'pdf_document';
+  }
+  if (lowerMime.startsWith('image/') || /\.(png|jpe?g|webp|gif|svg|bmp|avif)$/i.test(lowerName)) {
+    return 'image';
+  }
+  return 'attachment';
+}
+
 /**
  * Executes an all-or-nothing atomic import of a `.json` or `.zip` medical data package.
  * 1. Rejects SQLite files, Zip Bombs, Zip Slip (`../`), and dangerous executables immediately.
@@ -1556,6 +1703,8 @@ export async function executeAtomicPackageImport(
     zipPolicyOverride?: Partial<ZipSecurityPolicy>;
     simulateQuotaExceeded?: boolean;
     simulateMidUpdateInterruption?: boolean;
+    simulateMediaPersistenceFailure?: boolean;
+    strictLocalMediaVerification?: boolean;
   }
 ): Promise<{
   result: AtomicImportResult;
@@ -1591,6 +1740,12 @@ export async function executeAtomicPackageImport(
             topicsImported: 0,
             affixesImported: 0,
             abbreviationsImported: 0,
+            mediaFilesImported: 0,
+            mediaFilesSkipped: 0,
+            mediaFilesFailed: 0,
+            ignoredCount: 0,
+            failedCount: parsed.validation.errors.length,
+            failureReasons: parsed.validation.errors,
             totalTermsAfter: currentState.terms.length,
             totalSentencesAfter: currentState.sentences.length
           },
@@ -1604,6 +1759,7 @@ export async function executeAtomicPackageImport(
 
     const payload = parsed.validation.payload;
     const incomingDataVersion = options?.manifestVersionOverride || payload.manifest.dataVersion;
+    const extractedMediaMap: Record<string, ExtractedZipMediaFile> = parsed.mediaFiles || {};
 
     // Stage 3: Automatically preserve the previous data package before installing a valid update
     let createdBackup: DataBackupRecord | undefined;
@@ -1624,9 +1780,482 @@ export async function executeAtomicPackageImport(
       currentState.versionMetadata.dataVersion,
       incomingDataVersion
     );
+    const newlyWrittenMediaIdbKeys: string[] = [];
 
     try {
-      const merged = mergeValidatedCollections(currentState, payload, mode);
+      const hasExtractedMedia = Object.keys(extractedMediaMap).length > 0;
+      const shouldVerifyLocalRefs =
+        sourceFormat === 'zip' &&
+        (hasExtractedMedia || Boolean(options?.strictLocalMediaVerification));
+
+      let mediaFilesImported = 0;
+      let mediaFilesSkipped = 0;
+      let mediaFilesFailed = 0;
+      const failureReasons: string[] = [];
+      const persistedMediaKeyByNormPath = new Map<string, string>();
+
+      const persistBundledMediaAsset = async (
+        mediaFile: ExtractedZipMediaFile,
+        context: {
+          preferredId?: string;
+          topicId?: string;
+          sectionId?: string;
+          blockId?: string;
+          expectedSha256?: string;
+        }
+      ): Promise<{
+        ok: boolean;
+        idbKey: string;
+        dataUrl: string;
+        sanitizedSvgText?: string;
+        errorReason?: string;
+      }> => {
+        if (options?.simulateMediaPersistenceFailure) {
+          const reason = `فشل حفظ ملف الوسائط '${mediaFile.relativePath}' في قاعدة البيانات المحلية (IndexedDB).`;
+          mediaFilesFailed += 1;
+          failureReasons.push(reason);
+          return { ok: false, idbKey: '', dataUrl: '', errorReason: reason };
+        }
+
+        if (
+          context.expectedSha256 &&
+          /^[0-9a-f]{64}$/i.test(context.expectedSha256.trim()) &&
+          context.expectedSha256.trim().toLowerCase() !== mediaFile.sha256.toLowerCase()
+        ) {
+          const reason = `عدم تطابق بصمة SHA-256 لملف الوسائط '${mediaFile.relativePath}'.`;
+          mediaFilesFailed += 1;
+          failureReasons.push(reason);
+          return { ok: false, idbKey: '', dataUrl: '', errorReason: reason };
+        }
+
+        const stableId =
+          (context.preferredId || '').trim() ||
+          `idb-pkg-${mediaFile.sha256.slice(0, 20)}`;
+
+        const dataUrl = convertBytesToMediaDataUrl(mediaFile.bytes, mediaFile.mimeType);
+
+        if (persistedMediaKeyByNormPath.has(mediaFile.normalizedPath)) {
+          const existingKey = persistedMediaKeyByNormPath.get(mediaFile.normalizedPath)!;
+          return {
+            ok: true,
+            idbKey: existingKey,
+            dataUrl,
+            sanitizedSvgText: mediaFile.sanitizedSvgText
+          };
+        }
+
+        // Check if identical media already persisted in IndexedDB
+        const existingRec = await getLocalMediaRecord(stableId);
+        if (existingRec && existingRec.dataUrl === dataUrl) {
+          persistedMediaKeyByNormPath.set(mediaFile.normalizedPath, stableId);
+          mediaFilesSkipped += 1;
+          return {
+            ok: true,
+            idbKey: stableId,
+            dataUrl,
+            sanitizedSvgText: mediaFile.sanitizedSvgText
+          };
+        }
+
+        const recordToSave: LocalMediaRecord = {
+          id: stableId,
+          topicId: context.topicId,
+          sectionId: context.sectionId,
+          blockId: context.blockId,
+          mediaType: resolveLocalMediaRecordType(mediaFile.mimeType, mediaFile.baseName),
+          mimeType: normalizeMediaMimeType(mediaFile.mimeType, mediaFile.baseName),
+          fileName: mediaFile.baseName,
+          dataUrl,
+          sizeBytes: mediaFile.sizeBytes,
+          createdAt: new Date().toISOString()
+        };
+
+        const saveRes = await saveLocalMediaRecord(recordToSave);
+        if (!saveRes.success || !saveRes.verifiedInIdb) {
+          const reason =
+            saveRes.errorAr ||
+            `تعذر حفظ ملف الوسائط '${mediaFile.relativePath}' في الذاكرة المحلية (IndexedDB).`;
+          mediaFilesFailed += 1;
+          failureReasons.push(reason);
+          return { ok: false, idbKey: '', dataUrl: '', errorReason: reason };
+        }
+
+        newlyWrittenMediaIdbKeys.push(stableId);
+        persistedMediaKeyByNormPath.set(mediaFile.normalizedPath, stableId);
+        mediaFilesImported += 1;
+        return {
+          ok: true,
+          idbKey: stableId,
+          dataUrl,
+          sanitizedSvgText: mediaFile.sanitizedSvgText
+        };
+      };
+
+      // 1. Bind bundled ZIP media files to payload.mediaAssets (`media-index.json`)
+      const enrichedPayloadMediaAssets: MediaAssetRecord[] = [];
+      for (const ma of payload.mediaAssets || []) {
+        const matchedFile = findBundledMediaFileMatch(extractedMediaMap, [
+          ma.relativePath,
+          ma.url,
+          ma.rawUrl,
+          ma.fileName
+        ]);
+        const relCandidate =
+          normalizeRelativeCandidatePath(ma.relativePath) ||
+          normalizeRelativeCandidatePath(ma.url) ||
+          normalizeRelativeCandidatePath(ma.rawUrl);
+
+        if (matchedFile) {
+          const persisted = await persistBundledMediaAsset(matchedFile, {
+            preferredId: ma.mediaIdbKey || `idb-asset-${ma.id}`,
+            topicId: ma.topicId,
+            blockId: ma.blockId,
+            expectedSha256: ma.sha256
+          });
+          if (!persisted.ok) {
+            throw new Error(persisted.errorReason || `فشل حفظ الوسيط '${ma.id}'.`);
+          }
+          // Keep local archive path & bind mediaIdbKey; NEVER convert bundled media to external URL
+          const preservedRelPath = ma.relativePath || matchedFile.relativePath;
+          enrichedPayloadMediaAssets.push({
+            ...ma,
+            relativePath: preservedRelPath,
+            fileName: ma.fileName || matchedFile.baseName,
+            mimeType: normalizeMediaMimeType(ma.mimeType || matchedFile.mimeType, matchedFile.baseName),
+            sizeBytes: matchedFile.sizeBytes,
+            sha256: matchedFile.sha256,
+            mediaIdbKey: persisted.idbKey,
+            url: `idb://${persisted.idbKey}`,
+            rawUrl: preservedRelPath
+          });
+        } else if (relCandidate && shouldVerifyLocalRefs) {
+          const reason = `ملف الوسائط المحلي '${relCandidate}' المرتبط بـ '${ma.id}' غير موجود داخل أرشيف ZIP.`;
+          mediaFilesFailed += 1;
+          failureReasons.push(reason);
+          throw new Error(reason);
+        } else {
+          enrichedPayloadMediaAssets.push(ma);
+        }
+      }
+
+      // 2. Bind bundled ZIP media files to payload.topics (sections.contentBlocks, images, attachments, links)
+      const mediaAssetById = new Map<string, MediaAssetRecord>(
+        enrichedPayloadMediaAssets.map((m) => [m.id, m])
+      );
+      const enrichedPayloadTopics: TopicArticle[] = [];
+
+      for (const tp of payload.topics || []) {
+        const nextSections = await Promise.all(
+          (tp.sections || []).map(async (sec) => {
+            if (!Array.isArray(sec.contentBlocks)) return sec;
+            const nextBlocks = await Promise.all(
+              sec.contentBlocks.map(async (cb) => {
+                const linkedAsset =
+                  (cb.id && mediaAssetById.get(cb.id)) ||
+                  (cb.mediaIdbKey &&
+                    enrichedPayloadMediaAssets.find(
+                      (m) => m.mediaIdbKey === cb.mediaIdbKey || m.id === cb.mediaIdbKey
+                    ));
+                const matchedFile = findBundledMediaFileMatch(extractedMediaMap, [
+                  cb.mediaUrl,
+                  cb.externalUrl,
+                  cb.mediaFileName,
+                  linkedAsset?.relativePath,
+                  linkedAsset?.fileName
+                ]);
+                const relCandidate =
+                  normalizeRelativeCandidatePath(cb.mediaUrl) ||
+                  normalizeRelativeCandidatePath(cb.externalUrl);
+
+                if (matchedFile) {
+                  const persisted = await persistBundledMediaAsset(matchedFile, {
+                    preferredId:
+                      cb.mediaIdbKey ||
+                      linkedAsset?.mediaIdbKey ||
+                      `idb-${tp.id}-${sec.id}-${cb.id}`,
+                    topicId: tp.id,
+                    sectionId: sec.id,
+                    blockId: cb.id
+                  });
+                  if (!persisted.ok) {
+                    throw new Error(
+                      persisted.errorReason || `فشل حفظ وسيط القسم '${cb.id}' داخل الموضوع '${tp.id}'.`
+                    );
+                  }
+                  return {
+                    ...cb,
+                    mediaIdbKey: persisted.idbKey,
+                    mediaUrl: `idb://${persisted.idbKey}`,
+                    mediaFileName: cb.mediaFileName || matchedFile.baseName,
+                    mediaMimeType: normalizeMediaMimeType(
+                      cb.mediaMimeType || matchedFile.mimeType,
+                      matchedFile.baseName
+                    ),
+                    mediaSizeBytes: matchedFile.sizeBytes,
+                    isLocalMediaRef: true,
+                    ...(matchedFile.isSvg && persisted.sanitizedSvgText && !cb.diagramSvg
+                      ? { diagramSvg: persisted.sanitizedSvgText }
+                      : {}),
+                    // Never convert a bundled local file into an external URL
+                    ...(relCandidate && cb.externalUrl === relCandidate
+                      ? { externalUrl: undefined }
+                      : {})
+                  };
+                }
+
+                if (relCandidate && shouldVerifyLocalRefs) {
+                  const reason = `ملف الوسائط المحلي '${relCandidate}' المشار إليه في الكتلة '${cb.id}' داخل الموضوع '${tp.id}' غير موجود في الحزمة.`;
+                  mediaFilesFailed += 1;
+                  failureReasons.push(reason);
+                  throw new Error(reason);
+                }
+
+                return cb;
+              })
+            );
+            return { ...sec, contentBlocks: nextBlocks };
+          })
+        );
+
+        const nextImages = await Promise.all(
+          (tp.images || []).map(async (img) => {
+            const matchedFile = findBundledMediaFileMatch(extractedMediaMap, [
+              img.url,
+              img.externalUrl,
+              img.fileName
+            ]);
+            const relCandidate =
+              normalizeRelativeCandidatePath(img.url) ||
+              normalizeRelativeCandidatePath(img.externalUrl);
+
+            if (matchedFile) {
+              const persisted = await persistBundledMediaAsset(matchedFile, {
+                preferredId: img.mediaIdbKey || `idb-${tp.id}-img-${img.id}`,
+                topicId: tp.id
+              });
+              if (!persisted.ok) {
+                throw new Error(persisted.errorReason || `فشل حفظ الصورة '${img.id}'.`);
+              }
+              return {
+                ...img,
+                mediaIdbKey: persisted.idbKey,
+                url: `idb://${persisted.idbKey}`,
+                fileName: img.fileName || matchedFile.baseName,
+                mimeType: normalizeMediaMimeType(
+                  img.mimeType || matchedFile.mimeType,
+                  matchedFile.baseName
+                ),
+                sizeBytes: matchedFile.sizeBytes,
+                isLocalMediaRef: true,
+                ...(relCandidate && img.externalUrl === relCandidate
+                  ? { externalUrl: undefined }
+                  : {})
+              };
+            }
+
+            if (relCandidate && shouldVerifyLocalRefs) {
+              const reason = `الصورة المحلية '${relCandidate}' المشار إليها في الموضوع '${tp.id}' مفقودة من الحزمة.`;
+              mediaFilesFailed += 1;
+              failureReasons.push(reason);
+              throw new Error(reason);
+            }
+
+            return img;
+          })
+        );
+
+        const nextAttachments = await Promise.all(
+          (tp.attachments || []).map(async (att) => {
+            const matchedFile = findBundledMediaFileMatch(extractedMediaMap, [
+              att.contentDataUrlOrText,
+              att.externalUrl,
+              att.fileName
+            ]);
+            const relCandidate =
+              normalizeRelativeCandidatePath(att.externalUrl) ||
+              (att.contentDataUrlOrText &&
+              /\.(pdf|png|jpe?g|svg|mp3|wav|mp4|webm|epub|csv|md|txt)$/i.test(
+                att.contentDataUrlOrText.trim()
+              ) &&
+              !att.contentDataUrlOrText.includes('\n')
+                ? normalizeRelativeCandidatePath(att.contentDataUrlOrText)
+                : '');
+
+            if (matchedFile) {
+              const persisted = await persistBundledMediaAsset(matchedFile, {
+                preferredId: att.mediaIdbKey || `idb-${tp.id}-att-${att.id}`,
+                topicId: tp.id
+              });
+              if (!persisted.ok) {
+                throw new Error(persisted.errorReason || `فشل حفظ المرفق '${att.id}'.`);
+              }
+              return {
+                ...att,
+                mediaIdbKey: persisted.idbKey,
+                contentDataUrlOrText: `idb://${persisted.idbKey}`,
+                fileName: att.fileName || matchedFile.baseName,
+                mimeType: normalizeMediaMimeType(
+                  att.mimeType || att.fileType || matchedFile.mimeType,
+                  matchedFile.baseName
+                ),
+                sizeBytes: matchedFile.sizeBytes,
+                isLocalMediaRef: true,
+                ...(relCandidate && att.externalUrl === relCandidate
+                  ? { externalUrl: undefined }
+                  : {})
+              };
+            }
+
+            if (relCandidate && shouldVerifyLocalRefs) {
+              const reason = `المرفق المحلي '${relCandidate}' المشار إليه في الموضوع '${tp.id}' مفقود من الحزمة.`;
+              mediaFilesFailed += 1;
+              failureReasons.push(reason);
+              throw new Error(reason);
+            }
+
+            return att;
+          })
+        );
+
+        const nextLinks = await Promise.all(
+          (tp.links || []).map(async (lnk) => {
+            const matchedFile = findBundledMediaFileMatch(extractedMediaMap, [lnk.url]);
+            if (matchedFile) {
+              const persisted = await persistBundledMediaAsset(matchedFile, {
+                preferredId: lnk.mediaIdbKey || `idb-${tp.id}-lnk-${lnk.id}`,
+                topicId: tp.id
+              });
+              if (!persisted.ok) {
+                throw new Error(persisted.errorReason || `فشل حفظ ملف الرابط '${lnk.id}'.`);
+              }
+              return {
+                ...lnk,
+                mediaIdbKey: persisted.idbKey,
+                url: `idb://${persisted.idbKey}`
+              };
+            }
+            return lnk;
+          })
+        );
+
+        enrichedPayloadTopics.push({
+          ...tp,
+          sections: nextSections,
+          images: nextImages,
+          attachments: nextAttachments,
+          links: nextLinks
+        });
+      }
+
+      // 3. Bind bundled ZIP media files to payload.books & payload.questions
+      const enrichedPayloadBooks: AcademicBookResource[] = [];
+      for (const bk of payload.books || []) {
+        const matchedDoc = findBundledMediaFileMatch(extractedMediaMap, [
+          bk.downloadUrl,
+          bk.pdfUrl,
+          bk.mediaUrl,
+          bk.externalUrl
+        ]);
+        let nextBk = { ...bk };
+        if (matchedDoc) {
+          const persisted = await persistBundledMediaAsset(matchedDoc, {
+            preferredId: bk.mediaIdbKey || `idb-book-${bk.id}`,
+            blockId: bk.blockId
+          });
+          if (!persisted.ok) {
+            throw new Error(persisted.errorReason || `فشل حفظ ملف الكتاب '${bk.id}'.`);
+          }
+          nextBk = {
+            ...nextBk,
+            mediaIdbKey: persisted.idbKey,
+            mimeType: normalizeMediaMimeType(bk.mimeType || matchedDoc.mimeType, matchedDoc.baseName),
+            sizeBytes: matchedDoc.sizeBytes,
+            sha256: matchedDoc.sha256
+          };
+        }
+        const matchedCover = findBundledMediaFileMatch(extractedMediaMap, [bk.coverUrl]);
+        if (matchedCover) {
+          const persistedCover = await persistBundledMediaAsset(matchedCover, {
+            preferredId: bk.coverIdbKey || `idb-book-cover-${bk.id}`,
+            blockId: bk.blockId
+          });
+          if (!persistedCover.ok) {
+            throw new Error(persistedCover.errorReason || `فشل حفظ غلاف الكتاب '${bk.id}'.`);
+          }
+          nextBk = {
+            ...nextBk,
+            coverIdbKey: persistedCover.idbKey
+          };
+        }
+        enrichedPayloadBooks.push(nextBk);
+      }
+
+      const enrichedPayloadQuestions: UnifiedQuizQuestion[] = [];
+      for (const q of payload.questions || []) {
+        const matchedImg = findBundledMediaFileMatch(extractedMediaMap, [q.imageUrl]);
+        if (matchedImg) {
+          const persisted = await persistBundledMediaAsset(matchedImg, {
+            preferredId: `idb-question-img-${q.id}`,
+            topicId: q.topicId,
+            blockId: q.blockId
+          });
+          if (!persisted.ok) {
+            throw new Error(persisted.errorReason || `فشل حفظ صورة السؤال '${q.id}'.`);
+          }
+          enrichedPayloadQuestions.push({
+            ...q,
+            imageUrl: persisted.dataUrl
+          });
+        } else {
+          enrichedPayloadQuestions.push(q);
+        }
+      }
+
+      // 4. Persist any remaining unreferenced media files inside the ZIP package into mediaAssets & IndexedDB
+      for (const mediaFile of Object.values(extractedMediaMap)) {
+        if (persistedMediaKeyByNormPath.has(mediaFile.normalizedPath)) continue;
+        const autoAssetId = `asset-zip-${mediaFile.sha256.slice(0, 12)}`;
+        const defaultTopicId = enrichedPayloadTopics[0]?.id;
+        const persisted = await persistBundledMediaAsset(mediaFile, {
+          preferredId: `idb-${autoAssetId}`,
+          topicId: defaultTopicId
+        });
+        if (!persisted.ok) {
+          throw new Error(
+            persisted.errorReason || `فشل حفظ ملف الوسائط المضمن '${mediaFile.relativePath}'.`
+          );
+        }
+        enrichedPayloadMediaAssets.push(
+          normalizeMediaAssetRecord({
+            id: autoAssetId,
+            titleEn: mediaFile.baseName,
+            titleAr: mediaFile.baseName,
+            fileName: mediaFile.baseName,
+            relativePath: mediaFile.relativePath,
+            mimeType: mediaFile.mimeType,
+            sizeBytes: mediaFile.sizeBytes,
+            sha256: mediaFile.sha256,
+            mediaIdbKey: persisted.idbKey,
+            url: `idb://${persisted.idbKey}`,
+            rawUrl: mediaFile.relativePath,
+            topicId: defaultTopicId,
+            linkedEntityType: defaultTopicId ? 'topic' : undefined,
+            linkedEntityId: defaultTopicId
+          })
+        );
+      }
+
+      const effectivePayload: DataPackagePayload = {
+        ...payload,
+        topics: enrichedPayloadTopics,
+        ...(enrichedPayloadBooks.length > 0 ? { books: enrichedPayloadBooks } : {}),
+        ...(enrichedPayloadQuestions.length > 0 ? { questions: enrichedPayloadQuestions } : {}),
+        ...(enrichedPayloadMediaAssets.length > 0
+          ? { mediaAssets: enrichedPayloadMediaAssets }
+          : {})
+      };
+
+      const merged = mergeValidatedCollections(currentState, effectivePayload, mode);
       const nextVersionMeta: VersionMetadata = {
         appVersion: APP_VERSION,
         schemaVersion: DB_SCHEMA_VERSION,
@@ -1635,18 +2264,198 @@ export async function executeAtomicPackageImport(
         dataSource:
           options?.dataSourceOverride ||
           (sourceFormat === 'zip' ? 'local-zip' : 'local-json'),
-        packageId: options?.manifestPackageIdOverride || payload.manifest.packageId,
+        packageId: options?.manifestPackageIdOverride || effectivePayload.manifest.packageId,
         remoteManifestUrl:
           options?.remoteManifestUrl || currentState.versionMetadata.remoteManifestUrl,
-        remoteChannel: payload.manifest.channel
+        remoteChannel: effectivePayload.manifest.channel
       };
 
-      const nextStats: StudyStats = payload.studyStats
-        ? { ...currentState.studyStats, ...payload.studyStats }
+      const nextStats: StudyStats = effectivePayload.studyStats
+        ? {
+            ...currentState.studyStats,
+            ...effectivePayload.studyStats,
+            gotIt: Math.max(
+              currentState.studyStats.gotIt || 0,
+              effectivePayload.studyStats.gotIt || 0
+            ),
+            needsReview: Math.max(
+              currentState.studyStats.needsReview || 0,
+              effectivePayload.studyStats.needsReview || 0
+            )
+          }
         : currentState.studyStats;
-      const nextSettings: AppSettings = payload.settings
-        ? { ...currentState.settings, ...payload.settings }
+      const nextSettings: AppSettings = effectivePayload.settings
+        ? { ...currentState.settings, ...effectivePayload.settings }
         : currentState.settings;
+
+      // Merge extended UMEDT-DATA collections while preserving user-protected fields
+      let ignoredCount = 0;
+
+      if (mode === 'ignore') {
+        const existingTermKeys = new Set(currentState.terms.map((t) => normalizeTermNaturalKey(t)));
+        for (const t of effectivePayload.terms) {
+          if (existingTermKeys.has(normalizeTermNaturalKey(t))) ignoredCount += 1;
+        }
+        const existingTopicIds = new Set(currentState.topics.map((t) => t.id));
+        for (const tp of effectivePayload.topics) {
+          if (existingTopicIds.has(tp.id)) ignoredCount += 1;
+        }
+      }
+
+      const existingBlocks = loadMedicalBlocks();
+      const nextBlocksMap = new Map<string, MedicalBlock>(
+        mode === 'replace' && (effectivePayload.blocks || []).length > 0
+          ? []
+          : existingBlocks.map((b) => [b.id, b])
+      );
+      for (const blk of effectivePayload.blocks || []) {
+        if (mode === 'ignore' && nextBlocksMap.has(blk.id)) {
+          ignoredCount += 1;
+          continue;
+        }
+        nextBlocksMap.set(blk.id, blk);
+      }
+      const nextBlocks = Array.from(nextBlocksMap.values()).sort((a, b) => a.order - b.order);
+
+      const existingSubjects = loadMedicalSubjects();
+      const nextSubjectsMap = new Map<string, MedicalSubject>(
+        mode === 'replace' && (effectivePayload.subjects || []).length > 0
+          ? []
+          : existingSubjects.map((s) => [s.id, s])
+      );
+      for (const subj of effectivePayload.subjects || []) {
+        if (mode === 'ignore' && nextSubjectsMap.has(subj.id)) {
+          ignoredCount += 1;
+          continue;
+        }
+        nextSubjectsMap.set(subj.id, subj);
+      }
+      const nextSubjects = Array.from(nextSubjectsMap.values()).sort((a, b) => a.order - b.order);
+
+      const existingBooks = loadAcademicBooks();
+      const existingBookById = new Map<string, AcademicBookResource>(
+        existingBooks.map((b) => [b.id, b])
+      );
+      const nextBooksMap = new Map<string, AcademicBookResource>(
+        mode === 'replace' && (effectivePayload.books || []).length > 0
+          ? []
+          : existingBooks.map((b) => [b.id, b])
+      );
+      for (const bk of effectivePayload.books || []) {
+        if (mode === 'ignore' && nextBooksMap.has(bk.id)) {
+          ignoredCount += 1;
+          continue;
+        }
+        const prevBk = existingBookById.get(bk.id);
+        nextBooksMap.set(
+          bk.id,
+          prevBk
+            ? {
+                ...bk,
+                favorite: prevBk.favorite ?? bk.favorite,
+                bookmarks: prevBk.bookmarks?.length ? prevBk.bookmarks : bk.bookmarks,
+                lastReadPage: prevBk.lastReadPage ?? bk.lastReadPage,
+                readingProgressPercent:
+                  prevBk.readingProgressPercent ?? bk.readingProgressPercent,
+                notes: prevBk.notes ?? bk.notes,
+                mediaIdbKey: bk.mediaIdbKey || prevBk.mediaIdbKey,
+                coverIdbKey: bk.coverIdbKey || prevBk.coverIdbKey
+              }
+            : bk
+        );
+      }
+      const nextBooks = Array.from(nextBooksMap.values());
+
+      const rawExistingQuestions = safeReadJson<UnifiedQuizQuestion[]>(
+        LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS,
+        []
+      );
+      const existingQuestions =
+        rawExistingQuestions.length > 0
+          ? rawExistingQuestions
+          : loadQuizQuestions(currentState.topics, currentState.terms);
+      const nextQuestionsMap = new Map<string, UnifiedQuizQuestion>(
+        mode === 'replace' && (effectivePayload.questions || []).length > 0
+          ? []
+          : existingQuestions.map((q) => [q.id, q])
+      );
+      for (const q of effectivePayload.questions || []) {
+        if (mode === 'ignore' && nextQuestionsMap.has(q.id)) {
+          ignoredCount += 1;
+          continue;
+        }
+        nextQuestionsMap.set(q.id, q);
+      }
+      const nextQuestions = Array.from(nextQuestionsMap.values());
+
+      const existingExams = loadAcademicExams();
+      const nextExamsMap = new Map<string, AcademicExamPackage>(
+        mode === 'replace' && (effectivePayload.exams || []).length > 0
+          ? []
+          : existingExams.map((e) => [e.id, e])
+      );
+      for (const ex of effectivePayload.exams || []) {
+        if (mode === 'ignore' && nextExamsMap.has(ex.id)) {
+          ignoredCount += 1;
+          continue;
+        }
+        nextExamsMap.set(ex.id, ex);
+      }
+      const nextExams = Array.from(nextExamsMap.values());
+
+      const existingMediaAssets = loadMediaAssetsIndex();
+      const nextMediaAssetsMap = new Map<string, MediaAssetRecord>(
+        mode === 'replace' && (effectivePayload.mediaAssets || []).length > 0
+          ? []
+          : existingMediaAssets.map((m) => [m.id, m])
+      );
+      for (const ma of effectivePayload.mediaAssets || []) {
+        if (mode === 'ignore' && nextMediaAssetsMap.has(ma.id)) {
+          ignoredCount += 1;
+          continue;
+        }
+        const prevMa = nextMediaAssetsMap.get(ma.id);
+        nextMediaAssetsMap.set(
+          ma.id,
+          prevMa ? { ...ma, mediaIdbKey: ma.mediaIdbKey || prevMa.mediaIdbKey } : ma
+        );
+      }
+      const nextMediaAssets = Array.from(nextMediaAssetsMap.values());
+
+      // Always preserve personal user study notes & quiz attempts across package updates
+      const existingNotes = loadUserStudyNotes();
+      const nextNotesMap = new Map<string, UserStudyNoteRecord>(
+        existingNotes.map((n) => [n.id, n])
+      );
+      for (const note of effectivePayload.userNotes || []) {
+        if (mode === 'ignore' && nextNotesMap.has(note.id)) {
+          ignoredCount += 1;
+          continue;
+        }
+        const prevNote = nextNotesMap.get(note.id);
+        if (!prevNote || (note.updatedAt || '') >= (prevNote.updatedAt || '')) {
+          nextNotesMap.set(note.id, note);
+        }
+      }
+      const nextNotes = Array.from(nextNotesMap.values());
+
+      const rawExistingAttempts = safeReadJson<QuizAttemptRecord[]>(
+        LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS,
+        []
+      );
+      const existingAttempts =
+        rawExistingAttempts.length > 0 ? rawExistingAttempts : loadQuizAttempts();
+      const nextAttemptsMap = new Map<string, QuizAttemptRecord>(
+        existingAttempts.map((a) => [a.id, a])
+      );
+      for (const att of effectivePayload.quizAttempts || []) {
+        if (mode === 'ignore' && nextAttemptsMap.has(att.id)) {
+          ignoredCount += 1;
+          continue;
+        }
+        nextAttemptsMap.set(att.id, att);
+      }
+      const nextAttempts = Array.from(nextAttemptsMap.values()).slice(0, 100);
 
       // Stage 5: Pre-serialize all target collections and verify storage quota BEFORE mutating live keys
       const serializedBatch: Record<string, string> = {
@@ -1657,7 +2466,25 @@ export async function executeAtomicPackageImport(
         [STORAGE_KEYS.CUSTOM_ABBREVIATIONS]: JSON.stringify(merged.customAbbreviations),
         [STORAGE_KEYS.STUDY_STATS]: JSON.stringify(nextStats),
         [STORAGE_KEYS.SETTINGS]: JSON.stringify(nextSettings),
-        [STORAGE_KEYS.VERSION_META]: JSON.stringify(nextVersionMeta)
+        [STORAGE_KEYS.VERSION_META]: JSON.stringify(nextVersionMeta),
+        ...((effectivePayload.blocks || []).length > 0
+          ? { [LEARNING_STORAGE_KEYS.BLOCKS]: JSON.stringify(nextBlocks) }
+          : {}),
+        ...((effectivePayload.subjects || []).length > 0
+          ? { [LEARNING_STORAGE_KEYS.SUBJECTS]: JSON.stringify(nextSubjects) }
+          : {}),
+        ...((effectivePayload.books || []).length > 0
+          ? { [LEARNING_STORAGE_KEYS.BOOKS]: JSON.stringify(nextBooks) }
+          : {}),
+        ...((effectivePayload.questions || []).length > 0
+          ? { [LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS]: JSON.stringify(nextQuestions) }
+          : {}),
+        ...((effectivePayload.exams || []).length > 0
+          ? { [LEARNING_STORAGE_KEYS.EXAMS]: JSON.stringify(nextExams) }
+          : {}),
+        ...((effectivePayload.mediaAssets || []).length > 0
+          ? { [LEARNING_STORAGE_KEYS.MEDIA_ASSETS]: JSON.stringify(nextMediaAssets) }
+          : {})
       };
 
       // Simulate mid-update app crash / power loss after partial write (leaving WAL in pending state!)
@@ -1677,9 +2504,15 @@ export async function executeAtomicPackageImport(
         options?.simulateQuotaExceeded
       );
       if (!quotaProbe.fits) {
+        if (newlyWrittenMediaIdbKeys.length > 0) {
+          await deleteLocalMediaRecordsByKeys(newlyWrittenMediaIdbKeys);
+        }
         rollbackWalTransaction(wal);
         restoreStorageSnapshot(snapshot);
         const restored = loadAppState();
+        const quotaErr =
+          quotaProbe.reason ||
+          'QuotaExceededError: مساحة التخزين ممتلئة؛ تم التراجع الذري الكامل لحماية البيانات الحالية.';
         return {
           result: {
             success: false,
@@ -1692,210 +2525,67 @@ export async function executeAtomicPackageImport(
               topicsImported: 0,
               affixesImported: 0,
               abbreviationsImported: 0,
+              mediaFilesImported: 0,
+              mediaFilesSkipped: 0,
+              mediaFilesFailed,
+              ignoredCount: 0,
+              failedCount: 1,
+              failureReasons: [quotaErr],
               totalTermsAfter: restored.terms.length,
               totalSentencesAfter: restored.sentences.length
             },
             versionMetadata: restored.versionMetadata,
-            errors: [
-              quotaProbe.reason ||
-                'QuotaExceededError: مساحة التخزين ممتلئة؛ تم التراجع الذري الكامل لحماية البيانات الحالية.'
-            ],
+            errors: [quotaErr],
             warnings: []
           },
           state: restored
         };
       }
 
-      const writesOk =
+      // Write all primary & extended collections FIRST before committing VersionMetadata
+      const primaryWritesOk =
         saveTerms(merged.terms) &&
         saveSentences(merged.sentences) &&
         saveTopics(merged.topics) &&
         saveCustomAffixes(merged.customAffixes) &&
         saveCustomAbbreviations(merged.customAbbreviations) &&
         saveStudyStats(nextStats) &&
-        saveSettings(nextSettings) &&
-        saveVersionMetadata(nextVersionMeta);
+        saveSettings(nextSettings);
 
-      if (!writesOk) {
-        rollbackWalTransaction(wal);
-        restoreStorageSnapshot(snapshot);
-        const restored = loadAppState();
-        return {
-          result: {
-            success: false,
-            rolledBack: true,
-            mode,
-            sourceFormat,
-            summary: {
-              termsImported: 0,
-              sentencesImported: 0,
-              topicsImported: 0,
-              affixesImported: 0,
-              abbreviationsImported: 0,
-              totalTermsAfter: restored.terms.length,
-              totalSentencesAfter: restored.sentences.length
-            },
-            versionMetadata: restored.versionMetadata,
-            errors: [
-              'فشل حفظ الحزمة في التخزين المحلي؛ تم التراجع التلقائي الكامل (Atomic Rollback) للحفاظ على سلامة البيانات.'
-            ],
-            warnings: []
-          },
-          state: restored
-        };
-      }
-
-      // Merge extended UMEDT-DATA collections while preserving user-protected fields
-      const existingBlocks = loadMedicalBlocks();
-      const nextBlocksMap = new Map<string, MedicalBlock>(
-        mode === 'replace' && (payload.blocks || []).length > 0
-          ? []
-          : existingBlocks.map((b) => [b.id, b])
-      );
-      for (const blk of payload.blocks || []) {
-        if (mode === 'ignore' && nextBlocksMap.has(blk.id)) continue;
-        nextBlocksMap.set(blk.id, blk);
-      }
-      const nextBlocks = Array.from(nextBlocksMap.values()).sort((a, b) => a.order - b.order);
-
-      const existingSubjects = loadMedicalSubjects();
-      const nextSubjectsMap = new Map<string, MedicalSubject>(
-        mode === 'replace' && (payload.subjects || []).length > 0
-          ? []
-          : existingSubjects.map((s) => [s.id, s])
-      );
-      for (const subj of payload.subjects || []) {
-        if (mode === 'ignore' && nextSubjectsMap.has(subj.id)) continue;
-        nextSubjectsMap.set(subj.id, subj);
-      }
-      const nextSubjects = Array.from(nextSubjectsMap.values()).sort((a, b) => a.order - b.order);
-
-      const existingBooks = loadAcademicBooks();
-      const existingBookById = new Map<string, AcademicBookResource>(
-        existingBooks.map((b) => [b.id, b])
-      );
-      const nextBooksMap = new Map<string, AcademicBookResource>(
-        mode === 'replace' && (payload.books || []).length > 0
-          ? []
-          : existingBooks.map((b) => [b.id, b])
-      );
-      for (const bk of payload.books || []) {
-        if (mode === 'ignore' && nextBooksMap.has(bk.id)) continue;
-        const prevBk = existingBookById.get(bk.id);
-        nextBooksMap.set(
-          bk.id,
-          prevBk
-            ? {
-                ...bk,
-                favorite: prevBk.favorite ?? bk.favorite,
-                bookmarks: prevBk.bookmarks?.length ? prevBk.bookmarks : bk.bookmarks,
-                lastReadPage: prevBk.lastReadPage ?? bk.lastReadPage,
-                readingProgressPercent:
-                  prevBk.readingProgressPercent ?? bk.readingProgressPercent,
-                notes: prevBk.notes ?? bk.notes,
-                mediaIdbKey: prevBk.mediaIdbKey || bk.mediaIdbKey,
-                coverIdbKey: prevBk.coverIdbKey || bk.coverIdbKey
-              }
-            : bk
+      if (!primaryWritesOk) {
+        throw new Error(
+          'فشل حفظ الحزمة في التخزين المحلي؛ تم التراجع التلقائي الكامل (Atomic Rollback) للحفاظ على سلامة البيانات.'
         );
       }
-      const nextBooks = Array.from(nextBooksMap.values());
 
-      const existingQuestions = safeReadJson<UnifiedQuizQuestion[]>(
-        LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS,
-        []
-      );
-      const nextQuestionsMap = new Map<string, UnifiedQuizQuestion>(
-        mode === 'replace' && (payload.questions || []).length > 0
-          ? []
-          : existingQuestions.map((q) => [q.id, q])
-      );
-      for (const q of payload.questions || []) {
-        if (mode === 'ignore' && nextQuestionsMap.has(q.id)) continue;
-        nextQuestionsMap.set(q.id, q);
-      }
-      const nextQuestions = Array.from(nextQuestionsMap.values());
-
-      const existingExams = loadAcademicExams();
-      const nextExamsMap = new Map<string, AcademicExamPackage>(
-        mode === 'replace' && (payload.exams || []).length > 0
-          ? []
-          : existingExams.map((e) => [e.id, e])
-      );
-      for (const ex of payload.exams || []) {
-        if (mode === 'ignore' && nextExamsMap.has(ex.id)) continue;
-        nextExamsMap.set(ex.id, ex);
-      }
-      const nextExams = Array.from(nextExamsMap.values());
-
-      const existingMediaAssets = loadMediaAssetsIndex();
-      const nextMediaAssetsMap = new Map<string, MediaAssetRecord>(
-        mode === 'replace' && (payload.mediaAssets || []).length > 0
-          ? []
-          : existingMediaAssets.map((m) => [m.id, m])
-      );
-      for (const ma of payload.mediaAssets || []) {
-        if (mode === 'ignore' && nextMediaAssetsMap.has(ma.id)) continue;
-        const prevMa = nextMediaAssetsMap.get(ma.id);
-        nextMediaAssetsMap.set(
-          ma.id,
-          prevMa ? { ...ma, mediaIdbKey: prevMa.mediaIdbKey || ma.mediaIdbKey } : ma
-        );
-      }
-      const nextMediaAssets = Array.from(nextMediaAssetsMap.values());
-
-      const existingNotes = loadUserStudyNotes();
-      const nextNotesMap = new Map<string, UserStudyNoteRecord>(
-        mode === 'replace' && (payload.userNotes || []).length > 0
-          ? []
-          : existingNotes.map((n) => [n.id, n])
-      );
-      for (const note of payload.userNotes || []) {
-        if (mode === 'ignore' && nextNotesMap.has(note.id)) continue;
-        const prevNote = nextNotesMap.get(note.id);
-        if (!prevNote || (note.updatedAt || '') >= (prevNote.updatedAt || '')) {
-          nextNotesMap.set(note.id, note);
+      if ((effectivePayload.blocks || []).length > 0) saveMedicalBlocks(nextBlocks);
+      if ((effectivePayload.subjects || []).length > 0) saveMedicalSubjects(nextSubjects);
+      if ((effectivePayload.books || []).length > 0) saveAcademicBooks(nextBooks);
+      if ((effectivePayload.questions || []).length > 0) {
+        if (!safeWriteJson(LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS, nextQuestions)) {
+          throw new Error('فشل حفظ بنك الأسئلة المرتبط بالحزمة.');
         }
+        saveQuizQuestions(nextQuestions);
       }
-      const nextNotes = Array.from(nextNotesMap.values());
-
-      const existingAttempts = safeReadJson<QuizAttemptRecord[]>(
-        LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS,
-        []
-      );
-      const nextAttemptsMap = new Map<string, QuizAttemptRecord>(
-        mode === 'replace' && (payload.quizAttempts || []).length > 0
-          ? []
-          : existingAttempts.map((a) => [a.id, a])
-      );
-      for (const att of payload.quizAttempts || []) {
-        if (mode === 'ignore' && nextAttemptsMap.has(att.id)) continue;
-        nextAttemptsMap.set(att.id, att);
-      }
-      const nextAttempts = Array.from(nextAttemptsMap.values()).slice(0, 100);
-
-      if ((payload.blocks || []).length > 0) saveMedicalBlocks(nextBlocks);
-      if ((payload.subjects || []).length > 0) saveMedicalSubjects(nextSubjects);
-      if ((payload.books || []).length > 0) saveAcademicBooks(nextBooks);
-      if ((payload.questions || []).length > 0) {
-        safeWriteJson(LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS, nextQuestions);
-      }
-      if ((payload.quizAttempts || []).length > 0) {
+      if ((effectivePayload.quizAttempts || []).length > 0) {
         safeWriteJson(LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS, nextAttempts);
+        saveQuizAttempts(nextAttempts);
       }
-      if ((payload.exams || []).length > 0) saveAcademicExams(nextExams);
-      if ((payload.mediaAssets || []).length > 0) saveMediaAssetsIndex(nextMediaAssets);
-      if ((payload.userNotes || []).length > 0) saveUserStudyNotes(nextNotes);
+      if ((effectivePayload.exams || []).length > 0) saveAcademicExams(nextExams);
+      if ((effectivePayload.mediaAssets || []).length > 0) saveMediaAssetsIndex(nextMediaAssets);
+      if ((effectivePayload.userNotes || []).length > 0 || existingNotes.length > 0) {
+        saveUserStudyNotes(nextNotes);
+      }
 
       // Keep Unified Cloud Mirror synchronized with imported package metadata & extended collections
       if (
-        payload.catalog ||
-        (payload.blocks || []).length > 0 ||
-        (payload.subjects || []).length > 0 ||
-        (payload.books || []).length > 0 ||
-        (payload.questions || []).length > 0 ||
-        (payload.exams || []).length > 0 ||
-        (payload.mediaAssets || []).length > 0
+        effectivePayload.catalog ||
+        (effectivePayload.blocks || []).length > 0 ||
+        (effectivePayload.subjects || []).length > 0 ||
+        (effectivePayload.books || []).length > 0 ||
+        (effectivePayload.questions || []).length > 0 ||
+        (effectivePayload.exams || []).length > 0 ||
+        (effectivePayload.mediaAssets || []).length > 0
       ) {
         try {
           const mirrorRaw = getStorageRawItem('umed_unified_cloud_mirror_v1');
@@ -1904,11 +2594,11 @@ export async function executeAtomicPackageImport(
             ...mirrorObj,
             version: incomingDataVersion,
             updatedAt: new Date().toISOString(),
-            ...(payload.catalog?.catalogVersion
-              ? { catalogVersion: payload.catalog.catalogVersion }
+            ...(effectivePayload.catalog?.catalogVersion
+              ? { catalogVersion: effectivePayload.catalog.catalogVersion }
               : {}),
-            ...(payload.catalog?.contentTypesRegistry
-              ? { contentTypesRegistry: payload.catalog.contentTypesRegistry }
+            ...(effectivePayload.catalog?.contentTypesRegistry
+              ? { contentTypesRegistry: effectivePayload.catalog.contentTypesRegistry }
               : {}),
             ...(nextBlocks.length > 0 ? { blocks: nextBlocks } : {}),
             ...(nextSubjects.length > 0 ? { subjects: nextSubjects } : {}),
@@ -1916,10 +2606,10 @@ export async function executeAtomicPackageImport(
             ...(nextQuestions.length > 0 ? { quizQuestions: nextQuestions } : {}),
             ...(nextExams.length > 0 ? { exams: nextExams } : {}),
             ...(nextMediaAssets.length > 0 ? { mediaAssets: nextMediaAssets } : {}),
-            ...(payload.customAffixes.length > 0
+            ...(effectivePayload.customAffixes.length > 0
               ? { customAffixes: merged.customAffixes }
               : {}),
-            ...(payload.customAbbreviations.length > 0
+            ...(effectivePayload.customAbbreviations.length > 0
               ? { customAbbreviations: merged.customAbbreviations }
               : {})
           };
@@ -1929,7 +2619,12 @@ export async function executeAtomicPackageImport(
         }
       }
 
-      // Stage 5: Commit WAL transaction once all keys are safely written
+      // Commit VersionMetadata ONLY AFTER all collections and required media assets have succeeded
+      if (!saveVersionMetadata(nextVersionMeta)) {
+        throw new Error('فشل تسجيل إصدار الحزمة الجديد (VersionMetadata).');
+      }
+
+      // Stage 5: Commit WAL transaction once all keys and VersionMetadata are safely written
       commitWalTransaction();
 
       const nextState: PersistedAppState = {
@@ -1951,19 +2646,25 @@ export async function executeAtomicPackageImport(
           mode,
           sourceFormat,
           summary: {
-            termsImported: payload.terms.length,
-            sentencesImported: payload.sentences.length,
-            topicsImported: payload.topics.length,
-            affixesImported: payload.customAffixes.length,
-            abbreviationsImported: payload.customAbbreviations.length,
-            blocksImported: (payload.blocks || []).length,
-            subjectsImported: (payload.subjects || []).length,
-            booksImported: (payload.books || []).length,
-            questionsImported: (payload.questions || []).length,
-            examsImported: (payload.exams || []).length,
-            mediaAssetsImported: (payload.mediaAssets || []).length,
-            userNotesImported: (payload.userNotes || []).length,
-            quizAttemptsImported: (payload.quizAttempts || []).length,
+            termsImported: effectivePayload.terms.length,
+            sentencesImported: effectivePayload.sentences.length,
+            topicsImported: effectivePayload.topics.length,
+            affixesImported: effectivePayload.customAffixes.length,
+            abbreviationsImported: effectivePayload.customAbbreviations.length,
+            blocksImported: (effectivePayload.blocks || []).length,
+            subjectsImported: (effectivePayload.subjects || []).length,
+            booksImported: (effectivePayload.books || []).length,
+            questionsImported: (effectivePayload.questions || []).length,
+            examsImported: (effectivePayload.exams || []).length,
+            mediaAssetsImported: (effectivePayload.mediaAssets || []).length,
+            userNotesImported: (effectivePayload.userNotes || []).length,
+            quizAttemptsImported: (effectivePayload.quizAttempts || []).length,
+            mediaFilesImported,
+            mediaFilesSkipped,
+            mediaFilesFailed,
+            ignoredCount,
+            failedCount: 0,
+            failureReasons: [],
             totalTermsAfter: nextState.terms.length,
             totalSentencesAfter: nextState.sentences.length
           },
@@ -1979,9 +2680,13 @@ export async function executeAtomicPackageImport(
       if (txErr instanceof Error && txErr.message === 'CRASH_SIMULATION_MID_UPDATE') {
         throw txErr;
       }
+      if (newlyWrittenMediaIdbKeys.length > 0) {
+        await deleteLocalMediaRecordsByKeys(newlyWrittenMediaIdbKeys);
+      }
       rollbackWalTransaction(wal);
       restoreStorageSnapshot(snapshot);
       const restored = loadAppState();
+      const errMsg = txErr instanceof Error ? txErr.message : String(txErr);
       return {
         result: {
           success: false,
@@ -1994,15 +2699,17 @@ export async function executeAtomicPackageImport(
             topicsImported: 0,
             affixesImported: 0,
             abbreviationsImported: 0,
+            mediaFilesImported: 0,
+            mediaFilesSkipped: 0,
+            mediaFilesFailed: 1,
+            ignoredCount: 0,
+            failedCount: 1,
+            failureReasons: [errMsg],
             totalTermsAfter: restored.terms.length,
             totalSentencesAfter: restored.sentences.length
           },
           versionMetadata: restored.versionMetadata,
-          errors: [
-            `تم إلغاء العملية والتراجع الكامل عن التغييرات: ${
-              txErr instanceof Error ? txErr.message : String(txErr)
-            }`
-          ],
+          errors: [`تم إلغاء العملية والتراجع الكامل عن التغييرات: ${errMsg}`],
           warnings: []
         },
         state: restored

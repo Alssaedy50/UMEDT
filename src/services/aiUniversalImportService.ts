@@ -2600,6 +2600,33 @@ function extractStoreEntriesFromZipBytes(
   );
   const decoder = new TextDecoder();
   const result: Record<string, Uint8Array> = {};
+  const blockedExtensions = [
+    '.exe',
+    '.dll',
+    '.so',
+    '.dylib',
+    '.sh',
+    '.bash',
+    '.bat',
+    '.cmd',
+    '.ps1',
+    '.vbs',
+    '.js',
+    '.mjs',
+    '.cjs',
+    '.wasm',
+    '.php',
+    '.py',
+    '.rb',
+    '.pl',
+    '.jar',
+    '.apk',
+    '.dex',
+    '.html',
+    '.htm',
+    '.scr',
+    '.com'
+  ];
 
   let pos = 0;
   while (pos + 30 <= zipBytes.length) {
@@ -2617,10 +2644,23 @@ function extractStoreEntriesFromZipBytes(
     if (nameEnd > zipBytes.length) break;
 
     const rawName = decoder.decode(zipBytes.subarray(nameStart, nameEnd));
-    const safeName = rawName
-      .replace(/\\/g, '/')
-      .replace(/^\/+/, '')
-      .replace(/\.\.\//g, '');
+    // Reject Zip Slip path traversal or dangerous executable/HTML extensions
+    if (
+      rawName.includes('..') ||
+      rawName.startsWith('/') ||
+      rawName.startsWith('\\') ||
+      /^[a-zA-Z]:/.test(rawName)
+    ) {
+      throw new Error(`مسار ملف غير آمن (Zip Slip) داخل الحزمة: "${rawName}".`);
+    }
+    const lowerRaw = rawName.toLowerCase();
+    for (const ext of blockedExtensions) {
+      if (lowerRaw.endsWith(ext)) {
+        throw new Error(`امتداد ملف خطير أو تنفيذي محظور داخل الحزمة: "${rawName}".`);
+      }
+    }
+
+    const safeName = rawName.replace(/\\/g, '/').replace(/^\/+/, '');
 
     const dataStart = nameEnd + extraLen;
     const sizeToRead = compressedSize || uncompressedSize;
@@ -2628,7 +2668,19 @@ function extractStoreEntriesFromZipBytes(
     if (dataEnd > zipBytes.length) break;
 
     if (compression === 0) {
-      result[safeName] = zipBytes.slice(dataStart, dataEnd);
+      const entryBytes = zipBytes.slice(dataStart, dataEnd);
+      if (lowerRaw.endsWith('.svg')) {
+        const svgText = decoder.decode(entryBytes);
+        if (
+          /<script[\s>]/i.test(svgText) ||
+          /<foreignObject[\s>]/i.test(svgText) ||
+          /\son[a-z]+\s*=/i.test(svgText) ||
+          /javascript\s*:/i.test(svgText)
+        ) {
+          throw new Error(`ملف الرسم الاتجاهي "${rawName}" يحتوي على نص برمجي محظور.`);
+        }
+      }
+      result[safeName] = entryBytes;
     }
     pos = dataEnd;
   }

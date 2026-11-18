@@ -54,8 +54,30 @@ export function sanitizeSvgMarkup(rawSvg: string): string {
   return rawSvg
     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
     .replace(/<foreignObject[\s\S]*?>[\s\S]*?<\/foreignObject>/gi, '')
+    .replace(/<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<object[\s\S]*?>[\s\S]*?<\/object>/gi, '')
+    .replace(/<embed[\s\S]*?>/gi, '')
     .replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/javascript\s*:/gi, '');
+    .replace(/javascript\s*:/gi, '')
+    .replace(/data\s*:\s*text\/html/gi, '');
+}
+
+function extractInlineSvgFromDataUrl(dataUrl?: string): string {
+  if (!dataUrl || !dataUrl.startsWith('data:image/svg+xml')) return '';
+  try {
+    const commaIdx = dataUrl.indexOf(',');
+    if (commaIdx < 0) return '';
+    const meta = dataUrl.slice(0, commaIdx).toLowerCase();
+    const payload = dataUrl.slice(commaIdx + 1);
+    if (meta.includes(';base64')) {
+      const bytes = base64ToUint8Array(payload);
+      const decoded = new TextDecoder().decode(bytes);
+      return sanitizeSvgMarkup(decoded);
+    }
+    return sanitizeSvgMarkup(decodeURIComponent(payload));
+  } catch {
+    return '';
+  }
 }
 
 const CONTENT_BLOCK_TYPE_META: Record<
@@ -1092,16 +1114,19 @@ export const SectionContentBlocksRenderer: React.FC<
           const remoteUrl =
             blk.externalUrl ||
             (blk.mediaUrl && /^https?:\/\//i.test(blk.mediaUrl) ? blk.mediaUrl : '');
-          const rawSvg = blk.diagramSvg ? sanitizeSvgMarkup(blk.diagramSvg) : '';
+          const resolvedUrlForBlock = resolvedMediaUrls[blk.id] || '';
+          const rawSvg = blk.diagramSvg
+            ? sanitizeSvgMarkup(blk.diagramSvg)
+            : extractInlineSvgFromDataUrl(resolvedUrlForBlock);
           const imgSrc =
-            resolvedMediaUrls[blk.id] ||
+            resolvedUrlForBlock ||
             (blk.mediaUrl && !blk.mediaUrl.startsWith('idb://') ? blk.mediaUrl : '') ||
             remoteUrl;
           const svgDataUri = rawSvg
             ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(rawSvg)}`
             : '';
           const isCachedLocally = Boolean(
-            rawSvg || resolvedMediaUrls[blk.id] || (imgSrc && imgSrc.startsWith('data:'))
+            rawSvg || resolvedUrlForBlock || (imgSrc && imgSrc.startsWith('data:'))
           );
 
           return (

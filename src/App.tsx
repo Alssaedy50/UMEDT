@@ -1749,8 +1749,18 @@ export default function App() {
     });
 
     if (!result.success) {
-      // Fallback: if this is an AI-generated .zip or UMEDT-DATA .zip without manifest.json, parse via importUniversalZipArchiveBytes
-      if (lowerName.endsWith('.zip') || lowerName.endsWith('.umedpack')) {
+      const combinedErrText = (result.errors || []).join(' ');
+      const isSecurityOrRollbackFailure =
+        result.rolledBack ||
+        /حماية|Zip Bomb|Zip Slip|تنفيذي|SQLite|CRC-32|SHA-256|برمجي|محظور/i.test(
+          combinedErrText
+        );
+
+      // Fallback: if this is an AI-generated .zip without manifest.json (and NOT a security/rollback rejection), parse via importUniversalZipArchiveBytes
+      if (
+        !isSecurityOrRollbackFailure &&
+        (lowerName.endsWith('.zip') || lowerName.endsWith('.umedpack'))
+      ) {
         try {
           const zipBytes = new Uint8Array(await file.arrayBuffer());
           const zipReport = importUniversalZipArchiveBytes(zipBytes, {
@@ -1797,7 +1807,11 @@ export default function App() {
       versionMetadata: state.versionMetadata
     });
 
-    showToast(`تم استيراد الحزمة بنجاح (${summary.shortText})`);
+    const mediaSummarySuffix =
+      result.summary.mediaFilesImported || result.summary.mediaFilesSkipped
+        ? ` · الوسائط: ${result.summary.mediaFilesImported || 0} مستوردة، ${result.summary.mediaFilesSkipped || 0} متجاهلة`
+        : '';
+    showToast(`تم استيراد الحزمة بنجاح (${summary.shortText}${mediaSummarySuffix})`);
   };
 
   const handleCommitBatch = ({
