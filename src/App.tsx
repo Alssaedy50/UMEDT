@@ -2306,15 +2306,7 @@ export default function App() {
          ==================================================================== */}
       <header className="sticky top-0 z-30 min-h-14 pt-[env(safe-area-inset-top,0px)] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 lg:px-8 py-1.5 flex items-center justify-between gap-3 w-full box-border">
         <div className="flex items-center gap-2 min-w-0">
-          <button
-            type="button"
-            onClick={() => setIsSidebarOpen(true)}
-            aria-label="القائمة"
-            className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-extrabold flex items-center gap-2 transition-colors shrink-0"
-          >
-            <Menu className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span>{PAGE_LABELS[activeTab]}</span>
-          </button>
+          {/* Top-level duplicate dictionary/search menu removed; bottom navigation remains available. */}
 
           {/* Desktop Quick Navigation Pills */}
           <nav className="hidden md:flex items-center gap-1 mr-2">
