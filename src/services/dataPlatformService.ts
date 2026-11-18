@@ -40,7 +40,8 @@ import {
   MediaAssetRecord,
   DataCatalogDocument,
   QuizAttemptRecord,
-  UserStudyNoteRecord
+  UserStudyNoteRecord,
+  ExtractedZipMediaFile
 } from '../types/lexicon';
 import {
   normalizeAcademicBookResource,
@@ -101,10 +102,90 @@ const DANGEROUS_ARCHIVE_EXTENSIONS = [
   '.dex',
   '.html',
   '.htm',
-  '.svg',
   '.scr',
   '.com'
 ];
+
+const SAFE_ARCHIVE_MEDIA_MIME_MAP: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
+  '.avif': 'image/avif',
+  '.svg': 'image/svg+xml',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.flac': 'audio/flac',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mov': 'video/quicktime',
+  '.m4v': 'video/x-m4v',
+  '.pdf': 'application/pdf',
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+  '.csv': 'text/csv',
+  '.epub': 'application/epub+zip',
+  '.xml': 'application/xml'
+};
+
+function getSafeArchiveMediaMime(lowerFileName: string): string | null {
+  for (const [ext, mime] of Object.entries(SAFE_ARCHIVE_MEDIA_MIME_MAP)) {
+    if (lowerFileName.endsWith(ext)) return mime;
+  }
+  return null;
+}
+
+function normalizeArchiveEntryPath(rawPath: string): string {
+  return rawPath
+    .replace(/\\/g, '/')
+    .replace(/^\.?\//, '')
+    .replace(/\/+/g, '/')
+    .trim();
+}
+
+export function inspectAndSanitizeSvgArchiveText(
+  svgText: string,
+  entryName: string
+): { safe: boolean; sanitizedSvgText?: string; reason?: string } {
+  const trimmed = (svgText || '').trim();
+  if (!trimmed || !/<svg\b/i.test(trimmed)) {
+    return {
+      safe: false,
+      reason: `ملف SVG '${entryName}' غير صالح أو لا يحتوي على عنصر <svg>.`
+    };
+  }
+  const dangerousPatterns: Array<[RegExp, string]> = [
+    [/<script\b/i, '<script>'],
+    [/<foreignObject\b/i, '<foreignObject>'],
+    [/\son[a-z]+\s*=/i, 'معالج أحداث (on*=)'],
+    [/javascript\s*:/i, 'javascript: URI'],
+    [/<iframe\b/i, '<iframe>'],
+    [/<object\b/i, '<object>'],
+    [/<embed\b/i, '<embed>'],
+    [/data\s*:\s*text\/html/i, 'data:text/html']
+  ];
+  for (const [pattern, label] of dangerousPatterns) {
+    if (pattern.test(trimmed)) {
+      return {
+        safe: false,
+        reason: `حماية أمنية لملفات SVG: تم رفض '${entryName}' لاحتوائه على محتوى نشط أو غير آمن (${label}).`
+      };
+    }
+  }
+  const sanitized = trimmed
+    .replace(/<\?xml[\s\S]*?\?>/gi, '')
+    .replace(/<!DOCTYPE[\s\S]*?>/gi, '')
+    .trim();
+  return {
+    safe: true,
+    sanitizedSvgText: sanitized
+  };
+}
 
 const VALID_LEXICON_CATEGORIES = new Set<LexiconCategory>([
   'Medical',
@@ -1177,6 +1258,9 @@ export async function inspectAndExtractSafeZipPackage(
 ): Promise<{
   inspection: ZipSecurityInspectionResult;
   jsonFiles: Record<string, unknown>;
+  jsonFilesByPath?: Record<string, unknown>;
+  mediaFiles?: Record<string, ExtractedZipMediaFile>;
+  rawFileSha256ByPath?: Record<string, string>;
 }> {
   const policy: ZipSecurityPolicy = {
     ...DEFAULT_ZIP_SECURITY_POLICY,
@@ -1285,6 +1369,9 @@ export async function inspectAndExtractSafeZipPackage(
   }
 
   const jsonFiles: Record<string, unknown> = {};
+  const jsonFilesByPath: Record<string, unknown> = {};
+  const mediaFiles: Record<string, ExtractedZipMediaFile> = {};
+  const rawFileSha256ByPath: Record<string, string> = {};
   const decoder = new TextDecoder('utf-8');
   let ptr = centralDirOffset;
   let cumulativeUncompressedBytes = 0;
@@ -1449,7 +1536,9 @@ export async function inspectAndExtractSafeZipPackage(
       };
     }
 
-    if (!baseName.endsWith('.json')) {
+    const isJsonEntry = baseName.endsWith('.json');
+    const inferredMediaMime = isJsonEntry ? null : getSafeArchiveMediaMime(baseName);
+    if (!isJsonEntry && !inferredMediaMime) {
       continue;
     }
 
@@ -1606,15 +1695,66 @@ export async function inspectAndExtractSafeZipPackage(
 
     assertNotSqlitePayload(uncompressedBytes, rawFileName);
 
-    const jsonText = decoder.decode(uncompressedBytes);
-    try {
-      jsonFiles[baseName] = JSON.parse(jsonText);
-    } catch (err) {
-      throw new Error(
-        `خطأ في بناء JSON داخل ملف الأرشيف '${rawFileName}': ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      );
+    const normalizedPath = normalizeArchiveEntryPath(rawFileName);
+    const normalizedLower = normalizedPath.toLowerCase();
+    const sha256Hex = await computeSha256Hex(uncompressedBytes);
+    rawFileSha256ByPath[normalizedLower] = sha256Hex;
+
+    if (isJsonEntry) {
+      const jsonText = decoder.decode(uncompressedBytes);
+      let parsedJson: unknown;
+      try {
+        parsedJson = JSON.parse(jsonText);
+      } catch (err) {
+        throw new Error(
+          `خطأ في بناء JSON داخل ملف الأرشيف '${rawFileName}': ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+      }
+      jsonFilesByPath[normalizedLower] = parsedJson;
+      if (!(baseName in jsonFiles)) {
+        jsonFiles[baseName] = parsedJson;
+      } else {
+        jsonFiles[normalizedLower] = parsedJson;
+      }
+    } else if (inferredMediaMime) {
+      const isSvg = baseName.endsWith('.svg');
+      let finalBytes = new Uint8Array(uncompressedBytes);
+      let sanitizedSvgText: string | undefined;
+
+      if (isSvg) {
+        const rawSvgText = decoder.decode(finalBytes);
+        const svgCheck = inspectAndSanitizeSvgArchiveText(rawSvgText, rawFileName);
+        if (!svgCheck.safe || !svgCheck.sanitizedSvgText) {
+          return {
+            inspection: {
+              safe: false,
+              archiveSizeBytes: zipBytes.byteLength,
+              totalUncompressedBytes: cumulativeUncompressedBytes,
+              entryCount: totalEntries,
+              maxObservedCompressionRatio: maxObservedRatio,
+              blockedEntryName: rawFileName,
+              violationCode: 'DANGEROUS_FILE_TYPE',
+              reason: svgCheck.reason || `ملف SVG '${rawFileName}' مرفوض أمنياً.`
+            },
+            jsonFiles: {}
+          };
+        }
+        sanitizedSvgText = svgCheck.sanitizedSvgText;
+        finalBytes = new TextEncoder().encode(sanitizedSvgText);
+      }
+
+      mediaFiles[normalizedLower] = {
+        relativePath: normalizedPath,
+        normalizedPath: normalizedLower,
+        baseName,
+        mimeType: inferredMediaMime,
+        sizeBytes: finalBytes.byteLength,
+        sha256: sha256Hex,
+        bytes: finalBytes,
+        ...(isSvg ? { isSvg: true, sanitizedSvgText } : {})
+      };
     }
   }
 
@@ -1630,7 +1770,10 @@ export async function inspectAndExtractSafeZipPackage(
       entryCount: totalEntries,
       maxObservedCompressionRatio: maxObservedRatio
     },
-    jsonFiles
+    jsonFiles,
+    jsonFilesByPath,
+    mediaFiles,
+    rawFileSha256ByPath
   };
 }
 
@@ -1664,91 +1807,183 @@ function extractZipJsonArray(content: unknown, domainKey?: string): unknown[] | 
   return null;
 }
 
+function mergeZipCollectionArray(
+  target: Record<string, unknown>,
+  field: string,
+  incoming: unknown[]
+): void {
+  const current = Array.isArray(target[field]) ? (target[field] as unknown[]) : [];
+  target[field] = [...current, ...incoming];
+}
+
 /**
  * Combines modular JSON files from a ZIP archive (including all 13 UMEDT-DATA files:
  * `manifest.json`, `catalog.json`, `terms.json`, `sentences.json`, `topics.json`,
  * `affixes.json`, `abbreviations.json`, `blocks.json`, `subjects.json`, `books.json`,
- * `questions.json`, `exams.json`, `media-index.json`) OR a single unified JSON file inside the ZIP
+ * `questions.json`, `exams.json`, `media-index.json`) OR subfolder shards OR a single unified JSON file inside the ZIP
  * into a unified object ready for `validateDataPackageObject`.
  */
 export function assemblePackageFromZipJsonMap(
-  jsonFiles: Record<string, unknown>
+  jsonFiles: Record<string, unknown>,
+  jsonFilesByPath?: Record<string, unknown>
 ): Record<string, unknown> {
-  const fileNames = Object.keys(jsonFiles);
-  if (fileNames.length === 1) {
-    const single = jsonFiles[fileNames[0]];
+  const sourceEntries = Object.entries(
+    jsonFilesByPath && Object.keys(jsonFilesByPath).length > 0 ? jsonFilesByPath : jsonFiles
+  );
+  if (sourceEntries.length === 1) {
+    const [, single] = sourceEntries[0];
+    const [onlyName] = sourceEntries[0];
+    const baseOnly = (onlyName.split('/').pop() || onlyName).toLowerCase();
     if (single && typeof single === 'object') {
-      return Array.isArray(single)
-        ? { terms: single }
-        : (single as Record<string, unknown>);
+      if (Array.isArray(single)) {
+        if (baseOnly === 'topics.json') return { topics: single };
+        if (baseOnly === 'blocks.json') return { blocks: single };
+        if (baseOnly === 'subjects.json') return { subjects: single };
+        if (baseOnly === 'sentences.json') return { sentences: single };
+        if (baseOnly === 'books.json') return { books: single };
+        if (baseOnly === 'questions.json' || baseOnly === 'quiz-questions.json') {
+          return { questions: single };
+        }
+        if (baseOnly === 'exams.json') return { exams: single };
+        if (baseOnly === 'media-index.json' || baseOnly === 'mediaassets.json') {
+          return { mediaAssets: single };
+        }
+        return { terms: single };
+      }
+      return single as Record<string, unknown>;
     }
   }
 
   const combined: Record<string, unknown> = {};
+  const catalogCollectionByPath = new Map<string, string>();
 
-  for (const [rawName, content] of Object.entries(jsonFiles)) {
-    const name = (rawName.split('/').pop() || rawName).toLowerCase();
+  // Pre-scan catalog.json so subfolder paths referenced in catalog.collections[].rawUrl route accurately
+  for (const [rawName, content] of sourceEntries) {
+    const base = (rawName.split('/').pop() || rawName).toLowerCase();
+    if (base === 'catalog.json' && content && typeof content === 'object' && !Array.isArray(content)) {
+      combined.catalog = content;
+      const collections = (content as { collections?: Array<{ id?: string; contentType?: string; rawUrl?: string }> }).collections;
+      if (Array.isArray(collections)) {
+        for (const col of collections) {
+          if (!col?.rawUrl) continue;
+          const normPath = normalizeArchiveEntryPath(col.rawUrl).toLowerCase();
+          const typeKey = (col.contentType || col.id || '').toLowerCase();
+          if (normPath && typeKey) {
+            catalogCollectionByPath.set(normPath, typeKey);
+          }
+        }
+      }
+    }
+  }
+
+  for (const [rawName, content] of sourceEntries) {
+    const normPath = normalizeArchiveEntryPath(rawName).toLowerCase();
+    const name = (normPath.split('/').pop() || normPath).toLowerCase();
+    const catalogMappedType = catalogCollectionByPath.get(normPath) || '';
+    const dirSegment = normPath.includes('/') ? normPath.split('/')[0] : '';
+
     if (name === 'manifest.json' && content && typeof content === 'object' && !Array.isArray(content)) {
       combined.manifest = content;
     } else if (name === 'catalog.json' && content && typeof content === 'object' && !Array.isArray(content)) {
       combined.catalog = content;
-    } else if (name === 'terms.json') {
+    } else if (
+      name === 'terms.json' ||
+      catalogMappedType === 'term' ||
+      catalogMappedType === 'terms' ||
+      dirSegment === 'terms'
+    ) {
       const arr = extractZipJsonArray(content, 'terms');
-      if (arr) combined.terms = arr;
-    } else if (name === 'sentences.json') {
+      if (arr) mergeZipCollectionArray(combined, 'terms', arr);
+    } else if (
+      name === 'sentences.json' ||
+      catalogMappedType === 'sentence' ||
+      catalogMappedType === 'sentences' ||
+      dirSegment === 'sentences'
+    ) {
       const arr = extractZipJsonArray(content, 'sentences');
-      if (arr) combined.sentences = arr;
-    } else if (name === 'topics.json') {
+      if (arr) mergeZipCollectionArray(combined, 'sentences', arr);
+    } else if (
+      name === 'topics.json' ||
+      catalogMappedType === 'topic' ||
+      catalogMappedType === 'topics' ||
+      dirSegment === 'topics'
+    ) {
       const arr = extractZipJsonArray(content, 'topics');
-      if (arr) combined.topics = arr;
+      if (arr) mergeZipCollectionArray(combined, 'topics', arr);
     } else if (
       name === 'affixes.json' ||
       name === 'custom-affixes.json' ||
       name === 'customaffixes.json' ||
-      name === 'morphology.json'
+      name === 'morphology.json' ||
+      catalogMappedType === 'affix' ||
+      catalogMappedType === 'affixes'
     ) {
       const arr = extractZipJsonArray(content, 'affixes') || extractZipJsonArray(content, 'customAffixes');
-      if (arr) combined.customAffixes = arr;
+      if (arr) mergeZipCollectionArray(combined, 'customAffixes', arr);
     } else if (
       name === 'abbreviations.json' ||
       name === 'custom-abbreviations.json' ||
-      name === 'customabbreviations.json'
+      name === 'customabbreviations.json' ||
+      catalogMappedType === 'abbreviation' ||
+      catalogMappedType === 'abbreviations'
     ) {
       const arr =
         extractZipJsonArray(content, 'abbreviations') ||
         extractZipJsonArray(content, 'customAbbreviations');
-      if (arr) combined.customAbbreviations = arr;
-    } else if (name === 'blocks.json') {
+      if (arr) mergeZipCollectionArray(combined, 'customAbbreviations', arr);
+    } else if (
+      name === 'blocks.json' ||
+      catalogMappedType === 'block' ||
+      catalogMappedType === 'blocks'
+    ) {
       const arr = extractZipJsonArray(content, 'blocks');
-      if (arr) combined.blocks = arr;
-    } else if (name === 'subjects.json') {
+      if (arr) mergeZipCollectionArray(combined, 'blocks', arr);
+    } else if (
+      name === 'subjects.json' ||
+      catalogMappedType === 'subject' ||
+      catalogMappedType === 'subjects'
+    ) {
       const arr = extractZipJsonArray(content, 'subjects');
-      if (arr) combined.subjects = arr;
-    } else if (name === 'books.json') {
+      if (arr) mergeZipCollectionArray(combined, 'subjects', arr);
+    } else if (
+      name === 'books.json' ||
+      catalogMappedType === 'book' ||
+      catalogMappedType === 'books'
+    ) {
       const arr = extractZipJsonArray(content, 'books');
-      if (arr) combined.books = arr;
-    } else if (name === 'questions.json' || name === 'quiz-questions.json') {
+      if (arr) mergeZipCollectionArray(combined, 'books', arr);
+    } else if (
+      name === 'questions.json' ||
+      name === 'quiz-questions.json' ||
+      catalogMappedType === 'question' ||
+      catalogMappedType === 'questions'
+    ) {
       const arr =
         extractZipJsonArray(content, 'questions') || extractZipJsonArray(content, 'quizQuestions');
-      if (arr) combined.questions = arr;
-    } else if (name === 'exams.json') {
+      if (arr) mergeZipCollectionArray(combined, 'questions', arr);
+    } else if (
+      name === 'exams.json' ||
+      catalogMappedType === 'exam' ||
+      catalogMappedType === 'exams'
+    ) {
       const arr = extractZipJsonArray(content, 'exams');
-      if (arr) combined.exams = arr;
+      if (arr) mergeZipCollectionArray(combined, 'exams', arr);
     } else if (name === 'quiz-attempts.json') {
       const arr = extractZipJsonArray(content, 'quizAttempts');
-      if (arr) combined.quizAttempts = arr;
+      if (arr) mergeZipCollectionArray(combined, 'quizAttempts', arr);
     } else if (name === 'user-notes.json') {
       const arr = extractZipJsonArray(content, 'userNotes');
-      if (arr) combined.userNotes = arr;
+      if (arr) mergeZipCollectionArray(combined, 'userNotes', arr);
     } else if (
       name === 'media-index.json' ||
       name === 'mediaassets.json' ||
       name === 'media-assets.json' ||
-      name === 'media.json'
+      name === 'media.json' ||
+      catalogMappedType.includes('media')
     ) {
       const arr =
         extractZipJsonArray(content, 'mediaAssets') || extractZipJsonArray(content, 'media');
-      if (arr) combined.mediaAssets = arr;
+      if (arr) mergeZipCollectionArray(combined, 'mediaAssets', arr);
     } else if (
       (name === 'data.json' ||
         name === 'package.json' ||
@@ -1775,7 +2010,7 @@ export function assemblePackageFromZipJsonMap(
     !combined.exams &&
     !combined.mediaAssets
   ) {
-    for (const content of Object.values(jsonFiles)) {
+    for (const [, content] of sourceEntries) {
       if (content && typeof content === 'object' && !Array.isArray(content)) {
         const candidate = content as Record<string, unknown>;
         if (
@@ -1783,8 +2018,11 @@ export function assemblePackageFromZipJsonMap(
           Array.isArray(candidate.sentences) ||
           Array.isArray(candidate.topics) ||
           Array.isArray(candidate.blocks) ||
+          Array.isArray(candidate.subjects) ||
           Array.isArray(candidate.books) ||
-          Array.isArray(candidate.questions)
+          Array.isArray(candidate.questions) ||
+          Array.isArray(candidate.exams) ||
+          Array.isArray(candidate.mediaAssets)
         ) {
           Object.assign(combined, candidate);
         }
@@ -1806,6 +2044,8 @@ export async function parseAndValidateImportInput(
 ): Promise<{
   sourceFormat: 'json' | 'zip';
   validation: DataValidationResult;
+  mediaFiles?: Record<string, ExtractedZipMediaFile>;
+  rawFileSha256ByPath?: Record<string, string>;
 }> {
   const effectivePolicy: ZipSecurityPolicy = {
     ...DEFAULT_ZIP_SECURITY_POLICY,
@@ -1881,11 +2121,53 @@ export async function parseAndValidateImportInput(
     (bytes[2] === 0x03 || bytes[2] === 0x05);
 
   if (isZipSignature || fileName.toLowerCase().endsWith('.zip')) {
-    const jsonMap = await extractJsonFilesFromZipBytes(bytes, effectivePolicy);
-    const combinedObject = assemblePackageFromZipJsonMap(jsonMap);
+    const extracted = await inspectAndExtractSafeZipPackage(bytes, effectivePolicy);
+    if (!extracted.inspection.safe) {
+      throw new Error(
+        extracted.inspection.reason ||
+          'تم رفض ملف ZIP بواسطة درع الحماية الأمنية (ZIP Security Guard).'
+      );
+    }
+    const combinedObject = assemblePackageFromZipJsonMap(
+      extracted.jsonFiles,
+      extracted.jsonFilesByPath
+    );
+    const validation = validateDataPackageObject(combinedObject);
+
+    // Verify manifest.filesSha256 against actual extracted archive files if declared
+    const declaredFilesSha = validation.manifest?.filesSha256;
+    if (declaredFilesSha && extracted.rawFileSha256ByPath) {
+      for (const [declaredPath, rawExpected] of Object.entries(declaredFilesSha)) {
+        if (typeof rawExpected !== 'string' || !rawExpected.trim()) continue;
+        const normDecl = normalizeArchiveEntryPath(declaredPath).toLowerCase();
+        const baseDecl = (normDecl.split('/').pop() || normDecl).toLowerCase();
+        const actualDigest =
+          extracted.rawFileSha256ByPath[normDecl] ||
+          Object.entries(extracted.rawFileSha256ByPath).find(
+            ([k]) => (k.split('/').pop() || k).toLowerCase() === baseDecl
+          )?.[1];
+        if (!actualDigest) {
+          validation.errors.push(
+            `ملف '${declaredPath}' المعلن في manifest.filesSha256 مفقود من الأرشيف.`
+          );
+          validation.valid = false;
+          continue;
+        }
+        const expectedNorm = normalizeExpectedSha256Hex(rawExpected);
+        if (actualDigest.toLowerCase() !== expectedNorm) {
+          validation.errors.push(
+            `فشل التحقق من بصمة SHA-256 للملف '${declaredPath}' داخل الأرشيف.`
+          );
+          validation.valid = false;
+        }
+      }
+    }
+
     return {
       sourceFormat: 'zip',
-      validation: validateDataPackageObject(combinedObject)
+      validation,
+      mediaFiles: extracted.mediaFiles,
+      rawFileSha256ByPath: extracted.rawFileSha256ByPath
     };
   }
 
@@ -1919,10 +2201,15 @@ export async function parseAndValidateImportInput(
 
 /**
  * Creates a standard, uncompressed (Store method 0) ZIP archive in memory containing modular
- * UMED-2 JSON files (`manifest.json`, `terms.json`, `sentences.json`, `topics.json`, `affixes.json`, `abbreviations.json`).
- * Zero external dependencies.
+ * UMED-2 JSON files (`manifest.json`, `terms.json`, `sentences.json`, `topics.json`, `affixes.json`, `abbreviations.json`)
+ * plus optional binary/SVG media entries. Zero external dependencies.
  */
-export function buildDataPackageZipBytes(payload: DataPackagePayload): Uint8Array {
+export function buildDataPackageZipBytes(
+  payload: DataPackagePayload,
+  options?: {
+    mediaEntries?: Array<{ path: string; bytes: Uint8Array }>;
+  }
+): Uint8Array {
   const files: Array<{ name: string; data: Uint8Array }> = [];
   const encoder = new TextEncoder();
 
@@ -1958,6 +2245,14 @@ export function buildDataPackageZipBytes(payload: DataPackagePayload): Uint8Arra
     files.push({
       name,
       data: encoder.encode(JSON.stringify(content, null, 2))
+    });
+  }
+
+  for (const mediaEntry of options?.mediaEntries || []) {
+    if (!mediaEntry?.path || !mediaEntry.bytes) continue;
+    files.push({
+      name: normalizeArchiveEntryPath(mediaEntry.path),
+      data: mediaEntry.bytes
     });
   }
 

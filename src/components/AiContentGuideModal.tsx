@@ -12,13 +12,16 @@ import {
   Sliders,
   Download,
   Layers,
-  FileText,
-  GraduationCap
+  FileText
 } from 'lucide-react';
 import {
   importUniversalAiOrLocalContent,
   UniversalImportReport
 } from '../services/aiUniversalImportService';
+import {
+  loadMedicalBlocks,
+  loadMedicalSubjects
+} from '../services/learningHierarchyService';
 
 interface AiContentGuideModalProps {
   isOpen: boolean;
@@ -31,14 +34,13 @@ interface AiContentGuideModalProps {
 
 type GuideTab = 'builder' | 'prompts' | 'templates' | 'rules';
 
-type PromptTargetScope =
-  | 'block'
-  | 'subject'
-  | 'topic'
-  | 'massive_lexicon'
-  | 'exam_bank';
+type PromptTargetScope = 'block' | 'subject' | 'topic';
 
-type PromptOutputFormat = 'json_file' | 'high_density_text' | 'both';
+type PromptOutputFormat =
+  | 'both'
+  | 'json_file'
+  | 'high_density_text'
+  | 'markdown_file';
 
 type TemplateKey =
   | 'block_subject'
@@ -61,14 +63,14 @@ const COVERAGE_AXIS_PRESETS = [
   { ar: 'الطوارئ والمضاعفات والإنذار', en: 'Emergencies, Complications & Prognosis' }
 ];
 
-const SYSTEM_PROMPT_CHATGPT_GEMINI = `أنت خبير أكاديمي طبي ومهندس بيانات تعليمية لمنصة UMEDT (القاموس الطبي والمنصة التعليمية السريرية).
-مهمتك: توليد محتوى طبي دقيق ومنظّم بصيغة JSON أو نص عالي الكثافة صالح للاستيراد المباشر داخل تطبيق UMEDT أو للنشر في مستودع UMEDT-DATA.
+const SYSTEM_PROMPT_UNIVERSAL_AI = `أنت خبير أكاديمي طبي ومهندس بيانات تعليمية لمنصة UMEDT (القاموس الطبي والمنصة التعليمية السريرية).
+مهمتك: توليد محتوى طبي دقيق ومنظّم بصيغة JSON أو Markdown أو نص عالي الكثافة (||) صالح للاستيراد المباشر داخل تطبيق UMEDT أو للنشر في مستودع UMEDT-DATA.
 
 قواعد الإخراج الإلزامية (Strict Output Contract — UMEDT-DATA v2):
-1. أخرج كائن JSON صالحاً داخل كتلة \`\`\`json ... \`\`\` أو أسطر عالية الكثافة مفصولة بـ || حسب طلب المستخدم دون حشو خارجي.
+1. أخرج النتيجة بالصيغة المطلوبة تماماً (ملف أو كود JSON أو ملف Markdown .md أو ملف نصي عالي الكثافة .txt بفواصل ||) دون حشو خارجي.
 2. لا تضع أي روابط base64 ضخمة (data:...)؛ للصور وملفات PDF والصوت والفيديو استخدم downloadUrl / rawUrl / externalUrl بصيغة https:// مباشرة.
-3. استخدم معرفات ثابتة واضحة بالصيغة: blk-..., subj-..., tp-..., term-..., sent-..., q-..., exam-..., book-..., asset-... لكي يطابقها التطبيق ويمنع التكرار عبر SHA-256.
-4. يجب أن يتضمن كل موضوع أو مصطلح النصوص الإنجليزية السريرية (titleEn / term / definitionEn) مع الترجمة والشرح العربي الدقيق (titleAr / translation / definitionAr).
+3. استخدم معرفات ثابتة واضحة بالصيغة: block-..., subj-..., tp-..., term-..., sent-..., q-..., exam-..., book-..., asset-... لكي يطابقها التطبيق ويمنع التكرار عبر SHA-256.
+4. اربط كل موضوع صراحةً بكلٍ من blockId و subjectId لضمان ظهوره داخل المادة الصحيحة داخل البلوك الصحيح.
 5. جميع أنواع البلوكات المدعومة داخل sections[].contentBlocks:
    - heading | paragraph | table | clinical_note | diagram | image | pdf_viewer | book_reference | exam_link | audio | video | video_link | attachment | question
 6. جميع أنواع الأسئلة المدعومة في questions[] (UnifiedQuestionType):
@@ -426,8 +428,17 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
 
   // Interactive Prompt Builder State
   const [targetScope, setTargetScope] = useState<PromptTargetScope>('block');
-  const [targetName, setTargetName] = useState<string>('Cardiovascular System (الجهاز القلبي الوعائي)');
-  const [parentContextCode, setParentContextCode] = useState<string>('BLK-CVS');
+  const [blockName, setBlockName] = useState<string>(
+    'Cardiovascular System Block (بلوك الجهاز القلبي الوعائي)'
+  );
+  const [blockCode, setBlockCode] = useState<string>('BLK-CV');
+  const [subjectName, setSubjectName] = useState<string>(
+    'Cardiovascular Histology (علم أنسجة الجهاز القلبي الوعائي)'
+  );
+  const [subjectCode, setSubjectCode] = useState<string>('CV-HIST');
+  const [topicName, setTopicName] = useState<string>(
+    'Histological Layers of the Heart Wall (الطبقات النسيجية لجدار القلب)'
+  );
   const [subjectsCount, setSubjectsCount] = useState<number>(4);
   const [topicsCount, setTopicsCount] = useState<number>(12);
   const [termsCount, setTermsCount] = useState<number>(500);
@@ -442,7 +453,10 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
   const [includeAllQuestionTypes, setIncludeAllQuestionTypes] = useState<boolean>(true);
   const [includeAffixesAndAbbrs, setIncludeAffixesAndAbbrs] = useState<boolean>(true);
   const [includeBooksAndMedia, setIncludeBooksAndMedia] = useState<boolean>(false);
-  const [outputFormat, setOutputFormat] = useState<PromptOutputFormat>('both');
+  const [outputFormat, setOutputFormat] = useState<PromptOutputFormat>('json_file');
+
+  const savedBlocks = useMemo(() => (isOpen ? loadMedicalBlocks() : []), [isOpen]);
+  const savedSubjects = useMemo(() => (isOpen ? loadMedicalSubjects() : []), [isOpen]);
 
   const activeTemplateData = useMemo(
     () => JSON_TEMPLATES[selectedTemplate],
@@ -468,21 +482,38 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
     }
   };
 
+  const toSlug = (raw: string, fallback: string) => {
+    const ascii = raw
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    return ascii || fallback;
+  };
+
   const generatedEnglishPrompt = useMemo(() => {
-    const cleanName = targetName.trim() || 'Cardiovascular Medicine (طب القلب والأوعية الدموية)';
-    const cleanCode = (parentContextCode.trim() || 'BLK-MED').toUpperCase();
-    const slug = cleanCode.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const cleanBlockName =
+      blockName.trim() || 'Cardiovascular System Block (بلوك الجهاز القلبي الوعائي)';
+    const cleanBlockCode = (blockCode.trim() || 'BLK-CV').toUpperCase();
+    const cleanSubjectName =
+      subjectName.trim() || 'Clinical Cardiology (أمراض القلب السريرية)';
+    const cleanSubjectCode = (subjectCode.trim() || `${cleanBlockCode}-101`).toUpperCase();
+    const cleanTopicName =
+      topicName.trim() || 'Core Clinical Topic (موضوع سريري شامل)';
+
+    const blockSlug = toSlug(cleanBlockCode || cleanBlockName, 'med-block');
+    const subjectSlug = toSlug(cleanSubjectCode || cleanSubjectName, 'med-subject');
+    const topicSlug = toSlug(cleanTopicName, 'med-topic');
+
+    const blockIdRef = `block-${blockSlug}`;
+    const subjectIdRef = `subj-${subjectSlug}`;
+    const topicIdRef = `tp-${topicSlug}`;
 
     const scopeDescription =
       targetScope === 'block'
-        ? `a complete Medical Academic Block ("${cleanName}", Code: ${cleanCode}) with all its child Subjects (${subjectsCount} subjects), Topics (${topicsCount} comprehensive topics), Medical Terms (${termsCount} terms), Linked Clinical Sentences (${sentencesCount} sentences), and Assessment Questions (${questionsCount} questions)`
+        ? `a complete Medical Academic Block ("${cleanBlockName}", Code: ${cleanBlockCode}, ID: "${blockIdRef}") containing ${subjectsCount} Subjects (starting with "${cleanSubjectName}", Code: ${cleanSubjectCode}, ID: "${subjectIdRef}"), ${topicsCount} Comprehensive Topics (including "${cleanTopicName}"), ${termsCount} Medical Terms, ${sentencesCount} Linked Clinical Sentences, and ${questionsCount} Assessment Questions`
         : targetScope === 'subject'
-          ? `a complete Medical Subject ("${cleanName}", Code: ${cleanCode}) with all its Topics (${topicsCount} comprehensive topics), Medical Terms (${termsCount} terms), Linked Clinical Sentences (${sentencesCount} sentences), and Assessment Questions (${questionsCount} questions)`
-          : targetScope === 'topic'
-            ? `${topicsCount > 1 ? `${topicsCount} comprehensive interactive Medical Topics` : 'a comprehensive interactive Medical Topic'} on "${cleanName}" (Parent Block/Subject Code: ${cleanCode}), including ${termsCount} linked Medical Terms, ${sentencesCount} Clinical Sentences, and ${questionsCount} Assessment Questions`
-            : targetScope === 'massive_lexicon'
-              ? `a Massive Bilingual Medical Lexicon & Corpus on "${cleanName}" (${cleanCode}) containing ${termsCount} Medical Terms, ${sentencesCount} Linked Clinical Sentences, Morphological Affixes (roots/prefixes/suffixes), and Clinical Abbreviations`
-              : `a Comprehensive Medical Exam & Question Bank on "${cleanName}" (${cleanCode}) containing ${questionsCount} high-yield clinical questions and ${termsCount} key medical terms`;
+          ? `a complete Medical Subject ("${cleanSubjectName}", Code: ${cleanSubjectCode}, ID: "${subjectIdRef}") strictly linked under Parent Block ("${cleanBlockName}", Code: ${cleanBlockCode}, ID: "${blockIdRef}"), containing ${topicsCount} Comprehensive Topics (including "${cleanTopicName}"), ${termsCount} Medical Terms, ${sentencesCount} Linked Clinical Sentences, and ${questionsCount} Assessment Questions`
+          : `a Comprehensive Interactive Medical Topic ("${cleanTopicName}", ID: "${topicIdRef}") strictly linked under Parent Subject ("${cleanSubjectName}", Code: ${cleanSubjectCode}, ID: "${subjectIdRef}") and Parent Block ("${cleanBlockName}", Code: ${cleanBlockCode}, ID: "${blockIdRef}"), including ${termsCount} linked Medical Terms, ${sentencesCount} Clinical Sentences, and ${questionsCount} Assessment Questions`;
 
     const requiredBlocksList: string[] = [
       '- Bilingual rich paragraphs (`type: "paragraph"`, `text` in English + `textAr` in Arabic)'
@@ -512,19 +543,28 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
       ? 'Use a rich mix of all 7 UMEDT question types: `single_choice`, `multiple_select`, `true_false`, `matching` (with `matchingPairs: [{id, leftEn, leftAr, rightEn, rightAr}]`), `fill_blank` (with `acceptableAnswers: string[]`), `short_answer` (with `acceptableAnswers: string[]`), and `image_based`.'
       : 'Use clinical `single_choice`, `multiple_select`, and `true_false` questions with `options: [{key: "A", textEn: "...", textAr: "..."}]` and `correctOptionKeys: ["A"]`.';
 
+    const selectedFileExtensionLabel =
+      outputFormat === 'json_file'
+        ? 'JSON File (.json)'
+        : outputFormat === 'high_density_text'
+          ? 'Plain Text File (.txt) — High-Density Pipe-Delimited Protocol (||)'
+          : outputFormat === 'markdown_file'
+            ? 'Markdown File (.md) — Structured Headings & Tables'
+            : 'Hybrid Package (.json + High-Density || Text)';
+
     const formatInstructions =
       outputFormat === 'json_file'
-        ? `### OUTPUT FORMAT: STRICT UMEDT JSON FILE / CODE BLOCK
-Provide a single valid JSON object (either as a downloadable \`.json\` file or inside a single \`\`\`json ... \`\`\` block) following this exact root structure:
+        ? `### OUTPUT FILE FORMAT: STRICT UMEDT JSON FILE (\`.json\`)
+Deliver a single valid JSON file (\`umedt-${targetScope}-${subjectSlug}.json\`) or a single clean \`\`\`json ... \`\`\` code block with NO external commentary, strictly matching this hierarchy contract:
 \`\`\`json
 {
   "format": "umedt-ai-bundle-v2",
   "blocks": [
     {
-      "id": "block-${slug}",
-      "code": "${cleanCode}",
-      "titleEn": "...",
-      "titleAr": "...",
+      "id": "${blockIdRef}",
+      "code": "${cleanBlockCode}",
+      "titleEn": "${cleanBlockName}",
+      "titleAr": "${cleanBlockName}",
       "descriptionEn": "...",
       "descriptionAr": "...",
       "colorAccent": "emerald",
@@ -533,11 +573,11 @@ Provide a single valid JSON object (either as a downloadable \`.json\` file or i
   ],
   "subjects": [
     {
-      "id": "subj-${slug}-1",
-      "blockId": "block-${slug}",
-      "code": "${cleanCode}-101",
-      "titleEn": "...",
-      "titleAr": "...",
+      "id": "${subjectIdRef}",
+      "blockId": "${blockIdRef}",
+      "code": "${cleanSubjectCode}",
+      "titleEn": "${cleanSubjectName}",
+      "titleAr": "${cleanSubjectName}",
       "descriptionEn": "...",
       "descriptionAr": "...",
       "order": 1
@@ -545,11 +585,11 @@ Provide a single valid JSON object (either as a downloadable \`.json\` file or i
   ],
   "topics": [
     {
-      "id": "tp-${slug}-1",
-      "blockId": "block-${slug}",
-      "subjectId": "subj-${slug}-1",
-      "titleEn": "...",
-      "titleAr": "...",
+      "id": "${topicIdRef}",
+      "blockId": "${blockIdRef}",
+      "subjectId": "${subjectIdRef}",
+      "titleEn": "${cleanTopicName}",
+      "titleAr": "${cleanTopicName}",
       "subtitle": "...",
       "category": "Medical",
       "readingTimeMinutes": 10,
@@ -571,7 +611,7 @@ Provide a single valid JSON object (either as a downloadable \`.json\` file or i
   ],
   "terms": [
     {
-      "id": "term-${slug}-1",
+      "id": "term-${subjectSlug}-1",
       "term": "English Medical Term",
       "translation": "الترجمة الطبية بالعربية",
       "phonetic": "/.../",
@@ -580,27 +620,27 @@ Provide a single valid JSON object (either as a downloadable \`.json\` file or i
       "definitionAr": "تعريف طبي سريري دقيق بالعربية...",
       "definitionEn": "Precise clinical definition in English...",
       "examples": [{ "en": "Clinical example sentence in English.", "ar": "ترجمة الجملة السريرية بالعربية." }],
-      "linkedBlockIds": ["block-${slug}"],
-      "linkedSubjectIds": ["subj-${slug}-1"],
-      "linkedTopicIds": ["tp-${slug}-1"]
+      "linkedBlockIds": ["${blockIdRef}"],
+      "linkedSubjectIds": ["${subjectIdRef}"],
+      "linkedTopicIds": ["${topicIdRef}"]
     }
   ],
   "sentences": [
     {
-      "id": "sen-${slug}-1",
+      "id": "sen-${subjectSlug}-1",
       "en": "High-yield clinical sentence in English.",
       "ar": "الترجمة العربية الدقيقة للجملة السريرية.",
       "category": "Medical",
-      "tags": ["${cleanCode}"]
+      "tags": ["${cleanSubjectCode}"]
     }
   ],
   "questions": [
     {
-      "id": "q-${slug}-1",
+      "id": "q-${subjectSlug}-1",
       "type": "single_choice",
-      "blockId": "block-${slug}",
-      "subjectId": "subj-${slug}-1",
-      "topicId": "tp-${slug}-1",
+      "blockId": "${blockIdRef}",
+      "subjectId": "${subjectIdRef}",
+      "topicId": "${topicIdRef}",
       "difficulty": "medium",
       "questionEn": "Clinical vignette and question stem in English?",
       "questionAr": "نص السؤال السريري بالعربية؟",
@@ -611,7 +651,7 @@ Provide a single valid JSON object (either as a downloadable \`.json\` file or i
         { "key": "D", "textEn": "Option D", "textAr": "الخيار د" }
       ],
       "correctOptionKeys": ["A"],
-      "explanationEn": "Detailed pathophysiological explanation in English.",
+      "explanationEn": "Detailed explanation in English.",
       "explanationAr": "الشرح العلمي التفصيلي بالعربية."
     }
   ]${
@@ -621,64 +661,88 @@ Provide a single valid JSON object (either as a downloadable \`.json\` file or i
     { "affix": "cardi-", "cleanKey": "cardi", "type": "root", "meaningAr": "قلب", "meaningEn": "heart", "examples": ["cardiomyopathy"] }
   ],
   "customAbbreviations": [
-    { "abbr": "ACS", "expansionEn": "Acute Coronary Syndrome", "meaningAr": "المتلازمة التاجية الحادة", "specialty": "${cleanName}" }
+    { "abbr": "ACS", "expansionEn": "Acute Coronary Syndrome", "meaningAr": "المتلازمة التاجية الحادة", "specialty": "${cleanSubjectName}" }
   ]`
       : ''
   }
 }
 \`\`\``
         : outputFormat === 'high_density_text'
-          ? `### OUTPUT FORMAT: UMEDT HIGH-DENSITY PIPE-DELIMITED STREAM (OPTIMIZED FOR THOUSANDS OF RECORDS)
-To maximize token efficiency and output thousands of terms, sentences, and topics without JSON bracket overhead, output plain text lines using the exact UMEDT \`||\` pipe protocol below (one record per line, no extra commentary):
+          ? `### OUTPUT FILE FORMAT: PLAIN TEXT HIGH-DENSITY FILE (\`.txt\` using \`||\` Pipe Protocol)
+Deliver a plain text file (\`umedt-${targetScope}-${subjectSlug}.txt\`) or plain text code block containing one record per line using the exact UMEDT \`||\` delimiter protocol below (NO prose/commentary outside the lines):
 
-1. For Blocks:
-\`BLOCK || ${cleanCode} || English Block Title || اسم البلوك بالعربية || وصف البلوك بالعربية\`
-2. For Subjects:
-\`SUBJECT || ${cleanCode} || ${cleanCode}-101 || English Subject Title || اسم المادة بالعربية || وصف المادة بالعربية\`
-3. For Topics (separate paragraphs with \`;;\`):
-\`TOPIC || block-${slug} || subj-${slug}-1 || English Topic Title || عنوان الموضوع بالعربية || Paragraph 1 in English & Arabic ;; Paragraph 2 in English & Arabic ;; High-yield clinical summary\`
-4. For Medical Terms (up to ${termsCount} terms):
+1. Block definition (ALWAYS keep the parent Block intact):
+\`BLOCK || ${cleanBlockCode} || ${cleanBlockName} || ${cleanBlockName} || Bilingual Block Description\`
+2. Subject definition (linked to \`${cleanBlockCode}\`):
+\`SUBJECT || ${cleanBlockCode} || ${cleanSubjectCode} || ${cleanSubjectName} || ${cleanSubjectName} || Bilingual Subject Description\`
+3. Topic records (ALWAYS linked to \`${blockIdRef}\` and \`${subjectIdRef}\`, separate paragraphs with \`;;\`):
+\`TOPIC || ${blockIdRef} || ${subjectIdRef} || ${cleanTopicName} || ${cleanTopicName} || Paragraph 1 in English & Arabic ;; Paragraph 2 in English & Arabic ;; High-yield clinical summary\`
+4. Medical Terms (generate all ${termsCount} terms):
 \`TERM || English Term || الترجمة العربية || noun || Medical || التعريف السريري بالعربية || Clinical definition in English || Clinical example sentence in English || ترجمة الجملة السريرية بالعربية\`
-5. For Standalone Clinical Sentences (up to ${sentencesCount} sentences):
+5. Standalone Clinical Sentences (generate all ${sentencesCount} sentences):
 \`SENTENCE || Clinical English sentence || الترجمة العربية الدقيقة للجملة || Medical\`
-6. For Assessment Questions (separate options with \`;\`):
+6. Assessment Questions (generate all ${questionsCount} questions; separate options with \`;\`):
 \`QUESTION || single_choice || Clinical question stem in English? || السؤال بالعربية؟ || A) Option 1; B) Option 2; C) Option 3; D) Option 4 || A || الشرح العلمي بالعربية || Detailed explanation in English\`${
               includeAffixesAndAbbrs
                 ? `
-7. For Morphological Affixes & Abbreviations:
+7. Morphological Affixes & Abbreviations:
 \`AFFIX || cardi || root || قلب || heart || cardiomyopathy; pericarditis\`
-\`ABBR || ACS || Acute Coronary Syndrome || المتلازمة التاجية الحادة || Cardiology\``
+\`ABBR || ACS || Acute Coronary Syndrome || المتلازمة التاجية الحادة || ${cleanSubjectName}\``
                 : ''
             }`
-          : `### OUTPUT FORMAT: HYBRID UMEDT PACKAGE (JSON HIERARCHY + HIGH-DENSITY LEXICON STREAM)
-You may either:
-- Generate a downloadable \`.json\` file (or \`\`\`json ... \`\`\` code block) containing the full \`blocks\`, \`subjects\`, \`topics\` (with \`sections\` and \`contentBlocks\`), \`questions\`, \`exams\`, \`terms\`, and \`sentences\`, OR
-- For massive batches of ${termsCount}+ terms and ${sentencesCount}+ sentences, output the rich \`blocks\`, \`subjects\`, and \`topics\` in a \`\`\`json ... \`\`\` block followed by high-density \`TERM || ...\` and \`SENTENCE || ...\` lines:
-  \`TERM || English Term || الترجمة العربية || noun || Medical || التعريف بالعربية || English definition || Example sentence En || ترجمة المثال بالعربية\`
-  \`SENTENCE || English clinical sentence || الترجمة العربية للجملة || Medical\`
-UMEDT's Universal Reader automatically parses both formats seamlessly.`;
+          : outputFormat === 'markdown_file'
+            ? `### OUTPUT FILE FORMAT: STRUCTURED MARKDOWN FILE (\`.md\`)
+Deliver a clean Markdown file (\`umedt-${targetScope}-${subjectSlug}.md\`) or a single \`\`\`markdown ... \`\`\` block strictly using UMEDT Markdown headings and tables so the Universal Reader imports the complete Block -> Subject -> Topic hierarchy directly:
+
+\`\`\`markdown
+# Block: ${cleanBlockName} | ${cleanBlockName}
+
+## Subject: ${cleanSubjectName} | ${cleanSubjectName}
+
+### Topic: ${cleanTopicName} | ${cleanTopicName}
+
+#### Pathophysiology & Key Concepts
+Rich clinical explanation paragraph in English followed by accurate Arabic explanation.
+
+| Term | Translation | DefinitionAr | DefinitionEn | ExampleEn | ExampleAr |
+| --- | --- | --- | --- | --- | --- |
+| Example Term | الترجمة العربية | التعريف العلمي بالعربية | Clinical definition in English | Example sentence in English. | ترجمة المثال بالعربية. |
+
+QUESTION || single_choice || Clinical question stem in English? || السؤال بالعربية؟ || A) Option 1; B) Option 2; C) Option 3; D) Option 4 || A || الشرح العلمي بالعربية || Detailed explanation in English
+\`\`\``
+            : `### OUTPUT FILE FORMAT: UNIFIED PACKAGE (\`.json\` Hierarchy + High-Density \`||\` Lexicon)
+You may generate either:
+- A complete downloadable \`.json\` file (\`umedt-${targetScope}-${subjectSlug}.json\`) containing \`blocks\`, \`subjects\`, \`topics\` (each with \`blockId: "${blockIdRef}"\` and \`subjectId: "${subjectIdRef}"\`), \`questions\`, \`terms\`, and \`sentences\`, OR
+- A \`\`\`json ... \`\`\` block for \`blocks\`, \`subjects\`, and rich \`topics\` (with tables & SVG diagrams) followed by high-density \`TERM || ...\` and \`SENTENCE || ...\` lines for massive batches (${termsCount} terms + ${sentencesCount} sentences).
+UMEDT's Universal Reader automatically ingests both seamlessly.`;
 
     return `You are a Senior Medical Educator, Clinical Lexicographer, and Data Architect for the UMEDT Medical Platform.
+Work cleanly regardless of which AI assistant/model runs this prompt. Follow the exact parameters below with zero deviations.
+
 Your task is to generate ${scopeDescription}.
 
 ====================================================================
-1. TARGET SPECIFICATION & QUANTITIES
+1. TARGET HIERARCHY, NAMES & FILE SPECIFICATION
 ====================================================================
-- Target Scope: ${targetScope.toUpperCase()}
-- Target Name / Specialty: ${cleanName}
-- Hierarchy Code / Prefix: ${cleanCode} (ID prefix: "${slug}")
-${targetScope === 'block' ? `- Number of Subjects to Generate: ${subjectsCount} Subjects\n` : ''}${
-      targetScope === 'block' || targetScope === 'subject' || targetScope === 'topic'
+- Target Level / Scope: ${targetScope.toUpperCase()}
+- Block Name: ${cleanBlockName}
+- Block Code & ID: ${cleanBlockCode} (use exact \`blockId: "${blockIdRef}"\`)
+- Subject Name: ${cleanSubjectName}
+- Subject Code & ID: ${cleanSubjectCode} (use exact \`subjectId: "${subjectIdRef}"\` with \`blockId: "${blockIdRef}"\`)
+- Focus / Sample Topic Name: ${cleanTopicName} (start topic ID with \`"${topicIdRef}"\`, and ALWAYS set both \`"blockId": "${blockIdRef}"\` and \`"subjectId": "${subjectIdRef}"\`)
+- Requested Output File Type: ${selectedFileExtensionLabel}
+${targetScope === 'block' ? `- Number of Subjects in Block: ${subjectsCount} Subjects\n` : ''}${
+      targetScope === 'block' || targetScope === 'subject'
         ? `- Number of Topics to Generate: ${topicsCount} Comprehensive Topics\n`
-        : ''
-    }- Number of Medical Terms to Generate: ${termsCount} Bilingual Terms (English + Arabic translation + definitions + clinical example sentences)
-- Number of Linked Clinical Sentences: ${sentencesCount} Bilingual Sentences (English + Arabic)
+        : `- Number of Topics to Generate: 1 Deep Comprehensive Topic focused strictly on "${cleanTopicName}"\n`
+    }- Number of Medical Terms: ${termsCount} Bilingual Terms (English + Arabic translation + definitions + clinical examples)
+- Number of Clinical Sentences: ${sentencesCount} Bilingual Sentences (English + Arabic)
 - Number of Clinical Assessment Questions: ${questionsCount} Questions
 
 ====================================================================
-2. REQUIRED TOPIC AXES & CLINICAL COVERAGE
+2. REQUIRED TOPIC AXES & CONTENT STRUCTURE
 ====================================================================
-Every generated topic must thoroughly cover the following clinical axes:
+Cover these scientific & clinical axes thoroughly:
 ${topicsCoverage || 'Anatomy, Physiology, Pathophysiology, Clinical Presentation, Diagnostic Workup, Differential Diagnosis, Pharmacology & Management'}
 
 Inside each topic's \`sections[].contentBlocks\`, include:
@@ -688,20 +752,24 @@ ${requiredBlocksList.join('\n')}
 3. ASSESSMENT & QUESTION BANK REQUIREMENTS
 ====================================================================
 - ${questionTypesSpec}
-- Every question MUST include both English (\`questionEn\`, \`explanationEn\`) and Arabic (\`questionAr\`, \`explanationAr\`) text, valid \`options\`, and accurate \`correctOptionKeys\`.
+- Every question MUST include both English (\`questionEn\`, \`explanationEn\`) and Arabic (\`questionAr\`, \`explanationAr\`), valid \`options\`, and accurate \`correctOptionKeys\`, linked via \`"blockId": "${blockIdRef}"\`, \`"subjectId": "${subjectIdRef}"\`, and \`"topicId": "${topicIdRef}"\`.
 
 ${formatInstructions}
 
 ====================================================================
-4. CRITICAL EXECUTION RULES (NO TRUNCATION / NO PLACEHOLDERS)
+4. CRITICAL EXECUTION RULES (UNIVERSAL — WORKS ON ANY AI MODEL)
 ====================================================================
 1. NEVER write placeholders such as "// ... repeat for remaining terms" or "... (omitted for brevity)". Every single record must be real, clinically accurate, and complete.
-2. Ensure 100% bilingual accuracy: precise international English medical terminology paired with natural, accurate Modern Standard Arabic medical terminology.
-3. If the requested volume (${termsCount} terms / ${sentencesCount} sentences / ${topicsCount} topics) exceeds a single response window, generate a downloadable file using your Python/Code Interpreter tool OR output Part 1 at maximum capacity and end with "[READY FOR PART 2 — SEND 'CONTINUE']" so all batches can be pasted or uploaded directly into UMEDT.`;
+2. NEVER omit \`blockId\` or \`subjectId\` on Topics or Questions. Every Topic under "${cleanSubjectName}" must carry BOTH \`"blockId": "${blockIdRef}"\` and \`"subjectId": "${subjectIdRef}"\`.
+3. Ensure 100% bilingual accuracy: precise international English medical terminology paired with natural, accurate Modern Standard Arabic medical terminology.
+4. If the requested file size exceeds a single turn limit, generate a downloadable file if supported by your environment OR output Part 1 at maximum capacity ending with "[READY FOR PART 2 — SEND 'CONTINUE']" so the user can download/paste cleanly into UMEDT.`;
   }, [
     targetScope,
-    targetName,
-    parentContextCode,
+    blockName,
+    blockCode,
+    subjectName,
+    subjectCode,
+    topicName,
     subjectsCount,
     topicsCount,
     termsCount,
@@ -744,9 +812,7 @@ ${formatInstructions}
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      const safeSlug = (parentContextCode || 'umedt-prompt')
-        .toLowerCase()
-        .replace(/[^a-z0-9_-]+/g, '-');
+      const safeSlug = toSlug(subjectCode || blockCode || 'umedt-prompt', 'umedt-prompt');
       a.href = url;
       a.download = `UMEDT_AI_Prompt_${targetScope}_${safeSlug}.txt`;
       document.body.appendChild(a);
@@ -796,7 +862,7 @@ ${formatInstructions}
                 مولّد برومبت الذكاء الاصطناعي ودليل التوليد
               </h2>
               <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">
-                إعداد البرومبت الإنجليزي المخصص · ChatGPT & Gemini · عقود UMEDT-DATA
+                إعداد البرومبت الإنجليزي المخصص · متوافق مع أي نموذج ذكاء اصطناعي · UMEDT-DATA
               </p>
             </div>
           </div>
@@ -861,49 +927,37 @@ ${formatInstructions}
           {/* TAB 1: INTERACTIVE PROMPT CONFIGURATOR & ENGLISH PROMPT GENERATOR */}
           {activeTab === 'builder' && (
             <div className="space-y-4">
-              {/* Step 1: Target Scope Selection */}
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60 p-3.5 sm:p-4 space-y-3">
-                <div className="flex items-center justify-between gap-2">
+              {/* Step 1: 3 Strict Target Scope Options (Block / Subject / Topic) */}
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60 p-3.5 sm:p-4 space-y-3.5">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white">
-                    1. حدد نوع المحتوى المطلوب توليده
+                    1. اختر مستوى المحتوى المطلوب توليده
                   </h3>
                   <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                    متوافق 100% مع قارئ UMEDT
+                    صالح لأي نموذج ذكاء اصطناعي
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {(
                     [
                       {
                         id: 'block' as PromptTargetScope,
-                        title: 'بلوك كامل وما يتبعه',
+                        title: 'بلوك',
                         sub: 'Block + مواد + مواضيع + مصطلحات',
                         icon: Layers
                       },
                       {
                         id: 'subject' as PromptTargetScope,
-                        title: 'مادة وما يتبعها',
+                        title: 'مادة',
                         sub: 'Subject + مواضيع + مصطلحات',
                         icon: BookOpen
                       },
                       {
                         id: 'topic' as PromptTargetScope,
-                        title: 'موضوع تفاعلي',
-                        sub: 'Topic + جداول + SVG + أسئلة',
+                        title: 'موضوع',
+                        sub: 'Topic + شرح + جداول + أسئلة',
                         icon: FileText
-                      },
-                      {
-                        id: 'massive_lexicon' as PromptTargetScope,
-                        title: 'آلاف المصطلحات والجمل',
-                        sub: 'Massive Terms & Sentences',
-                        icon: Sparkles
-                      },
-                      {
-                        id: 'exam_bank' as PromptTargetScope,
-                        title: 'اختبار وبنك أسئلة',
-                        sub: 'Exam + 7 Question Types',
-                        icon: GraduationCap
                       }
                     ] as const
                   ).map((item) => {
@@ -914,15 +968,15 @@ ${formatInstructions}
                         key={item.id}
                         type="button"
                         onClick={() => setTargetScope(item.id)}
-                        className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col justify-between gap-1 ${
+                        className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between gap-1 ${
                           active
                             ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                             : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-emerald-500/40'
                         }`}
                       >
                         <div className="flex items-center justify-between gap-1">
-                          <span className="text-xs font-extrabold">{item.title}</span>
-                          <IconComp className={`w-3.5 h-3.5 shrink-0 ${active ? 'text-white' : 'text-emerald-500'}`} />
+                          <span className="text-xs sm:text-sm font-extrabold">{item.title}</span>
+                          <IconComp className={`w-4 h-4 shrink-0 ${active ? 'text-white' : 'text-emerald-500'}`} />
                         </div>
                         <span
                           className={`text-[10px] font-bold leading-snug ${
@@ -936,43 +990,147 @@ ${formatInstructions}
                   })}
                 </div>
 
-                {/* Step 2: Name & Code */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-                  <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-extrabold text-slate-700 dark:text-slate-300 mb-1">
-                      اسم البلوك / المادة / الموضوع (بالإنجليزية أو العربية) *
-                    </label>
-                    <input
-                      type="text"
-                      value={targetName}
-                      onChange={(e) => setTargetName(e.target.value)}
-                      placeholder="مثال: Cardiovascular System / الجهاز القلبي الوعائي"
-                      className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white"
-                    />
+                {/* Step 2: Block Name/Code, Subject Name/Code, Topic Name (+ Optional Presets from Saved Library) */}
+                <div className="space-y-2.5 pt-1">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                      2. أسماء التسلسل الهرمي (تُدمج بالكامل داخل البرومبت)
+                    </span>
+                    {savedBlocks.length > 0 && (
+                      <select
+                        aria-label="تعبئة سريعة من بلوك محفوظ"
+                        defaultValue=""
+                        onChange={(e) => {
+                          const b = savedBlocks.find((item) => item.id === e.target.value);
+                          if (!b) return;
+                          setBlockName(b.titleEn || b.titleAr);
+                          setBlockCode(b.code || 'BLK-MED');
+                          const firstSub = savedSubjects.find((s) => s.blockId === b.id);
+                          if (firstSub) {
+                            setSubjectName(firstSub.titleEn || firstSub.titleAr);
+                            setSubjectCode(firstSub.code || 'SUB-101');
+                          }
+                        }}
+                        className="min-h-[34px] px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-200"
+                      >
+                        <option value="">تعبئة سريعة من بلوك محفوظ...</option>
+                        {savedBlocks.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.code} — {b.titleAr || b.titleEn}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
+
+                  {/* Block + Code */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-extrabold text-slate-700 dark:text-slate-300 mb-1">
+                        اسم البلوك *
+                      </label>
+                      <input
+                        type="text"
+                        value={blockName}
+                        onChange={(e) => setBlockName(e.target.value)}
+                        placeholder="مثال: Cardiovascular System Block"
+                        className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-extrabold text-slate-700 dark:text-slate-300 mb-1">
+                        رمز البلوك
+                      </label>
+                      <input
+                        type="text"
+                        dir="ltr"
+                        value={blockCode}
+                        onChange={(e) => setBlockCode(e.target.value)}
+                        placeholder="BLK-CV"
+                        className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Subject + Code */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="sm:col-span-2">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <label className="block text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                          اسم المادة {targetScope === 'block' ? '(المادة الرئيسية / النموذجية)' : '*'}
+                        </label>
+                        {savedSubjects.length > 0 && (
+                          <select
+                            aria-label="تعبئة سريعة من مادة محفوظة"
+                            defaultValue=""
+                            onChange={(e) => {
+                              const s = savedSubjects.find((item) => item.id === e.target.value);
+                              if (!s) return;
+                              setSubjectName(s.titleEn || s.titleAr);
+                              setSubjectCode(s.code || 'SUB-101');
+                              const parentBlk = savedBlocks.find((b) => b.id === s.blockId);
+                              if (parentBlk) {
+                                setBlockName(parentBlk.titleEn || parentBlk.titleAr);
+                                setBlockCode(parentBlk.code || 'BLK-MED');
+                              }
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-600 dark:text-slate-300"
+                          >
+                            <option value="">اختيار مادة محفوظة...</option>
+                            {savedSubjects.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.code} — {s.titleAr || s.titleEn}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        value={subjectName}
+                        onChange={(e) => setSubjectName(e.target.value)}
+                        placeholder="مثال: Cardiovascular Histology"
+                        className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-extrabold text-slate-700 dark:text-slate-300 mb-1">
+                        رمز المادة
+                      </label>
+                      <input
+                        type="text"
+                        dir="ltr"
+                        value={subjectCode}
+                        onChange={(e) => setSubjectCode(e.target.value)}
+                        placeholder="CV-HIST"
+                        className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Topic Name */}
                   <div>
                     <label className="block text-[11px] font-extrabold text-slate-700 dark:text-slate-300 mb-1">
-                      الرمز التعريفي (Code)
+                      اسم الموضوع {targetScope === 'topic' ? '*' : '(موضوع التركيز / النموذجي)'}
                     </label>
                     <input
                       type="text"
-                      dir="ltr"
-                      value={parentContextCode}
-                      onChange={(e) => setParentContextCode(e.target.value)}
-                      placeholder="BLK-CVS"
-                      className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                      value={topicName}
+                      onChange={(e) => setTopicName(e.target.value)}
+                      placeholder="مثال: Histological Layers of the Heart Wall"
+                      className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white"
                     />
                   </div>
                 </div>
 
-                {/* Step 3: Quantities (Terms, Sentences, Topics, Subjects, Questions) */}
+                {/* Step 3: Quantities */}
                 <div className="pt-1 space-y-2.5">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
-                      2. الأعداد المطلوبة (يدعم المئات وآلاف المصطلحات والجمل والمواضيع)
+                      3. الكميات المطلوبة (يدعم المئات وآلاف المصطلحات والجمل والمواضيع)
                     </label>
                     <div className="flex items-center gap-1 flex-wrap">
-                      <span className="text-[10px] font-bold text-slate-500">عدد المصطلحات السريع:</span>
+                      <span className="text-[10px] font-bold text-slate-500">عدد المصطلحات:</span>
                       {[100, 500, 1000, 2500, 5000].map((preset) => (
                         <button
                           key={preset}
@@ -1022,7 +1180,7 @@ ${formatInstructions}
                       />
                     </div>
 
-                    {(targetScope === 'block' || targetScope === 'subject' || targetScope === 'topic') && (
+                    {(targetScope === 'block' || targetScope === 'subject') && (
                       <div>
                         <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1">
                           عدد المواضيع
@@ -1070,10 +1228,10 @@ ${formatInstructions}
                   </div>
                 </div>
 
-                {/* Step 4: What Topics Cover & Rich Components */}
+                {/* Step 4: Clinical Coverage Axes & Components */}
                 <div className="pt-1 space-y-2">
                   <label className="block text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
-                    3. على ماذا تشمل المواضيع والمحاور العلمية؟
+                    4. المحاور العلمية ومحتويات الموضوع
                   </label>
                   <div className="flex flex-wrap gap-1.5">
                     {COVERAGE_AXIS_PRESETS.map((axis) => {
@@ -1154,27 +1312,32 @@ ${formatInstructions}
                   </div>
                 </div>
 
-                {/* Step 5: Output Format */}
+                {/* Step 5: Output File Type */}
                 <div className="pt-1 space-y-1.5">
                   <label className="block text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
-                    4. صيغة المخرج المطلوبة من الذكاء الاصطناعي
+                    5. نوع الملف المطلوب إخراجه من الذكاء الاصطناعي
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {[
                       {
-                        id: 'both' as PromptOutputFormat,
-                        title: 'ملف/كود شامل + نص عالي الكثافة (موصى به)',
-                        desc: 'يدعم توليد البلوك والمواضيع بـ JSON مع آلاف المصطلحات والجمل'
-                      },
-                      {
                         id: 'json_file' as PromptOutputFormat,
-                        title: 'ملف أو كود JSON قياسي فقط',
-                        desc: 'كائن JSON موحد مطابق لمخطط UMEDT-DATA'
+                        title: 'ملف JSON قياسي (.json)',
+                        desc: 'بنية متوافقة بالكامل مع مستودع UMEDT-DATA واستيراد التطبيق'
                       },
                       {
                         id: 'high_density_text' as PromptOutputFormat,
-                        title: 'نص عالي الكثافة (||) لآلاف السجلات',
-                        desc: 'أقصى سعة لتوليد 1000–5000 مصطلح وجملة وموضوع في رد واحد'
+                        title: 'ملف نصي عالي الكثافة (.txt / ||)',
+                        desc: 'صيغة نصية مضغوطة لتوليد آلاف المصطلحات والجمل والمواضيع في دفعة واحدة'
+                      },
+                      {
+                        id: 'markdown_file' as PromptOutputFormat,
+                        title: 'ملف Markdown منظم (.md)',
+                        desc: 'عناوين # Block / ## Subject / ### Topic وجداول منظمة'
+                      },
+                      {
+                        id: 'both' as PromptOutputFormat,
+                        title: 'حزمة شاملة (.json + نص عالي الكثافة)',
+                        desc: 'مرن لأي نموذج: هيكل JSON أو دفق نصي للكميات الضخمة'
                       }
                     ].map((fmt) => {
                       const active = outputFormat === fmt.id;
@@ -1208,7 +1371,7 @@ ${formatInstructions}
                       READY-TO-COPY ENGLISH PROMPT
                     </span>
                     <h4 className="text-xs sm:text-sm font-extrabold text-white mt-1">
-                      البرومبت الإنجليزي الدقيق (انسخه إلى ChatGPT أو Gemini)
+                      البرومبت الإنجليزي الموحّد (يعمل مع أي نموذج ذكاء اصطناعي)
                     </h4>
                   </div>
 
@@ -1257,7 +1420,7 @@ ${formatInstructions}
                 {(onOpenPasteModal || onOpenUploadModal) && (
                   <div className="pt-1 flex items-center justify-between gap-2 flex-wrap border-t border-slate-800">
                     <span className="text-[11px] font-bold text-slate-400">
-                      بعد توليد البيانات في ChatGPT أو Gemini:
+                      بعد توليد البيانات أو الملف من أي نموذج ذكاء اصطناعي:
                     </span>
                     <div className="flex items-center gap-2">
                       {onOpenPasteModal && (
@@ -1291,24 +1454,24 @@ ${formatInstructions}
             </div>
           )}
 
-          {/* TAB 2: CHATGPT & GEMINI SYSTEM PROMPTS */}
+          {/* TAB 2: UNIVERSAL AI SYSTEM PROMPTS */}
           {activeTab === 'prompts' && (
             <div className="space-y-4">
               <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-3.5 sm:p-4 space-y-2.5">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="min-w-0">
                     <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white">
-                      1. تعليمات النظام (Custom GPT / Gemini Gem)
+                      1. تعليمات النظام العامة (لأي نموذج ذكاء اصطناعي)
                     </h3>
                     <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                      ضعه في إعدادات التعليمات المخصصة للحصول على JSON متوافق تلقائياً
+                      ضعه في التعليمات المخصصة للحصول على ملفات ونصوص متوافقة تلقائياً مع التطبيق والمستودع
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() =>
                       handleCopy(
-                        SYSTEM_PROMPT_CHATGPT_GEMINI,
+                        SYSTEM_PROMPT_UNIVERSAL_AI,
                         'sys-prompt',
                         'تم نسخ تعليمات النظام'
                       )
@@ -1328,7 +1491,7 @@ ${formatInstructions}
                   dir="rtl"
                   className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-mono leading-relaxed whitespace-pre-wrap text-slate-700 dark:text-slate-200 max-h-56 overflow-y-auto"
                 >
-                  {SYSTEM_PROMPT_CHATGPT_GEMINI}
+                  {SYSTEM_PROMPT_UNIVERSAL_AI}
                 </pre>
               </div>
 

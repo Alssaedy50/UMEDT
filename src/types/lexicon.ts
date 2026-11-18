@@ -355,6 +355,18 @@ export interface DataValidationResult {
   payload?: DataPackagePayload;
 }
 
+export interface ExtractedZipMediaFile {
+  relativePath: string;
+  normalizedPath: string;
+  baseName: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+  bytes: Uint8Array;
+  isSvg?: boolean;
+  sanitizedSvgText?: string;
+}
+
 export type DataImportMode = 'merge' | 'replace' | 'ignore';
 
 export interface AtomicImportResult {
@@ -376,6 +388,12 @@ export interface AtomicImportResult {
     mediaAssetsImported?: number;
     userNotesImported?: number;
     quizAttemptsImported?: number;
+    mediaFilesImported?: number;
+    mediaFilesSkipped?: number;
+    mediaFilesFailed?: number;
+    ignoredCount?: number;
+    failedCount?: number;
+    failureReasons?: string[];
     totalTermsAfter: number;
     totalSentencesAfter: number;
   };

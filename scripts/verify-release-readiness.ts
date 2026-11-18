@@ -63,6 +63,7 @@ import {
   loadMedicalBlocks,
   saveMedicalBlocks,
   loadMedicalSubjects,
+  saveMedicalSubjects,
   loadAcademicBooks,
   loadAcademicExams,
   saveAcademicExams,
@@ -73,7 +74,9 @@ import {
   toggleBookFavorite,
   normalizeMediaAssetRecord,
   saveAcademicBooks,
-  buildContextualContentBlocksForTopic
+  buildContextualContentBlocksForTopic,
+  enrichAllTopicsWithHierarchy,
+  resolveEffectiveTopicHierarchy
 } from '../src/services/learningHierarchyService';
 import {
   saveLocalMediaRecord,
@@ -4401,8 +4404,341 @@ async function main() {
     );
   }
 
+  // ============================================================================
+  // 25. Hierarchy Preservation, Relative Repo Media Resolution, Markdown Import & UI Checks
+  // ============================================================================
+  {
+    // 25.1 Preserve remote blockId even when not yet downloaded locally + heal wiped blockId via subjectId
+    saveMedicalBlocks([]);
+    saveMedicalSubjects([]);
+
+    const remoteBlock25 = {
+      id: 'block-cardio-25',
+      code: 'BLK-CV25',
+      titleEn: 'Cardiovascular System 25',
+      titleAr: 'بلوك القلب 25',
+      descriptionEn: 'Cardio anatomy & histology',
+      descriptionAr: 'تشريح وأنسجة القلب',
+      colorAccent: 'emerald',
+      order: 1,
+      createdAt: '2026-11-18T00:00:00.000Z',
+      updatedAt: '2026-11-18T00:00:00.000Z'
+    };
+    const remoteSubject25 = {
+      id: 'subj-cv-hist-25',
+      blockId: 'block-cardio-25',
+      code: 'CV-HIST25',
+      titleEn: 'Cardiovascular Histology 25',
+      titleAr: 'أنسجة الجهاز القلبي 25',
+      descriptionEn: 'Heart wall layers & vessels',
+      descriptionAr: 'طبقات جدار القلب والأوعية',
+      order: 1,
+      createdAt: '2026-11-18T00:00:00.000Z',
+      updatedAt: '2026-11-18T00:00:00.000Z'
+    };
+    const remoteTopicIntact = {
+      id: 'tp-cvh-01-25',
+      blockId: 'block-cardio-25',
+      subjectId: 'subj-cv-hist-25',
+      title: 'Heart Wall Layers',
+      titleEn: 'Heart Wall Layers',
+      titleAr: 'طبقات جدار القلب',
+      subtitle: 'Endocardium, myocardium, epicardium',
+      category: 'Medical' as const,
+      author: 'UMEDT-DATA',
+      publishedAt: '2026-11-18T00:00:00.000Z',
+      createdAt: '2026-11-18T00:00:00.000Z',
+      favorite: false,
+      readingTimeMinutes: 6,
+      sections: [
+        {
+          id: 'sec-cvh-1',
+          heading: 'Layers',
+          paragraphs: ['Endocardium lines heart chambers.']
+        }
+      ],
+      linkedTermIds: [],
+      images: [],
+      links: [],
+      attachments: []
+    };
+    const wipedTopic25 = {
+      ...remoteTopicIntact,
+      id: 'tp-cvh-wiped-25',
+      blockId: '',
+      subjectId: 'subj-cv-hist-25'
+    };
+
+    const enriched25 = enrichAllTopicsWithHierarchy(
+      [remoteTopicIntact, wipedTopic25],
+      [remoteBlock25],
+      [remoteSubject25]
+    );
+    assertCondition(
+      enriched25[0].blockId === 'block-cardio-25' &&
+        enriched25[0].subjectId === 'subj-cv-hist-25' &&
+        enriched25[1].blockId === 'block-cardio-25' &&
+        enriched25[1].subjectId === 'subj-cv-hist-25',
+      `enrichAllTopicsWithHierarchy must preserve non-local blockId and auto-heal empty blockId from subjectId; got ${JSON.stringify(
+        enriched25.map((t) => ({ id: t.id, blockId: t.blockId, subjectId: t.subjectId }))
+      )}`
+    );
+
+    const resolved25 = resolveEffectiveTopicHierarchy(wipedTopic25, [remoteSubject25]);
+    assertCondition(
+      resolved25.blockId === 'block-cardio-25' && resolved25.subjectId === 'subj-cv-hist-25',
+      'resolveEffectiveTopicHierarchy must resolve parent blockId from subject'
+    );
+
+    const mirror25 = loadUnifiedCloudMirror();
+    mirror25.blocks = [...(mirror25.blocks || []), remoteBlock25];
+    mirror25.subjects = [...(mirror25.subjects || []), remoteSubject25];
+    mirror25.topics = [...(mirror25.topics || []), remoteTopicIntact];
+    saveUnifiedCloudMirror(mirror25);
+
+    const preState25 = loadAppState();
+    const subjectDownload25 = await downloadCloudLibraryTarget({
+      targetType: 'subject',
+      targetId: 'subj-cv-hist-25',
+      currentTopics: preState25.topics,
+      currentTerms: preState25.terms,
+      currentSentences: preState25.sentences
+    });
+    const downloadedTopic25 = subjectDownload25.updatedTopics.find(
+      (t) => t.id === 'tp-cvh-01-25'
+    );
+    assertCondition(
+      subjectDownload25.success &&
+        Boolean(downloadedTopic25) &&
+        downloadedTopic25!.blockId === 'block-cardio-25' &&
+        downloadedTopic25!.subjectId === 'subj-cv-hist-25' &&
+        loadMedicalBlocks().some((b) => b.id === 'block-cardio-25') &&
+        loadMedicalSubjects().some((s) => s.id === 'subj-cv-hist-25'),
+      'Downloading a subject must download parent block, subject, and topics with intact blockId and subjectId'
+    );
+
+    // 25.2 Resolve repo-relative URLs in UMEDT-DATA sync (media-index, books, questions, topics)
+    const mockRepoFetch: typeof fetch = async (input) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.endsWith('/data/catalog.json')) {
+        return new Response(
+          JSON.stringify({
+            version: '2.0.0',
+            collections: [
+              {
+                id: 'topics',
+                contentType: 'topics',
+                name: 'CVH Topics',
+                rawUrl: 'data/topics/cvh.json'
+              },
+              {
+                id: 'media',
+                contentType: 'media',
+                name: 'Media Index',
+                rawUrl: 'media/media-index.json'
+              },
+              {
+                id: 'books',
+                contentType: 'books',
+                name: 'Books Index',
+                rawUrl: 'books/books.json'
+              },
+              {
+                id: 'questions',
+                contentType: 'questions',
+                name: 'Questions Index',
+                rawUrl: 'questions/questions.json'
+              }
+            ]
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (url.endsWith('/data/topics/cvh.json')) {
+        return new Response(JSON.stringify({ topics: [remoteTopicIntact] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (url.endsWith('/media/media-index.json')) {
+        return new Response(
+          JSON.stringify({
+            mediaAssets: [
+              {
+                id: 'asset-rel-svg-25',
+                mediaType: 'diagram',
+                titleEn: 'Heart Wall SVG',
+                titleAr: 'مخطط القلب',
+                relativePath: 'media/diagrams/heart-wall.svg',
+                rawUrl: 'media/diagrams/heart-wall.svg',
+                linkedEntityType: 'topic',
+                linkedEntityId: 'tp-cvh-01-25'
+              },
+              {
+                id: 'asset-rel-video-25',
+                mediaType: 'video',
+                titleEn: 'Heart Histology Clip',
+                fileUrl: 'media/videos/heart.mp4',
+                linkedEntityType: 'topic',
+                linkedEntityId: 'tp-cvh-01-25'
+              }
+            ]
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (url.endsWith('/books/books.json')) {
+        return new Response(
+          JSON.stringify({
+            books: [
+              {
+                id: 'book-rel-25',
+                titleEn: 'Junqueira Cardio Chapter',
+                format: 'pdf',
+                rawUrl: 'books/junqueira-cv.pdf',
+                blockId: 'block-cardio-25',
+                subjectId: 'subj-cv-hist-25',
+                topicIds: ['tp-cvh-01-25']
+              }
+            ]
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (url.endsWith('/questions/questions.json')) {
+        return new Response(
+          JSON.stringify({
+            questions: [
+              {
+                id: 'q-rel-25',
+                type: 'image_based',
+                blockId: 'block-cardio-25',
+                subjectId: 'subj-cv-hist-25',
+                topicId: 'tp-cvh-01-25',
+                questionEn: 'Identify structure X in the heart wall.',
+                imageUrl: 'media/images/purkinje.png',
+                options: [
+                  { key: 'A', textEn: 'Purkinje fibers' },
+                  { key: 'B', textEn: 'Mesothelium' }
+                ],
+                correctOptionKeys: ['A']
+              }
+            ]
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response('{}', { status: 404 });
+    };
+
+    const repoSyncRes25 = await syncFromUmedtDataRepository({
+      catalogUrl:
+        'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/catalog.json',
+      customFetch: mockRepoFetch
+    });
+    const syncedAssetSvg = (repoSyncRes25.incoming.mediaAssets || []).find(
+      (m) => m.id === 'asset-rel-svg-25'
+    );
+    const syncedAssetVideo = (repoSyncRes25.incoming.mediaAssets || []).find(
+      (m) => m.id === 'asset-rel-video-25'
+    );
+    const syncedBook25 = (repoSyncRes25.incoming.books || []).find(
+      (b) => b.id === 'book-rel-25'
+    );
+    const syncedQuestion25 = (repoSyncRes25.incoming.quizQuestions || []).find(
+      (q) => q.id === 'q-rel-25'
+    );
+    assertCondition(
+      syncedAssetSvg?.rawUrl ===
+        'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/media/diagrams/heart-wall.svg' &&
+        syncedAssetVideo?.rawUrl ===
+          'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/media/videos/heart.mp4' &&
+        syncedBook25?.downloadUrl ===
+          'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/books/junqueira-cv.pdf' &&
+        syncedQuestion25?.imageUrl ===
+          'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/media/images/purkinje.png',
+      `syncFromUmedtDataRepository must resolve repo-relative media, book, and question URLs against UMEDT-DATA root; got ${JSON.stringify(
+        { syncedAssetSvg, syncedAssetVideo, syncedBook25, syncedQuestion25 }
+      )}`
+    );
+
+    // 25.3 Universal Markdown (# Block / ## Subject / ### Topic) Import
+    const markdownSample25 = `# Block: Neurosciences Block 25 | بلوك العلوم العصبية 25
+
+## Subject: Neuroanatomy 25 | التشريح العصبي 25
+
+### Topic: Circle of Willis | دائرة ويليس الشريانية
+
+#### Clinical Overview
+The Circle of Willis provides collateral arterial circulation at the base of the brain.
+
+| Term | Translation | DefinitionAr | DefinitionEn | ExampleEn | ExampleAr |
+| --- | --- | --- | --- | --- | --- |
+| Basilar Artery | الشريان القاعدي | الشريان الناتج عن اتحاد الشريانين الفقريين. | Artery formed by union of the two vertebral arteries. | Basilar artery occlusion causes locked-in syndrome. | يؤدي انسداد الشريان القاعدي إلى متلازمة المنحبس. |
+
+QUESTION || single_choice || Which vessels unite to form the basilar artery? || ما الوعاءان اللذان يتحدان لتكوين الشريان القاعدي؟ || A) Vertebral arteries; B) Internal carotid arteries; C) Middle cerebral arteries; D) Anterior spinal arteries || A || يتحد الشريانان الفقريان لتكوين الشريان القاعدي || The paired vertebral arteries join at the pontomedullary junction.`;
+
+    const mdReport25 = importUniversalAiOrLocalContent({
+      rawText: markdownSample25,
+      sourceLabel: 'اختبار Markdown 25'
+    });
+    assertCondition(
+      mdReport25.success &&
+        mdReport25.counts.blocks === 1 &&
+        mdReport25.counts.subjects === 1 &&
+        mdReport25.counts.topics === 1 &&
+        mdReport25.counts.terms >= 1 &&
+        mdReport25.counts.questions >= 1,
+      `Expected Markdown import to create 1 block, 1 subject, 1 topic, >=1 term, >=1 question; got ${JSON.stringify(
+        mdReport25.counts
+      )}`
+    );
+
+    // 25.4 Verify UI cleanup: 3-scope Any-AI Prompt Builder, collision-free LibraryView header, & Block->Subject->Topic drilldown in TopicsHub
+    const aiGuideSrc25 = fs.readFileSync(
+      path.join(ROOT_DIR, 'src', 'components', 'AiContentGuideModal.tsx'),
+      'utf8'
+    );
+    const libViewSrc25 = fs.readFileSync(
+      path.join(ROOT_DIR, 'src', 'components', 'LibraryView.tsx'),
+      'utf8'
+    );
+    const topicsHubSrc25 = fs.readFileSync(
+      path.join(ROOT_DIR, 'src', 'components', 'TopicsHub.tsx'),
+      'utf8'
+    );
+
+    assertCondition(
+      aiGuideSrc25.includes("type PromptTargetScope = 'block' | 'subject' | 'topic'") &&
+        aiGuideSrc25.includes("'markdown_file'") &&
+        aiGuideSrc25.includes('blockName') &&
+        aiGuideSrc25.includes('subjectName') &&
+        aiGuideSrc25.includes('topicName') &&
+        !/ChatGPT|Gemini Gem/i.test(aiGuideSrc25),
+      'AiContentGuideModal.tsx must provide strictly 3 scopes (block/subject/topic), explicit Block/Subject/Topic inputs, .md file option, and zero ChatGPT/Gemini branding'
+    );
+
+    assertCondition(
+      !libViewSrc25.includes('flex items-center justify-between gap-2">\n                <button\n                  type="button"\n                  onClick={() => setCloudCatalogModalOpen(false)}') &&
+        !libViewSrc25.includes("setActiveIngestModal('permanent_delete');\n                    }}"),
+      'LibraryView.tsx cloud catalog modal header must separate navigation from action buttons cleanly'
+    );
+
+    assertCondition(
+      topicsHubSrc25.includes('enrichAllTopicsWithHierarchy(rawTopics, blocks, subjects)') &&
+        topicsHubSrc25.includes('عرض كل مواضيع البلوك') &&
+        topicsHubSrc25.includes('كل البلوكات') &&
+        topicsHubSrc25.includes('showAllTopicsFlat'),
+      'TopicsHub.tsx must self-heal topic hierarchy with blocks/subjects and provide Block -> Subject -> Topic drilldown navigation'
+    );
+
+    console.log(
+      '[PASS] 25. Hierarchy Preservation/Self-Healing, UMEDT-DATA Relative Media Resolution, Markdown Import & UI Cleanup Verified'
+    );
+  }
+
   console.log('================================================================');
-  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (24/24 — 100%)');
+  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (25/25 — 100%)');
   console.log('================================================================');
 }
 

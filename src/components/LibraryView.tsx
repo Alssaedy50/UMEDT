@@ -1258,24 +1258,24 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       {libraryMode === 'cloud_library' && (
         <div className="space-y-3">
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-3.5 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3.5">
-            {/* Top Bar: Back + Concise Title + Status + Refresh */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <button
-                  type="button"
-                  onClick={() => setLibraryMode('hub')}
-                  className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1 transition-colors shrink-0"
-                >
-                  <ArrowRight className="w-4 h-4" />
-                  <span>رجوع</span>
-                </button>
-                <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white truncate">
-                  المكتبة السحابية
-                </h2>
-              </div>
+            {/* Top Bar: Clean 2-Row Mobile-Safe Header (Zero Overlap) */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setLibraryMode('hub')}
+                    className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1 transition-colors shrink-0"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                    <span>رجوع</span>
+                  </button>
+                  <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white truncate">
+                    المكتبة السحابية
+                  </h2>
+                </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-[11px] font-extrabold text-slate-600 dark:text-slate-300 flex items-center gap-1 px-1.5 whitespace-nowrap">
+                <span className="min-h-[32px] px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-[11px] font-extrabold text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
                   {cloudSummary.overallSyncStatus === 'synced' && (
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                   )}
@@ -1292,30 +1292,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   )}
                   <span>{syncStatusLabelAr[cloudSummary.overallSyncStatus]}</span>
                 </span>
+              </div>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveIngestModal('permanent_delete')}
-                  className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-extrabold flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>حذف نهائي</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsAiGuideOpen(true)}
-                  className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>برومبت AI</span>
-                </button>
-
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   disabled={busyTargetKey === 'catalog:refresh'}
                   onClick={() => void handleRefreshCloudCatalog()}
-                  className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1 transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
+                  className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
                 >
                   <RefreshCw
                     className={`w-3.5 h-3.5 ${
@@ -1323,6 +1307,15 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     }`}
                   />
                   <span>تحديث</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsAiGuideOpen(true)}
+                  className="min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>برومبت AI</span>
                 </button>
               </div>
             </div>
@@ -1488,6 +1481,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           <button
                             type="button"
                             disabled={blockBusy}
+                            aria-label="حذف البلوك"
+                            title="حذف البلوك"
                             onClick={() =>
                               setPendingDeleteTarget({
                                 targetType: 'block',
@@ -1496,10 +1491,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                 isDownloaded: Boolean(blk.isDownloaded || blk.isPartiallyDownloaded)
                               })
                             }
-                            className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-extrabold flex items-center gap-1 disabled:opacity-50"
+                            className="min-h-[36px] min-w-[36px] p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 flex items-center justify-center disabled:opacity-50"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                            <span>حذف</span>
                           </button>
                         </div>
                       </div>
@@ -1562,6 +1556,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                     <button
                                       type="button"
                                       disabled={subjBusy}
+                                      aria-label="حذف المادة"
+                                      title="حذف المادة"
                                       onClick={() =>
                                         setPendingDeleteTarget({
                                           targetType: 'subject',
@@ -1572,10 +1568,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                           )
                                         })
                                       }
-                                      className="min-h-[34px] px-2.5 py-1 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 text-[11px] font-extrabold flex items-center gap-1 disabled:opacity-50"
+                                      className="min-h-[34px] min-w-[34px] p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 flex items-center justify-center disabled:opacity-50"
                                     >
-                                      <Trash2 className="w-3 h-3" />
-                                      <span>حذف</span>
+                                      <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                   </div>
                                 </div>
@@ -1638,6 +1633,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                             <button
                                               type="button"
                                               disabled={tpBusy}
+                                              aria-label="حذف الموضوع"
+                                              title="حذف الموضوع"
                                               onClick={() =>
                                                 setPendingDeleteTarget({
                                                   targetType: 'topic',
@@ -1646,10 +1643,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                                   isDownloaded: tp.isDownloaded
                                                 })
                                               }
-                                              className="min-h-[34px] px-2 py-1 rounded-lg bg-rose-500/10 text-rose-700 dark:text-rose-300 font-extrabold text-[11px] flex items-center gap-1 disabled:opacity-50"
+                                              className="min-h-[34px] min-w-[34px] p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 flex items-center justify-center disabled:opacity-50"
                                             >
-                                              <Trash2 className="w-3 h-3" />
-                                              <span>حذف</span>
+                                              <Trash2 className="w-3.5 h-3.5" />
                                             </button>
                                           </div>
                                         </div>
@@ -1748,6 +1744,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           <button
                             type="button"
                             disabled={bkBusy}
+                            aria-label="حذف الكتاب"
+                            title="حذف الكتاب"
                             onClick={() =>
                               setPendingDeleteTarget({
                                 targetType: 'book',
@@ -1756,10 +1754,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                 isDownloaded: bk.isDownloaded
                               })
                             }
-                            className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 text-rose-700 dark:text-rose-300 font-extrabold text-xs flex items-center gap-1 disabled:opacity-50 whitespace-nowrap shrink-0"
+                            className="min-h-[40px] min-w-[40px] p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 flex items-center justify-center disabled:opacity-50 shrink-0"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                            <span>حذف</span>
                           </button>
                         </div>
                       </div>

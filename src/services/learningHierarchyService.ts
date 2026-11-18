@@ -257,21 +257,76 @@ const CURATED_TOPIC_ENGLISH_TITLES: Record<string, { titleEn: string; titleAr: s
   }
 };
 
-function inferBlockAndSubjectForTopic(topic: TopicArticle): {
+function buildSubjectBlockLookup(
+  availableSubjects?: MedicalSubject[]
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const s of INITIAL_MEDICAL_SUBJECTS) {
+    if (s.id && s.blockId) map.set(s.id, s.blockId);
+  }
+  for (const s of loadMedicalSubjects()) {
+    if (s.id && s.blockId) map.set(s.id, s.blockId);
+  }
+  if (Array.isArray(availableSubjects)) {
+    for (const s of availableSubjects) {
+      if (s && s.id && s.blockId) map.set(s.id, s.blockId);
+    }
+  }
+  return map;
+}
+
+export function resolveEffectiveTopicHierarchy(
+  topic: TopicArticle,
+  availableSubjects?: MedicalSubject[]
+): { blockId: string; subjectId: string } {
+  const subjectBlockMap = buildSubjectBlockLookup(availableSubjects);
+  const rawSubjectId = (topic.subjectId || '').trim();
+  const rawBlockId = (topic.blockId || '').trim();
+  const healedBlockId =
+    rawBlockId || (rawSubjectId ? subjectBlockMap.get(rawSubjectId) || '' : '');
+  return {
+    blockId: healedBlockId,
+    subjectId: rawSubjectId
+  };
+}
+
+function inferBlockAndSubjectForTopic(
+  topic: TopicArticle,
+  availableBlocks?: MedicalBlock[],
+  availableSubjects?: MedicalSubject[]
+): {
   blockId: string;
   subjectId: string;
 } {
   const activeBlockIds = new Set([
     ...INITIAL_MEDICAL_BLOCKS.map((b) => b.id),
-    ...loadMedicalBlocks().map((b) => b.id)
+    ...loadMedicalBlocks().map((b) => b.id),
+    ...(Array.isArray(availableBlocks) ? availableBlocks.map((b) => b.id) : [])
   ]);
+  const subjectBlockMap = buildSubjectBlockLookup(availableSubjects);
+
+  const explicitBlockId = typeof topic.blockId === 'string' ? topic.blockId.trim() : '';
+  const explicitSubjectId = typeof topic.subjectId === 'string' ? topic.subjectId.trim() : '';
 
   if (topic.blockId !== undefined && topic.subjectId !== undefined) {
+    // Preserve non-empty remote/custom blockId even before local download,
+    // and auto-heal empty blockId from its parent Subject when available.
+    const healedFromSubject = explicitSubjectId
+      ? subjectBlockMap.get(explicitSubjectId) || ''
+      : '';
     return {
-      blockId: activeBlockIds.has(topic.blockId) ? topic.blockId : '',
-      subjectId: topic.subjectId
+      blockId: explicitBlockId || healedFromSubject,
+      subjectId: explicitSubjectId
     };
   }
+
+  if (explicitSubjectId && subjectBlockMap.has(explicitSubjectId)) {
+    return {
+      blockId: explicitBlockId || subjectBlockMap.get(explicitSubjectId) || '',
+      subjectId: explicitSubjectId
+    };
+  }
+
   const idLower = topic.id.toLowerCase();
   const titleCombined = `${topic.title} ${topic.subtitle || ''} ${topic.author || ''}`.toLowerCase();
 
@@ -290,8 +345,10 @@ function inferBlockAndSubjectForTopic(topic: TopicArticle): {
   }
 
   return {
-    blockId: activeBlockIds.has(inferredBlock) ? inferredBlock : (topic.blockId || ''),
-    subjectId: topic.subjectId || inferredSubj
+    blockId:
+      explicitBlockId ||
+      (activeBlockIds.has(inferredBlock) ? inferredBlock : ''),
+    subjectId: explicitSubjectId || inferredSubj
   };
 }
 
@@ -687,10 +744,16 @@ export function syncContentBlocksToLegacyTopicFields(
 
 export function enrichTopicWithHierarchyAndContentBlocks(
   topic: TopicArticle,
-  allTopics: TopicArticle[] = []
+  allTopics: TopicArticle[] = [],
+  availableBlocks?: MedicalBlock[],
+  availableSubjects?: MedicalSubject[]
 ): TopicArticle {
   const curated = CURATED_TOPIC_ENGLISH_TITLES[topic.id];
-  const { blockId, subjectId } = inferBlockAndSubjectForTopic(topic);
+  const { blockId, subjectId } = inferBlockAndSubjectForTopic(
+    topic,
+    availableBlocks,
+    availableSubjects
+  );
 
   let titleEn = topic.titleEn || curated?.titleEn || '';
   let titleAr = topic.titleAr || curated?.titleAr || '';
@@ -720,7 +783,11 @@ export function enrichTopicWithHierarchyAndContentBlocks(
       : allTopics
           .filter((other) => {
             if (other.id === topic.id) return false;
-            const otherHierarchy = inferBlockAndSubjectForTopic(other);
+            const otherHierarchy = inferBlockAndSubjectForTopic(
+              other,
+              availableBlocks,
+              availableSubjects
+            );
             return otherHierarchy.subjectId === subjectId;
           })
           .slice(0, 4)
@@ -739,8 +806,19 @@ export function enrichTopicWithHierarchyAndContentBlocks(
   };
 }
 
-export function enrichAllTopicsWithHierarchy(topics: TopicArticle[]): TopicArticle[] {
-  return topics.map((t) => enrichTopicWithHierarchyAndContentBlocks(t, topics));
+export function enrichAllTopicsWithHierarchy(
+  topics: TopicArticle[],
+  availableBlocks?: MedicalBlock[],
+  availableSubjects?: MedicalSubject[]
+): TopicArticle[] {
+  return topics.map((t) =>
+    enrichTopicWithHierarchyAndContentBlocks(
+      t,
+      topics,
+      availableBlocks,
+      availableSubjects
+    )
+  );
 }
 
 function sanitizeEntityTitleAr(
@@ -942,6 +1020,8 @@ export function normalizeAcademicBookResource(
     (raw.pdfUrl as string | undefined) ||
     (raw.mediaUrl as string | undefined) ||
     (raw.externalUrl as string | undefined) ||
+    (raw.rawUrl as string | undefined) ||
+    (raw.url as string | undefined) ||
     '';
   const format =
     (raw.format as string | undefined) ||
@@ -998,6 +1078,10 @@ export function normalizeMediaAssetRecord(
     (raw.url as string | undefined) ||
     (raw.rawUrl as string | undefined) ||
     (raw.downloadUrl as string | undefined) ||
+    (raw.fileUrl as string | undefined) ||
+    (raw.externalUrl as string | undefined) ||
+    (raw.mediaUrl as string | undefined) ||
+    (raw.src as string | undefined) ||
     '';
   const linkedType = (raw.linkedEntityType as string | undefined)?.toLowerCase();
   const linkedId = (raw.linkedEntityId as string | undefined) || '';

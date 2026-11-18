@@ -668,7 +668,11 @@ export function loadUnifiedCloudMirror(): UnifiedCloudStoreSnapshot {
           updatedAt: parsed.updatedAt || new Date().toISOString(),
           blocks: parsed.blocks,
           subjects: parsed.subjects,
-          topics: enrichAllTopicsWithHierarchy(parsed.topics),
+          topics: enrichAllTopicsWithHierarchy(
+            parsed.topics,
+            parsed.blocks,
+            parsed.subjects
+          ),
           terms: Array.isArray(parsed.terms)
             ? parsed.terms
             : isBrowserRuntime
@@ -1095,12 +1099,19 @@ export function mergeRecordsIntoCloudSnapshot(
       ? incoming.contentTypesRegistry
       : current.contentTypesRegistry || [];
 
+  const mergedBlocks = Array.from(blocksMap.values()).sort((a, b) => a.order - b.order);
+  const mergedSubjects = Array.from(subjectsMap.values()).sort((a, b) => a.order - b.order);
+
   const snapshot: UnifiedCloudStoreSnapshot = {
     version: current.version,
     updatedAt: appliedCount > 0 ? new Date().toISOString() : current.updatedAt,
-    blocks: Array.from(blocksMap.values()).sort((a, b) => a.order - b.order),
-    subjects: Array.from(subjectsMap.values()).sort((a, b) => a.order - b.order),
-    topics: enrichAllTopicsWithHierarchy(Array.from(topicsMap.values())),
+    blocks: mergedBlocks,
+    subjects: mergedSubjects,
+    topics: enrichAllTopicsWithHierarchy(
+      Array.from(topicsMap.values()),
+      mergedBlocks,
+      mergedSubjects
+    ),
     terms: Array.from(termsMap.values()),
     sentences: Array.from(sentencesMap.values()),
     mediaRecords: Array.from(mediaMap.values()),
@@ -1621,15 +1632,29 @@ export async function syncFromUmedtDataRepository(options?: {
   let updatedCollectionsCount = 0;
   let skippedCollectionsCount = 0;
 
+  const resolveRepoRelativeUrl = (rawOrRel: string, baseCatalogUrl: string): string => {
+    const clean = (rawOrRel || '').trim();
+    if (!clean) return '';
+    if (/^(?:https?:|data:|blob:)/i.test(clean)) return clean;
+    try {
+      // Base repo root when catalog URL is .../data/catalog.json -> .../
+      const repoRootUrl = baseCatalogUrl.replace(/\/data\/catalog\.json(?:[?#].*)?$/i, '/');
+      return new URL(clean.replace(/^\/+/, ''), repoRootUrl).toString();
+    } catch {
+      return clean;
+    }
+  };
+
   for (const col of catalog.collections) {
     if (!col || !col.id || !col.rawUrl) continue;
+    const resolvedColUrl = resolveRepoRelativeUrl(col.rawUrl, targetCatalogUrl);
     const expectedHash = (col.sha256 || '').trim();
     if (expectedHash && prevHashes[col.id] === expectedHash) {
       skippedCollectionsCount += 1;
       continue;
     }
 
-    const colRes = await fetchUmedtDataJsonWithFallback(col.rawUrl, fetchFn);
+    const colRes = await fetchUmedtDataJsonWithFallback(resolvedColUrl, fetchFn);
     if (!colRes || !colRes.ok) continue;
 
     const rawText = await colRes.text();
@@ -1739,7 +1764,18 @@ export async function syncFromUmedtDataRepository(options?: {
     ) {
       incoming.books = extractCollectionArray<
         Partial<AcademicBookResource> & Record<string, unknown>
-      >(parsedJson, 'books').map((b) => normalizeAcademicBookResource(b));
+      >(parsedJson, 'books').map((b) => {
+        const norm = normalizeAcademicBookResource(b);
+        return {
+          ...norm,
+          downloadUrl: norm.downloadUrl
+            ? resolveRepoRelativeUrl(norm.downloadUrl, targetCatalogUrl)
+            : undefined,
+          pdfUrl: norm.pdfUrl
+            ? resolveRepoRelativeUrl(norm.pdfUrl, targetCatalogUrl)
+            : undefined
+        };
+      });
     } else if (
       idLower === 'questions' ||
       ctLower === 'question' ||
@@ -1750,7 +1786,12 @@ export async function syncFromUmedtDataRepository(options?: {
       incoming.quizQuestions = extractCollectionArray<Record<string, unknown>>(
         parsedJson,
         'questions'
-      ).map((q, qIdx) => normalizeQuizQuestionRecord(q, qIdx));
+      ).map((q, qIdx) => {
+        const norm = normalizeQuizQuestionRecord(q, qIdx);
+        return norm.imageUrl
+          ? { ...norm, imageUrl: resolveRepoRelativeUrl(norm.imageUrl, targetCatalogUrl) }
+          : norm;
+      });
     } else if (
       idLower === 'exams' ||
       ctLower === 'exam' ||
@@ -1768,7 +1809,19 @@ export async function syncFromUmedtDataRepository(options?: {
     ) {
       incoming.mediaAssets = extractCollectionArray<
         Partial<MediaAssetRecord> & Record<string, unknown>
-      >(parsedJson, 'mediaAssets').map((ma) => normalizeMediaAssetRecord(ma));
+      >(parsedJson, 'mediaAssets').map((ma) => {
+        const norm = normalizeMediaAssetRecord(ma);
+        const absUrl = norm.url
+          ? resolveRepoRelativeUrl(norm.url, targetCatalogUrl)
+          : norm.relativePath
+            ? resolveRepoRelativeUrl(norm.relativePath, targetCatalogUrl)
+            : '';
+        return {
+          ...norm,
+          url: absUrl || norm.url,
+          rawUrl: (norm.rawUrl ? resolveRepoRelativeUrl(norm.rawUrl, targetCatalogUrl) : absUrl) || norm.rawUrl
+        };
+      });
     } else {
       // Unknown or extensible future collection type -> auto-discover as dynamicCollection (`generic_card` fallback)
       const rawItems = extractCollectionArray<unknown>(parsedJson, col.id);
@@ -2069,9 +2122,16 @@ export function buildCloudLibraryCatalogView(params: {
     }
   }
 
+  const combinedBlocksList = Array.from(allBlocksMap.values());
+  const combinedSubjectsList = Array.from(allSubjectsMap.values());
+
   // Combine cloud topics + any new local topics (excluding permanently deleted)
   const allTopicsMap = new Map<string, TopicArticle>();
-  for (const t of enrichAllTopicsWithHierarchy(mirror.topics)) {
+  for (const t of enrichAllTopicsWithHierarchy(
+    mirror.topics,
+    combinedBlocksList,
+    combinedSubjectsList
+  )) {
     if (
       !permTopics.has(t.id) &&
       !permSubjects.has(t.subjectId || '') &&
@@ -2080,7 +2140,11 @@ export function buildCloudLibraryCatalogView(params: {
       allTopicsMap.set(t.id, t);
     }
   }
-  for (const t of enrichAllTopicsWithHierarchy(params.localTopics)) {
+  for (const t of enrichAllTopicsWithHierarchy(
+    params.localTopics,
+    combinedBlocksList,
+    combinedSubjectsList
+  )) {
     if (
       !removed.topics.includes(t.id) &&
       !permTopics.has(t.id) &&
@@ -2944,6 +3008,12 @@ export async function downloadCloudLibraryTarget(params: {
     };
   }
 
+  const enrichedMirrorTopics = enrichAllTopicsWithHierarchy(
+    mirror.topics,
+    mirror.blocks,
+    mirror.subjects
+  );
+
   let targetBlocks: MedicalBlock[] = [];
   let targetSubjects: MedicalSubject[] = [];
   let targetTopics: TopicArticle[] = [];
@@ -2953,7 +3023,7 @@ export async function downloadCloudLibraryTarget(params: {
     if (blk) targetBlocks.push(blk);
     targetSubjects = mirror.subjects.filter((s) => s.blockId === params.targetId);
     const subjIds = new Set(targetSubjects.map((s) => s.id));
-    targetTopics = mirror.topics.filter(
+    targetTopics = enrichedMirrorTopics.filter(
       (t) => t.blockId === params.targetId || (t.subjectId && subjIds.has(t.subjectId))
     );
     removed.blocks = removed.blocks.filter((id) => id !== params.targetId);
@@ -2973,24 +3043,30 @@ export async function downloadCloudLibraryTarget(params: {
         removed.blocks = removed.blocks.filter((id) => id !== subj.blockId);
       }
     }
-    targetTopics = mirror.topics.filter((t) => t.subjectId === params.targetId);
+    targetTopics = enrichedMirrorTopics.filter((t) => t.subjectId === params.targetId);
     removed.subjects = removed.subjects.filter((id) => id !== params.targetId);
     for (const t of targetTopics) {
       removed.topics = removed.topics.filter((id) => id !== t.id);
     }
   } else {
-    const tp = mirror.topics.find((t) => t.id === params.targetId);
+    const tp = enrichedMirrorTopics.find((t) => t.id === params.targetId);
     if (tp) {
       targetTopics.push(tp);
+      let resolvedParentBlockId = tp.blockId || '';
       if (tp.subjectId) {
         const parentSubj = mirror.subjects.find((s) => s.id === tp.subjectId);
-        if (parentSubj) targetSubjects.push(parentSubj);
+        if (parentSubj) {
+          targetSubjects.push(parentSubj);
+          if (!resolvedParentBlockId && parentSubj.blockId) {
+            resolvedParentBlockId = parentSubj.blockId;
+          }
+        }
         removed.subjects = removed.subjects.filter((id) => id !== tp.subjectId);
       }
-      if (tp.blockId) {
-        const parentBlk = mirror.blocks.find((b) => b.id === tp.blockId);
+      if (resolvedParentBlockId) {
+        const parentBlk = mirror.blocks.find((b) => b.id === resolvedParentBlockId);
         if (parentBlk) targetBlocks.push(parentBlk);
-        removed.blocks = removed.blocks.filter((id) => id !== tp.blockId);
+        removed.blocks = removed.blocks.filter((id) => id !== resolvedParentBlockId);
       }
     }
     removed.topics = removed.topics.filter((id) => id !== params.targetId);
@@ -3142,6 +3218,30 @@ export async function downloadCloudLibraryTarget(params: {
       })
     );
 
+    const updatedLinks = await Promise.all(
+      (tp.links || []).map(async (lnk) => {
+        const candidateUrl = (lnk.url || '').trim();
+        if (!candidateUrl || !/^https?:\/\//i.test(candidateUrl) || !isDownloadableMediaUrl(candidateUrl)) {
+          return lnk;
+        }
+        const cached = await resolveAndCacheRemoteUrlForEntity({
+          url: candidateUrl,
+          preferredIdbKey: lnk.mediaIdbKey,
+          topicId: tp.id,
+          fileName: lnk.title || tp.id,
+          mediaAssets: mirror.mediaAssets,
+          customFetch: params.customFetch
+        });
+        if (cached.cachedNew) {
+          downloadedMediaCount += 1;
+          bytesDownloaded += cached.sizeBytes;
+        } else if (cached.skippedDuplicate) {
+          skippedIdenticalCount += 1;
+        }
+        return cached.idbKey ? { ...lnk, mediaIdbKey: cached.idbKey } : lnk;
+      })
+    );
+
     // Prefetch any media-index assets linked to this topic via linkedEntityType/linkedEntityId or topicId
     const linkedMediaAssets = (mirror.mediaAssets || []).filter(
       (ma) =>
@@ -3172,6 +3272,7 @@ export async function downloadCloudLibraryTarget(params: {
       ...tp,
       sections: updatedSections,
       images: updatedImages,
+      links: updatedLinks,
       attachments: updatedAttachments
     };
 

@@ -108,7 +108,9 @@ import {
 import {
   getLocalMediaRecord,
   openMediaInExternalApp,
-  detectExternalMediaKind
+  detectExternalMediaKind,
+  downloadRemoteMediaToOfflineCache,
+  isDownloadableMediaUrl
 } from '../services/mediaStorageService';
 import {
   prepareAndDownloadFile,
@@ -233,8 +235,8 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   );
 
   const topics = useMemo(
-    () => enrichAllTopicsWithHierarchy(rawTopics),
-    [rawTopics]
+    () => enrichAllTopicsWithHierarchy(rawTopics, blocks, subjects),
+    [rawTopics, blocks, subjects]
   );
 
   const [quizQuestions, setQuizQuestions] = useState<UnifiedQuizQuestion[]>(() =>
@@ -261,7 +263,10 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   const [topicOfflineMediaUrls, setTopicOfflineMediaUrls] = useState<
     Record<string, string>
   >({});
+  const [savingMediaIds, setSavingMediaIds] = useState<Record<string, boolean>>({});
+  const [inlinePdfPreviewIds, setInlinePdfPreviewIds] = useState<Record<string, boolean>>({});
   const [failedMediaIds, setFailedMediaIds] = useState<Record<string, boolean>>({});
+  const [showAllTopicsFlat, setShowAllTopicsFlat] = useState<boolean>(false);
   const [newNoteTitle, setNewNoteTitle] = useState<string>('');
   const [newNoteContent, setNewNoteContent] = useState<string>('');
   const [isNotesPanelOpen, setIsNotesPanelOpen] = useState<boolean>(false);
@@ -2243,6 +2248,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   setActiveBlockFilter('ALL');
                   setActiveSubjectFilter('ALL');
                   setSelectedCategory('All');
+                  setShowAllTopicsFlat(false);
                   setActivePopup(null);
                 }}
                 className={`w-full min-h-[44px] px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-right transition-colors ${
@@ -2265,7 +2271,12 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
               </button>
 
               {blocks.map((block) => {
-                const bCount = topics.filter((t) => t.blockId === block.id).length;
+                const blockSubjIds = new Set(
+                  subjects.filter((s) => s.blockId === block.id).map((s) => s.id)
+                );
+                const bCount = topics.filter(
+                  (t) => t.blockId === block.id || (t.subjectId && blockSubjIds.has(t.subjectId))
+                ).length;
                 const isSelected = activeBlockFilter === block.id;
                 return (
                   <button
@@ -2274,6 +2285,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     onClick={() => {
                       setActiveBlockFilter(block.id);
                       setActiveSubjectFilter('ALL');
+                      setShowAllTopicsFlat(false);
                       setActivePopup(null);
                     }}
                     className={`w-full min-h-[44px] px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-right transition-colors ${
@@ -2346,6 +2358,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 type="button"
                 onClick={() => {
                   setActiveSubjectFilter('ALL');
+                  setShowAllTopicsFlat(false);
                   setActivePopup(null);
                 }}
                 className={`w-full min-h-[44px] px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-right transition-colors ${
@@ -2375,7 +2388,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     key={sub.id}
                     type="button"
                     onClick={() => {
+                      if (sub.blockId) {
+                        setActiveBlockFilter(sub.blockId);
+                      }
                       setActiveSubjectFilter(sub.id);
+                      setShowAllTopicsFlat(false);
                       setActivePopup(null);
                     }}
                     className={`w-full min-h-[44px] px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-right transition-colors ${
@@ -2596,8 +2613,13 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   </div>
                 ) : (
                   blocks.map((block) => {
-                    const blockTopics = topics.filter((t) => t.blockId === block.id);
                     const blockSubjects = subjects.filter((s) => s.blockId === block.id);
+                    const blockSubjIds = new Set(blockSubjects.map((s) => s.id));
+                    const blockTopics = topics.filter(
+                      (t) =>
+                        t.blockId === block.id ||
+                        (t.subjectId && blockSubjIds.has(t.subjectId))
+                    );
                     return (
                       <div
                         key={block.id}
@@ -2647,6 +2669,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                             onClick={() => {
                               setActiveBlockFilter(block.id);
                               setActiveSubjectFilter('ALL');
+                              setShowAllTopicsFlat(false);
                               setActivePopup(null);
                             }}
                             className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold whitespace-nowrap"
@@ -3912,7 +3935,8 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {extraMedia.map((ma) => {
                         const rawHref = (ma.rawUrl || ma.url || '').trim();
-                        const resolvedSrc = topicOfflineMediaUrls[ma.id] || rawHref;
+                        const offlineHref = topicOfflineMediaUrls[ma.id];
+                        const resolvedSrc = offlineHref || rawHref;
                         const mediaKind = String(
                           ma.kind || ma.mediaType || ma.format || 'attachment'
                         ).toLowerCase();
@@ -3926,7 +3950,12 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                           mediaKind === 'image' ||
                           mediaKind === 'svg' ||
                           mediaKind === 'diagram' ||
-                          detectedExtra.kind === 'image';
+                          detectedExtra.kind === 'image' ||
+                          mimeLower.includes('svg');
+                        const isPdf =
+                          mediaKind === 'pdf' ||
+                          detectedExtra.kind === 'pdf' ||
+                          mimeLower === 'application/pdf';
                         const isAudio =
                           mediaKind === 'audio' ||
                           detectedExtra.kind === 'audio';
@@ -3944,20 +3973,34 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                           ma.fileName ||
                           ma.id;
                         const hasImageError = Boolean(failedMediaIds[ma.id]);
+                        const isRemoteDownloadable =
+                          !offlineHref &&
+                          Boolean(rawHref) &&
+                          /^https?:\/\//i.test(rawHref) &&
+                          (isDownloadableMediaUrl(rawHref) || isImageOrSvg || isPdf || isAudio || isDirectVideo);
+                        const isSavingOffline = Boolean(savingMediaIds[ma.id]);
+                        const isPdfOpenInline = Boolean(inlinePdfPreviewIds[ma.id]);
 
                         return (
                           <div
                             key={ma.id}
-                            className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2"
+                            className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2.5"
                           >
                             <div className="flex items-center justify-between gap-2 text-xs">
                               <span className="font-extrabold text-slate-900 dark:text-white truncate">
                                 {displayTitle}
                               </span>
-                              <span className="text-[11px] font-mono text-slate-400 shrink-0">
-                                {topicOfflineMediaUrls[ma.id] ? 'محلي' : mediaKind.toUpperCase()}
+                              <span
+                                className={`text-[10px] font-mono font-extrabold px-1.5 py-0.5 rounded shrink-0 ${
+                                  offlineHref
+                                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                    : 'bg-slate-200/70 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                                }`}
+                              >
+                                {offlineHref ? 'محلي' : mediaKind.toUpperCase()}
                               </span>
                             </div>
+
                             {isImageOrSvg && resolvedSrc && !hasImageError ? (
                               <img
                                 src={resolvedSrc}
@@ -3987,42 +4030,93 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                                 src={resolvedSrc}
                                 className="w-full max-h-56 rounded-xl bg-black"
                               />
-                            ) : resolvedSrc ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const r = openMediaInExternalApp(
-                                    rawHref || resolvedSrc,
-                                    ma.fileName || ma.titleEn || ma.id,
-                                    /^https?:\/\//i.test(rawHref || resolvedSrc)
-                                      ? ''
-                                      : ma.mimeType
-                                  );
-                                  showToast(r.messageAr, r.opened ? 'success' : 'info');
-                                }}
-                                className="min-h-[40px] px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-extrabold inline-flex items-center gap-1.5"
-                              >
-                                <Download className="w-3.5 h-3.5" />
-                                <span>فتح / عرض المرفق</span>
-                              </button>
+                            ) : isPdf && resolvedSrc && isPdfOpenInline ? (
+                              <div className="w-full h-72 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white">
+                                <iframe
+                                  src={resolvedSrc}
+                                  title={displayTitle}
+                                  className="w-full h-full border-0"
+                                />
+                              </div>
                             ) : null}
-                            {hasImageError && rawHref && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const r = openMediaInExternalApp(
-                                    rawHref,
-                                    ma.fileName || ma.titleEn || ma.id,
-                                    ''
-                                  );
-                                  showToast(r.messageAr, r.opened ? 'success' : 'info');
-                                }}
-                                className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-extrabold inline-flex items-center gap-1.5"
-                              >
-                                <Download className="w-3.5 h-3.5" />
-                                <span>عرض الصورة من المصدر</span>
-                              </button>
-                            )}
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              {isPdf && resolvedSrc && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setInlinePdfPreviewIds((prev) => ({
+                                      ...prev,
+                                      [ma.id]: !prev[ma.id]
+                                    }))
+                                  }
+                                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-extrabold inline-flex items-center gap-1.5"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>{isPdfOpenInline ? 'إخفاء PDF' : 'معاينة PDF'}</span>
+                                </button>
+                              )}
+
+                              {isRemoteDownloadable && (
+                                <button
+                                  type="button"
+                                  disabled={isSavingOffline}
+                                  onClick={async () => {
+                                    setSavingMediaIds((prev) => ({ ...prev, [ma.id]: true }));
+                                    try {
+                                      const res = await downloadRemoteMediaToOfflineCache({
+                                        url: rawHref,
+                                        id:
+                                          ma.mediaIdbKey ||
+                                          `idb-${computeDeterministicFastHashHex(rawHref).slice(0, 16)}`,
+                                        topicId: activeTopic.id,
+                                        fileName: ma.fileName || ma.titleEn || ma.id,
+                                        preferredMimeType: ma.mimeType
+                                      });
+                                      if (res.success && res.dataUrl) {
+                                        setTopicOfflineMediaUrls((prev) => ({
+                                          ...prev,
+                                          [ma.id]: res.dataUrl
+                                        }));
+                                        setFailedMediaIds((prev) => ({ ...prev, [ma.id]: false }));
+                                        showToast('تم حفظ المرفق للعمل دون إنترنت', 'success');
+                                      } else {
+                                        showToast(
+                                          res.errorAr || res.messageAr || 'تعذر حفظ المرفق أوفلاين',
+                                          'info'
+                                        );
+                                      }
+                                    } finally {
+                                      setSavingMediaIds((prev) => ({ ...prev, [ma.id]: false }));
+                                    }
+                                  }}
+                                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold inline-flex items-center gap-1.5 disabled:opacity-50"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span>{isSavingOffline ? 'جاري الحفظ...' : 'حفظ أوفلاين'}</span>
+                                </button>
+                              )}
+
+                              {(rawHref || resolvedSrc) && (!isImageOrSvg || hasImageError || !isPdf) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const r = openMediaInExternalApp(
+                                      rawHref || resolvedSrc,
+                                      ma.fileName || ma.titleEn || ma.id,
+                                      /^https?:\/\//i.test(rawHref || resolvedSrc)
+                                        ? ''
+                                        : ma.mimeType
+                                    );
+                                    showToast(r.messageAr, r.opened ? 'success' : 'info');
+                                  }}
+                                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-extrabold inline-flex items-center gap-1.5"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span>{hasImageError ? 'عرض من المصدر' : 'فتح خارجياً'}</span>
+                                </button>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
@@ -4990,8 +5084,72 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         </div>
       </div>
 
+      {/* Hierarchy Breadcrumb & Drilldown: Blocks -> Subjects -> Topics */}
+      {(activeBlockFilter !== 'ALL' || activeSubjectFilter !== 'ALL') && (
+        <div className="px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveBlockFilter('ALL');
+                setActiveSubjectFilter('ALL');
+                setShowAllTopicsFlat(false);
+              }}
+              className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-emerald-500/15 text-slate-700 dark:text-slate-200 font-extrabold transition-colors"
+            >
+              كل البلوكات
+            </button>
+            {activeBlockFilter !== 'ALL' && (() => {
+              const blk = blockMap.get(activeBlockFilter);
+              if (!blk) return null;
+              return (
+                <>
+                  <span className="text-slate-400">/</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveSubjectFilter('ALL');
+                      setShowAllTopicsFlat(false);
+                    }}
+                    className={`px-2 py-1 rounded-lg font-extrabold transition-colors ${
+                      activeSubjectFilter === 'ALL'
+                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                        : 'bg-slate-100 dark:bg-slate-800 hover:bg-emerald-500/15 text-slate-700 dark:text-slate-200'
+                    }`}
+                  >
+                    {blk.code} · {getShortBlockNameAr(blk)}
+                  </button>
+                </>
+              );
+            })()}
+            {activeSubjectFilter !== 'ALL' && (() => {
+              const sub = subjectMap.get(activeSubjectFilter);
+              if (!sub) return null;
+              return (
+                <>
+                  <span className="text-slate-400">/</span>
+                  <span className="px-2 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold">
+                    {sub.code} · {getShortSubjectNameAr(sub)}
+                  </span>
+                </>
+              );
+            })()}
+          </div>
+
+          {activeBlockFilter !== 'ALL' && activeSubjectFilter === 'ALL' && filteredTopics.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAllTopicsFlat((prev) => !prev)}
+              className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-emerald-500/15 text-[11px] font-extrabold text-slate-700 dark:text-slate-200 transition-colors shrink-0"
+            >
+              {showAllTopicsFlat ? 'عرض المواد فقط' : `عرض كل مواضيع البلوك (${filteredTopics.length})`}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Compact 1-Line Recent Topic Resume Bar */}
-      {lastReadTopic && !searchQuery && activeBlockFilter === 'ALL' && !onlyFavoriteTopics && (
+      {lastReadTopic && !searchQuery && activeBlockFilter === 'ALL' && activeSubjectFilter === 'ALL' && !onlyFavoriteTopics && (
         <button
           type="button"
           onClick={() => handleOpenTopicInReader(lastReadTopic)}
@@ -5010,166 +5168,428 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         </button>
       )}
 
-      {/* Hierarchical Topics Cards Grid (Full Block & Subject Arabic Names) */}
-      {filteredTopics.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-          {filteredTopics.map((topic) => {
-            const detected = detectedTermsByTopicId[topic.id] || [];
-            const tBlock = topic.blockId
-              ? blockMap.get(topic.blockId)
-              : undefined;
-            const tSubject = topic.subjectId
-              ? subjectMap.get(topic.subjectId)
-              : undefined;
-            const tQuestions = quizQuestions.filter(
-              (q) => q.topicId === topic.id
-            );
+      {(() => {
+        const isDefaultBrowse =
+          !searchQuery.trim() &&
+          !onlyFavoriteTopics &&
+          selectedCategory === 'All' &&
+          !showAllTopicsFlat;
 
-            const primaryTitle = (topic.titleEn || topic.title || '').trim();
-            const secondaryTitle = (
-              topic.titleAr ||
-              topic.subtitle ||
-              ''
-            ).trim();
+        // Level 1: Show Blocks when ALL is selected & multiple blocks or subjects exist
+        if (
+          isDefaultBrowse &&
+          activeBlockFilter === 'ALL' &&
+          activeSubjectFilter === 'ALL' &&
+          blocks.length > 0
+        ) {
+          const orphanTopics = filteredTopics.filter(
+            (t) =>
+              (!t.blockId || !blockMap.has(t.blockId)) &&
+              (!t.subjectId || !subjectMap.has(t.subjectId))
+          );
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-2 px-1">
+                <h2 className="text-xs sm:text-sm font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <FolderKanban className="w-4 h-4 text-emerald-500" />
+                  <span>البلوكات الأكاديمية ({blocks.length})</span>
+                </h2>
+                {filteredTopics.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllTopicsFlat(true)}
+                    className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-emerald-500/15 text-[11px] font-extrabold text-slate-700 dark:text-slate-200 transition-colors"
+                  >
+                    عرض كل المواضيع ({filteredTopics.length})
+                  </button>
+                )}
+              </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {blocks.map((blk) => {
+                  const blkSubjects = subjects.filter((s) => s.blockId === blk.id);
+                  const blkSubjIds = new Set(blkSubjects.map((s) => s.id));
+                  const blkTopicsCount = topics.filter(
+                    (t) =>
+                      t.blockId === blk.id ||
+                      (t.subjectId && blkSubjIds.has(t.subjectId))
+                  ).length;
+
+                  return (
+                    <button
+                      key={blk.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveBlockFilter(blk.id);
+                        setActiveSubjectFilter('ALL');
+                        setShowAllTopicsFlat(false);
+                      }}
+                      className="group w-full text-right rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/70 transition-all p-4 flex flex-col justify-between gap-3 shadow-xs"
+                    >
+                      <div className="flex items-center justify-between gap-2 w-full">
+                        <span
+                          dir="ltr"
+                          className="px-2.5 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-mono text-[11px] font-extrabold"
+                        >
+                          {blk.code}
+                        </span>
+                        <span className="text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400">
+                          {blkSubjects.length} مادة · {blkTopicsCount} موضوع
+                        </span>
+                      </div>
+
+                      <div className="space-y-1 w-full">
+                        <div
+                          dir="ltr"
+                          className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors text-left break-words"
+                        >
+                          {blk.titleEn}
+                        </div>
+                        <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 leading-relaxed break-words">
+                          {getShortBlockNameAr(blk)}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] font-extrabold text-slate-500 dark:text-slate-400 w-full">
+                        <span>فتح المواد داخل البلوك</span>
+                        <ArrowRight className="w-4 h-4 rotate-180 text-emerald-500" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {orphanTopics.length > 0 && (
+                <div className="space-y-2.5 pt-2">
+                  <h3 className="text-xs font-extrabold text-slate-500 px-1">
+                    مواضيع مستقلة ({orphanTopics.length})
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {orphanTopics.map((topic) => {
+                      const detected = detectedTermsByTopicId[topic.id] || [];
+                      const tQuestions = quizQuestions.filter((q) => q.topicId === topic.id);
+                      const primaryTitle = (topic.titleEn || topic.title || '').trim();
+                      const secondaryTitle = (topic.titleAr || topic.subtitle || '').trim();
+                      return (
+                        <article
+                          key={topic.id}
+                          onClick={() => handleOpenTopicInReader(topic)}
+                          className="group w-full rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/70 transition-all p-4 flex flex-col justify-between gap-3 cursor-pointer shadow-xs"
+                        >
+                          <div className="space-y-1.5">
+                            <h2 dir="auto" className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white line-clamp-1">
+                              {primaryTitle}
+                            </h2>
+                            {secondaryTitle && secondaryTitle !== primaryTitle && (
+                              <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 line-clamp-1">
+                                {secondaryTitle}
+                              </div>
+                            )}
+                          </div>
+                          <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] font-bold text-slate-400">
+                            <span>{detected.length} مصطلح · {tQuestions.length} اختبار</span>
+                            <span>{topic.sections.length} أقسام</span>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        // Level 2: Block selected -> Show Subjects inside that Block
+        if (
+          isDefaultBrowse &&
+          activeBlockFilter !== 'ALL' &&
+          activeSubjectFilter === 'ALL'
+        ) {
+          const blkSubjects = visibleSubjects;
+          const blkSubjIds = new Set(blkSubjects.map((s) => s.id));
+          const directBlockTopics = filteredTopics.filter(
+            (t) => !t.subjectId || !blkSubjIds.has(t.subjectId)
+          );
+
+          if (blkSubjects.length > 0) {
             return (
-              <article
-                key={topic.id}
-                onClick={() => handleOpenTopicInReader(topic)}
-                className="group w-full rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/70 transition-all p-4 flex flex-col justify-between gap-3 cursor-pointer shadow-xs"
-              >
-                <div className="space-y-1.5">
-                  {/* Top Row: Full Block Name + Full Subject Name + Favorite & Menu */}
-                  <div className="flex items-start justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                      {tBlock && (
-                        <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-extrabold text-[10px] text-slate-700 dark:text-slate-300 leading-snug break-words">
-                          <span dir="ltr" className="font-mono">
-                            {tBlock.code}
-                          </span>{' '}
-                          · {getShortBlockNameAr(tBlock)}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <h2 className="text-xs sm:text-sm font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <BookOpen className="w-4 h-4 text-emerald-500" />
+                    <span>المواد داخل البلوك ({blkSubjects.length})</span>
+                  </h2>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {blkSubjects.map((sub) => {
+                    const subTopicsCount = topics.filter(
+                      (t) => t.subjectId === sub.id
+                    ).length;
+                    return (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveSubjectFilter(sub.id);
+                          setShowAllTopicsFlat(false);
+                        }}
+                        className="group w-full text-right rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/70 transition-all p-4 flex flex-col justify-between gap-3 shadow-xs"
+                      >
+                        <div className="flex items-center justify-between gap-2 w-full">
+                          <span
+                            dir="ltr"
+                            className="px-2.5 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-mono text-[11px] font-extrabold"
+                          >
+                            {sub.code}
+                          </span>
+                          <span className="text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400">
+                            {subTopicsCount} موضوع
+                          </span>
+                        </div>
+
+                        <div className="space-y-1 w-full">
+                          <div
+                            dir="ltr"
+                            className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors text-left break-words"
+                          >
+                            {sub.titleEn}
+                          </div>
+                          <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 leading-relaxed break-words">
+                            {getShortSubjectNameAr(sub)}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] font-extrabold text-slate-500 dark:text-slate-400 w-full">
+                          <span>عرض مواضيع المادة</span>
+                          <ArrowRight className="w-4 h-4 rotate-180 text-emerald-500" />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {directBlockTopics.length > 0 && (
+                  <div className="space-y-2.5 pt-2">
+                    <h3 className="text-xs font-extrabold text-slate-500 px-1">
+                      مواضيع عامة في البلوك ({directBlockTopics.length})
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      {directBlockTopics.map((topic) => {
+                        const detected = detectedTermsByTopicId[topic.id] || [];
+                        const tBlock = topic.blockId ? blockMap.get(topic.blockId) : undefined;
+                        const tSubject = topic.subjectId ? subjectMap.get(topic.subjectId) : undefined;
+                        const tQuestions = quizQuestions.filter((q) => q.topicId === topic.id);
+                        const primaryTitle = (topic.titleEn || topic.title || '').trim();
+                        const secondaryTitle = (topic.titleAr || topic.subtitle || '').trim();
+
+                        return (
+                          <article
+                            key={topic.id}
+                            onClick={() => handleOpenTopicInReader(topic)}
+                            className="group w-full rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/70 transition-all p-4 flex flex-col justify-between gap-3 cursor-pointer shadow-xs"
+                          >
+                            <div className="space-y-1.5">
+                              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                                {tBlock && (
+                                  <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-extrabold text-[10px]">
+                                    {tBlock.code} · {getShortBlockNameAr(tBlock)}
+                                  </span>
+                                )}
+                                {tSubject && (
+                                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px]">
+                                    {tSubject.code} · {getShortSubjectNameAr(tSubject)}
+                                  </span>
+                                )}
+                              </div>
+                              <h2 dir="auto" className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white line-clamp-1">
+                                {primaryTitle}
+                              </h2>
+                              {secondaryTitle && secondaryTitle !== primaryTitle && (
+                                <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 line-clamp-1">
+                                  {secondaryTitle}
+                                </div>
+                              )}
+                            </div>
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] font-bold text-slate-400">
+                              <span>{detected.length} مصطلح · {tQuestions.length} اختبار</span>
+                              <span>{topic.sections.length} أقسام</span>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          }
+        }
+
+        // Level 3: Subject selected OR Search/Favorites/Flat View -> Topics Grid
+        return filteredTopics.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {filteredTopics.map((topic) => {
+              const detected = detectedTermsByTopicId[topic.id] || [];
+              const tSubject = topic.subjectId
+                ? subjectMap.get(topic.subjectId)
+                : undefined;
+              const resolvedBlockId = topic.blockId || tSubject?.blockId || '';
+              const tBlock = resolvedBlockId
+                ? blockMap.get(resolvedBlockId)
+                : undefined;
+              const tQuestions = quizQuestions.filter(
+                (q) => q.topicId === topic.id
+              );
+
+              const primaryTitle = (topic.titleEn || topic.title || '').trim();
+              const secondaryTitle = (
+                topic.titleAr ||
+                topic.subtitle ||
+                ''
+              ).trim();
+
+              return (
+                <article
+                  key={topic.id}
+                  onClick={() => handleOpenTopicInReader(topic)}
+                  className="group w-full rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/70 transition-all p-4 flex flex-col justify-between gap-3 cursor-pointer shadow-xs"
+                >
+                  <div className="space-y-1.5">
+                    {/* Top Row: Full Block Name + Full Subject Name + Favorite & Menu */}
+                    <div className="flex items-start justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                        {tBlock && (
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-extrabold text-[10px] text-slate-700 dark:text-slate-300 leading-snug break-words">
+                            <span dir="ltr" className="font-mono">
+                              {tBlock.code}
+                            </span>{' '}
+                            · {getShortBlockNameAr(tBlock)}
+                          </span>
+                        )}
+                        {tSubject && (
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px] leading-snug break-words">
+                            <span dir="ltr" className="font-mono">
+                              {tSubject.code}
+                            </span>{' '}
+                            · {getShortSubjectNameAr(tSubject)}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-slate-400 shrink-0">
+                          · {topic.readingTimeMinutes} د
                         </span>
-                      )}
-                      {tSubject && (
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px] leading-snug break-words">
-                          <span dir="ltr" className="font-mono">
-                            {tSubject.code}
-                          </span>{' '}
-                          · {getShortSubjectNameAr(tSubject)}
-                        </span>
-                      )}
-                      <span className="text-[10px] text-slate-400 shrink-0">
-                        · {topic.readingTimeMinutes} د
-                      </span>
+                      </div>
+
+                      <div
+                        className="flex items-center gap-0.5 shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={(e) => onToggleFavoriteTopic(topic.id, e)}
+                          className="min-h-[32px] min-w-[32px] rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-amber-400 flex items-center justify-center"
+                          title="المفضلة"
+                        >
+                          <Star
+                            className={`w-3.5 h-3.5 ${
+                              topic.favorite
+                                ? 'fill-amber-400 text-amber-400'
+                                : ''
+                            }`}
+                          />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setActionMenuTopicId(topic.id)}
+                          className="min-h-[32px] min-w-[32px] rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white flex items-center justify-center"
+                          title="خيارات"
+                        >
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
+                    {/* Topic Titles (Concise, 1-line each, no paragraph wall) */}
+                    <h2
+                      dir="auto"
+                      className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-snug line-clamp-1"
+                    >
+                      {primaryTitle}
+                    </h2>
+
+                    {secondaryTitle && secondaryTitle !== primaryTitle && (
+                      <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 line-clamp-1">
+                        {secondaryTitle}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Compact Bottom Row */}
+                  <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 text-[11px]">
                     <div
-                      className="flex items-center gap-0.5 shrink-0"
+                      className="flex items-center gap-1.5"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
                         type="button"
-                        onClick={(e) => onToggleFavoriteTopic(topic.id, e)}
-                        className="min-h-[32px] min-w-[32px] rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-amber-400 flex items-center justify-center"
-                        title="المفضلة"
+                        onClick={() => setTermsPopupTopicId(topic.id)}
+                        className="min-h-[30px] px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold whitespace-nowrap"
                       >
-                        <Star
-                          className={`w-3.5 h-3.5 ${
-                            topic.favorite
-                              ? 'fill-amber-400 text-amber-400'
-                              : ''
-                          }`}
-                        />
+                        المصطلحات ({detected.length})
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setActionMenuTopicId(topic.id)}
-                        className="min-h-[32px] min-w-[32px] rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white flex items-center justify-center"
-                        title="خيارات"
-                      >
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
+                      {tQuestions.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openQuizForScope({
+                              blockId: resolvedBlockId || topic.blockId,
+                              subjectId: topic.subjectId,
+                              topicId: topic.id,
+                              tab: 'runner'
+                            })
+                          }
+                          className="min-h-[30px] px-2.5 py-1 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold whitespace-nowrap"
+                        >
+                          اختبار ({tQuestions.length})
+                        </button>
+                      )}
                     </div>
+
+                    <span className="text-slate-400 dark:text-slate-500 font-bold text-[11px] inline-flex items-center gap-1">
+                      <span>{topic.sections.length} أقسام</span>
+                      <ArrowRight className="w-3.5 h-3.5 rotate-180 text-emerald-500" />
+                    </span>
                   </div>
-
-                  {/* Topic Titles (Concise, 1-line each, no paragraph wall) */}
-                  <h2
-                    dir="auto"
-                    className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-snug line-clamp-1"
-                  >
-                    {primaryTitle}
-                  </h2>
-
-                  {secondaryTitle && secondaryTitle !== primaryTitle && (
-                    <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 line-clamp-1">
-                      {secondaryTitle}
-                    </div>
-                  )}
-                </div>
-
-                {/* Compact Bottom Row */}
-                <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 text-[11px]">
-                  <div
-                    className="flex items-center gap-1.5"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setTermsPopupTopicId(topic.id)}
-                      className="min-h-[30px] px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold whitespace-nowrap"
-                    >
-                      المصطلحات ({detected.length})
-                    </button>
-
-                    {tQuestions.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openQuizForScope({
-                            blockId: topic.blockId,
-                            subjectId: topic.subjectId,
-                            topicId: topic.id,
-                            tab: 'runner'
-                          })
-                        }
-                        className="min-h-[30px] px-2.5 py-1 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold whitespace-nowrap"
-                      >
-                        اختبار ({tQuestions.length})
-                      </button>
-                    )}
-                  </div>
-
-                  <span className="text-slate-400 dark:text-slate-500 font-bold text-[11px] inline-flex items-center gap-1">
-                    <span>{topic.sections.length} أقسام</span>
-                    <ArrowRight className="w-3.5 h-3.5 rotate-180 text-emerald-500" />
-                  </span>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-3">
-          <BookOpen className="w-6 h-6 text-slate-400 mx-auto" />
-          <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white">
-            لا توجد مواضيع مطابقة
-          </h3>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveBlockFilter('ALL');
-              setActiveSubjectFilter('ALL');
-              setSelectedCategory('All');
-              setOnlyFavoriteTopics(false);
-              setSearchQuery('');
-            }}
-            className="min-h-[36px] px-4 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-extrabold"
-          >
-            إظهار الكل
-          </button>
-        </div>
-      )}
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-3">
+            <BookOpen className="w-6 h-6 text-slate-400 mx-auto" />
+            <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white">
+              لا توجد مواضيع مطابقة
+            </h3>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveBlockFilter('ALL');
+                setActiveSubjectFilter('ALL');
+                setSelectedCategory('All');
+                setOnlyFavoriteTopics(false);
+                setShowAllTopicsFlat(false);
+                setSearchQuery('');
+              }}
+              className="min-h-[36px] px-4 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-extrabold"
+            >
+              إظهار الكل
+            </button>
+          </div>
+        );
+      })()}
     </div>
   );
 };
