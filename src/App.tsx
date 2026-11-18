@@ -75,6 +75,7 @@ import { TopicsHub } from './components/TopicsHub';
 import { TermDetailSheet } from './components/TermDetailSheet';
 import { LibraryView, LibrarySubMode, StagedTermItem } from './components/LibraryView';
 import { SettingsView } from './components/SettingsView';
+import { publishMasterDataToGitHub } from './services/githubRepositoryService';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { prepareAndDownloadFile, shareFileWithVerification } from './utils/downloadHelper';
 import {
@@ -99,6 +100,8 @@ import {
 import {
   saveMedicalBlocks,
   saveMedicalSubjects,
+  loadMedicalBlocks,
+  loadMedicalSubjects,
   loadAcademicBooks,
   saveAcademicBooks,
   saveAcademicExams,
@@ -107,7 +110,7 @@ import {
   saveUserStudyNotes,
   normalizeAcademicBookResource
 } from './services/learningHierarchyService';
-import { saveQuizQuestions, saveQuizAttempts } from './services/quizEngineService';
+import { saveQuizQuestions, saveQuizAttempts, loadQuizQuestions } from './services/quizEngineService';
 import {
   importUniversalAiOrLocalContent,
   importUniversalZipArchiveBytes,
@@ -2625,6 +2628,19 @@ export default function App() {
             onRestoreFromTelegramNow={handleRestoreFromTelegramNow}
             currentDataSummary={currentDataSummary}
             lastImportedOrCopiedSummary={lastImportedOrCopiedSummary}
+            onPublishLocalData={() => publishMasterDataToGitHub({
+              terms,
+              sentences,
+              topics,
+              customAffixes,
+              customAbbreviations,
+              blocks: loadMedicalBlocks(),
+              subjects: loadMedicalSubjects(),
+              books: loadAcademicBooks(),
+              questions: loadQuizQuestions(topics, terms),
+              exams: loadAcademicExams(),
+              mediaAssets: loadMediaAssetsIndex()
+            })}
             onResetDefaults={() => {
               clearLocallyRemovedRegistry();
               const defaults = resetToDefaults();
