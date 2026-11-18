@@ -13,7 +13,7 @@ android {
         applicationId "org.umed2.dictengine"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 20402
+        versionCode 20403
         versionName "2.4.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
