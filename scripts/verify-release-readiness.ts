@@ -305,9 +305,39 @@ async function main() {
   }
   assertCondition(sqliteBlocked, 'SQLite binary files must be rejected');
 
+  // Use isolated test fixtures when the production APK intentionally ships with no seed content.
+  const transferTerms = initialState.terms.length > 0 ? initialState.terms : [{
+    id: 'test-transfer-term',
+    term: 'Test Clinical Term',
+    termNormalized: 'test clinical term',
+    translation: 'مصطلح سريري اختباري',
+    phonetic: '/test/',
+    pos: 'Noun',
+    category: 'Medical' as const,
+    keepEnglish: true,
+    favorite: false,
+    collections: [],
+    ingestedAt: 'verification-fixture',
+    definitionAr: 'بيانات اختبار نقل فقط',
+    definitionEn: 'Verification-only transfer fixture',
+    examples: [],
+    relations: { synonyms: [], broader: [], related: [] }
+  }];
+  const transferSentences = initialState.sentences.length > 0 ? initialState.sentences : [{
+    id: 'test-transfer-sentence',
+    en: 'This is a transfer verification sentence.',
+    ar: 'هذه جملة للتحقق من نقل البيانات.',
+    category: 'Medical' as const,
+    sourceType: 'manual' as const,
+    linkedTermIds: ['test-transfer-term'],
+    tags: [],
+    favorite: false,
+    createdAt: new Date().toISOString()
+  }];
+
   const exportedJson = exportFullDatabaseJson({
-    terms: initialState.terms,
-    sentences: initialState.sentences,
+    terms: transferTerms,
+    sentences: transferSentences,
     topics: initialState.topics,
     customAffixes: initialState.customAffixes,
     customAbbreviations: initialState.customAbbreviations,
@@ -315,8 +345,8 @@ async function main() {
     versionMetadata: initialState.versionMetadata
   });
   const exportedZipBytes = exportFullDatabaseZipBytes({
-    terms: initialState.terms,
-    sentences: initialState.sentences,
+    terms: transferTerms,
+    sentences: transferSentences,
     topics: initialState.topics,
     customAffixes: initialState.customAffixes,
     customAbbreviations: initialState.customAbbreviations,
