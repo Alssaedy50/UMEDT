@@ -1623,9 +1623,25 @@ export default function App() {
     });
   };
 
+  const registerFullBackupReviewGroup = (sourceName: string, sourceType: string, counts: Record<string, number>) => {
+    registerImportGroup({
+      id: `backup-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+      name: sourceName || 'نسخة احتياطية كاملة',
+      sourceName: sourceName || 'استيراد نسخة احتياطية',
+      sourceType,
+      createdAt: new Date().toISOString(),
+      ids: {},
+      counts,
+      ignoredDuplicates: 0,
+      requiresReview: true,
+      reviewReason: 'هذه عملية استعادة/استيراد كاملة قد تستبدل أو تدمج نطاقات متعددة؛ لا يمكن حذف مساهمتها انتقائياً بأمان.'
+    });
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('umed:import-groups-updated'));
+  };
+
   const handleImportFullBackupJson = (
     rawJson: string,
-    options?: { skipTelegramSync?: boolean }
+    options?: { skipTelegramSync?: boolean; sourceName?: string }
   ): boolean => {
     const mode =
       conflictPolicy === 'overwrite'
@@ -1791,6 +1807,17 @@ export default function App() {
           });
         }
         showToast(`تم استيراد النسخة أوفلاين بنجاح (${summary.shortText})`);
+        registerFullBackupReviewGroup(options?.sourceName || 'نسخة احتياطية أوفلاين', parsed.format, {
+          terms: Array.isArray(inner.terms) ? inner.terms.length : 0,
+          sentences: Array.isArray(inner.sentences) ? inner.sentences.length : 0,
+          topics: Array.isArray(inner.topics) ? inner.topics.length : 0,
+          blocks: Array.isArray(inner.blocks) ? inner.blocks.length : 0,
+          subjects: Array.isArray(inner.subjects) ? inner.subjects.length : 0,
+          books: Array.isArray(inner.books) ? inner.books.length : 0,
+          exams: Array.isArray(inner.exams) ? inner.exams.length : 0,
+          mediaAssets: Array.isArray(inner.mediaAssets) ? inner.mediaAssets.length : 0,
+          questions: Array.isArray(inner.quizQuestions || inner.questions) ? (inner.quizQuestions || inner.questions).length : 0
+        });
         return true;
       }
     } catch {
@@ -1825,6 +1852,13 @@ export default function App() {
         });
       }
       showToast(`تم استيراد البيانات بنجاح (${summary.shortText})`);
+      registerFullBackupReviewGroup(options?.sourceName || 'قاعدة بيانات كاملة', 'full-database-json', {
+        terms: importResult.state.terms.length,
+        sentences: importResult.state.sentences.length,
+        topics: importResult.state.topics.length,
+        affixes: importResult.state.customAffixes.length,
+        abbreviations: importResult.state.customAbbreviations.length
+      });
       return true;
     }
     if (importResult.error) {
@@ -1861,7 +1895,7 @@ export default function App() {
             return;
           }
           if (text.startsWith('{') || text.startsWith('[')) {
-            const ok = handleImportFullBackupJson(text);
+            const ok = handleImportFullBackupJson(text, { sourceName: file.name });
             if (ok) return;
           }
         }
