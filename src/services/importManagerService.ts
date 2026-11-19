@@ -21,6 +21,7 @@ import {
   loadStoredClinicalCases,
   saveStoredClinicalCases
 } from './umedPackageService';
+import { registerImportGroup, ImportGroupDomain } from './importGroupService';
 import {
   loadAppState,
   saveTerms,
@@ -139,6 +140,15 @@ export async function executeAtomicMedicalImport(params: {
   const existingQuestions = loadStoredMcqQuestions();
   const existingCases = loadStoredClinicalCases();
 
+  const groupIds: Partial<Record<ImportGroupDomain, string[]>> = {};
+  const groupFingerprints: Partial<Record<ImportGroupDomain, Record<string, string>>> = {};
+  const addGroupId = (domain: ImportGroupDomain, id: string, record: unknown) => {
+    (groupIds[domain] ||= []).push(id);
+    (groupFingerprints[domain] ||= {})[id] = JSON.stringify(record);
+  };
+  let requiresReview = false;
+  const reviewReasons: string[] = [];
+
   const summary = {
     termsAdded: 0,
     termsUpdated: 0,
@@ -168,14 +178,19 @@ export async function executeAtomicMedicalImport(params: {
         nextTerms.push(incoming);
         termMap.set(key, incoming);
         summary.termsAdded++;
+        addGroupId('terms', incoming.id, incoming);
       } else {
         if (params.conflictPolicy === 'overwrite') {
+          requiresReview = true;
+          reviewReasons.push('توجد مصطلحات سابقة تم استبدالها.');
           const idx = nextTerms.findIndex((t) => t.id === existing.id);
           if (idx !== -1) {
             nextTerms[idx] = { ...incoming, id: existing.id };
           }
           summary.termsUpdated++;
         } else if (params.conflictPolicy === 'merge') {
+          requiresReview = true;
+          reviewReasons.push('دُمجت بيانات جديدة داخل مصطلحات موجودة مسبقاً.');
           // Merge examples and relations
           const idx = nextTerms.findIndex((t) => t.id === existing.id);
           if (idx !== -1) {
@@ -211,7 +226,10 @@ export async function executeAtomicMedicalImport(params: {
       if (existingIdx === -1) {
         nextQuestions.push(q);
         summary.questionsAdded++;
+        addGroupId('questions', q.id, q);
       } else if (params.conflictPolicy === 'overwrite') {
+        requiresReview = true;
+        reviewReasons.push('تم استبدال سؤال موجود مسبقاً.');
         nextQuestions[existingIdx] = { ...q, id: nextQuestions[existingIdx].id };
       } else {
         summary.ignoredDuplicates++;
@@ -228,7 +246,10 @@ export async function executeAtomicMedicalImport(params: {
       if (existingIdx === -1) {
         nextSentences.push(s);
         summary.sentencesAdded++;
+        addGroupId('sentences', s.id, s);
       } else if (params.conflictPolicy === 'overwrite') {
+        requiresReview = true;
+        reviewReasons.push('تم استبدال جملة موجودة مسبقاً.');
         nextSentences[existingIdx] = { ...s, id: nextSentences[existingIdx].id };
       }
     }
@@ -243,6 +264,7 @@ export async function executeAtomicMedicalImport(params: {
       if (existingIdx === -1) {
         nextTopics.push(tp);
         summary.topicsAdded++;
+        addGroupId('topics', tp.id, tp);
       }
     }
 
@@ -256,6 +278,7 @@ export async function executeAtomicMedicalImport(params: {
       if (existingIdx === -1) {
         nextCases.push(c);
         summary.clinicalCasesAdded++;
+        addGroupId('clinicalCases', c.id, c);
       }
     }
 
@@ -265,6 +288,7 @@ export async function executeAtomicMedicalImport(params: {
       if (!nextAffixes.some((ea) => ea.affix === a.affix && ea.type === a.type)) {
         nextAffixes.push(a);
         summary.affixesAdded++;
+        addGroupId('affixes', a.id, a);
       }
     }
 
@@ -273,6 +297,7 @@ export async function executeAtomicMedicalImport(params: {
       if (!nextAbbreviations.some((eab) => eab.abbr.toLowerCase() === ab.abbr.toLowerCase())) {
         nextAbbreviations.push(ab);
         summary.abbreviationsAdded++;
+        addGroupId('abbreviations', ab.id, ab);
       }
     }
 
@@ -330,6 +355,22 @@ export async function executeAtomicMedicalImport(params: {
       status: 'success',
       rollbackSnapshotId
     };
+
+    registerImportGroup({
+      id: historyEntry.id,
+      name: params.packageManifest?.subject?.trim() || params.packageManifest?.package_name?.trim() || params.sourceName.replace(/\.[^.]+$/, '') || 'مجموعة مستوردة',
+      sourceName: params.sourceName,
+      sourceType: params.sourceType,
+      packageId: params.packageManifest?.package_id,
+      createdAt: historyEntry.timestamp,
+      ids: groupIds,
+      fingerprints: groupFingerprints,
+      counts: Object.fromEntries(Object.entries(groupIds).map(([key, ids]) => [key, ids?.length || 0])),
+      ignoredDuplicates: summary.ignoredDuplicates,
+      requiresReview,
+      reviewReason: requiresReview ? [...new Set(reviewReasons)].join(' ') + ' الحذف الانتقائي معطّل لتجنب فقدان بيانات سابقة.' : undefined,
+      rollbackSnapshotId
+    });
 
     const history = loadImportHistory();
     history.unshift(historyEntry);

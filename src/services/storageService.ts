@@ -2627,6 +2627,106 @@ export async function executeAtomicPackageImport(
       // Stage 5: Commit WAL transaction once all keys and VersionMetadata are safely written
       commitWalTransaction();
 
+      // Register a named provenance group only for user-initiated local imports.
+      // Track newly-created primary records only; updates/replacements are deliberately non-deletable.
+      if (options?.dataSourceOverride !== 'remote-cdn' && options?.dataSourceOverride !== 'bundled-seed') {
+        try {
+          const makeNew = <T extends { id: string }>(
+            incoming: T[],
+            before: T[],
+            after: T[],
+            keyOf: (item: T) => string = (item) => item.id
+          ): { ids: string[]; fingerprints: Record<string, string>; hasCollision: boolean } => {
+            const beforeIds = new Set(before.map((item) => item.id));
+            const beforeKeys = new Set(before.map(keyOf));
+            const incomingIds = new Set(incoming.map((item) => item.id));
+            const ids = after.filter((item) => !beforeIds.has(item.id) && incomingIds.has(item.id));
+            return {
+              ids: ids.map((item) => item.id),
+              fingerprints: Object.fromEntries(ids.map((item) => [item.id, JSON.stringify(item)])),
+              hasCollision: incoming.some((item) => beforeIds.has(item.id) || beforeKeys.has(keyOf(item)))
+            };
+          };
+          const termsGroup = makeNew<DictionaryTerm>(effectivePayload.terms, currentState.terms, merged.terms, normalizeTermNaturalKey);
+          const newlyCreatedSentences = merged.sentences.filter((sentence) =>
+            !currentState.sentences.some((existing) => existing.id === sentence.id)
+          );
+          const sentencesGroup = makeNew<LinkedSentence>(newlyCreatedSentences, currentState.sentences, merged.sentences, normalizeSentenceNaturalKey);
+          const topicsGroup = makeNew<TopicArticle>(effectivePayload.topics, currentState.topics, merged.topics, normalizeTopicNaturalKey);
+          const affixesGroup = makeNew<MorphologicalAffix>(effectivePayload.customAffixes, currentState.customAffixes, merged.customAffixes, normalizeAffixNaturalKey);
+          const abbreviationsGroup = makeNew<ClinicalAbbreviation>(effectivePayload.customAbbreviations, currentState.customAbbreviations, merged.customAbbreviations, normalizeAbbreviationNaturalKey);
+          const ids = {
+            terms: termsGroup.ids,
+            sentences: sentencesGroup.ids,
+            topics: topicsGroup.ids,
+            affixes: affixesGroup.ids,
+            abbreviations: abbreviationsGroup.ids
+          };
+          const fingerprints = {
+            terms: termsGroup.fingerprints,
+            sentences: sentencesGroup.fingerprints,
+            topics: topicsGroup.fingerprints,
+            affixes: affixesGroup.fingerprints,
+            abbreviations: abbreviationsGroup.fingerprints
+          };
+          const hasCollision = [
+            termsGroup, sentencesGroup, topicsGroup, affixesGroup, abbreviationsGroup
+          ].some((group) => group.hasCollision);
+          const hasUnsupportedContent = Boolean(
+            (effectivePayload.blocks || []).length ||
+            (effectivePayload.subjects || []).length ||
+            (effectivePayload.books || []).length ||
+            (effectivePayload.questions || []).length ||
+            (effectivePayload.exams || []).length ||
+            (effectivePayload.mediaAssets || []).length ||
+            (effectivePayload.userNotes || []).length ||
+            (effectivePayload.quizAttempts || []).length ||
+            (effectivePayload.catalog) ||
+            (effectivePayload.topics || []).some((topic) =>
+              Boolean(topic.images?.length || topic.attachments?.length ||
+                topic.sections?.some((section) => Boolean(section.contentBlocks?.length)))
+            ) ||
+            currentState.terms.some((term) =>
+              term.linkedTopicIds?.some((topicId) => topicsGroup.ids.includes(topicId))
+            )
+          );
+          const groupId = `import-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+          const groupName = options?.fileNameHint || effectivePayload.manifest.description?.trim() ||
+            effectivePayload.manifest.packageId ||
+            'مجموعة بيانات مستوردة';
+          const group = {
+            id: groupId,
+            name: groupName,
+            sourceName: options?.fileNameHint || effectivePayload.manifest.packageId || groupName,
+            sourceType: sourceFormat,
+            packageId: effectivePayload.manifest.packageId,
+            createdAt: new Date().toISOString(),
+            ids,
+            fingerprints,
+            counts: Object.fromEntries(Object.entries(ids).map(([domain, recordIds]) => [domain, recordIds.length])),
+            ignoredDuplicates: ignoredCount,
+            requiresReview: mode === 'replace' || hasCollision || hasUnsupportedContent,
+            reviewReason: mode === 'replace'
+              ? 'استيراد بوضع الاستبدال؛ لا يمكن عكسه انتقائياً دون التأثير على البيانات السابقة.'
+              : hasCollision
+                ? 'تضمنت الحزمة سجلات موجودة مسبقاً أو تم تحديثها؛ الحذف الانتقائي معطّل لحماية المحتوى السابق.'
+                : hasUnsupportedContent
+                  ? 'تتضمن الحزمة بيانات موسعة أو وسائط مرتبطة؛ يلزم دعم تنظيف هذه العناصر واعتمادياتها قبل تفعيل الحذف.'
+                  : undefined
+          };
+          const registryKey = 'umedt_import_groups_v1';
+          const existingGroupsRaw = typeof window !== 'undefined' ? window.localStorage.getItem(registryKey) : null;
+          const existingGroups = existingGroupsRaw ? JSON.parse(existingGroupsRaw) : [];
+          const nextGroups = [group, ...(Array.isArray(existingGroups) ? existingGroups.filter((item: { id?: string }) => item?.id !== groupId) : [])].slice(0, 100);
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(registryKey, JSON.stringify(nextGroups));
+            window.dispatchEvent(new Event('umed:import-groups-updated'));
+          }
+        } catch (groupError) {
+          console.warn('[StorageService] Import succeeded but group provenance could not be saved:', groupError);
+        }
+      }
+
       const nextState: PersistedAppState = {
         version: DB_SCHEMA_VERSION,
         versionMetadata: nextVersionMeta,

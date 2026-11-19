@@ -75,6 +75,7 @@ import { TopicsHub } from './components/TopicsHub';
 import { TermDetailSheet } from './components/TermDetailSheet';
 import { LibraryView, LibrarySubMode, StagedTermItem } from './components/LibraryView';
 import { SettingsView } from './components/SettingsView';
+import { registerImportGroup, ImportGroupDomain } from './services/importGroupService';
 import { publishMasterDataToGitHub } from './services/githubRepositoryService';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { prepareAndDownloadFile, shareFileWithVerification } from './utils/downloadHelper';
@@ -932,21 +933,50 @@ export default function App() {
   };
 
   const triggerTTS = (text: string, key: string, lang = 'en-US') => {
-    setSpeakingKey(key);
-    try {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = lang;
-        utterance.rate = 0.95;
-        window.speechSynthesis.speak(utterance);
-      }
-    } catch {
-      // Fallback
+    const cleanText = text?.trim();
+    if (!cleanText || typeof window === 'undefined' ||
+        !('speechSynthesis' in window) ||
+        typeof SpeechSynthesisUtterance === 'undefined') {
+      setSpeakingKey(null);
+      showToast('ميزة النطق غير متاحة. تحقق من تثبيت محرك تحويل النص إلى كلام في الجهاز.');
+      return;
     }
-    setTimeout(() => {
-      setSpeakingKey((prev) => (prev === key ? null : prev));
-    }, 1200);
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    setSpeakingKey(key);
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = lang;
+    utterance.rate = 0.92;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    const finish = () => setSpeakingKey((current) => current === key ? null : current);
+    utterance.onend = finish;
+    utterance.onerror = (event) => {
+      finish();
+      if (event.error !== 'canceled' && event.error !== 'interrupted') {
+        showToast('تعذر تشغيل النطق. تحقق من محرك الصوت واللغة في إعدادات Android.');
+      }
+    };
+    try {
+      synth.resume();
+      window.setTimeout(() => {
+        try {
+          const voices = synth.getVoices();
+          const language = lang.toLowerCase();
+          const voice = voices.find((item) => item.lang.toLowerCase() === language) ||
+            voices.find((item) => item.lang.toLowerCase().startsWith(language.split('-')[0]));
+          if (voice) utterance.voice = voice;
+          synth.speak(utterance);
+          window.setTimeout(finish, Math.max(8000, Math.min(60000, cleanText.length * 180)));
+        } catch {
+          finish();
+          showToast('فشل بدء النطق الصوتي في بيئة التشغيل الحالية.');
+        }
+      }, 60);
+    } catch {
+      finish();
+      showToast('تعذر الوصول إلى خدمة النطق الصوتي.');
+    }
   };
 
   const copyToClipboard = (text: string, key: string, label = 'تم النسخ إلى الحافظة') => {
@@ -1442,6 +1472,39 @@ export default function App() {
 
   const handleImportTopicsBatch = (incomingTopics: TopicArticle[]): number => {
     if (!Array.isArray(incomingTopics) || incomingTopics.length === 0) return 0;
+    const addedTopics = incomingTopics.filter(tp => tp && tp.title && !topics.some(existing =>
+      existing.id === tp.id || existing.title.toLowerCase() === tp.title.toLowerCase()
+    ));
+    const changedExisting = conflictPolicy !== 'ignore' && incomingTopics.some(tp => topics.some(existing =>
+      existing.id === tp.id || existing.title.toLowerCase() === tp.title.toLowerCase()
+    ));
+    const topicIds = addedTopics.map(tp => tp.id);
+    const topicHasMediaOrBlocks = addedTopics.some(tp =>
+      Boolean(tp.images?.length || tp.attachments?.length || tp.sections?.some(section => Boolean(section.contentBlocks?.length)))
+    );
+    const hasExistingTopicReferences = terms.some(term => term.linkedTopicIds?.some(id => topicIds.includes(id)));
+    if (addedTopics.length || changedExisting) {
+      registerImportGroup({
+        id: `topics-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+        name: addedTopics[0]?.title || 'مواضيع طبية',
+        sourceName: 'استيراد مواضيع',
+        sourceType: 'manual-topics',
+        createdAt: new Date().toISOString(),
+        ids: { topics: topicIds },
+        fingerprints: { topics: Object.fromEntries(addedTopics.map(tp => [tp.id, JSON.stringify(tp)])) },
+        counts: { topics: addedTopics.length },
+        ignoredDuplicates: Math.max(0, incomingTopics.length - addedTopics.length),
+        requiresReview: changedExisting || topicHasMediaOrBlocks || hasExistingTopicReferences,
+        reviewReason: changedExisting
+          ? 'تم تحديث موضوع موجود مسبقاً؛ الحذف الانتقائي معطّل لحماية المحتوى السابق.'
+          : topicHasMediaOrBlocks
+            ? 'تحتوي المواضيع على وسائط أو كتل محتوى مرتبطة؛ يلزم تنظيف اعتمادياتها قبل الحذف.'
+            : hasExistingTopicReferences
+              ? 'توجد سجلات سابقة مرتبطة بالمواضيع الجديدة؛ أُوقف الحذف لحماية الروابط.'
+              : undefined
+      });
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('umed:import-groups-updated'));
+    }
     let importedCount = 0;
     setTopics((prev) => {
       const next = [...prev];
@@ -1469,11 +1532,76 @@ export default function App() {
     return importedCount;
   };
 
-  const handleUniversalImportComplete = (report: UniversalImportReport) => {
+  const registerUniversalImportGroup = (report: UniversalImportReport, sourceName?: string) => {
+    const collect = <T extends { id: string }>(incoming: T[], existing: T[]) => {
+      const oldById = new Map(existing.map(item => [item.id, item]));
+      const added = incoming.filter(item => !oldById.has(item.id));
+      const changedExisting = incoming.some(item => {
+        const old = oldById.get(item.id);
+        return Boolean(old && JSON.stringify(old) !== JSON.stringify(item));
+      });
+      return {
+        ids: added.map(item => item.id),
+        fingerprints: Object.fromEntries(added.map(item => [item.id, JSON.stringify(item)])),
+        changedExisting
+      };
+    };
+    const termsGroup = collect(report.updatedTerms, terms);
+    const sentencesGroup = collect(report.updatedSentences, sentences);
+    const topicsGroup = collect(report.updatedTopics, topics);
+    const affixesGroup = collect(report.updatedAffixes, customAffixes);
+    const abbreviationsGroup = collect(report.updatedAbbreviations, customAbbreviations);
+    const hasExistingChanges = [
+      termsGroup, sentencesGroup, topicsGroup, affixesGroup, abbreviationsGroup
+    ].some(group => group.changedExisting);
+    const ids: Partial<Record<ImportGroupDomain, string[]>> = {
+      terms: termsGroup.ids, sentences: sentencesGroup.ids, topics: topicsGroup.ids,
+      affixes: affixesGroup.ids, abbreviations: abbreviationsGroup.ids
+    };
+    const fingerprints: Partial<Record<ImportGroupDomain, Record<string, string>>> = {
+      terms: termsGroup.fingerprints, sentences: sentencesGroup.fingerprints,
+      topics: topicsGroup.fingerprints, affixes: affixesGroup.fingerprints,
+      abbreviations: abbreviationsGroup.fingerprints
+    };
+    const extendedCounts = report.counts;
+    const hasExtendedContent = Boolean(
+      extendedCounts.blocks || extendedCounts.subjects || extendedCounts.books ||
+      extendedCounts.exams || extendedCounts.questions || extendedCounts.mediaAssets
+    );
+    const groupId = `universal-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    registerImportGroup({
+      id: groupId,
+      name: sourceName || report.summaryText || 'استيراد محتوى طبي',
+      sourceName: sourceName || report.sourceFormat || 'استيراد محتوى طبي',
+      sourceType: report.sourceFormat,
+      createdAt: new Date().toISOString(),
+      ids,
+      fingerprints,
+      counts: {
+        terms: termsGroup.ids.length, sentences: sentencesGroup.ids.length,
+        topics: topicsGroup.ids.length, affixes: affixesGroup.ids.length,
+        abbreviations: abbreviationsGroup.ids.length,
+        blocks: extendedCounts.blocks, subjects: extendedCounts.subjects,
+        books: extendedCounts.books, exams: extendedCounts.exams,
+        questions: extendedCounts.questions, mediaAssets: extendedCounts.mediaAssets
+      },
+      ignoredDuplicates: extendedCounts.skippedDuplicates,
+      requiresReview: hasExistingChanges || hasExtendedContent,
+      reviewReason: hasExistingChanges
+        ? 'تضمنت عملية الاستيراد دمجاً أو تحديثاً لسجلات سابقة؛ الحذف الانتقائي معطّل لحماية البيانات الأصلية.'
+        : hasExtendedContent
+          ? 'تتضمن الدفعة بلوكات أو مواد أو كتباً أو اختبارات أو وسائط؛ يلزم دعم إزالة هذه العناصر واعتمادياتها قبل تفعيل الحذف.'
+          : undefined
+    });
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('umed:import-groups-updated'));
+  };
+
+  const handleUniversalImportComplete = (report: UniversalImportReport, sourceName?: string) => {
     if (!report.success) {
       if (report.errors[0]) showToast(report.errors[0], 'info');
       return;
     }
+    registerUniversalImportGroup(report, sourceName);
     setTerms(report.updatedTerms);
     setSentences(report.updatedSentences);
     setTopics(report.updatedTopics);
@@ -1495,9 +1623,25 @@ export default function App() {
     });
   };
 
+  const registerFullBackupReviewGroup = (sourceName: string, sourceType: string, counts: Record<string, number>) => {
+    registerImportGroup({
+      id: `backup-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+      name: sourceName || 'نسخة احتياطية كاملة',
+      sourceName: sourceName || 'استيراد نسخة احتياطية',
+      sourceType,
+      createdAt: new Date().toISOString(),
+      ids: {},
+      counts,
+      ignoredDuplicates: 0,
+      requiresReview: true,
+      reviewReason: 'هذه عملية استعادة/استيراد كاملة قد تستبدل أو تدمج نطاقات متعددة؛ لا يمكن حذف مساهمتها انتقائياً بأمان.'
+    });
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('umed:import-groups-updated'));
+  };
+
   const handleImportFullBackupJson = (
     rawJson: string,
-    options?: { skipTelegramSync?: boolean }
+    options?: { skipTelegramSync?: boolean; sourceName?: string }
   ): boolean => {
     const mode =
       conflictPolicy === 'overwrite'
@@ -1663,6 +1807,17 @@ export default function App() {
           });
         }
         showToast(`تم استيراد النسخة أوفلاين بنجاح (${summary.shortText})`);
+        registerFullBackupReviewGroup(options?.sourceName || 'نسخة احتياطية أوفلاين', parsed.format, {
+          terms: Array.isArray(inner.terms) ? inner.terms.length : 0,
+          sentences: Array.isArray(inner.sentences) ? inner.sentences.length : 0,
+          topics: Array.isArray(inner.topics) ? inner.topics.length : 0,
+          blocks: Array.isArray(inner.blocks) ? inner.blocks.length : 0,
+          subjects: Array.isArray(inner.subjects) ? inner.subjects.length : 0,
+          books: Array.isArray(inner.books) ? inner.books.length : 0,
+          exams: Array.isArray(inner.exams) ? inner.exams.length : 0,
+          mediaAssets: Array.isArray(inner.mediaAssets) ? inner.mediaAssets.length : 0,
+          questions: Array.isArray(inner.quizQuestions || inner.questions) ? (inner.quizQuestions || inner.questions).length : 0
+        });
         return true;
       }
     } catch {
@@ -1697,6 +1852,13 @@ export default function App() {
         });
       }
       showToast(`تم استيراد البيانات بنجاح (${summary.shortText})`);
+      registerFullBackupReviewGroup(options?.sourceName || 'قاعدة بيانات كاملة', 'full-database-json', {
+        terms: importResult.state.terms.length,
+        sentences: importResult.state.sentences.length,
+        topics: importResult.state.topics.length,
+        affixes: importResult.state.customAffixes.length,
+        abbreviations: importResult.state.customAbbreviations.length
+      });
       return true;
     }
     if (importResult.error) {
@@ -1728,12 +1890,12 @@ export default function App() {
             sourceLabel: file.name
           });
           if (universalReport.success) {
-            handleUniversalImportComplete(universalReport);
+            handleUniversalImportComplete(universalReport, file.name);
             showToast(`تم استيراد الملف (${file.name}): ${universalReport.summaryText}`);
             return;
           }
           if (text.startsWith('{') || text.startsWith('[')) {
-            const ok = handleImportFullBackupJson(text);
+            const ok = handleImportFullBackupJson(text, { sourceName: file.name });
             if (ok) return;
           }
         }
@@ -1773,7 +1935,7 @@ export default function App() {
             sourceLabel: file.name
           });
           if (zipReport.success) {
-            handleUniversalImportComplete(zipReport);
+            handleUniversalImportComplete(zipReport, file.name);
             showToast(`تم استيراد الأرشيف (${file.name}): ${zipReport.summaryText}`);
             return;
           }
@@ -1837,6 +1999,35 @@ export default function App() {
     incomingAbbreviations?: ClinicalAbbreviation[];
     stayOnCurrentTab?: boolean;
   }) => {
+    const createdTermsByKey = new Map<string, DictionaryTerm>();
+    for (const staged of stagedTerms) {
+      const key = staged.term.trim().toLowerCase();
+      if (!key || terms.some(existing => existing.term.toLowerCase() === key) || createdTermsByKey.has(key)) continue;
+      createdTermsByKey.set(key, {
+        id: `u-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        term: staged.term,
+        termNormalized: key,
+        translation: staged.translation,
+        phonetic: staged.phonetic,
+        pos: staged.pos,
+        category: staged.category,
+        umdCode: staged.umdCode,
+        keepEnglish: true,
+        favorite: false,
+        collections: ['مستورد حديثاً'],
+        ingestedAt: 'الآن · الذكاء الاصطناعي المباشر',
+        definitionAr: staged.definitionAr,
+        definitionEn: staged.definitionEn,
+        examples: Array.isArray(staged.examples) ? staged.examples : [],
+        relations: staged.relations
+      });
+    }
+    const incomingNewSentences = incomingSentences.filter(item => !sentences.some(existing => existing.id === item.id));
+    const incomingNewAffixes = incomingAffixes.filter(item => !customAffixes.some(existing => existing.cleanKey.toLowerCase() === item.cleanKey.toLowerCase()));
+    const incomingNewAbbreviations = incomingAbbreviations.filter(item => !customAbbreviations.some(existing => existing.abbr.toLowerCase() === item.abbr.toLowerCase()));
+    const hasExistingChanges = termExampleEnhancements.length > 0 ||
+      (conflictPolicy !== 'ignore' && stagedTerms.some(staged => terms.some(existing => existing.term.toLowerCase() === staged.term.toLowerCase())));
+
     let addedCount = 0;
     let updatedCount = 0;
 
@@ -1931,24 +2122,8 @@ export default function App() {
             updatedCount += 1;
           }
         } else {
-          nextTerms.unshift({
-            id: `u-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            term: staged.term,
-            termNormalized: staged.term.toLowerCase(),
-            translation: staged.translation,
-            phonetic: staged.phonetic,
-            pos: staged.pos,
-            category: staged.category,
-            umdCode: staged.umdCode,
-            keepEnglish: true,
-            favorite: false,
-            collections: ['مستورد حديثاً'],
-            ingestedAt: 'الآن · الذكاء الاصطناعي المباشر',
-            definitionAr: staged.definitionAr,
-            definitionEn: staged.definitionEn,
-            examples: staged.examples,
-            relations: staged.relations
-          });
+          const created = createdTermsByKey.get(staged.term.trim().toLowerCase());
+          if (created) nextTerms.unshift(created);
           addedCount += 1;
         }
       });
@@ -1970,6 +2145,38 @@ export default function App() {
       });
       return enrichedTerms;
     });
+
+    const createdTerms = Array.from(createdTermsByKey.values());
+    const ids: Partial<Record<ImportGroupDomain, string[]>> = {
+      terms: createdTerms.map(item => item.id),
+      sentences: incomingNewSentences.map(item => item.id),
+      affixes: incomingNewAffixes.map(item => item.id),
+      abbreviations: incomingNewAbbreviations.map(item => item.id)
+    };
+    const fingerprints: Partial<Record<ImportGroupDomain, Record<string, string>>> = {
+      terms: Object.fromEntries(createdTerms.map(item => [item.id, JSON.stringify(item)])),
+      sentences: Object.fromEntries(incomingNewSentences.map(item => [item.id, JSON.stringify(item)])),
+      affixes: Object.fromEntries(incomingNewAffixes.map(item => [item.id, JSON.stringify(item)])),
+      abbreviations: Object.fromEntries(incomingNewAbbreviations.map(item => [item.id, JSON.stringify(item)]))
+    };
+    if (Object.values(ids).some(list => Boolean(list?.length)) || hasExistingChanges) {
+      registerImportGroup({
+        id: `manual-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+        name: stagedTerms[0]?.category || incomingAffixes[0]?.type || 'مصطلحات طبية',
+        sourceName: 'إضافة مصطلحات من المحرر',
+        sourceType: 'manual-batch',
+        createdAt: new Date().toISOString(),
+        ids, fingerprints,
+        counts: {
+          terms: createdTerms.length, sentences: incomingNewSentences.length,
+          affixes: incomingNewAffixes.length, abbreviations: incomingNewAbbreviations.length
+        },
+        ignoredDuplicates: Math.max(0, stagedTerms.length - createdTerms.length),
+        requiresReview: hasExistingChanges,
+        reviewReason: hasExistingChanges ? 'تضمنت الدفعة تحديثات أو دمج أمثلة في سجلات موجودة؛ الحذف الانتقائي معطّل لحماية المحتوى السابق.' : undefined
+      });
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('umed:import-groups-updated'));
+    }
 
     if (!stayOnCurrentTab) {
       setActiveTab('home');
