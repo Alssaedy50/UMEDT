@@ -2272,6 +2272,8 @@ export async function executeAtomicPackageImport(
       const allPublicDeletions = Array.from(publicDeletionMap.values());
       const isPublicDeleted = (domain: PublicContentDeletion['domain'], id: string): boolean =>
         publicDeletionMap.has(`${domain}:${id}`);
+      const hasPublicDeletionFor = (domain: PublicContentDeletion['domain']): boolean =>
+        allPublicDeletions.some((deletion) => deletion.domain === domain);
 
       const merged = mergeValidatedCollections(currentState, effectivePayload, mode);
       merged.terms = merged.terms
@@ -2348,7 +2350,7 @@ export async function executeAtomicPackageImport(
 
       const existingBlocks = loadMedicalBlocks();
       const nextBlocksMap = new Map<string, MedicalBlock>(
-        mode === 'replace' && (effectivePayload.blocks || []).length > 0
+        mode === 'replace' && (effectivePayload.blocks || []).length > 0 || hasPublicDeletionFor('blocks')
           ? []
           : existingBlocks.map((b) => [b.id, b])
       );
@@ -2365,7 +2367,7 @@ export async function executeAtomicPackageImport(
 
       const existingSubjects = loadMedicalSubjects();
       const nextSubjectsMap = new Map<string, MedicalSubject>(
-        mode === 'replace' && (effectivePayload.subjects || []).length > 0
+        mode === 'replace' && (effectivePayload.subjects || []).length > 0 || hasPublicDeletionFor('subjects')
           ? []
           : existingSubjects.map((s) => [s.id, s])
       );
@@ -2385,7 +2387,7 @@ export async function executeAtomicPackageImport(
         existingBooks.map((b) => [b.id, b])
       );
       const nextBooksMap = new Map<string, AcademicBookResource>(
-        mode === 'replace' && (effectivePayload.books || []).length > 0
+        mode === 'replace' && (effectivePayload.books || []).length > 0 || hasPublicDeletionFor('books')
           ? []
           : existingBooks.map((b) => [b.id, b])
       );
@@ -2424,7 +2426,7 @@ export async function executeAtomicPackageImport(
           ? rawExistingQuestions
           : loadQuizQuestions(currentState.topics, currentState.terms);
       const nextQuestionsMap = new Map<string, UnifiedQuizQuestion>(
-        mode === 'replace' && (effectivePayload.questions || []).length > 0
+        mode === 'replace' && (effectivePayload.questions || []).length > 0 || hasPublicDeletionFor('questions')
           ? []
           : existingQuestions.map((q) => [q.id, q])
       );
@@ -2440,7 +2442,7 @@ export async function executeAtomicPackageImport(
 
       const existingExams = loadAcademicExams();
       const nextExamsMap = new Map<string, AcademicExamPackage>(
-        mode === 'replace' && (effectivePayload.exams || []).length > 0
+        mode === 'replace' && (effectivePayload.exams || []).length > 0 || hasPublicDeletionFor('exams')
           ? []
           : existingExams.map((e) => [e.id, e])
       );
@@ -2462,7 +2464,7 @@ export async function executeAtomicPackageImport(
 
       const existingMediaAssets = loadMediaAssetsIndex();
       const nextMediaAssetsMap = new Map<string, MediaAssetRecord>(
-        mode === 'replace' && (effectivePayload.mediaAssets || []).length > 0
+        mode === 'replace' && (effectivePayload.mediaAssets || []).length > 0 || hasPublicDeletionFor('mediaAssets')
           ? []
           : existingMediaAssets.map((m) => [m.id, m])
       );
