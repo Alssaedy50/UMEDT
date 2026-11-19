@@ -20,7 +20,7 @@ export interface ImportGroupRecord {
   createdAt: string;
   ids: Partial<Record<ImportGroupDomain, string[]>>;
   fingerprints?: Partial<Record<ImportGroupDomain, Record<string, string>>>;
-  counts: Partial<Record<ImportGroupDomain, number>>;
+  counts: Record<string, number>;
   ignoredDuplicates: number;
   requiresReview: boolean;
   reviewReason?: string;
