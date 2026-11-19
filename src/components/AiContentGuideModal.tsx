@@ -74,7 +74,9 @@ const SYSTEM_PROMPT_UNIVERSAL_AI = `أنت خبير أكاديمي طبي ومه
 5. جميع أنواع البلوكات المدعومة داخل sections[].contentBlocks:
    - heading | paragraph | table | clinical_note | diagram | image | pdf_viewer | book_reference | exam_link | audio | video | video_link | attachment | question
 6. جميع أنواع الأسئلة المدعومة في questions[] (UnifiedQuestionType):
-   - single_choice | multiple_select | true_false | matching | fill_blank | short_answer | image_based`;
+   - single_choice | multiple_select | true_false | matching | fill_blank | short_answer | image_based
+7. Never fabricate URLs, media files, file paths, citations, or checksums. Create and verify real files when tools allow; otherwise state the limitation and leave media URLs empty rather than inventing them.
+8. Validate exact requested counts, unique IDs, hierarchy references, JSON syntax, and every question answer key before delivery.`;
 
 const LECTURE_AND_EXAM_PROMPT = `أنشئ حزمة UMEDT متكاملة لموضوع طبي (مثلاً: Acute Coronary Syndrome أو Acute Kidney Injury) بصيغة JSON واحدة تحتوي على المفاتيح التالية عند الحاجة:
 {
@@ -606,7 +608,11 @@ Deliver a single valid JSON file (\`umedt-${targetScope}-${subjectSlug}.json\`) 
             { "id": "cb-1", "type": "paragraph", "order": 1, "text": "...", "textAr": "..." },
             { "id": "cb-2", "type": "table", "order": 2, "titleEn": "...", "titleAr": "...", "tableHeaders": ["Feature", "Condition A", "Condition B"], "tableRows": [["...", "...", "..."]] },
             { "id": "cb-3", "type": "clinical_note", "order": 3, "noteSeverity": "high-yield", "titleEn": "Clinical Pearl", "titleAr": "لؤلؤة سريرية", "text": "...", "textAr": "..." },
-            { "id": "cb-4", "type": "diagram", "order": 4, "titleEn": "...", "titleAr": "...", "diagramSvg": "<svg viewBox='0 0 420 140' xmlns='http://www.w3.org/2000/svg'>...</svg>" }
+            { "id": "cb-4", "type": "diagram", "order": 4, "titleEn": "...", "titleAr": "...", "diagramSvg": "<svg viewBox='0 0 420 140' xmlns='http://www.w3.org/2000/svg'>...</svg>" }${includeBooksAndMedia ? `,
+            { "id": "cb-pdf-1", "type": "pdf_viewer", "order": 5, "titleEn": "Verified PDF", "titleAr": "ملف PDF موثق", "mediaUrl": "", "mediaMimeType": "application/pdf", "mediaFileName": "reference.pdf" },
+            { "id": "cb-image-1", "type": "image", "order": 6, "titleEn": "Verified image", "titleAr": "صورة موثقة", "mediaUrl": "", "mediaMimeType": "image/png", "mediaFileName": "anatomy.png" },
+            { "id": "cb-audio-1", "type": "audio", "order": 7, "titleEn": "Verified audio", "titleAr": "تسجيل صوتي", "mediaUrl": "", "mediaMimeType": "audio/mpeg", "mediaFileName": "narration.mp3" },
+            { "id": "cb-video-1", "type": "video", "order": 8, "titleEn": "Verified video", "titleAr": "فيديو تعليمي", "mediaUrl": "", "mediaMimeType": "video/mp4", "mediaFileName": "lesson.mp4" }` : ''}
           ]
         }
       ]
@@ -671,10 +677,10 @@ Deliver a single valid JSON file (\`umedt-${targetScope}-${subjectSlug}.json\`) 
     includeBooksAndMedia
       ? `,
   "books": [
-    { "id": "book-${subjectSlug}-1", "titleEn": "Verified reference title", "titleAr": "عنوان المرجع", "format": "pdf", "mimeType": "application/pdf", "fileName": "reference.pdf", "downloadUrl": "VERIFIED_DIRECT_FILE_URL_ONLY", "blockId": "${blockIdRef}", "subjectId": "${subjectIdRef}", "topicIds": ["${topicIdRef}"] }
+    { "id": "book-${subjectSlug}-1", "titleEn": "Verified reference title", "titleAr": "عنوان المرجع", "format": "pdf", "mimeType": "application/pdf", "fileName": "reference.pdf", "downloadUrl": "", "blockId": "${blockIdRef}", "subjectId": "${subjectIdRef}", "topicIds": ["${topicIdRef}"] }
   ],
   "mediaAssets": [
-    { "id": "asset-${subjectSlug}-1", "mediaType": "image", "titleEn": "Verified anatomical image", "titleAr": "صورة تشريحية موثقة", "fileName": "anatomy-image.png", "mimeType": "image/png", "rawUrl": "VERIFIED_DIRECT_FILE_URL_ONLY", "linkedEntityType": "topic", "linkedEntityId": "${topicIdRef}", "downloadable": true }
+    { "id": "asset-${subjectSlug}-1", "mediaType": "image", "titleEn": "Verified anatomical image", "titleAr": "صورة تشريحية موثقة", "fileName": "anatomy-image.png", "mimeType": "image/png", "rawUrl": "", "linkedEntityType": "topic", "linkedEntityId": "${topicIdRef}", "downloadable": true }
   ]`
       : ''
   }
