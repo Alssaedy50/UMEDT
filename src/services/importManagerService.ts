@@ -167,7 +167,7 @@ export async function executeAtomicMedicalImport(params: {
       if (!existing) {
         nextTerms.push(incoming);
         termMap.set(key, incoming);
-        summary.termsAdded++;
+        summary.termsAdded++;\n        addGroupId('terms', incoming.id);
       } else {
         if (params.conflictPolicy === 'overwrite') {
           const idx = nextTerms.findIndex((t) => t.id === existing.id);
