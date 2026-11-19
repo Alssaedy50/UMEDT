@@ -16,6 +16,7 @@ import {
   assemblePackageFromZipJsonMap,
   inspectAndExtractSafeZipPackage,
   validateDataPackageObject,
+  parseAndValidateImportInput,
   buildDataPackageZipBytes,
   computeSha256Hex
 } from '../src/services/dataPlatformService';
@@ -427,6 +428,18 @@ async function main() {
       reason: 'Automated release readiness deletion test'
     }]
   };
+  const publicDeletionZip = buildDataPackageZipBytes(publicDeletionPackage);
+  const parsedPublicDeletionZip = await parseAndValidateImportInput(
+    publicDeletionZip,
+    'public-deletion-readiness.zip'
+  );
+  assertCondition(
+    parsedPublicDeletionZip.sourceFormat === 'zip' &&
+      parsedPublicDeletionZip.validation.valid &&
+      parsedPublicDeletionZip.validation.payload?.publicDeletions?.some((entry) => entry.id === publicDeletionTestId),
+    'Public deletion instructions must survive ZIP package serialization and parsing'
+  );
+
   const untrustedPublicDeletion = await executeAtomicPackageImport(JSON.stringify(publicDeletionPackage), {
     mode: 'merge',
     fileNameHint: 'untrusted-public-deletion-readiness-tombstone.json'
@@ -437,7 +450,7 @@ async function main() {
     'Unsigned local imports must not be allowed to issue global deletion instructions'
   );
 
-  const appliedPublicDeletion = await executeAtomicPackageImport(JSON.stringify(publicDeletionPackage), {
+  const appliedPublicDeletion = await executeAtomicPackageImport(publicDeletionZip, {
     mode: 'merge',
     fileNameHint: 'public-deletion-readiness-tombstone.json',
     dataSourceOverride: 'remote-cdn'
