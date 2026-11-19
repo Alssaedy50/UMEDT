@@ -954,17 +954,23 @@ export function validateDataPackageObject(raw: unknown): DataValidationResult {
       continue;
     }
     const deletion = rawDeletion as Record<string, unknown>;
-    if (!isNonEmptyString(deletion.id) || !isNonEmptyString(deletion.domain) ||
-        !publicDeletionDomains.has(String(deletion.domain)) ||
-        !isNonEmptyString(deletion.deletedAt) || !isNonEmptyString(deletion.reason)) {
-      errors.push(`publicDeletions[${i}]: domain وid وdeletedAt وreason حقول إلزامية وصالحة.`);
+    const deletedAt = isNonEmptyString(deletion.deletedAt) ? deletion.deletedAt.trim() : '';
+    const reason = isNonEmptyString(deletion.reason) ? deletion.reason.trim() : '';
+    const recordSha256 = deletion.recordSha256;
+    if (!isNonEmptyString(deletion.id) || deletion.id.trim().length > 256 ||
+        !isNonEmptyString(deletion.domain) || !publicDeletionDomains.has(String(deletion.domain)) ||
+        !deletedAt || Number.isNaN(Date.parse(deletedAt)) ||
+        reason.length < 8 || reason.length > 500 ||
+        (recordSha256 !== undefined && (typeof recordSha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(recordSha256)))) {
+      errors.push(`publicDeletions[${i}]: domain وid وdeletedAt وreason وrecordSha256 حقول غير صالحة أو ناقصة.`);
       continue;
     }
     validatedPublicDeletions.push({
       domain: deletion.domain as PublicContentDeletion['domain'],
       id: deletion.id.trim(),
-      deletedAt: deletion.deletedAt.trim(),
-      reason: deletion.reason.trim()
+      deletedAt,
+      reason,
+      ...(typeof recordSha256 === 'string' ? { recordSha256: recordSha256.toLowerCase() } : {})
     });
   }
 
