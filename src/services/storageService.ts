@@ -2634,22 +2634,24 @@ export async function executeAtomicPackageImport(
           const makeNew = <T extends { id: string }>(
             incoming: T[],
             before: T[],
-            after: T[]
+            after: T[],
+            keyOf: (item: T) => string = (item) => item.id
           ): { ids: string[]; fingerprints: Record<string, string>; hasCollision: boolean } => {
             const beforeIds = new Set(before.map((item) => item.id));
+            const beforeKeys = new Set(before.map(keyOf));
             const incomingIds = new Set(incoming.map((item) => item.id));
             const ids = after.filter((item) => !beforeIds.has(item.id) && incomingIds.has(item.id));
             return {
               ids: ids.map((item) => item.id),
               fingerprints: Object.fromEntries(ids.map((item) => [item.id, JSON.stringify(item)])),
-              hasCollision: incoming.some((item) => beforeIds.has(item.id))
+              hasCollision: incoming.some((item) => beforeIds.has(item.id) || beforeKeys.has(keyOf(item)))
             };
           };
-          const termsGroup = makeNew(effectivePayload.terms, currentState.terms, merged.terms);
-          const sentencesGroup = makeNew(effectivePayload.sentences, currentState.sentences, merged.sentences);
-          const topicsGroup = makeNew(effectivePayload.topics, currentState.topics, merged.topics);
-          const affixesGroup = makeNew(effectivePayload.customAffixes, currentState.customAffixes, merged.customAffixes);
-          const abbreviationsGroup = makeNew(effectivePayload.customAbbreviations, currentState.customAbbreviations, merged.customAbbreviations);
+          const termsGroup = makeNew(effectivePayload.terms, currentState.terms, merged.terms, normalizeTermNaturalKey);
+          const sentencesGroup = makeNew(effectivePayload.sentences, currentState.sentences, merged.sentences, normalizeSentenceNaturalKey);
+          const topicsGroup = makeNew(effectivePayload.topics, currentState.topics, merged.topics, normalizeTopicNaturalKey);
+          const affixesGroup = makeNew(effectivePayload.customAffixes, currentState.customAffixes, merged.customAffixes, normalizeAffixNaturalKey);
+          const abbreviationsGroup = makeNew(effectivePayload.customAbbreviations, currentState.customAbbreviations, merged.customAbbreviations, normalizeAbbreviationNaturalKey);
           const ids = {
             terms: termsGroup.ids,
             sentences: sentencesGroup.ids,
@@ -2676,7 +2678,14 @@ export async function executeAtomicPackageImport(
             (effectivePayload.mediaAssets || []).length ||
             (effectivePayload.userNotes || []).length ||
             (effectivePayload.quizAttempts || []).length ||
-            (effectivePayload.catalog)
+            (effectivePayload.catalog) ||
+            (effectivePayload.topics || []).some((topic) =>
+              Boolean(topic.images?.length || topic.attachments?.length ||
+                topic.sections?.some((section) => Boolean(section.contentBlocks?.length)))
+            ) ||
+            currentState.terms.some((term) =>
+              term.linkedTopicIds?.some((topicId) => topicsGroup.ids.includes(topicId))
+            )
           );
           const groupId = `import-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
           const groupName = options?.fileNameHint || effectivePayload.manifest.description?.trim() ||
