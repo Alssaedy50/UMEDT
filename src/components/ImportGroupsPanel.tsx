@@ -13,7 +13,11 @@ export const ImportGroupsPanel: React.FC = () => {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string>('');
   const refresh = useCallback(() => setGroups(loadImportGroups()), []);
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    refresh();
+    window.addEventListener('umed:import-groups-updated', refresh);
+    return () => window.removeEventListener('umed:import-groups-updated', refresh);
+  }, [refresh]);
 
   const handleRename = (group: ImportGroupView) => {
     if (group.legacy) return;
