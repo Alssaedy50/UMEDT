@@ -35,6 +35,21 @@ import {
   type R2UploadResult
 } from './upload-release-to-r2';
 
+function readOptionalMasterArray<T = unknown>(dataRoot: string, fileName: string): T[] | undefined {
+  const filePath = path.join(dataRoot, 'data', 'master', fileName);
+  if (!fs.existsSync(filePath)) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (error) {
+    throw new Error(`[UMEDT Publisher] Invalid JSON in data/master/${fileName}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error(`[UMEDT Publisher] data/master/${fileName} must contain a JSON array.`);
+  }
+  return parsed as T[];
+}
+
 export interface PublishDataReleaseOptions {
   env?: NodeJS.ProcessEnv;
   targetVersion?: string;
@@ -198,6 +213,13 @@ export async function executeProductionDataReleasePublish(
   const topics = [...masterRepo.topics];
   const customAffixes = [...masterRepo.customAffixes];
   const customAbbreviations = [...masterRepo.customAbbreviations];
+  const blocks = readOptionalMasterArray<NonNullable<DataPackagePayload['blocks']>[number]>(dataRoot, 'blocks.json');
+  const subjects = readOptionalMasterArray<NonNullable<DataPackagePayload['subjects']>[number]>(dataRoot, 'subjects.json');
+  const books = readOptionalMasterArray<NonNullable<DataPackagePayload['books']>[number]>(dataRoot, 'books.json');
+  const questions = readOptionalMasterArray<NonNullable<DataPackagePayload['questions']>[number]>(dataRoot, 'questions.json');
+  const exams = readOptionalMasterArray<NonNullable<DataPackagePayload['exams']>[number]>(dataRoot, 'exams.json');
+  const mediaAssets = readOptionalMasterArray<NonNullable<DataPackagePayload['mediaAssets']>[number]>(dataRoot, 'media-index.json');
+  const publicDeletions = readOptionalMasterArray<NonNullable<DataPackagePayload['publicDeletions']>[number]>(dataRoot, 'public-deletions.json') || [];
 
   const payload: DataPackagePayload = {
     manifest: {
@@ -219,7 +241,14 @@ export async function executeProductionDataReleasePublish(
     sentences: syncedSentences,
     topics,
     customAffixes,
-    customAbbreviations
+    customAbbreviations,
+    ...(blocks ? { blocks } : {}),
+    ...(subjects ? { subjects } : {}),
+    ...(books ? { books } : {}),
+    ...(questions ? { questions } : {}),
+    ...(exams ? { exams } : {}),
+    ...(mediaAssets ? { mediaAssets } : {}),
+    publicDeletions
   };
 
   const rawR2PublicBase = (env.UMED_R2_PUBLIC_BASE_URL || '').trim();
