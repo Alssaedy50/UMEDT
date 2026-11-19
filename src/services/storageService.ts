@@ -54,7 +54,8 @@ import {
   QuizAttemptRecord,
   UserStudyNoteRecord,
   ExtractedZipMediaFile,
-  LocalMediaRecord
+  LocalMediaRecord,
+  PublicContentDeletion
 } from '../types/lexicon';
 import {
   LEARNING_STORAGE_KEYS,
@@ -172,6 +173,7 @@ export const STORAGE_KEYS = {
   TOPICS: 'dictengine_umd_topics_v2',
   CUSTOM_AFFIXES: 'dictengine_umd_custom_affixes_v2',
   CUSTOM_ABBREVIATIONS: 'dictengine_umd_custom_abbreviations_v2',
+  PUBLIC_DELETIONS: 'umedt_public_content_deletions_v1',
   STUDY_STATS: 'dictengine_umd_study_stats_v2',
   SETTINGS: 'dictengine_umd_settings_v2'
 } as const;
@@ -388,6 +390,7 @@ const LIVE_DATA_TRANSACTION_KEYS = [
   STORAGE_KEYS.TOPICS,
   STORAGE_KEYS.CUSTOM_AFFIXES,
   STORAGE_KEYS.CUSTOM_ABBREVIATIONS,
+  STORAGE_KEYS.PUBLIC_DELETIONS,
   STORAGE_KEYS.STUDY_STATS,
   STORAGE_KEYS.SETTINGS
 ] as const;
@@ -2255,7 +2258,48 @@ export async function executeAtomicPackageImport(
           : {})
       };
 
+      // Publisher tombstones are permanent across future imports: an older ZIP/JSON package
+      // cannot silently restore a record that the UMEDT-DATA owner removed globally.
+      const priorPublicDeletions = safeReadJson<PublicContentDeletion[]>(
+        STORAGE_KEYS.PUBLIC_DELETIONS,
+        []
+      );
+      const publicDeletionMap = new Map<string, PublicContentDeletion>();
+      for (const deletion of [...priorPublicDeletions, ...(effectivePayload.publicDeletions || [])]) {
+        if (!deletion?.domain || !deletion.id) continue;
+        publicDeletionMap.set(`${deletion.domain}:${deletion.id}`, deletion);
+      }
+      const allPublicDeletions = Array.from(publicDeletionMap.values());
+      const isPublicDeleted = (domain: PublicContentDeletion['domain'], id: string): boolean =>
+        publicDeletionMap.has(`${domain}:${id}`);
+
       const merged = mergeValidatedCollections(currentState, effectivePayload, mode);
+      merged.terms = merged.terms
+        .filter((item) => !isPublicDeleted('terms', item.id))
+        .map((item) => ({
+          ...item,
+          linkedTopicIds: item.linkedTopicIds?.filter((id) => !isPublicDeleted('topics', id)),
+          linkedSubjectIds: item.linkedSubjectIds?.filter((id) => !isPublicDeleted('subjects', id)),
+          linkedBlockIds: item.linkedBlockIds?.filter((id) => !isPublicDeleted('blocks', id))
+        }));
+      merged.sentences = merged.sentences
+        .filter((item) => !isPublicDeleted('sentences', item.id))
+        .map((item) => ({
+          ...item,
+          linkedTermIds: item.linkedTermIds.filter((id) => !isPublicDeleted('terms', id))
+        }));
+      merged.topics = merged.topics
+        .filter((item) => !isPublicDeleted('topics', item.id))
+        .map((item) => ({
+          ...item,
+          relatedTopicIds: item.relatedTopicIds?.filter((id) => !isPublicDeleted('topics', id))
+        }));
+      merged.customAffixes = merged.customAffixes.filter(
+        (item) => !isPublicDeleted('customAffixes', item.id)
+      );
+      merged.customAbbreviations = merged.customAbbreviations.filter(
+        (item) => !isPublicDeleted('customAbbreviations', item.id)
+      );
       const nextVersionMeta: VersionMetadata = {
         appVersion: APP_VERSION,
         schemaVersion: DB_SCHEMA_VERSION,
@@ -2315,7 +2359,9 @@ export async function executeAtomicPackageImport(
         }
         nextBlocksMap.set(blk.id, blk);
       }
-      const nextBlocks = Array.from(nextBlocksMap.values()).sort((a, b) => a.order - b.order);
+      const nextBlocks = Array.from(nextBlocksMap.values())
+        .filter((item) => !isPublicDeleted('blocks', item.id))
+        .sort((a, b) => a.order - b.order);
 
       const existingSubjects = loadMedicalSubjects();
       const nextSubjectsMap = new Map<string, MedicalSubject>(
@@ -2330,7 +2376,9 @@ export async function executeAtomicPackageImport(
         }
         nextSubjectsMap.set(subj.id, subj);
       }
-      const nextSubjects = Array.from(nextSubjectsMap.values()).sort((a, b) => a.order - b.order);
+      const nextSubjects = Array.from(nextSubjectsMap.values())
+        .filter((item) => !isPublicDeleted('subjects', item.id))
+        .sort((a, b) => a.order - b.order);
 
       const existingBooks = loadAcademicBooks();
       const existingBookById = new Map<string, AcademicBookResource>(
@@ -2364,7 +2412,8 @@ export async function executeAtomicPackageImport(
             : bk
         );
       }
-      const nextBooks = Array.from(nextBooksMap.values());
+      const nextBooks = Array.from(nextBooksMap.values())
+        .filter((item) => !isPublicDeleted('books', item.id));
 
       const rawExistingQuestions = safeReadJson<UnifiedQuizQuestion[]>(
         LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS,
@@ -2386,7 +2435,8 @@ export async function executeAtomicPackageImport(
         }
         nextQuestionsMap.set(q.id, q);
       }
-      const nextQuestions = Array.from(nextQuestionsMap.values());
+      const nextQuestions = Array.from(nextQuestionsMap.values())
+        .filter((item) => !isPublicDeleted('questions', item.id));
 
       const existingExams = loadAcademicExams();
       const nextExamsMap = new Map<string, AcademicExamPackage>(
@@ -2401,7 +2451,14 @@ export async function executeAtomicPackageImport(
         }
         nextExamsMap.set(ex.id, ex);
       }
-      const nextExams = Array.from(nextExamsMap.values());
+      const nextExams = Array.from(nextExamsMap.values())
+        .filter((item) => !isPublicDeleted('exams', item.id))
+        .map((item) => ({
+          ...item,
+          topicIds: item.topicIds?.filter((id) => !isPublicDeleted('topics', id)),
+          questionIds: item.questionIds?.filter((id) => !isPublicDeleted('questions', id)),
+          ...(item.topicId && isPublicDeleted('topics', item.topicId) ? { topicId: undefined } : {})
+        }));
 
       const existingMediaAssets = loadMediaAssetsIndex();
       const nextMediaAssetsMap = new Map<string, MediaAssetRecord>(
@@ -2420,7 +2477,8 @@ export async function executeAtomicPackageImport(
           prevMa ? { ...ma, mediaIdbKey: ma.mediaIdbKey || prevMa.mediaIdbKey } : ma
         );
       }
-      const nextMediaAssets = Array.from(nextMediaAssetsMap.values());
+      const nextMediaAssets = Array.from(nextMediaAssetsMap.values())
+        .filter((item) => !isPublicDeleted('mediaAssets', item.id));
 
       // Always preserve personal user study notes & quiz attempts across package updates
       const existingNotes = loadUserStudyNotes();
@@ -2467,6 +2525,7 @@ export async function executeAtomicPackageImport(
         [STORAGE_KEYS.STUDY_STATS]: JSON.stringify(nextStats),
         [STORAGE_KEYS.SETTINGS]: JSON.stringify(nextSettings),
         [STORAGE_KEYS.VERSION_META]: JSON.stringify(nextVersionMeta),
+        [STORAGE_KEYS.PUBLIC_DELETIONS]: JSON.stringify(allPublicDeletions),
         ...((effectivePayload.blocks || []).length > 0
           ? { [LEARNING_STORAGE_KEYS.BLOCKS]: JSON.stringify(nextBlocks) }
           : {}),
@@ -2550,7 +2609,8 @@ export async function executeAtomicPackageImport(
         saveCustomAffixes(merged.customAffixes) &&
         saveCustomAbbreviations(merged.customAbbreviations) &&
         saveStudyStats(nextStats) &&
-        saveSettings(nextSettings);
+        saveSettings(nextSettings) &&
+        safeWriteJson(STORAGE_KEYS.PUBLIC_DELETIONS, allPublicDeletions);
 
       if (!primaryWritesOk) {
         throw new Error(
