@@ -34,6 +34,7 @@ import {
   AppColorTheme
 } from '../types/lexicon';
 import { usePWAInstall, useOnlineStatus } from '../hooks/usePWAInstall';
+import { ImportGroupsPanel } from './ImportGroupsPanel';
 import {
   TelegramBackupConfig,
   TelegramBackupSchedule,
@@ -655,6 +656,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           {summaryToShow ? `${summaryToShow.sizeKB} KB` : `${dbMetrics.actualSizeKb} KB`}
         </span>
       </div>
+
+      <ImportGroupsPanel />
 
       {/* Single Compact List Card (1-2 Word Labels) */}
       <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/80 overflow-hidden">
