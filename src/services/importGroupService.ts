@@ -1,6 +1,6 @@
 import {
   loadAppState, saveTerms, saveSentences, saveTopics,
-  saveCustomAffixes, saveCustomAbbreviations, createDataBackupSnapshot
+  saveCustomAffixes, saveCustomAbbreviations, createDataBackupSnapshot, restoreDataBackupById
 } from './storageService';
 import {
   loadStoredMcqQuestions, saveStoredMcqQuestions,
@@ -91,7 +91,7 @@ export async function deleteImportGroup(id: string): Promise<{success:boolean; m
   if (!group) return { success:false, message:'المجموعة غير موجودة أو أنها استيراد قديم غير قابل للحذف الانتقائي.' };
   if (group.requiresReview) return { success:false, message:group.reviewReason || 'تحتاج هذه المجموعة إلى مراجعة قبل الحذف.' };
   try {
-    await createDataBackupSnapshot({ trigger:'manual', label:`نسخة أمان قبل حذف مجموعة: ${group.name}` });
+    const backup = await createDataBackupSnapshot({ trigger:'manual', label:`نسخة أمان قبل حذف مجموعة: ${group.name}` });
     const state = loadAppState();
     const currentRows: Partial<Record<ImportGroupDomain, Array<{id:string}>>> = {
       terms: state.terms, sentences: state.sentences, topics: state.topics,
@@ -113,16 +113,29 @@ export async function deleteImportGroup(id: string): Promise<{success:boolean; m
       const ids = new Set(group.ids[domain] || []);
       return rows.filter(row => !ids.has(row.id));
     };
-    if (group.ids.terms?.length) saveTerms(remove('terms', state.terms));
-    if (group.ids.sentences?.length) saveSentences(remove('sentences', state.sentences));
-    if (group.ids.topics?.length) saveTopics(remove('topics', state.topics));
-    if (group.ids.affixes?.length) saveCustomAffixes(remove('affixes', state.customAffixes || []));
-    if (group.ids.abbreviations?.length) saveCustomAbbreviations(remove('abbreviations', state.customAbbreviations || []));
+    const writesOk =
+      (!group.ids.terms?.length || saveTerms(remove('terms', state.terms))) &&
+      (!group.ids.sentences?.length || saveSentences(remove('sentences', state.sentences))) &&
+      (!group.ids.topics?.length || saveTopics(remove('topics', state.topics))) &&
+      (!group.ids.affixes?.length || saveCustomAffixes(remove('affixes', state.customAffixes || []))) &&
+      (!group.ids.abbreviations?.length || saveCustomAbbreviations(remove('abbreviations', state.customAbbreviations || [])));
+    if (!writesOk) throw new Error('فشل حفظ أحد أجزاء الحذف؛ ستتم استعادة نسخة الأمان.');
     if (group.ids.questions?.length) saveStoredMcqQuestions(remove('questions', loadStoredMcqQuestions()));
     if (group.ids.clinicalCases?.length) saveStoredClinicalCases(remove('clinicalCases', loadStoredClinicalCases()));
     writeGroups(groups.filter(g => g.id !== id));
     return { success:true, message:`حُذفت مساهمات مجموعة «${group.name}» فقط، مع الاحتفاظ بنسخة أمان.` };
   } catch (error) {
-    return { success:false, message:`تعذر حذف المجموعة: ${error instanceof Error ? error.message : String(error)}` };
+    try {
+      const backupId = typeof backup !== 'undefined' ? backup.backupId : undefined;
+      if (backupId) {
+        const restored = await restoreDataBackupById(backupId);
+        if (!restored.result.success) {
+          return { success:false, message:`فشل الحذف والاستعادة التلقائية: ${restored.result.errors.join(' | ')}` };
+        }
+      }
+    } catch (restoreError) {
+      return { success:false, message:`حدث خطأ أثناء الحذف وفشلت استعادة النسخة الاحتياطية: ${restoreError instanceof Error ? restoreError.message : String(restoreError)}` };
+    }
+    return { success:false, message:`تعذر حذف المجموعة: ${error instanceof Error ? error.message : String(error)}. تم استرجاع نسخة الأمان عند توفرها.` };
   }
 }
