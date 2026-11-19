@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { FolderOpen, Pencil, Trash2, RefreshCw, ShieldAlert } from 'lucide-react';
+import { FolderOpen, Pencil, Trash2, RefreshCw, ShieldAlert, ChevronDown } from 'lucide-react';
 import { deleteImportGroup, ImportGroupView, loadImportGroups, renameImportGroup } from '../services/importGroupService';
 
 const LABELS: Record<string, string> = {
@@ -12,12 +12,23 @@ export const ImportGroupsPanel: React.FC = () => {
   const [groups, setGroups] = useState<ImportGroupView[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string>('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const refresh = useCallback(() => setGroups(loadImportGroups()), []);
   useEffect(() => {
     refresh();
     window.addEventListener('umed:import-groups-updated', refresh);
     return () => window.removeEventListener('umed:import-groups-updated', refresh);
   }, [refresh]);
+
+  const getRecordLabel = (domain: string, id: string, group: ImportGroupView): string => {
+    try {
+      const raw = group.fingerprints?.[domain as keyof typeof group.fingerprints]?.[id];
+      const record = raw ? JSON.parse(raw) : null;
+      if (!record) return id;
+      return record.term || record.questionEn || record.title || record.en ||
+        record.affix || record.abbr || record.titleEn || id;
+    } catch { return id; }
+  };
 
   const handleRename = (group: ImportGroupView) => {
     if (group.legacy) return;
@@ -78,6 +89,26 @@ export const ImportGroupsPanel: React.FC = () => {
                 </div>
               )}
             </div>
+            <button type="button" onClick={() => setExpandedId(expandedId === group.id ? null : group.id)} className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandedId === group.id ? 'rotate-180' : ''}`} />
+              {expandedId === group.id ? 'إخفاء المحتويات' : 'معاينة المحتويات'}
+            </button>
+            {expandedId === group.id && (
+              <div className="mt-2 rounded-lg bg-slate-50 dark:bg-slate-950 p-2 space-y-2">
+                {Object.entries(group.ids || {}).filter(([, ids]) => Boolean(ids?.length)).map(([domain, ids]) => (
+                  <div key={domain}>
+                    <div className="text-[10px] font-extrabold text-slate-500 mb-1">{LABELS[domain] || domain}</div>
+                    <ul className="space-y-1">
+                      {(ids || []).slice(0, 40).map(recordId => (
+                        <li key={recordId} className="text-[11px] text-slate-700 dark:text-slate-300 break-words">• {getRecordLabel(domain, recordId, group)}</li>
+                      ))}
+                      {(ids || []).length > 40 && <li className="text-[10px] text-slate-500">و{(ids || []).length - 40} عناصر أخرى…</li>}
+                    </ul>
+                  </div>
+                ))}
+                {group.total === 0 && <p className="text-[11px] text-slate-500">لا توجد سجلات جديدة قابلة للعرض في هذه الدفعة.</p>}
+              </div>
+            )}
             <div className="flex flex-wrap gap-1.5 mt-2">
               {Object.entries(group.counts || {}).filter(([, count]) => Number(count) > 0).map(([domain, count]) => (
                 <span key={domain} className="text-[10px] rounded-full px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{LABELS[domain] || domain}: {count}</span>
