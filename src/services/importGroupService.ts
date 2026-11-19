@@ -90,8 +90,10 @@ export async function deleteImportGroup(id: string): Promise<{success:boolean; m
   const group = groups.find(g => g.id === id);
   if (!group) return { success:false, message:'المجموعة غير موجودة أو أنها استيراد قديم غير قابل للحذف الانتقائي.' };
   if (group.requiresReview) return { success:false, message:group.reviewReason || 'تحتاج هذه المجموعة إلى مراجعة قبل الحذف.' };
+  let backupId: string | undefined;
   try {
     const backup = await createDataBackupSnapshot({ trigger:'manual', label:`نسخة أمان قبل حذف مجموعة: ${group.name}` });
+    backupId = backup.backupId;
     const state = loadAppState();
     const currentRows: Partial<Record<ImportGroupDomain, Array<{id:string}>>> = {
       terms: state.terms, sentences: state.sentences, topics: state.topics,
@@ -126,7 +128,6 @@ export async function deleteImportGroup(id: string): Promise<{success:boolean; m
     return { success:true, message:`حُذفت مساهمات مجموعة «${group.name}» فقط، مع الاحتفاظ بنسخة أمان.` };
   } catch (error) {
     try {
-      const backupId = typeof backup !== 'undefined' ? backup.backupId : undefined;
       if (backupId) {
         const restored = await restoreDataBackupById(backupId);
         if (!restored.result.success) {
