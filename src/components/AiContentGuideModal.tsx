@@ -667,6 +667,16 @@ Deliver a single valid JSON file (\`umedt-${targetScope}-${subjectSlug}.json\`) 
     { "abbr": "ACS", "expansionEn": "Acute Coronary Syndrome", "meaningAr": "المتلازمة التاجية الحادة", "specialty": "${cleanSubjectName}" }
   ]`
       : ''
+  }${
+    includeBooksAndMedia
+      ? `,
+  "books": [
+    { "id": "book-${subjectSlug}-1", "titleEn": "Verified reference title", "titleAr": "عنوان المرجع", "format": "pdf", "mimeType": "application/pdf", "fileName": "reference.pdf", "downloadUrl": "VERIFIED_DIRECT_FILE_URL_ONLY", "blockId": "${blockIdRef}", "subjectId": "${subjectIdRef}", "topicIds": ["${topicIdRef}"] }
+  ],
+  "mediaAssets": [
+    { "id": "asset-${subjectSlug}-1", "mediaType": "image", "titleEn": "Verified anatomical image", "titleAr": "صورة تشريحية موثقة", "fileName": "anatomy-image.png", "mimeType": "image/png", "rawUrl": "VERIFIED_DIRECT_FILE_URL_ONLY", "linkedEntityType": "topic", "linkedEntityId": "${topicIdRef}", "downloadable": true }
+  ]`
+      : ''
   }
 }
 \`\`\``
