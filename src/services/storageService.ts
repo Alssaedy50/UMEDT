@@ -2679,8 +2679,8 @@ export async function executeAtomicPackageImport(
             (effectivePayload.catalog)
           );
           const groupId = `import-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-          const groupName = effectivePayload.manifest.description?.trim() ||
-            effectivePayload.manifest.packageId || options?.fileNameHint?.replace(/\\.[^.]+$/, '') ||
+          const groupName = options?.fileNameHint || effectivePayload.manifest.description?.trim() ||
+            effectivePayload.manifest.packageId ||
             'مجموعة بيانات مستوردة';
           const group = {
             id: groupId,
@@ -2706,7 +2706,10 @@ export async function executeAtomicPackageImport(
           const existingGroupsRaw = typeof window !== 'undefined' ? window.localStorage.getItem(registryKey) : null;
           const existingGroups = existingGroupsRaw ? JSON.parse(existingGroupsRaw) : [];
           const nextGroups = [group, ...(Array.isArray(existingGroups) ? existingGroups.filter((item: { id?: string }) => item?.id !== groupId) : [])].slice(0, 100);
-          if (typeof window !== 'undefined') window.localStorage.setItem(registryKey, JSON.stringify(nextGroups));
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(registryKey, JSON.stringify(nextGroups));
+            window.dispatchEvent(new Event('umed:import-groups-updated'));
+          }
         } catch (groupError) {
           console.warn('[StorageService] Import succeeded but group provenance could not be saved:', groupError);
         }
