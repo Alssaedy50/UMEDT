@@ -122,8 +122,14 @@ export async function deleteImportGroup(id: string): Promise<{success:boolean; m
       (!group.ids.affixes?.length || saveCustomAffixes(remove('affixes', state.customAffixes || []))) &&
       (!group.ids.abbreviations?.length || saveCustomAbbreviations(remove('abbreviations', state.customAbbreviations || [])));
     if (!writesOk) throw new Error('فشل حفظ أحد أجزاء الحذف؛ ستتم استعادة نسخة الأمان.');
-    if (group.ids.questions?.length) saveStoredMcqQuestions(remove('questions', loadStoredMcqQuestions()));
-    if (group.ids.clinicalCases?.length) saveStoredClinicalCases(remove('clinicalCases', loadStoredClinicalCases()));
+    if (group.ids.questions?.length) {
+      saveStoredMcqQuestions(remove('questions', loadStoredMcqQuestions()));
+      if (loadStoredMcqQuestions().some(item => group.ids.questions?.includes(item.id))) throw new Error('تعذر التحقق من حذف أسئلة المجموعة.');
+    }
+    if (group.ids.clinicalCases?.length) {
+      saveStoredClinicalCases(remove('clinicalCases', loadStoredClinicalCases()));
+      if (loadStoredClinicalCases().some(item => group.ids.clinicalCases?.includes(item.id))) throw new Error('تعذر التحقق من حذف الحالات السريرية.');
+    }
     writeGroups(groups.filter(g => g.id !== id));
     return { success:true, message:`حُذفت مساهمات مجموعة «${group.name}» فقط، مع الاحتفاظ بنسخة أمان.` };
   } catch (error) {
