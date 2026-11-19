@@ -2265,7 +2265,10 @@ export async function executeAtomicPackageImport(
         []
       );
       const publicDeletionMap = new Map<string, PublicContentDeletion>();
-      for (const deletion of [...priorPublicDeletions, ...(effectivePayload.publicDeletions || [])]) {
+      const trustedIncomingPublicDeletions = options?.dataSourceOverride === 'remote-cdn'
+        ? effectivePayload.publicDeletions || []
+        : [];
+      for (const deletion of [...priorPublicDeletions, ...trustedIncomingPublicDeletions]) {
         if (!deletion?.domain || !deletion.id) continue;
         publicDeletionMap.set(`${deletion.domain}:${deletion.id}`, deletion);
       }
