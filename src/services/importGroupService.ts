@@ -43,11 +43,14 @@ function getItem(key: string): string | null {
   } catch { /* use memory fallback */ }
   return memoryStore.get(key) ?? null;
 }
-function setItem(key: string, value: string): void {
+function setItem(key: string, value: string): boolean {
   memoryStore.set(key, value);
   try {
-    if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(key, value);
-  } catch { /* in-memory fallback keeps tests and restricted WebViews functional */ }
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(key, value);
+    }
+    return true;
+  } catch { return typeof window === 'undefined'; }
 }
 
 function readGroups(): ImportGroupRecord[] {
@@ -56,8 +59,8 @@ function readGroups(): ImportGroupRecord[] {
     return raw ? JSON.parse(raw) as ImportGroupRecord[] : [];
   } catch { return []; }
 }
-function writeGroups(groups: ImportGroupRecord[]): void {
-  setItem(STORAGE_KEY, JSON.stringify(groups));
+function writeGroups(groups: ImportGroupRecord[]): boolean {
+  return setItem(STORAGE_KEY, JSON.stringify(groups));
 }
 export function loadImportGroups(): ImportGroupView[] {
   const groups: ImportGroupView[] = readGroups().map(g => ({
@@ -99,8 +102,7 @@ export function renameImportGroup(id: string, name: string): boolean {
   const item = groups.find(g => g.id === id);
   if (!item) return false;
   item.name = clean;
-  writeGroups(groups);
-  return true;
+  return writeGroups(groups);
 }
 export async function deleteImportGroup(id: string): Promise<{success:boolean; message:string}> {
   const groups = readGroups();
@@ -147,7 +149,7 @@ export async function deleteImportGroup(id: string): Promise<{success:boolean; m
       saveStoredClinicalCases(remove('clinicalCases', loadStoredClinicalCases()));
       if (loadStoredClinicalCases().some(item => group.ids.clinicalCases?.includes(item.id))) throw new Error('تعذر التحقق من حذف الحالات السريرية.');
     }
-    writeGroups(groups.filter(g => g.id !== id));
+    if (!writeGroups(groups.filter(g => g.id !== id))) throw new Error('تعذر تحديث سجل المجموعات في التخزين المحلي؛ ستتم استعادة نسخة الأمان.');
     return { success:true, message:`حُذفت مساهمات مجموعة «${group.name}» فقط، مع الاحتفاظ بنسخة أمان.` };
   } catch (error) {
     try {
