@@ -2624,6 +2624,9 @@ export async function executeAtomicPackageImport(
         throw new Error('فشل تسجيل إصدار الحزمة الجديد (VersionMetadata).');
       }
 
+      // Stage 5: Commit WAL transaction once all keys and VersionMetadata are safely written
+      commitWalTransaction();
+
       // Register a named provenance group only for user-initiated local imports.
       // Track newly-created primary records only; updates/replacements are deliberately non-deletable.
       if (options?.dataSourceOverride !== 'remote-cdn' && options?.dataSourceOverride !== 'bundled-seed') {
@@ -2708,9 +2711,6 @@ export async function executeAtomicPackageImport(
           console.warn('[StorageService] Import succeeded but group provenance could not be saved:', groupError);
         }
       }
-
-      // Stage 5: Commit WAL transaction once all keys and VersionMetadata are safely written
-      commitWalTransaction();
 
       const nextState: PersistedAppState = {
         version: DB_SCHEMA_VERSION,
