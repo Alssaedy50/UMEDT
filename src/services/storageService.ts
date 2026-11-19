@@ -2458,8 +2458,7 @@ export async function executeAtomicPackageImport(
         .map((item) => ({
           ...item,
           topicIds: item.topicIds?.filter((id) => !isPublicDeleted('topics', id)),
-          questionIds: item.questionIds?.filter((id) => !isPublicDeleted('questions', id)),
-          ...(item.topicId && isPublicDeleted('topics', item.topicId) ? { topicId: undefined } : {})
+          questionIds: item.questionIds?.filter((id) => !isPublicDeleted('questions', id))
         }));
 
       const existingMediaAssets = loadMediaAssetsIndex();
