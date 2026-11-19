@@ -371,6 +371,84 @@ async function main() {
     'Storage keys must remain intact'
   );
   console.log('[PASS] 5. Cross-Environment .ZIP & .JSON Export/Import & SQLite Rejection Verified');
+  const publicDeletionTestId = `readiness-public-deletion-${Date.now()}`;
+  const publicDeletionTestTerm = {
+    id: publicDeletionTestId,
+    term: publicDeletionTestId,
+    termNormalized: publicDeletionTestId,
+    translation: 'عنصر اختبار الحذف العام',
+    category: 'Medical' as const,
+    definitionAr: 'عنصر اختباري مؤقت',
+    definitionEn: 'Temporary public deletion verification record',
+    examples: [],
+    relations: { synonyms: [], broader: [], related: [] }
+  };
+  const publicDeletionManifest = {
+    packageId: 'umedt-public-deletion-readiness',
+    dataVersion: BUNDLED_DATA_VERSION,
+    minAppVersion: APP_VERSION,
+    schemaVersion: DB_SCHEMA_VERSION,
+    releasedAt: new Date().toISOString(),
+    channel: 'stable' as const,
+    counts: { terms: 1, sentences: 0, topics: 0, affixes: 0, abbreviations: 0 }
+  };
+  const oldPublicPackage = {
+    manifest: publicDeletionManifest,
+    terms: [publicDeletionTestTerm],
+    sentences: [],
+    topics: [],
+    customAffixes: [],
+    customAbbreviations: []
+  };
+  const seededPublicRecord = await executeAtomicPackageImport(JSON.stringify(oldPublicPackage), {
+    mode: 'merge',
+    fileNameHint: 'public-deletion-readiness-seed.json'
+  });
+  assertCondition(
+    seededPublicRecord.result.success && loadAppState().terms.some((term) => term.id === publicDeletionTestId),
+    'Public deletion test fixture must first import successfully'
+  );
+
+  const publicDeletionPackage = {
+    manifest: {
+      ...publicDeletionManifest,
+      packageId: 'umedt-public-deletion-readiness-tombstone',
+      counts: { terms: 0, sentences: 0, topics: 0, affixes: 0, abbreviations: 0 }
+    },
+    terms: [],
+    sentences: [],
+    topics: [],
+    customAffixes: [],
+    customAbbreviations: [],
+    publicDeletions: [{
+      domain: 'terms' as const,
+      id: publicDeletionTestId,
+      deletedAt: new Date().toISOString(),
+      reason: 'Automated release readiness deletion test'
+    }]
+  };
+  const appliedPublicDeletion = await executeAtomicPackageImport(JSON.stringify(publicDeletionPackage), {
+    mode: 'merge',
+    fileNameHint: 'public-deletion-readiness-tombstone.json'
+  });
+  assertCondition(
+    appliedPublicDeletion.result.success &&
+      !loadAppState().terms.some((term) => term.id === publicDeletionTestId),
+    'Signed public deletion instructions must remove matching local public records'
+  );
+
+  const replayedOldPublicPackage = await executeAtomicPackageImport(JSON.stringify(oldPublicPackage), {
+    mode: 'merge',
+    fileNameHint: 'old-public-deletion-readiness-package.json'
+  });
+  assertCondition(
+    replayedOldPublicPackage.result.success &&
+      !loadAppState().terms.some((term) => term.id === publicDeletionTestId) &&
+      STORAGE_KEYS.PUBLIC_DELETIONS === 'umedt_public_content_deletions_v1',
+    'Persisted public tombstones must prevent older packages from restoring deleted records'
+  );
+  console.log('[PASS] 5A. Permanent Public Deletion Tombstones & Old-Package Replay Protection');
+
 
   // 6. Run Stage 5 Security Audit (6/6), Stage 6 Diagnostics (6/6), and Stage 7 Final Release Suite (8/8)
   const stage5Report = await runSecurityAndReliabilityAuditSuite();
