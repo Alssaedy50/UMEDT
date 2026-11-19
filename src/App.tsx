@@ -75,6 +75,7 @@ import { TopicsHub } from './components/TopicsHub';
 import { TermDetailSheet } from './components/TermDetailSheet';
 import { LibraryView, LibrarySubMode, StagedTermItem } from './components/LibraryView';
 import { SettingsView } from './components/SettingsView';
+import { registerImportGroup, ImportGroupDomain } from './services/importGroupService';
 import { publishMasterDataToGitHub } from './services/githubRepositoryService';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { prepareAndDownloadFile, shareFileWithVerification } from './utils/downloadHelper';
@@ -1498,11 +1499,76 @@ export default function App() {
     return importedCount;
   };
 
-  const handleUniversalImportComplete = (report: UniversalImportReport) => {
+  const registerUniversalImportGroup = (report: UniversalImportReport, sourceName?: string) => {
+    const collect = <T extends { id: string }>(incoming: T[], existing: T[]) => {
+      const oldById = new Map(existing.map(item => [item.id, item]));
+      const added = incoming.filter(item => !oldById.has(item.id));
+      const changedExisting = incoming.some(item => {
+        const old = oldById.get(item.id);
+        return Boolean(old && JSON.stringify(old) !== JSON.stringify(item));
+      });
+      return {
+        ids: added.map(item => item.id),
+        fingerprints: Object.fromEntries(added.map(item => [item.id, JSON.stringify(item)])),
+        changedExisting
+      };
+    };
+    const termsGroup = collect(report.updatedTerms, terms);
+    const sentencesGroup = collect(report.updatedSentences, sentences);
+    const topicsGroup = collect(report.updatedTopics, topics);
+    const affixesGroup = collect(report.updatedAffixes, customAffixes);
+    const abbreviationsGroup = collect(report.updatedAbbreviations, customAbbreviations);
+    const hasExistingChanges = [
+      termsGroup, sentencesGroup, topicsGroup, affixesGroup, abbreviationsGroup
+    ].some(group => group.changedExisting);
+    const ids: Partial<Record<ImportGroupDomain, string[]>> = {
+      terms: termsGroup.ids, sentences: sentencesGroup.ids, topics: topicsGroup.ids,
+      affixes: affixesGroup.ids, abbreviations: abbreviationsGroup.ids
+    };
+    const fingerprints: Partial<Record<ImportGroupDomain, Record<string, string>>> = {
+      terms: termsGroup.fingerprints, sentences: sentencesGroup.fingerprints,
+      topics: topicsGroup.fingerprints, affixes: affixesGroup.fingerprints,
+      abbreviations: abbreviationsGroup.fingerprints
+    };
+    const extendedCounts = report.counts;
+    const hasExtendedContent = Boolean(
+      extendedCounts.blocks || extendedCounts.subjects || extendedCounts.books ||
+      extendedCounts.exams || extendedCounts.questions || extendedCounts.mediaAssets
+    );
+    const groupId = `universal-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    registerImportGroup({
+      id: groupId,
+      name: sourceName || report.summaryText || 'استيراد محتوى طبي',
+      sourceName: sourceName || report.sourceFormat || 'استيراد محتوى طبي',
+      sourceType: report.sourceFormat,
+      createdAt: new Date().toISOString(),
+      ids,
+      fingerprints,
+      counts: {
+        terms: termsGroup.ids.length, sentences: sentencesGroup.ids.length,
+        topics: topicsGroup.ids.length, affixes: affixesGroup.ids.length,
+        abbreviations: abbreviationsGroup.ids.length,
+        blocks: extendedCounts.blocks, subjects: extendedCounts.subjects,
+        books: extendedCounts.books, exams: extendedCounts.exams,
+        questions: extendedCounts.questions, mediaAssets: extendedCounts.mediaAssets
+      },
+      ignoredDuplicates: extendedCounts.skippedDuplicates,
+      requiresReview: hasExistingChanges || hasExtendedContent,
+      reviewReason: hasExistingChanges
+        ? 'تضمنت عملية الاستيراد دمجاً أو تحديثاً لسجلات سابقة؛ الحذف الانتقائي معطّل لحماية البيانات الأصلية.'
+        : hasExtendedContent
+          ? 'تتضمن الدفعة بلوكات أو مواد أو كتباً أو اختبارات أو وسائط؛ يلزم دعم إزالة هذه العناصر واعتمادياتها قبل تفعيل الحذف.'
+          : undefined
+    });
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('umed:import-groups-updated'));
+  };
+
+  const handleUniversalImportComplete = (report: UniversalImportReport, sourceName?: string) => {
     if (!report.success) {
       if (report.errors[0]) showToast(report.errors[0], 'info');
       return;
     }
+    registerUniversalImportGroup(report, sourceName);
     setTerms(report.updatedTerms);
     setSentences(report.updatedSentences);
     setTopics(report.updatedTopics);
@@ -1757,7 +1823,7 @@ export default function App() {
             sourceLabel: file.name
           });
           if (universalReport.success) {
-            handleUniversalImportComplete(universalReport);
+            handleUniversalImportComplete(universalReport, file.name);
             showToast(`تم استيراد الملف (${file.name}): ${universalReport.summaryText}`);
             return;
           }
@@ -1802,7 +1868,7 @@ export default function App() {
             sourceLabel: file.name
           });
           if (zipReport.success) {
-            handleUniversalImportComplete(zipReport);
+            handleUniversalImportComplete(zipReport, file.name);
             showToast(`تم استيراد الأرشيف (${file.name}): ${zipReport.summaryText}`);
             return;
           }
