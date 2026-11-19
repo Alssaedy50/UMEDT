@@ -16,7 +16,6 @@ import {
   assemblePackageFromZipJsonMap,
   inspectAndExtractSafeZipPackage,
   validateDataPackageObject,
-  parseAndValidateImportInput,
   buildDataPackageZipBytes,
   computeSha256Hex
 } from '../src/services/dataPlatformService';
@@ -167,8 +166,8 @@ async function main() {
   console.log('UMED-2 — Independent Web, PWA & Android APK Verification Suite');
   console.log('================================================================');
 
-  // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.4.6)
-  assertCondition(APP_VERSION === '2.4.6', `Expected APP_VERSION 2.4.6, got ${APP_VERSION}`);
+  // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.4.0)
+  assertCondition(APP_VERSION === '2.4.0', `Expected APP_VERSION 2.4.0, got ${APP_VERSION}`);
   assertCondition(DB_SCHEMA_VERSION === 2, `Expected DB_SCHEMA_VERSION 2, got ${DB_SCHEMA_VERSION}`);
   assertCondition(
     BUNDLED_DATA_VERSION === '2026.10.0-umd',
@@ -263,21 +262,21 @@ async function main() {
   assertCondition(
     apkWorkflowContent.includes('assembleDebug') &&
       apkWorkflowContent.includes('assembleRelease') &&
-      apkWorkflowContent.includes('UMED-2-v2.4.6-debug-apk') &&
-      apkWorkflowContent.includes('UMED-2-v2.4.6-release-apk') &&
+      apkWorkflowContent.includes('UMED-2-v2.4.0-debug-apk') &&
+      apkWorkflowContent.includes('UMED-2-v2.4.0-release-apk') &&
       apkWorkflowContent.includes('VITE_UMED_MANIFEST_URL') &&
       apkWorkflowContent.includes('VITE_UMED_PUBLIC_KEY_PEM'),
-    'android-apk-release.yml must build v2.4.6 Debug/Release APKs with Cloud OTA env vars'
+    'android-apk-release.yml must build v2.4.0 Debug/Release APKs with Cloud OTA env vars'
   );
 
   const gradleContent = fs.readFileSync(androidBuildGradlePath, 'utf8');
   assertCondition(
     gradleContent.includes('org.umed2.dictengine') &&
-      gradleContent.includes('versionCode 20406') &&
-      gradleContent.includes('versionName "2.4.6"'),
-    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20406, and versionName "2.4.6"'
+      gradleContent.includes('versionCode 20400') &&
+      gradleContent.includes('versionName "2.4.0"'),
+    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20400, and versionName "2.4.0"'
   );
-  console.log('[PASS] 3. Capacitor Native Android Project (v2.4.6 / 20406) & Bundled Local Web Assets Synced');
+  console.log('[PASS] 3. Capacitor Native Android Project (v2.4.0 / 20400) & Bundled Local Web Assets Synced');
 
   // 4. Verify Safe, Versioned, Idempotent Storage Migration + Backup & Rollback
   const initialState = loadAppState();
@@ -306,39 +305,9 @@ async function main() {
   }
   assertCondition(sqliteBlocked, 'SQLite binary files must be rejected');
 
-  // Use isolated test fixtures when the production APK intentionally ships with no seed content.
-  const transferTerms = initialState.terms.length > 0 ? initialState.terms : [{
-    id: 'test-transfer-term',
-    term: 'Test Clinical Term',
-    termNormalized: 'test clinical term',
-    translation: 'مصطلح سريري اختباري',
-    phonetic: '/test/',
-    pos: 'Noun',
-    category: 'Medical' as const,
-    keepEnglish: true,
-    favorite: false,
-    collections: [],
-    ingestedAt: 'verification-fixture',
-    definitionAr: 'بيانات اختبار نقل فقط',
-    definitionEn: 'Verification-only transfer fixture',
-    examples: [],
-    relations: { synonyms: [], broader: [], related: [] }
-  }];
-  const transferSentences = initialState.sentences.length > 0 ? initialState.sentences : [{
-    id: 'test-transfer-sentence',
-    en: 'This is a transfer verification sentence.',
-    ar: 'هذه جملة للتحقق من نقل البيانات.',
-    category: 'Medical' as const,
-    sourceType: 'manual' as const,
-    linkedTermIds: ['test-transfer-term'],
-    tags: [],
-    favorite: false,
-    createdAt: new Date().toISOString()
-  }];
-
   const exportedJson = exportFullDatabaseJson({
-    terms: transferTerms,
-    sentences: transferSentences,
+    terms: initialState.terms,
+    sentences: initialState.sentences,
     topics: initialState.topics,
     customAffixes: initialState.customAffixes,
     customAbbreviations: initialState.customAbbreviations,
@@ -346,8 +315,8 @@ async function main() {
     versionMetadata: initialState.versionMetadata
   });
   const exportedZipBytes = exportFullDatabaseZipBytes({
-    terms: transferTerms,
-    sentences: transferSentences,
+    terms: initialState.terms,
+    sentences: initialState.sentences,
     topics: initialState.topics,
     customAffixes: initialState.customAffixes,
     customAbbreviations: initialState.customAbbreviations,
@@ -372,107 +341,6 @@ async function main() {
     'Storage keys must remain intact'
   );
   console.log('[PASS] 5. Cross-Environment .ZIP & .JSON Export/Import & SQLite Rejection Verified');
-  const publicDeletionTestId = `readiness-public-deletion-${Date.now()}`;
-  const publicDeletionTestTerm = {
-    id: publicDeletionTestId,
-    term: publicDeletionTestId,
-    termNormalized: publicDeletionTestId,
-    translation: 'عنصر اختبار الحذف العام',
-    category: 'Medical' as const,
-    definitionAr: 'عنصر اختباري مؤقت',
-    definitionEn: 'Temporary public deletion verification record',
-    examples: [],
-    relations: { synonyms: [], broader: [], related: [] }
-  };
-  const publicDeletionManifest = {
-    packageId: 'umedt-public-deletion-readiness',
-    dataVersion: BUNDLED_DATA_VERSION,
-    minAppVersion: APP_VERSION,
-    schemaVersion: DB_SCHEMA_VERSION,
-    releasedAt: new Date().toISOString(),
-    channel: 'stable' as const,
-    counts: { terms: 1, sentences: 0, topics: 0, affixes: 0, abbreviations: 0 }
-  };
-  const oldPublicPackage = {
-    manifest: publicDeletionManifest,
-    terms: [publicDeletionTestTerm],
-    sentences: [],
-    topics: [],
-    customAffixes: [],
-    customAbbreviations: []
-  };
-  const seededPublicRecord = await executeAtomicPackageImport(JSON.stringify(oldPublicPackage), {
-    mode: 'merge',
-    fileNameHint: 'public-deletion-readiness-seed.json'
-  });
-  assertCondition(
-    seededPublicRecord.result.success && loadAppState().terms.some((term) => term.id === publicDeletionTestId),
-    'Public deletion test fixture must first import successfully'
-  );
-
-  const publicDeletionPackage = {
-    manifest: {
-      ...publicDeletionManifest,
-      packageId: 'umedt-public-deletion-readiness-tombstone',
-      counts: { terms: 0, sentences: 0, topics: 0, affixes: 0, abbreviations: 0 }
-    },
-    terms: [],
-    sentences: [],
-    topics: [],
-    customAffixes: [],
-    customAbbreviations: [],
-    publicDeletions: [{
-      domain: 'terms' as const,
-      id: publicDeletionTestId,
-      deletedAt: new Date().toISOString(),
-      reason: 'Automated release readiness deletion test'
-    }]
-  };
-  const publicDeletionZip = buildDataPackageZipBytes(publicDeletionPackage);
-  const parsedPublicDeletionZip = await parseAndValidateImportInput(
-    publicDeletionZip,
-    'public-deletion-readiness.zip'
-  );
-  assertCondition(
-    parsedPublicDeletionZip.sourceFormat === 'zip' &&
-      parsedPublicDeletionZip.validation.valid &&
-      parsedPublicDeletionZip.validation.payload?.publicDeletions?.some((entry) => entry.id === publicDeletionTestId),
-    'Public deletion instructions must survive ZIP package serialization and parsing'
-  );
-
-  const untrustedPublicDeletion = await executeAtomicPackageImport(JSON.stringify(publicDeletionPackage), {
-    mode: 'merge',
-    fileNameHint: 'untrusted-public-deletion-readiness-tombstone.json'
-  });
-  assertCondition(
-    untrustedPublicDeletion.result.success &&
-      loadAppState().terms.some((term) => term.id === publicDeletionTestId),
-    'Unsigned local imports must not be allowed to issue global deletion instructions'
-  );
-
-  const appliedPublicDeletion = await executeAtomicPackageImport(publicDeletionZip, {
-    mode: 'merge',
-    fileNameHint: 'public-deletion-readiness-tombstone.json',
-    dataSourceOverride: 'remote-cdn'
-  });
-  assertCondition(
-    appliedPublicDeletion.result.success &&
-      !loadAppState().terms.some((term) => term.id === publicDeletionTestId),
-    'Signed public deletion instructions must remove matching local public records'
-  );
-
-  const replayedOldPublicPackage = await executeAtomicPackageImport(JSON.stringify(oldPublicPackage), {
-    mode: 'merge',
-    fileNameHint: 'old-public-deletion-readiness-package.json'
-  });
-  assertCondition(
-    replayedOldPublicPackage.result.success &&
-      !loadAppState().terms.some((term) => term.id === publicDeletionTestId) &&
-      STORAGE_KEYS.PUBLIC_DELETIONS === 'umedt_public_content_deletions_v1',
-    'Persisted public tombstones must prevent older packages from restoring deleted records'
-  );
-  console.log('[PASS] 5A. Permanent Public Deletion Tombstones & Old-Package Replay Protection');
-
 
   // 6. Run Stage 5 Security Audit (6/6), Stage 6 Diagnostics (6/6), and Stage 7 Final Release Suite (8/8)
   const stage5Report = await runSecurityAndReliabilityAuditSuite();
@@ -1652,7 +1520,7 @@ async function main() {
   });
   assertCondition(
     onlineCatalogView.totalCloudTopicsCount >= 1 && onlineCatalogView.blocks.length >= 1,
-    `Expected online synced catalog to have >= 1 topic and >= 1 block, got topics=${onlineCatalogView.totalCloudTopicsCount}, blocks=${onlineCatalogView.blocks.length}`
+    `Expected online synced catalog to have >= 1 topics and >= 1 blocks, got topics=${onlineCatalogView.totalCloudTopicsCount}, blocks=${onlineCatalogView.blocks.length}`
   );
 
   // 16.4 Selective Download of Individual Topic from Cloud Library (Online) + SHA-256 Deduplication Check

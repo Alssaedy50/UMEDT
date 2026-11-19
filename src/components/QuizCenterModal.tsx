@@ -313,8 +313,13 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
     setQuestionImgFailed(false);
     setOfflineQuestionImgSrc(null);
     const imgUrl = activeSessionQuestion?.imageUrl?.trim() || '';
-    if (!isOpen || !imgUrl || !/^https?:\/\//i.test(imgUrl)) return;
-    const key = `idb-${computeDeterministicFastHashHex(imgUrl).slice(0, 16)}`;
+    if (!isOpen || !imgUrl) return;
+    const key = imgUrl.startsWith('idb://')
+      ? imgUrl.slice(6).trim()
+      : /^https?:\/\//i.test(imgUrl)
+      ? `idb-${computeDeterministicFastHashHex(imgUrl).slice(0, 16)}`
+      : '';
+    if (!key) return;
     void getLocalMediaRecord(key).then((rec) => {
       if (!cancelled && rec?.dataUrl) {
         setOfflineQuestionImgSrc(rec.dataUrl);

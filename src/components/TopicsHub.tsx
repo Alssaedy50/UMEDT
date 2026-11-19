@@ -458,7 +458,13 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           (ma.blockId === activeTopic.blockId ||
             (ma.linkedEntityType === 'block' && ma.linkedEntityId === activeTopic.blockId)))
     );
-    if (linked.length === 0) {
+    const linkedQuestionsWithImages = quizQuestions.filter(
+      (q) =>
+        q.imageUrl &&
+        (q.topicId === activeTopic.id ||
+          (activeTopic.subjectId && q.subjectId === activeTopic.subjectId))
+    );
+    if (linked.length === 0 && linkedQuestionsWithImages.length === 0) {
       setTopicOfflineMediaUrls({});
       return;
     }
@@ -468,13 +474,29 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         const href = (ma.rawUrl || ma.url || '').trim();
         const key =
           ma.mediaIdbKey ||
-          (href.startsWith('http://') || href.startsWith('https://')
+          (href.startsWith('idb://')
+            ? href.slice(6).trim()
+            : href.startsWith('http://') || href.startsWith('https://')
             ? `idb-${computeDeterministicFastHashHex(href).slice(0, 16)}`
             : '');
         if (key) {
           const rec = await getLocalMediaRecord(key);
           if (rec?.dataUrl) {
             nextMap[ma.id] = rec.dataUrl;
+          }
+        }
+      }
+      for (const q of linkedQuestionsWithImages) {
+        const imgUrl = (q.imageUrl || '').trim();
+        const key = imgUrl.startsWith('idb://')
+          ? imgUrl.slice(6).trim()
+          : /^https?:\/\//i.test(imgUrl)
+          ? `idb-${computeDeterministicFastHashHex(imgUrl).slice(0, 16)}`
+          : '';
+        if (key) {
+          const rec = await getLocalMediaRecord(key);
+          if (rec?.dataUrl) {
+            nextMap[q.id] = rec.dataUrl;
           }
         }
       }
@@ -485,7 +507,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [activeTopic, mediaAssets]);
+  }, [activeTopic, mediaAssets, quizQuestions]);
 
   const blockMap = useMemo(
     () => new Map<string, MedicalBlock>(blocks.map((b) => [b.id, b])),
