@@ -538,7 +538,7 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
     }
     if (includeBooksAndMedia) {
       requiredBlocksList.push(
-        '- Reference books & external media links (`books[]`, `mediaAssets[]`, and contentBlocks with `type: "pdf_viewer" | "book_reference" | "video_link" | "audio"` using direct https:// URLs only — NEVER base64 data URIs)'
+        '- Real reference files and media: `books[]`, `mediaAssets[]`, and `pdf_viewer` / `audio` / `video` / `image` content blocks. Create actual binary files when file-generation tools are available; otherwise use only verified existing public URLs. Never invent URLs or claim an uncreated file exists.'
       );
     }
 
@@ -760,12 +760,24 @@ ${requiredBlocksList.join('\n')}
 ${formatInstructions}
 
 ====================================================================
-4. CRITICAL EXECUTION RULES (UNIVERSAL — WORKS ON ANY AI MODEL)
+4. USER-SPECIFIED OBJECTIVES AND SPECIAL REQUIREMENTS
 ====================================================================
-1. NEVER write placeholders such as "// ... repeat for remaining terms" or "... (omitted for brevity)". Every single record must be real, clinically accurate, and complete.
-2. NEVER omit \`blockId\` or \`subjectId\` on Topics or Questions. Every Topic under "${cleanSubjectName}" must carry BOTH \`"blockId": "${blockIdRef}"\` and \`"subjectId": "${subjectIdRef}"\`.
-3. Ensure 100% bilingual accuracy: precise international English medical terminology paired with natural, accurate Modern Standard Arabic medical terminology.
-4. If the requested file size exceeds a single turn limit, generate a downloadable file if supported by your environment OR output Part 1 at maximum capacity ending with "[READY FOR PART 2 — SEND 'CONTINUE']" so the user can download/paste cleanly into UMEDT.`;
+${taskRequirements.trim() || 'No additional custom requirements. Follow the scope, topic axes, output format, and quality rules in this prompt.'}
+
+====================================================================
+5. STRICT EXECUTION, VALIDATION & DELIVERY CONTRACT
+====================================================================
+1. Treat any supplied lecture, PDF, textbook excerpt, image, or repository file as the primary source when one is provided. Preserve its terminology and organization. Do not silently fill source gaps with guesses; label supplemental model knowledge separately and cite reliable sources when requested.
+2. Never fabricate facts, citations, page numbers, references, URLs, file paths, checksums, media durations, or claims that a file was created or uploaded. Mark unavailable information explicitly.
+3. Produce EXACTLY the requested counts: ${targetScope === 'block' ? `${subjectsCount} subjects and ${topicsCount} topics` : targetScope === 'subject' ? `${topicsCount} topics` : '1 topic'}, ${termsCount} terms, ${sentencesCount} sentences, and ${questionsCount} questions. Before delivery, count each array and report any shortfall. Do not claim completion if counts do not match.
+4. Never use placeholders, ellipses, repeated filler records, copied duplicates, or "omitted for brevity". Every record must be distinct, complete, relevant, and medically coherent.
+5. Preserve the exact hierarchy IDs in this prompt. Every topic and question must reference the correct existing/generated blockId, subjectId, and topicId. Do not create duplicate parent records when the supplied IDs identify existing records.
+6. Validate the final output before delivery: parse JSON; verify required keys and types; verify exact array counts; verify unique IDs; verify all hierarchy references; verify every correctOptionKeys value exists in that question's options; verify bilingual fields; verify table row widths; and verify media metadata. Fix all validation errors and re-validate.
+7. For requested files, create actual downloadable files in the supported workspace rather than merely describing them. If file creation is unavailable, provide the complete exact source content and clearly state that no binary file was created.
+8. For PDF, MP3, MP4, PNG/JPG, and other binary assets, create actual bytes when supported. A URL is acceptable only after confirming it resolves to the intended file and returns the correct content type. Never fabricate rawUrl, downloadUrl, or mediaUrl. For generated assets, record fileName, mimeType, sizeBytes, relativePath, and SHA-256 when available; verify PDF files begin with a valid PDF signature and media files are playable.
+9. Keep output import-compatible with the UMEDT Universal Reader. Do not invent unsupported content-block types or fields. Use the exact schemas and examples above; place media in contentBlocks in the intended section order and link each asset to its topic.
+10. If output exceeds a model/tool limit, split it into numbered, resumable parts with stable IDs and an explicit completion manifest. Never silently truncate or claim all requested records were delivered.
+11. This prompt is model-agnostic, but it cannot grant a model tools or guarantee file-generation capabilities it does not have. State capability limits and actual verification results honestly.`;
   }, [
     targetScope,
     blockName,
@@ -868,7 +880,7 @@ ${formatInstructions}
                 مولّد برومبت الذكاء الاصطناعي ودليل التوليد
               </h2>
               <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">
-                إعداد البرومبت الإنجليزي المخصص · متوافق مع أي نموذج ذكاء اصطناعي · UMEDT-DATA
+                إعداد برومبت منظم · قابل للاستخدام مع نماذج مختلفة · UMEDT-DATA
               </p>
             </div>
           </div>
@@ -1133,6 +1145,19 @@ ${formatInstructions}
                       className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white"
                     />
                   </div>
+                  <div className="pt-2">
+                    <label className="block text-[11px] font-extrabold text-slate-700 dark:text-slate-300 mb-1">
+                      أهداف وتعليمات إضافية دقيقة (اختياري)
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={taskRequirements}
+                      onChange={(e) => setTaskRequirements(e.target.value)}
+                      placeholder="مثال: اعتمد حصراً على ملف المحاضرة المرفق، حافظ على ترتيب الدكتور، أضف أهدافاً تعليمية قابلة للقياس، وأنشئ PDF حقيقياً مع صور وجداول..."
+                      className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white"
+                    />
+                    <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">تُدرج التعليمات في البرومبت النهائي وتصبح جزءاً من معايير التحقق.</p>
+                  </div>
                 </div>
 
                 {/* Step 3: Quantities */}
@@ -1383,7 +1408,7 @@ ${formatInstructions}
                       READY-TO-COPY ENGLISH PROMPT
                     </span>
                     <h4 className="text-xs sm:text-sm font-extrabold text-white mt-1">
-                      البرومبت الإنجليزي الموحّد (يعمل مع أي نموذج ذكاء اصطناعي)
+                      البرومبت الإنجليزي الموحّد (تعليمات قابلة للنقل بين النماذج)
                     </h4>
                   </div>
 
