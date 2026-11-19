@@ -2528,22 +2528,22 @@ export async function executeAtomicPackageImport(
         [STORAGE_KEYS.SETTINGS]: JSON.stringify(nextSettings),
         [STORAGE_KEYS.VERSION_META]: JSON.stringify(nextVersionMeta),
         [STORAGE_KEYS.PUBLIC_DELETIONS]: JSON.stringify(allPublicDeletions),
-        ...((effectivePayload.blocks || []).length > 0
+        ...((effectivePayload.blocks || []).length > 0 || hasPublicDeletionFor('blocks') || hasPublicDeletionFor('blocks')
           ? { [LEARNING_STORAGE_KEYS.BLOCKS]: JSON.stringify(nextBlocks) }
           : {}),
-        ...((effectivePayload.subjects || []).length > 0
+        ...((effectivePayload.subjects || []).length > 0 || hasPublicDeletionFor('subjects') || hasPublicDeletionFor('subjects')
           ? { [LEARNING_STORAGE_KEYS.SUBJECTS]: JSON.stringify(nextSubjects) }
           : {}),
-        ...((effectivePayload.books || []).length > 0
+        ...((effectivePayload.books || []).length > 0 || hasPublicDeletionFor('books') || hasPublicDeletionFor('books')
           ? { [LEARNING_STORAGE_KEYS.BOOKS]: JSON.stringify(nextBooks) }
           : {}),
-        ...((effectivePayload.questions || []).length > 0
+        ...((effectivePayload.questions || []).length > 0 || hasPublicDeletionFor('questions') || hasPublicDeletionFor('questions')
           ? { [LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS]: JSON.stringify(nextQuestions) }
           : {}),
-        ...((effectivePayload.exams || []).length > 0
+        ...((effectivePayload.exams || []).length > 0 || hasPublicDeletionFor('exams') || hasPublicDeletionFor('exams')
           ? { [LEARNING_STORAGE_KEYS.EXAMS]: JSON.stringify(nextExams) }
           : {}),
-        ...((effectivePayload.mediaAssets || []).length > 0
+        ...((effectivePayload.mediaAssets || []).length > 0 || hasPublicDeletionFor('mediaAssets') || hasPublicDeletionFor('mediaAssets')
           ? { [LEARNING_STORAGE_KEYS.MEDIA_ASSETS]: JSON.stringify(nextMediaAssets) }
           : {})
       };
@@ -2620,10 +2620,10 @@ export async function executeAtomicPackageImport(
         );
       }
 
-      if ((effectivePayload.blocks || []).length > 0) saveMedicalBlocks(nextBlocks);
-      if ((effectivePayload.subjects || []).length > 0) saveMedicalSubjects(nextSubjects);
-      if ((effectivePayload.books || []).length > 0) saveAcademicBooks(nextBooks);
-      if ((effectivePayload.questions || []).length > 0) {
+      if ((effectivePayload.blocks || []).length > 0 || hasPublicDeletionFor('blocks')) saveMedicalBlocks(nextBlocks);
+      if ((effectivePayload.subjects || []).length > 0 || hasPublicDeletionFor('subjects')) saveMedicalSubjects(nextSubjects);
+      if ((effectivePayload.books || []).length > 0 || hasPublicDeletionFor('books')) saveAcademicBooks(nextBooks);
+      if ((effectivePayload.questions || []).length > 0 || hasPublicDeletionFor('questions')) {
         if (!safeWriteJson(LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS, nextQuestions)) {
           throw new Error('فشل حفظ بنك الأسئلة المرتبط بالحزمة.');
         }
@@ -2633,8 +2633,8 @@ export async function executeAtomicPackageImport(
         safeWriteJson(LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS, nextAttempts);
         saveQuizAttempts(nextAttempts);
       }
-      if ((effectivePayload.exams || []).length > 0) saveAcademicExams(nextExams);
-      if ((effectivePayload.mediaAssets || []).length > 0) saveMediaAssetsIndex(nextMediaAssets);
+      if ((effectivePayload.exams || []).length > 0 || hasPublicDeletionFor('exams')) saveAcademicExams(nextExams);
+      if ((effectivePayload.mediaAssets || []).length > 0 || hasPublicDeletionFor('mediaAssets')) saveMediaAssetsIndex(nextMediaAssets);
       if ((effectivePayload.userNotes || []).length > 0 || existingNotes.length > 0) {
         saveUserStudyNotes(nextNotes);
       }
