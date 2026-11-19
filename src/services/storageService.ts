@@ -2648,7 +2648,10 @@ export async function executeAtomicPackageImport(
             };
           };
           const termsGroup = makeNew<DictionaryTerm>(effectivePayload.terms, currentState.terms, merged.terms, normalizeTermNaturalKey);
-          const sentencesGroup = makeNew(effectivePayload.sentences, currentState.sentences, merged.sentences, normalizeSentenceNaturalKey);
+          const newlyCreatedSentences = merged.sentences.filter((sentence) =>
+            !currentState.sentences.some((existing) => existing.id === sentence.id)
+          );
+          const sentencesGroup = makeNew<LinkedSentence>(newlyCreatedSentences, currentState.sentences, merged.sentences, normalizeSentenceNaturalKey);
           const topicsGroup = makeNew<TopicArticle>(effectivePayload.topics, currentState.topics, merged.topics, normalizeTopicNaturalKey);
           const affixesGroup = makeNew<MorphologicalAffix>(effectivePayload.customAffixes, currentState.customAffixes, merged.customAffixes, normalizeAffixNaturalKey);
           const abbreviationsGroup = makeNew<ClinicalAbbreviation>(effectivePayload.customAbbreviations, currentState.customAbbreviations, merged.customAbbreviations, normalizeAbbreviationNaturalKey);
