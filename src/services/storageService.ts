@@ -54,7 +54,8 @@ import {
   QuizAttemptRecord,
   UserStudyNoteRecord,
   ExtractedZipMediaFile,
-  LocalMediaRecord
+  LocalMediaRecord,
+  PublicContentDeletion
 } from '../types/lexicon';
 import {
   LEARNING_STORAGE_KEYS,
@@ -172,6 +173,7 @@ export const STORAGE_KEYS = {
   TOPICS: 'dictengine_umd_topics_v2',
   CUSTOM_AFFIXES: 'dictengine_umd_custom_affixes_v2',
   CUSTOM_ABBREVIATIONS: 'dictengine_umd_custom_abbreviations_v2',
+  PUBLIC_DELETIONS: 'umedt_public_content_deletions_v1',
   STUDY_STATS: 'dictengine_umd_study_stats_v2',
   SETTINGS: 'dictengine_umd_settings_v2'
 } as const;
@@ -388,6 +390,7 @@ const LIVE_DATA_TRANSACTION_KEYS = [
   STORAGE_KEYS.TOPICS,
   STORAGE_KEYS.CUSTOM_AFFIXES,
   STORAGE_KEYS.CUSTOM_ABBREVIATIONS,
+  STORAGE_KEYS.PUBLIC_DELETIONS,
   STORAGE_KEYS.STUDY_STATS,
   STORAGE_KEYS.SETTINGS
 ] as const;
@@ -2255,7 +2258,55 @@ export async function executeAtomicPackageImport(
           : {})
       };
 
+      // Publisher tombstones are permanent across future imports: an older ZIP/JSON package
+      // cannot silently restore a record that the UMEDT-DATA owner removed globally.
+      const priorPublicDeletions = safeReadJson<PublicContentDeletion[]>(
+        STORAGE_KEYS.PUBLIC_DELETIONS,
+        []
+      );
+      const publicDeletionMap = new Map<string, PublicContentDeletion>();
+      const trustedIncomingPublicDeletions = options?.dataSourceOverride === 'remote-cdn'
+        ? effectivePayload.publicDeletions || []
+        : [];
+      for (const deletion of [...priorPublicDeletions, ...trustedIncomingPublicDeletions]) {
+        if (!deletion?.domain || !deletion.id) continue;
+        publicDeletionMap.set(`${deletion.domain}:${deletion.id}`, deletion);
+      }
+      const allPublicDeletions = Array.from(publicDeletionMap.values());
+      const isPublicDeleted = (domain: PublicContentDeletion['domain'], id: string): boolean =>
+        publicDeletionMap.has(`${domain}:${id}`);
+      const hasPublicDeletionFor = (domain: PublicContentDeletion['domain']): boolean =>
+        allPublicDeletions.some((deletion) => deletion.domain === domain);
+
       const merged = mergeValidatedCollections(currentState, effectivePayload, mode);
+      merged.terms = merged.terms
+        .filter((item) => !isPublicDeleted('terms', item.id))
+        .map((item) => ({
+          ...item,
+          linkedTopicIds: item.linkedTopicIds?.filter((id) => !isPublicDeleted('topics', id)),
+          linkedSubjectIds: item.linkedSubjectIds?.filter((id) => !isPublicDeleted('subjects', id)),
+          linkedBlockIds: item.linkedBlockIds?.filter((id) => !isPublicDeleted('blocks', id))
+        }));
+      merged.sentences = merged.sentences
+        .filter((item) => !isPublicDeleted('sentences', item.id))
+        .map((item) => ({
+          ...item,
+          linkedTermIds: item.linkedTermIds.filter((id) => !isPublicDeleted('terms', id))
+        }));
+      merged.topics = merged.topics
+        .filter((item) => !isPublicDeleted('topics', item.id))
+        .map((item) => ({
+          ...item,
+          ...(item.blockId && isPublicDeleted('blocks', item.blockId) ? { blockId: undefined } : {}),
+          ...(item.subjectId && isPublicDeleted('subjects', item.subjectId) ? { subjectId: undefined } : {}),
+          relatedTopicIds: item.relatedTopicIds?.filter((id) => !isPublicDeleted('topics', id))
+        }));
+      merged.customAffixes = merged.customAffixes.filter(
+        (item) => !isPublicDeleted('customAffixes', item.id)
+      );
+      merged.customAbbreviations = merged.customAbbreviations.filter(
+        (item) => !isPublicDeleted('customAbbreviations', item.id)
+      );
       const nextVersionMeta: VersionMetadata = {
         appVersion: APP_VERSION,
         schemaVersion: DB_SCHEMA_VERSION,
@@ -2315,7 +2366,9 @@ export async function executeAtomicPackageImport(
         }
         nextBlocksMap.set(blk.id, blk);
       }
-      const nextBlocks = Array.from(nextBlocksMap.values()).sort((a, b) => a.order - b.order);
+      const nextBlocks = Array.from(nextBlocksMap.values())
+        .filter((item) => !isPublicDeleted('blocks', item.id))
+        .sort((a, b) => a.order - b.order);
 
       const existingSubjects = loadMedicalSubjects();
       const nextSubjectsMap = new Map<string, MedicalSubject>(
@@ -2330,7 +2383,13 @@ export async function executeAtomicPackageImport(
         }
         nextSubjectsMap.set(subj.id, subj);
       }
-      const nextSubjects = Array.from(nextSubjectsMap.values()).sort((a, b) => a.order - b.order);
+      const nextSubjects = Array.from(nextSubjectsMap.values())
+        .filter((item) => !isPublicDeleted('subjects', item.id))
+        .map((item) => ({
+          ...item,
+          ...(item.blockId && isPublicDeleted('blocks', item.blockId) ? { blockId: undefined } : {})
+        }))
+        .sort((a, b) => a.order - b.order);
 
       const existingBooks = loadAcademicBooks();
       const existingBookById = new Map<string, AcademicBookResource>(
@@ -2364,7 +2423,14 @@ export async function executeAtomicPackageImport(
             : bk
         );
       }
-      const nextBooks = Array.from(nextBooksMap.values());
+      const nextBooks = Array.from(nextBooksMap.values())
+        .filter((item) => !isPublicDeleted('books', item.id))
+        .map((item) => ({
+          ...item,
+          topicIds: item.topicIds?.filter((id) => !isPublicDeleted('topics', id)),
+          ...(item.blockId && isPublicDeleted('blocks', item.blockId) ? { blockId: undefined } : {}),
+          ...(item.subjectId && isPublicDeleted('subjects', item.subjectId) ? { subjectId: undefined } : {})
+        }));
 
       const rawExistingQuestions = safeReadJson<UnifiedQuizQuestion[]>(
         LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS,
@@ -2386,7 +2452,15 @@ export async function executeAtomicPackageImport(
         }
         nextQuestionsMap.set(q.id, q);
       }
-      const nextQuestions = Array.from(nextQuestionsMap.values());
+      const nextQuestions = Array.from(nextQuestionsMap.values())
+        .filter((item) => !isPublicDeleted('questions', item.id))
+        .map((item) => ({
+          ...item,
+          linkedTermIds: item.linkedTermIds?.filter((id) => !isPublicDeleted('terms', id)),
+          ...(item.topicId && isPublicDeleted('topics', item.topicId) ? { topicId: undefined } : {}),
+          ...(item.blockId && isPublicDeleted('blocks', item.blockId) ? { blockId: undefined } : {}),
+          ...(item.subjectId && isPublicDeleted('subjects', item.subjectId) ? { subjectId: undefined } : {})
+        }));
 
       const existingExams = loadAcademicExams();
       const nextExamsMap = new Map<string, AcademicExamPackage>(
@@ -2401,7 +2475,15 @@ export async function executeAtomicPackageImport(
         }
         nextExamsMap.set(ex.id, ex);
       }
-      const nextExams = Array.from(nextExamsMap.values());
+      const nextExams = Array.from(nextExamsMap.values())
+        .filter((item) => !isPublicDeleted('exams', item.id))
+        .map((item) => ({
+          ...item,
+          topicIds: item.topicIds?.filter((id) => !isPublicDeleted('topics', id)),
+          questionIds: item.questionIds?.filter((id) => !isPublicDeleted('questions', id)),
+          ...(item.blockId && isPublicDeleted('blocks', item.blockId) ? { blockId: undefined } : {}),
+          ...(item.subjectId && isPublicDeleted('subjects', item.subjectId) ? { subjectId: undefined } : {})
+        }));
 
       const existingMediaAssets = loadMediaAssetsIndex();
       const nextMediaAssetsMap = new Map<string, MediaAssetRecord>(
@@ -2420,7 +2502,8 @@ export async function executeAtomicPackageImport(
           prevMa ? { ...ma, mediaIdbKey: ma.mediaIdbKey || prevMa.mediaIdbKey } : ma
         );
       }
-      const nextMediaAssets = Array.from(nextMediaAssetsMap.values());
+      const nextMediaAssets = Array.from(nextMediaAssetsMap.values())
+        .filter((item) => !isPublicDeleted('mediaAssets', item.id));
 
       // Always preserve personal user study notes & quiz attempts across package updates
       const existingNotes = loadUserStudyNotes();
@@ -2467,22 +2550,23 @@ export async function executeAtomicPackageImport(
         [STORAGE_KEYS.STUDY_STATS]: JSON.stringify(nextStats),
         [STORAGE_KEYS.SETTINGS]: JSON.stringify(nextSettings),
         [STORAGE_KEYS.VERSION_META]: JSON.stringify(nextVersionMeta),
-        ...((effectivePayload.blocks || []).length > 0
+        [STORAGE_KEYS.PUBLIC_DELETIONS]: JSON.stringify(allPublicDeletions),
+        ...((effectivePayload.blocks || []).length > 0 || hasPublicDeletionFor('blocks')
           ? { [LEARNING_STORAGE_KEYS.BLOCKS]: JSON.stringify(nextBlocks) }
           : {}),
-        ...((effectivePayload.subjects || []).length > 0
+        ...((effectivePayload.subjects || []).length > 0 || hasPublicDeletionFor('subjects')
           ? { [LEARNING_STORAGE_KEYS.SUBJECTS]: JSON.stringify(nextSubjects) }
           : {}),
-        ...((effectivePayload.books || []).length > 0
+        ...((effectivePayload.books || []).length > 0 || hasPublicDeletionFor('books')
           ? { [LEARNING_STORAGE_KEYS.BOOKS]: JSON.stringify(nextBooks) }
           : {}),
-        ...((effectivePayload.questions || []).length > 0
+        ...((effectivePayload.questions || []).length > 0 || hasPublicDeletionFor('questions')
           ? { [LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS]: JSON.stringify(nextQuestions) }
           : {}),
-        ...((effectivePayload.exams || []).length > 0
+        ...((effectivePayload.exams || []).length > 0 || hasPublicDeletionFor('exams')
           ? { [LEARNING_STORAGE_KEYS.EXAMS]: JSON.stringify(nextExams) }
           : {}),
-        ...((effectivePayload.mediaAssets || []).length > 0
+        ...((effectivePayload.mediaAssets || []).length > 0 || hasPublicDeletionFor('mediaAssets')
           ? { [LEARNING_STORAGE_KEYS.MEDIA_ASSETS]: JSON.stringify(nextMediaAssets) }
           : {})
       };
@@ -2550,7 +2634,8 @@ export async function executeAtomicPackageImport(
         saveCustomAffixes(merged.customAffixes) &&
         saveCustomAbbreviations(merged.customAbbreviations) &&
         saveStudyStats(nextStats) &&
-        saveSettings(nextSettings);
+        saveSettings(nextSettings) &&
+        safeWriteJson(STORAGE_KEYS.PUBLIC_DELETIONS, allPublicDeletions);
 
       if (!primaryWritesOk) {
         throw new Error(
@@ -2558,10 +2643,10 @@ export async function executeAtomicPackageImport(
         );
       }
 
-      if ((effectivePayload.blocks || []).length > 0) saveMedicalBlocks(nextBlocks);
-      if ((effectivePayload.subjects || []).length > 0) saveMedicalSubjects(nextSubjects);
-      if ((effectivePayload.books || []).length > 0) saveAcademicBooks(nextBooks);
-      if ((effectivePayload.questions || []).length > 0) {
+      if ((effectivePayload.blocks || []).length > 0 || hasPublicDeletionFor('blocks')) saveMedicalBlocks(nextBlocks);
+      if ((effectivePayload.subjects || []).length > 0 || hasPublicDeletionFor('subjects')) saveMedicalSubjects(nextSubjects);
+      if ((effectivePayload.books || []).length > 0 || hasPublicDeletionFor('books')) saveAcademicBooks(nextBooks);
+      if ((effectivePayload.questions || []).length > 0 || hasPublicDeletionFor('questions')) {
         if (!safeWriteJson(LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS, nextQuestions)) {
           throw new Error('فشل حفظ بنك الأسئلة المرتبط بالحزمة.');
         }
@@ -2571,8 +2656,8 @@ export async function executeAtomicPackageImport(
         safeWriteJson(LEARNING_STORAGE_KEYS.QUIZ_ATTEMPTS, nextAttempts);
         saveQuizAttempts(nextAttempts);
       }
-      if ((effectivePayload.exams || []).length > 0) saveAcademicExams(nextExams);
-      if ((effectivePayload.mediaAssets || []).length > 0) saveMediaAssetsIndex(nextMediaAssets);
+      if ((effectivePayload.exams || []).length > 0 || hasPublicDeletionFor('exams')) saveAcademicExams(nextExams);
+      if ((effectivePayload.mediaAssets || []).length > 0 || hasPublicDeletionFor('mediaAssets')) saveMediaAssetsIndex(nextMediaAssets);
       if ((effectivePayload.userNotes || []).length > 0 || existingNotes.length > 0) {
         saveUserStudyNotes(nextNotes);
       }
@@ -2580,12 +2665,13 @@ export async function executeAtomicPackageImport(
       // Keep Unified Cloud Mirror synchronized with imported package metadata & extended collections
       if (
         effectivePayload.catalog ||
-        (effectivePayload.blocks || []).length > 0 ||
-        (effectivePayload.subjects || []).length > 0 ||
-        (effectivePayload.books || []).length > 0 ||
-        (effectivePayload.questions || []).length > 0 ||
-        (effectivePayload.exams || []).length > 0 ||
-        (effectivePayload.mediaAssets || []).length > 0
+        (effectivePayload.blocks || []).length > 0 || hasPublicDeletionFor('blocks') ||
+        (effectivePayload.subjects || []).length > 0 || hasPublicDeletionFor('subjects') ||
+        (effectivePayload.books || []).length > 0 || hasPublicDeletionFor('books') ||
+        (effectivePayload.questions || []).length > 0 || hasPublicDeletionFor('questions') ||
+        (effectivePayload.exams || []).length > 0 || hasPublicDeletionFor('exams') ||
+        (effectivePayload.mediaAssets || []).length > 0 || hasPublicDeletionFor('mediaAssets') ||
+        allPublicDeletions.length > 0
       ) {
         try {
           const mirrorRaw = getStorageRawItem('umed_unified_cloud_mirror_v1');
@@ -2600,12 +2686,12 @@ export async function executeAtomicPackageImport(
             ...(effectivePayload.catalog?.contentTypesRegistry
               ? { contentTypesRegistry: effectivePayload.catalog.contentTypesRegistry }
               : {}),
-            ...(nextBlocks.length > 0 ? { blocks: nextBlocks } : {}),
-            ...(nextSubjects.length > 0 ? { subjects: nextSubjects } : {}),
-            ...(nextBooks.length > 0 ? { books: nextBooks } : {}),
-            ...(nextQuestions.length > 0 ? { quizQuestions: nextQuestions } : {}),
-            ...(nextExams.length > 0 ? { exams: nextExams } : {}),
-            ...(nextMediaAssets.length > 0 ? { mediaAssets: nextMediaAssets } : {}),
+            ...(nextBlocks.length > 0 || hasPublicDeletionFor('blocks') ? { blocks: nextBlocks } : {}),
+            ...(nextSubjects.length > 0 || hasPublicDeletionFor('subjects') ? { subjects: nextSubjects } : {}),
+            ...(nextBooks.length > 0 || hasPublicDeletionFor('books') ? { books: nextBooks } : {}),
+            ...(nextQuestions.length > 0 || hasPublicDeletionFor('questions') ? { quizQuestions: nextQuestions } : {}),
+            ...(nextExams.length > 0 || hasPublicDeletionFor('exams') ? { exams: nextExams } : {}),
+            ...(nextMediaAssets.length > 0 || hasPublicDeletionFor('mediaAssets') ? { mediaAssets: nextMediaAssets } : {}),
             ...(effectivePayload.customAffixes.length > 0
               ? { customAffixes: merged.customAffixes }
               : {}),

@@ -327,6 +327,28 @@ export interface OnlineUpdateStatus {
   signatureVerified?: boolean;
 }
 
+export type PublicContentDomain =
+  | 'terms'
+  | 'sentences'
+  | 'topics'
+  | 'customAffixes'
+  | 'customAbbreviations'
+  | 'blocks'
+  | 'subjects'
+  | 'books'
+  | 'questions'
+  | 'exams'
+  | 'mediaAssets';
+
+/** Permanent publisher-issued deletion instruction for public UMEDT-DATA content. */
+export interface PublicContentDeletion {
+  domain: PublicContentDomain;
+  id: string;
+  deletedAt: string;
+  reason: string;
+  recordSha256?: string;
+}
+
 export interface DataPackagePayload {
   manifest: DataPackageManifest;
   terms: DictionaryTerm[];
@@ -343,6 +365,7 @@ export interface DataPackagePayload {
   mediaAssets?: MediaAssetRecord[];
   userNotes?: UserStudyNoteRecord[];
   catalog?: DataCatalogDocument;
+  publicDeletions?: PublicContentDeletion[];
   studyStats?: StudyStats;
   settings?: AppSettings;
 }

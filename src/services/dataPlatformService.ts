@@ -41,7 +41,8 @@ import {
   DataCatalogDocument,
   QuizAttemptRecord,
   UserStudyNoteRecord,
-  ExtractedZipMediaFile
+  ExtractedZipMediaFile,
+  PublicContentDeletion
 } from '../types/lexicon';
 import {
   normalizeAcademicBookResource,
@@ -56,7 +57,7 @@ import {
  * 2. DB_SCHEMA_VERSION: Structural storage contract version
  * 3. BUNDLED_DATA_VERSION: Default offline seed lexicon version shipped with the build
  */
-export const APP_VERSION = '2.4.5';
+export const APP_VERSION = '2.4.6';
 export const DB_SCHEMA_VERSION = 2;
 export const BUNDLED_DATA_VERSION = '2026.10.0-umd';
 
@@ -793,6 +794,9 @@ export function validateDataPackageObject(raw: unknown): DataValidationResult {
   if (obj.customAbbreviations !== undefined && !Array.isArray(obj.customAbbreviations)) {
     errors.push("الحقل 'customAbbreviations' يجب أن يكون مصفوفة.");
   }
+  if (obj.publicDeletions !== undefined && !Array.isArray(obj.publicDeletions)) {
+    errors.push("الحقل 'publicDeletions' يجب أن يكون مصفوفة.");
+  }
 
   const rawTerms = Array.isArray(obj.terms) ? obj.terms : [];
   const rawSentences = Array.isArray(obj.sentences) ? obj.sentences : [];
@@ -830,6 +834,7 @@ export function validateDataPackageObject(raw: unknown): DataValidationResult {
     : Array.isArray(obj['media-index'])
     ? obj['media-index']
     : [];
+  const rawPublicDeletions = Array.isArray(obj.publicDeletions) ? obj.publicDeletions : [];
 
   const totalItems =
     rawTerms.length +
@@ -844,7 +849,8 @@ export function validateDataPackageObject(raw: unknown): DataValidationResult {
     rawQuizAttempts.length +
     rawExams.length +
     rawUserNotes.length +
-    rawMediaAssets.length;
+    rawMediaAssets.length +
+    rawPublicDeletions.length;
 
   if (totalItems === 0 && errors.length === 0) {
     errors.push(
@@ -935,6 +941,38 @@ export function validateDataPackageObject(raw: unknown): DataValidationResult {
     .filter((ma): ma is Record<string, unknown> => Boolean(ma && typeof ma === 'object' && !Array.isArray(ma)))
     .filter((ma) => isNonEmptyString(ma.id))
     .map((ma) => normalizeMediaAssetRecord(ma));
+
+  const publicDeletionDomains = new Set([
+    'terms', 'sentences', 'topics', 'customAffixes', 'customAbbreviations',
+    'blocks', 'subjects', 'books', 'questions', 'exams', 'mediaAssets'
+  ]);
+  const validatedPublicDeletions: PublicContentDeletion[] = [];
+  for (let i = 0; i < rawPublicDeletions.length; i++) {
+    const rawDeletion = rawPublicDeletions[i];
+    if (!rawDeletion || typeof rawDeletion !== 'object' || Array.isArray(rawDeletion)) {
+      errors.push(`publicDeletions[${i}]: يجب أن يكون كائناً صالحاً.`);
+      continue;
+    }
+    const deletion = rawDeletion as Record<string, unknown>;
+    const deletedAt = isNonEmptyString(deletion.deletedAt) ? deletion.deletedAt.trim() : '';
+    const reason = isNonEmptyString(deletion.reason) ? deletion.reason.trim() : '';
+    const recordSha256 = deletion.recordSha256;
+    if (!isNonEmptyString(deletion.id) || deletion.id.trim().length > 256 ||
+        !isNonEmptyString(deletion.domain) || !publicDeletionDomains.has(String(deletion.domain)) ||
+        !deletedAt || Number.isNaN(Date.parse(deletedAt)) ||
+        reason.length < 8 || reason.length > 500 ||
+        (recordSha256 !== undefined && (typeof recordSha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(recordSha256)))) {
+      errors.push(`publicDeletions[${i}]: domain وid وdeletedAt وreason وrecordSha256 حقول غير صالحة أو ناقصة.`);
+      continue;
+    }
+    validatedPublicDeletions.push({
+      domain: deletion.domain as PublicContentDeletion['domain'],
+      id: deletion.id.trim(),
+      deletedAt,
+      reason,
+      ...(typeof recordSha256 === 'string' ? { recordSha256: recordSha256.toLowerCase() } : {})
+    });
+  }
 
   // Verify declared manifest counts if present
   if (rawManifest.counts && typeof rawManifest.counts === 'object') {
@@ -1058,6 +1096,7 @@ export function validateDataPackageObject(raw: unknown): DataValidationResult {
     ...(validatedQuizAttempts.length > 0 ? { quizAttempts: validatedQuizAttempts } : {}),
     ...(validatedExams.length > 0 ? { exams: validatedExams } : {}),
     ...(validatedMediaAssets.length > 0 ? { mediaAssets: validatedMediaAssets } : {}),
+    ...(validatedPublicDeletions.length > 0 ? { publicDeletions: validatedPublicDeletions } : {}),
     ...(validatedUserNotes.length > 0 ? { userNotes: validatedUserNotes } : {}),
     ...(obj.catalog && typeof obj.catalog === 'object' && !Array.isArray(obj.catalog)
       ? { catalog: obj.catalog as DataCatalogDocument }
@@ -1848,6 +1887,9 @@ export function assemblePackageFromZipJsonMap(
         if (baseOnly === 'media-index.json' || baseOnly === 'mediaassets.json') {
           return { mediaAssets: single };
         }
+        if (baseOnly === 'public-deletions.json' || baseOnly === 'publicdeletions.json') {
+          return { publicDeletions: single };
+        }
         return { terms: single };
       }
       return single as Record<string, unknown>;
@@ -1968,6 +2010,9 @@ export function assemblePackageFromZipJsonMap(
     ) {
       const arr = extractZipJsonArray(content, 'exams');
       if (arr) mergeZipCollectionArray(combined, 'exams', arr);
+    } else if (name === 'public-deletions.json' || name === 'publicdeletions.json') {
+      const arr = extractZipJsonArray(content, 'publicDeletions');
+      if (arr) combined.publicDeletions = arr;
     } else if (name === 'quiz-attempts.json') {
       const arr = extractZipJsonArray(content, 'quizAttempts');
       if (arr) mergeZipCollectionArray(combined, 'quizAttempts', arr);
@@ -2238,6 +2283,9 @@ export function buildDataPackageZipBytes(
       : {}),
     ...(payload.mediaAssets && payload.mediaAssets.length > 0
       ? { 'media-index.json': payload.mediaAssets }
+      : {}),
+    ...(payload.publicDeletions && payload.publicDeletions.length > 0
+      ? { 'public-deletions.json': payload.publicDeletions }
       : {})
   };
 
