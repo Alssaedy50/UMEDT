@@ -2647,11 +2647,11 @@ export async function executeAtomicPackageImport(
               hasCollision: incoming.some((item) => beforeIds.has(item.id) || beforeKeys.has(keyOf(item)))
             };
           };
-          const termsGroup = makeNew(effectivePayload.terms, currentState.terms, merged.terms, normalizeTermNaturalKey);
+          const termsGroup = makeNew<DictionaryTerm>(effectivePayload.terms, currentState.terms, merged.terms, normalizeTermNaturalKey);
           const sentencesGroup = makeNew(effectivePayload.sentences, currentState.sentences, merged.sentences, normalizeSentenceNaturalKey);
-          const topicsGroup = makeNew(effectivePayload.topics, currentState.topics, merged.topics, normalizeTopicNaturalKey);
-          const affixesGroup = makeNew(effectivePayload.customAffixes, currentState.customAffixes, merged.customAffixes, normalizeAffixNaturalKey);
-          const abbreviationsGroup = makeNew(effectivePayload.customAbbreviations, currentState.customAbbreviations, merged.customAbbreviations, normalizeAbbreviationNaturalKey);
+          const topicsGroup = makeNew<TopicArticle>(effectivePayload.topics, currentState.topics, merged.topics, normalizeTopicNaturalKey);
+          const affixesGroup = makeNew<MorphologicalAffix>(effectivePayload.customAffixes, currentState.customAffixes, merged.customAffixes, normalizeAffixNaturalKey);
+          const abbreviationsGroup = makeNew<ClinicalAbbreviation>(effectivePayload.customAbbreviations, currentState.customAbbreviations, merged.customAbbreviations, normalizeAbbreviationNaturalKey);
           const ids = {
             terms: termsGroup.ids,
             sentences: sentencesGroup.ids,
