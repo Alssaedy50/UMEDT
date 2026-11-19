@@ -32,6 +32,7 @@ import {
   UnifiedQuizQuestion
 } from '../types/lexicon';
 import { VoiceRecorderBlock } from './VoiceRecorderBlock';
+import { PdfDocumentReader } from './PdfDocumentReader';
 import {
   saveLocalMediaRecord,
   getLocalMediaRecord,
@@ -1529,18 +1530,12 @@ export const SectionContentBlocksRenderer: React.FC<
                 </button>
               </div>
             </div>
-            <iframe
-              src={
-                /^https?:\/\//i.test(inlinePdfModal.url)
-                  ? `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(inlinePdfModal.url)}`
-                  : inlinePdfModal.url
-              }
-              title={inlinePdfModal.title}
-              className="w-full flex-1 border-0 bg-slate-100 dark:bg-slate-950"
-              loading="lazy"
-              referrerPolicy="no-referrer"
-              allow="fullscreen"
-            />
+            <div className="w-full flex-1 min-h-0 overflow-hidden">
+              <PdfDocumentReader
+                source={inlinePdfModal.url}
+                title={inlinePdfModal.title}
+              />
+            </div>
           </div>
         </div>
       )}
