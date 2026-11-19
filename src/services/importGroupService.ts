@@ -1,0 +1,111 @@
+import {
+  loadAppState, saveTerms, saveSentences, saveTopics,
+  saveCustomAffixes, saveCustomAbbreviations, createDataBackupSnapshot
+} from './storageService';
+import {
+  loadStoredMcqQuestions, saveStoredMcqQuestions,
+  loadStoredClinicalCases, saveStoredClinicalCases
+} from './umedPackageService';
+
+export type ImportGroupDomain =
+  | 'terms' | 'sentences' | 'topics' | 'questions'
+  | 'clinicalCases' | 'affixes' | 'abbreviations';
+
+export interface ImportGroupRecord {
+  id: string;
+  name: string;
+  sourceName: string;
+  sourceType: string;
+  packageId?: string;
+  createdAt: string;
+  ids: Partial<Record<ImportGroupDomain, string[]>>;
+  counts: Partial<Record<ImportGroupDomain, number>>;
+  ignoredDuplicates: number;
+  requiresReview: boolean;
+  reviewReason?: string;
+  rollbackSnapshotId?: string;
+}
+export interface ImportGroupView extends ImportGroupRecord {
+  legacy?: boolean;
+  total: number;
+}
+const STORAGE_KEY = 'umedt_import_groups_v1';
+const HISTORY_KEY = 'umed2_import_history_v1';
+
+function readGroups(): ImportGroupRecord[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) as ImportGroupRecord[] : [];
+  } catch { return []; }
+}
+function writeGroups(groups: ImportGroupRecord[]): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(groups));
+}
+export function loadImportGroups(): ImportGroupView[] {
+  const groups = readGroups().map(g => ({
+    ...g,
+    total: Object.values(g.counts || {}).reduce((n, v) => n + (v || 0), 0)
+  }));
+  const known = new Set(groups.map(g => g.id));
+  let legacy: any[] = [];
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (raw) legacy = JSON.parse(raw);
+  } catch { /* preserve registry even if history is corrupt */ }
+  for (const entry of legacy) {
+    if (!entry || !entry.id || known.has(entry.id) || entry.status !== 'success') continue;
+    const counts = entry.summary || {};
+    groups.push({
+      id: entry.id, name: entry.sourceName || 'استيراد سابق',
+      sourceName: entry.sourceName || '', sourceType: entry.sourceType || 'unknown',
+      packageId: entry.packageId, createdAt: entry.timestamp || '',
+      ids: {}, counts: {}, ignoredDuplicates: counts.ignoredDuplicates || 0,
+      requiresReview: true,
+      reviewReason: 'عملية قديمة لا تحتوي على معرّفات العناصر ومصدر كل تعديل؛ لا يمكن حذفها انتقائياً بأمان.',
+      rollbackSnapshotId: entry.rollbackSnapshotId, legacy: true,
+      total: Object.entries(counts).filter(([k]) => k !== 'ignoredDuplicates')
+        .reduce((n, [,v]) => n + (typeof v === 'number' ? v : 0), 0)
+    });
+  }
+  return groups.sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+}
+export function registerImportGroup(group: ImportGroupRecord): void {
+  const groups = readGroups().filter(g => g.id !== group.id);
+  groups.unshift(group);
+  writeGroups(groups.slice(0, 100));
+}
+export function renameImportGroup(id: string, name: string): boolean {
+  const clean = name.trim().slice(0, 100);
+  if (!clean) return false;
+  const groups = readGroups();
+  const item = groups.find(g => g.id === id);
+  if (!item) return false;
+  item.name = clean;
+  writeGroups(groups);
+  return true;
+}
+export async function deleteImportGroup(id: string): Promise<{success:boolean; message:string}> {
+  const groups = readGroups();
+  const group = groups.find(g => g.id === id);
+  if (!group) return { success:false, message:'المجموعة غير موجودة أو أنها استيراد قديم غير قابل للحذف الانتقائي.' };
+  if (group.requiresReview) return { success:false, message:group.reviewReason || 'تحتاج هذه المجموعة إلى مراجعة قبل الحذف.' };
+  try {
+    await createDataBackupSnapshot({ trigger:'manual', label:`نسخة أمان قبل حذف مجموعة: ${group.name}` });
+    const state = loadAppState();
+    const remove = (domain: ImportGroupDomain, rows: Array<{id:string}>) => {
+      const ids = new Set(group.ids[domain] || []);
+      return rows.filter(row => !ids.has(row.id));
+    };
+    if (group.ids.terms?.length) saveTerms(remove('terms', state.terms));
+    if (group.ids.sentences?.length) saveSentences(remove('sentences', state.sentences));
+    if (group.ids.topics?.length) saveTopics(remove('topics', state.topics));
+    if (group.ids.affixes?.length) saveCustomAffixes(remove('affixes', state.customAffixes || []));
+    if (group.ids.abbreviations?.length) saveCustomAbbreviations(remove('abbreviations', state.customAbbreviations || []));
+    if (group.ids.questions?.length) saveStoredMcqQuestions(remove('questions', loadStoredMcqQuestions()));
+    if (group.ids.clinicalCases?.length) saveStoredClinicalCases(remove('clinicalCases', loadStoredClinicalCases()));
+    writeGroups(groups.filter(g => g.id !== id));
+    return { success:true, message:`حُذفت مساهمات مجموعة «${group.name}» فقط، مع الاحتفاظ بنسخة أمان.` };
+  } catch (error) {
+    return { success:false, message:`تعذر حذف المجموعة: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
