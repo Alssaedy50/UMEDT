@@ -1932,6 +1932,35 @@ export default function App() {
     incomingAbbreviations?: ClinicalAbbreviation[];
     stayOnCurrentTab?: boolean;
   }) => {
+    const createdTermsByKey = new Map<string, DictionaryTerm>();
+    for (const staged of stagedTerms) {
+      const key = staged.term.trim().toLowerCase();
+      if (!key || terms.some(existing => existing.term.toLowerCase() === key) || createdTermsByKey.has(key)) continue;
+      createdTermsByKey.set(key, {
+        id: `u-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        term: staged.term,
+        termNormalized: key,
+        translation: staged.translation,
+        phonetic: staged.phonetic,
+        pos: staged.pos,
+        category: staged.category,
+        umdCode: staged.umdCode,
+        keepEnglish: true,
+        favorite: false,
+        collections: ['مستورد حديثاً'],
+        ingestedAt: 'الآن · الذكاء الاصطناعي المباشر',
+        definitionAr: staged.definitionAr,
+        definitionEn: staged.definitionEn,
+        examples: Array.isArray(staged.examples) ? staged.examples : [],
+        relations: staged.relations
+      });
+    }
+    const incomingNewSentences = incomingSentences.filter(item => !sentences.some(existing => existing.id === item.id));
+    const incomingNewAffixes = incomingAffixes.filter(item => !customAffixes.some(existing => existing.cleanKey.toLowerCase() === item.cleanKey.toLowerCase()));
+    const incomingNewAbbreviations = incomingAbbreviations.filter(item => !customAbbreviations.some(existing => existing.abbr.toLowerCase() === item.abbr.toLowerCase()));
+    const hasExistingChanges = termExampleEnhancements.length > 0 ||
+      (conflictPolicy !== 'ignore' && stagedTerms.some(staged => terms.some(existing => existing.term.toLowerCase() === staged.term.toLowerCase())));
+
     let addedCount = 0;
     let updatedCount = 0;
 
@@ -2026,24 +2055,8 @@ export default function App() {
             updatedCount += 1;
           }
         } else {
-          nextTerms.unshift({
-            id: `u-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            term: staged.term,
-            termNormalized: staged.term.toLowerCase(),
-            translation: staged.translation,
-            phonetic: staged.phonetic,
-            pos: staged.pos,
-            category: staged.category,
-            umdCode: staged.umdCode,
-            keepEnglish: true,
-            favorite: false,
-            collections: ['مستورد حديثاً'],
-            ingestedAt: 'الآن · الذكاء الاصطناعي المباشر',
-            definitionAr: staged.definitionAr,
-            definitionEn: staged.definitionEn,
-            examples: staged.examples,
-            relations: staged.relations
-          });
+          const created = createdTermsByKey.get(staged.term.trim().toLowerCase());
+          if (created) nextTerms.unshift(created);
           addedCount += 1;
         }
       });
@@ -2065,6 +2078,38 @@ export default function App() {
       });
       return enrichedTerms;
     });
+
+    const createdTerms = Array.from(createdTermsByKey.values());
+    const ids: Partial<Record<ImportGroupDomain, string[]>> = {
+      terms: createdTerms.map(item => item.id),
+      sentences: incomingNewSentences.map(item => item.id),
+      affixes: incomingNewAffixes.map(item => item.id),
+      abbreviations: incomingNewAbbreviations.map(item => item.id)
+    };
+    const fingerprints: Partial<Record<ImportGroupDomain, Record<string, string>>> = {
+      terms: Object.fromEntries(createdTerms.map(item => [item.id, JSON.stringify(item)])),
+      sentences: Object.fromEntries(incomingNewSentences.map(item => [item.id, JSON.stringify(item)])),
+      affixes: Object.fromEntries(incomingNewAffixes.map(item => [item.id, JSON.stringify(item)])),
+      abbreviations: Object.fromEntries(incomingNewAbbreviations.map(item => [item.id, JSON.stringify(item)]))
+    };
+    if (Object.values(ids).some(list => Boolean(list?.length)) || hasExistingChanges) {
+      registerImportGroup({
+        id: `manual-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+        name: stagedTerms[0]?.category || incomingAffixes[0]?.type || 'مصطلحات طبية',
+        sourceName: 'إضافة مصطلحات من المحرر',
+        sourceType: 'manual-batch',
+        createdAt: new Date().toISOString(),
+        ids, fingerprints,
+        counts: {
+          terms: createdTerms.length, sentences: incomingNewSentences.length,
+          affixes: incomingNewAffixes.length, abbreviations: incomingNewAbbreviations.length
+        },
+        ignoredDuplicates: Math.max(0, stagedTerms.length - createdTerms.length),
+        requiresReview: hasExistingChanges,
+        reviewReason: hasExistingChanges ? 'تضمنت الدفعة تحديثات أو دمج أمثلة في سجلات موجودة؛ الحذف الانتقائي معطّل لحماية المحتوى السابق.' : undefined
+      });
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('umed:import-groups-updated'));
+    }
 
     if (!stayOnCurrentTab) {
       setActiveTab('home');
