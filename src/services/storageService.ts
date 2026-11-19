@@ -2528,22 +2528,22 @@ export async function executeAtomicPackageImport(
         [STORAGE_KEYS.SETTINGS]: JSON.stringify(nextSettings),
         [STORAGE_KEYS.VERSION_META]: JSON.stringify(nextVersionMeta),
         [STORAGE_KEYS.PUBLIC_DELETIONS]: JSON.stringify(allPublicDeletions),
-        ...((effectivePayload.blocks || []).length > 0 || hasPublicDeletionFor('blocks') || hasPublicDeletionFor('blocks')
+        ...((effectivePayload.blocks || []).length > 0 || hasPublicDeletionFor('blocks')
           ? { [LEARNING_STORAGE_KEYS.BLOCKS]: JSON.stringify(nextBlocks) }
           : {}),
-        ...((effectivePayload.subjects || []).length > 0 || hasPublicDeletionFor('subjects') || hasPublicDeletionFor('subjects')
+        ...((effectivePayload.subjects || []).length > 0 || hasPublicDeletionFor('subjects')
           ? { [LEARNING_STORAGE_KEYS.SUBJECTS]: JSON.stringify(nextSubjects) }
           : {}),
-        ...((effectivePayload.books || []).length > 0 || hasPublicDeletionFor('books') || hasPublicDeletionFor('books')
+        ...((effectivePayload.books || []).length > 0 || hasPublicDeletionFor('books')
           ? { [LEARNING_STORAGE_KEYS.BOOKS]: JSON.stringify(nextBooks) }
           : {}),
-        ...((effectivePayload.questions || []).length > 0 || hasPublicDeletionFor('questions') || hasPublicDeletionFor('questions')
+        ...((effectivePayload.questions || []).length > 0 || hasPublicDeletionFor('questions')
           ? { [LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS]: JSON.stringify(nextQuestions) }
           : {}),
-        ...((effectivePayload.exams || []).length > 0 || hasPublicDeletionFor('exams') || hasPublicDeletionFor('exams')
+        ...((effectivePayload.exams || []).length > 0 || hasPublicDeletionFor('exams')
           ? { [LEARNING_STORAGE_KEYS.EXAMS]: JSON.stringify(nextExams) }
           : {}),
-        ...((effectivePayload.mediaAssets || []).length > 0 || hasPublicDeletionFor('mediaAssets') || hasPublicDeletionFor('mediaAssets')
+        ...((effectivePayload.mediaAssets || []).length > 0 || hasPublicDeletionFor('mediaAssets')
           ? { [LEARNING_STORAGE_KEYS.MEDIA_ASSETS]: JSON.stringify(nextMediaAssets) }
           : {})
       };
@@ -2642,12 +2642,13 @@ export async function executeAtomicPackageImport(
       // Keep Unified Cloud Mirror synchronized with imported package metadata & extended collections
       if (
         effectivePayload.catalog ||
-        (effectivePayload.blocks || []).length > 0 ||
-        (effectivePayload.subjects || []).length > 0 ||
-        (effectivePayload.books || []).length > 0 ||
-        (effectivePayload.questions || []).length > 0 ||
-        (effectivePayload.exams || []).length > 0 ||
-        (effectivePayload.mediaAssets || []).length > 0
+        (effectivePayload.blocks || []).length > 0 || hasPublicDeletionFor('blocks') ||
+        (effectivePayload.subjects || []).length > 0 || hasPublicDeletionFor('subjects') ||
+        (effectivePayload.books || []).length > 0 || hasPublicDeletionFor('books') ||
+        (effectivePayload.questions || []).length > 0 || hasPublicDeletionFor('questions') ||
+        (effectivePayload.exams || []).length > 0 || hasPublicDeletionFor('exams') ||
+        (effectivePayload.mediaAssets || []).length > 0 || hasPublicDeletionFor('mediaAssets') ||
+        allPublicDeletions.length > 0
       ) {
         try {
           const mirrorRaw = getStorageRawItem('umed_unified_cloud_mirror_v1');
@@ -2662,12 +2663,12 @@ export async function executeAtomicPackageImport(
             ...(effectivePayload.catalog?.contentTypesRegistry
               ? { contentTypesRegistry: effectivePayload.catalog.contentTypesRegistry }
               : {}),
-            ...(nextBlocks.length > 0 ? { blocks: nextBlocks } : {}),
-            ...(nextSubjects.length > 0 ? { subjects: nextSubjects } : {}),
-            ...(nextBooks.length > 0 ? { books: nextBooks } : {}),
-            ...(nextQuestions.length > 0 ? { quizQuestions: nextQuestions } : {}),
-            ...(nextExams.length > 0 ? { exams: nextExams } : {}),
-            ...(nextMediaAssets.length > 0 ? { mediaAssets: nextMediaAssets } : {}),
+            ...(nextBlocks.length > 0 || hasPublicDeletionFor('blocks') ? { blocks: nextBlocks } : {}),
+            ...(nextSubjects.length > 0 || hasPublicDeletionFor('subjects') ? { subjects: nextSubjects } : {}),
+            ...(nextBooks.length > 0 || hasPublicDeletionFor('books') ? { books: nextBooks } : {}),
+            ...(nextQuestions.length > 0 || hasPublicDeletionFor('questions') ? { quizQuestions: nextQuestions } : {}),
+            ...(nextExams.length > 0 || hasPublicDeletionFor('exams') ? { exams: nextExams } : {}),
+            ...(nextMediaAssets.length > 0 || hasPublicDeletionFor('mediaAssets') ? { mediaAssets: nextMediaAssets } : {}),
             ...(effectivePayload.customAffixes.length > 0
               ? { customAffixes: merged.customAffixes }
               : {}),
