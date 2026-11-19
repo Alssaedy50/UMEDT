@@ -427,9 +427,20 @@ async function main() {
       reason: 'Automated release readiness deletion test'
     }]
   };
+  const untrustedPublicDeletion = await executeAtomicPackageImport(JSON.stringify(publicDeletionPackage), {
+    mode: 'merge',
+    fileNameHint: 'untrusted-public-deletion-readiness-tombstone.json'
+  });
+  assertCondition(
+    untrustedPublicDeletion.result.success &&
+      loadAppState().terms.some((term) => term.id === publicDeletionTestId),
+    'Unsigned local imports must not be allowed to issue global deletion instructions'
+  );
+
   const appliedPublicDeletion = await executeAtomicPackageImport(JSON.stringify(publicDeletionPackage), {
     mode: 'merge',
-    fileNameHint: 'public-deletion-readiness-tombstone.json'
+    fileNameHint: 'public-deletion-readiness-tombstone.json',
+    dataSourceOverride: 'remote-cdn'
   });
   assertCondition(
     appliedPublicDeletion.result.success &&
