@@ -32,15 +32,32 @@ export interface ImportGroupView extends ImportGroupRecord {
 }
 const STORAGE_KEY = 'umedt_import_groups_v1';
 const HISTORY_KEY = 'umed2_import_history_v1';
+const memoryStore = new Map<string, string>();
+
+function getItem(key: string): string | null {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const value = window.localStorage.getItem(key);
+      if (value !== null) return value;
+    }
+  } catch { /* use memory fallback */ }
+  return memoryStore.get(key) ?? null;
+}
+function setItem(key: string, value: string): void {
+  memoryStore.set(key, value);
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(key, value);
+  } catch { /* in-memory fallback keeps tests and restricted WebViews functional */ }
+}
 
 function readGroups(): ImportGroupRecord[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) as ImportGroupRecord[] : [];
   } catch { return []; }
 }
 function writeGroups(groups: ImportGroupRecord[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(groups));
+  setItem(STORAGE_KEY, JSON.stringify(groups));
 }
 export function loadImportGroups(): ImportGroupView[] {
   const groups: ImportGroupView[] = readGroups().map(g => ({
@@ -50,7 +67,7 @@ export function loadImportGroups(): ImportGroupView[] {
   const known = new Set(groups.map(g => g.id));
   let legacy: any[] = [];
   try {
-    const raw = localStorage.getItem(HISTORY_KEY);
+    const raw = getItem(HISTORY_KEY);
     if (raw) legacy = JSON.parse(raw);
   } catch { /* preserve registry even if history is corrupt */ }
   for (const entry of legacy) {
