@@ -178,7 +178,7 @@ export async function executeAtomicMedicalImport(params: {
         nextTerms.push(incoming);
         termMap.set(key, incoming);
         summary.termsAdded++;
-        addGroupId('terms', incoming.id, incoming);\n        addGroupId('terms', incoming.id);
+        addGroupId('terms', incoming.id, incoming);
       } else {
         if (params.conflictPolicy === 'overwrite') {
           requiresReview = true;
