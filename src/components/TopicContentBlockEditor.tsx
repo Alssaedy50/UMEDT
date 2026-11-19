@@ -1530,9 +1530,16 @@ export const SectionContentBlocksRenderer: React.FC<
               </div>
             </div>
             <iframe
-              src={inlinePdfModal.url}
+              src={
+                /^https?:\/\//i.test(inlinePdfModal.url)
+                  ? `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(inlinePdfModal.url)}`
+                  : inlinePdfModal.url
+              }
               title={inlinePdfModal.title}
               className="w-full flex-1 border-0 bg-slate-100 dark:bg-slate-950"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              allow="fullscreen"
             />
           </div>
         </div>
