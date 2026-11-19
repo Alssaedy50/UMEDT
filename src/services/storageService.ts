@@ -2624,6 +2624,91 @@ export async function executeAtomicPackageImport(
         throw new Error('فشل تسجيل إصدار الحزمة الجديد (VersionMetadata).');
       }
 
+      // Register a named provenance group only for user-initiated local imports.
+      // Track newly-created primary records only; updates/replacements are deliberately non-deletable.
+      if (options?.dataSourceOverride !== 'remote-cdn' && options?.dataSourceOverride !== 'bundled-seed') {
+        try {
+          const makeNew = <T extends { id: string }>(
+            incoming: T[],
+            before: T[],
+            after: T[]
+          ): { ids: string[]; fingerprints: Record<string, string>; hasCollision: boolean } => {
+            const beforeIds = new Set(before.map((item) => item.id));
+            const incomingIds = new Set(incoming.map((item) => item.id));
+            const ids = after.filter((item) => !beforeIds.has(item.id) && incomingIds.has(item.id));
+            return {
+              ids: ids.map((item) => item.id),
+              fingerprints: Object.fromEntries(ids.map((item) => [item.id, JSON.stringify(item)])),
+              hasCollision: incoming.some((item) => beforeIds.has(item.id))
+            };
+          };
+          const termsGroup = makeNew(effectivePayload.terms, currentState.terms, merged.terms);
+          const sentencesGroup = makeNew(effectivePayload.sentences, currentState.sentences, merged.sentences);
+          const topicsGroup = makeNew(effectivePayload.topics, currentState.topics, merged.topics);
+          const affixesGroup = makeNew(effectivePayload.customAffixes, currentState.customAffixes, merged.customAffixes);
+          const abbreviationsGroup = makeNew(effectivePayload.customAbbreviations, currentState.customAbbreviations, merged.customAbbreviations);
+          const ids = {
+            terms: termsGroup.ids,
+            sentences: sentencesGroup.ids,
+            topics: topicsGroup.ids,
+            affixes: affixesGroup.ids,
+            abbreviations: abbreviationsGroup.ids
+          };
+          const fingerprints = {
+            terms: termsGroup.fingerprints,
+            sentences: sentencesGroup.fingerprints,
+            topics: topicsGroup.fingerprints,
+            affixes: affixesGroup.fingerprints,
+            abbreviations: abbreviationsGroup.fingerprints
+          };
+          const hasCollision = [
+            termsGroup, sentencesGroup, topicsGroup, affixesGroup, abbreviationsGroup
+          ].some((group) => group.hasCollision);
+          const hasUnsupportedContent = Boolean(
+            (effectivePayload.blocks || []).length ||
+            (effectivePayload.subjects || []).length ||
+            (effectivePayload.books || []).length ||
+            (effectivePayload.questions || []).length ||
+            (effectivePayload.exams || []).length ||
+            (effectivePayload.mediaAssets || []).length ||
+            (effectivePayload.userNotes || []).length ||
+            (effectivePayload.quizAttempts || []).length ||
+            (effectivePayload.catalog)
+          );
+          const groupId = `import-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+          const groupName = effectivePayload.manifest.description?.trim() ||
+            effectivePayload.manifest.packageId || options?.fileNameHint?.replace(/\\.[^.]+$/, '') ||
+            'مجموعة بيانات مستوردة';
+          const group = {
+            id: groupId,
+            name: groupName,
+            sourceName: options?.fileNameHint || effectivePayload.manifest.packageId || groupName,
+            sourceType: sourceFormat,
+            packageId: effectivePayload.manifest.packageId,
+            createdAt: new Date().toISOString(),
+            ids,
+            fingerprints,
+            counts: Object.fromEntries(Object.entries(ids).map(([domain, recordIds]) => [domain, recordIds.length])),
+            ignoredDuplicates: ignoredCount,
+            requiresReview: mode === 'replace' || hasCollision || hasUnsupportedContent,
+            reviewReason: mode === 'replace'
+              ? 'استيراد بوضع الاستبدال؛ لا يمكن عكسه انتقائياً دون التأثير على البيانات السابقة.'
+              : hasCollision
+                ? 'تضمنت الحزمة سجلات موجودة مسبقاً أو تم تحديثها؛ الحذف الانتقائي معطّل لحماية المحتوى السابق.'
+                : hasUnsupportedContent
+                  ? 'تتضمن الحزمة بيانات موسعة أو وسائط مرتبطة؛ يلزم دعم تنظيف هذه العناصر واعتمادياتها قبل تفعيل الحذف.'
+                  : undefined
+          };
+          const registryKey = 'umedt_import_groups_v1';
+          const existingGroupsRaw = typeof window !== 'undefined' ? window.localStorage.getItem(registryKey) : null;
+          const existingGroups = existingGroupsRaw ? JSON.parse(existingGroupsRaw) : [];
+          const nextGroups = [group, ...(Array.isArray(existingGroups) ? existingGroups.filter((item: { id?: string }) => item?.id !== groupId) : [])].slice(0, 100);
+          if (typeof window !== 'undefined') window.localStorage.setItem(registryKey, JSON.stringify(nextGroups));
+        } catch (groupError) {
+          console.warn('[StorageService] Import succeeded but group provenance could not be saved:', groupError);
+        }
+      }
+
       // Stage 5: Commit WAL transaction once all keys and VersionMetadata are safely written
       commitWalTransaction();
 
