@@ -2294,6 +2294,8 @@ export async function executeAtomicPackageImport(
         .filter((item) => !isPublicDeleted('topics', item.id))
         .map((item) => ({
           ...item,
+          ...(item.blockId && isPublicDeleted('blocks', item.blockId) ? { blockId: undefined } : {}),
+          ...(item.subjectId && isPublicDeleted('subjects', item.subjectId) ? { subjectId: undefined } : {}),
           relatedTopicIds: item.relatedTopicIds?.filter((id) => !isPublicDeleted('topics', id))
         }));
       merged.customAffixes = merged.customAffixes.filter(
@@ -2380,6 +2382,10 @@ export async function executeAtomicPackageImport(
       }
       const nextSubjects = Array.from(nextSubjectsMap.values())
         .filter((item) => !isPublicDeleted('subjects', item.id))
+        .map((item) => ({
+          ...item,
+          ...(item.blockId && isPublicDeleted('blocks', item.blockId) ? { blockId: undefined } : {})
+        }))
         .sort((a, b) => a.order - b.order);
 
       const existingBooks = loadAcademicBooks();
@@ -2415,7 +2421,13 @@ export async function executeAtomicPackageImport(
         );
       }
       const nextBooks = Array.from(nextBooksMap.values())
-        .filter((item) => !isPublicDeleted('books', item.id));
+        .filter((item) => !isPublicDeleted('books', item.id))
+        .map((item) => ({
+          ...item,
+          topicIds: item.topicIds?.filter((id) => !isPublicDeleted('topics', id)),
+          ...(item.blockId && isPublicDeleted('blocks', item.blockId) ? { blockId: undefined } : {}),
+          ...(item.subjectId && isPublicDeleted('subjects', item.subjectId) ? { subjectId: undefined } : {})
+        }));
 
       const rawExistingQuestions = safeReadJson<UnifiedQuizQuestion[]>(
         LEARNING_STORAGE_KEYS.QUIZ_QUESTIONS,
@@ -2438,7 +2450,14 @@ export async function executeAtomicPackageImport(
         nextQuestionsMap.set(q.id, q);
       }
       const nextQuestions = Array.from(nextQuestionsMap.values())
-        .filter((item) => !isPublicDeleted('questions', item.id));
+        .filter((item) => !isPublicDeleted('questions', item.id))
+        .map((item) => ({
+          ...item,
+          linkedTermIds: item.linkedTermIds?.filter((id) => !isPublicDeleted('terms', id)),
+          ...(item.topicId && isPublicDeleted('topics', item.topicId) ? { topicId: undefined } : {}),
+          ...(item.blockId && isPublicDeleted('blocks', item.blockId) ? { blockId: undefined } : {}),
+          ...(item.subjectId && isPublicDeleted('subjects', item.subjectId) ? { subjectId: undefined } : {})
+        }));
 
       const existingExams = loadAcademicExams();
       const nextExamsMap = new Map<string, AcademicExamPackage>(
@@ -2458,7 +2477,9 @@ export async function executeAtomicPackageImport(
         .map((item) => ({
           ...item,
           topicIds: item.topicIds?.filter((id) => !isPublicDeleted('topics', id)),
-          questionIds: item.questionIds?.filter((id) => !isPublicDeleted('questions', id))
+          questionIds: item.questionIds?.filter((id) => !isPublicDeleted('questions', id)),
+          ...(item.blockId && isPublicDeleted('blocks', item.blockId) ? { blockId: undefined } : {}),
+          ...(item.subjectId && isPublicDeleted('subjects', item.subjectId) ? { subjectId: undefined } : {})
         }));
 
       const existingMediaAssets = loadMediaAssetsIndex();
