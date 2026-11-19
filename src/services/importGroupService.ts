@@ -43,7 +43,7 @@ function writeGroups(groups: ImportGroupRecord[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(groups));
 }
 export function loadImportGroups(): ImportGroupView[] {
-  const groups = readGroups().map(g => ({
+  const groups: ImportGroupView[] = readGroups().map(g => ({
     ...g,
     total: Object.values(g.counts || {}).reduce((n, v) => n + (v || 0), 0)
   }));
@@ -111,7 +111,7 @@ export async function deleteImportGroup(id: string): Promise<{success:boolean; m
         return !row || fingerprints[recordId] !== JSON.stringify(row);
       })) return { success:false, message:'تغيرت بعض العناصر بعد استيرادها أو لا تتوفر بصمتها الأصلية؛ أُوقف الحذف لحماية تعديلاتك. يلزم مراجعة هذه المجموعة.' };
     }
-    const remove = (domain: ImportGroupDomain, rows: Array<{id:string}>) => {
+    const remove = <T extends { id: string }>(domain: ImportGroupDomain, rows: T[]): T[] => {
       const ids = new Set(group.ids[domain] || []);
       return rows.filter(row => !ids.has(row.id));
     };
