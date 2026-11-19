@@ -19,6 +19,7 @@ export interface ImportGroupRecord {
   packageId?: string;
   createdAt: string;
   ids: Partial<Record<ImportGroupDomain, string[]>>;
+  fingerprints?: Partial<Record<ImportGroupDomain, Record<string, string>>>;
   counts: Partial<Record<ImportGroupDomain, number>>;
   ignoredDuplicates: number;
   requiresReview: boolean;
@@ -92,6 +93,22 @@ export async function deleteImportGroup(id: string): Promise<{success:boolean; m
   try {
     await createDataBackupSnapshot({ trigger:'manual', label:`نسخة أمان قبل حذف مجموعة: ${group.name}` });
     const state = loadAppState();
+    const currentRows: Partial<Record<ImportGroupDomain, Array<{id:string}>>> = {
+      terms: state.terms, sentences: state.sentences, topics: state.topics,
+      affixes: state.customAffixes || [], abbreviations: state.customAbbreviations || [],
+      questions: loadStoredMcqQuestions(), clinicalCases: loadStoredClinicalCases()
+    };
+    for (const domain of Object.keys(group.ids) as ImportGroupDomain[]) {
+      const ids = group.ids[domain] || [];
+      const fingerprints = group.fingerprints?.[domain];
+      const rows = currentRows[domain] || [];
+      const otherGroupOwns = groups.some(other => other.id !== id && (other.ids[domain] || []).some(recordId => ids.includes(recordId)));
+      if (otherGroupOwns) return { success:false, message:'توجد مشاركة في معرّفات عناصر المجموعة مع عملية استيراد أخرى؛ أُوقف الحذف لحماية البيانات.' };
+      if (!fingerprints || ids.some(recordId => {
+        const row = rows.find(item => item.id === recordId);
+        return !row || fingerprints[recordId] !== JSON.stringify(row);
+      })) return { success:false, message:'تغيرت بعض العناصر بعد استيرادها أو لا تتوفر بصمتها الأصلية؛ أُوقف الحذف لحماية تعديلاتك. يلزم مراجعة هذه المجموعة.' };
+    }
     const remove = (domain: ImportGroupDomain, rows: Array<{id:string}>) => {
       const ids = new Set(group.ids[domain] || []);
       return rows.filter(row => !ids.has(row.id));
