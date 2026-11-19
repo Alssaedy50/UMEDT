@@ -1472,6 +1472,39 @@ export default function App() {
 
   const handleImportTopicsBatch = (incomingTopics: TopicArticle[]): number => {
     if (!Array.isArray(incomingTopics) || incomingTopics.length === 0) return 0;
+    const addedTopics = incomingTopics.filter(tp => tp && tp.title && !topics.some(existing =>
+      existing.id === tp.id || existing.title.toLowerCase() === tp.title.toLowerCase()
+    ));
+    const changedExisting = conflictPolicy !== 'ignore' && incomingTopics.some(tp => topics.some(existing =>
+      existing.id === tp.id || existing.title.toLowerCase() === tp.title.toLowerCase()
+    ));
+    const topicIds = addedTopics.map(tp => tp.id);
+    const topicHasMediaOrBlocks = addedTopics.some(tp =>
+      Boolean(tp.images?.length || tp.attachments?.length || tp.sections?.some(section => Boolean(section.contentBlocks?.length)))
+    );
+    const hasExistingTopicReferences = terms.some(term => term.linkedTopicIds?.some(id => topicIds.includes(id)));
+    if (addedTopics.length || changedExisting) {
+      registerImportGroup({
+        id: `topics-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+        name: addedTopics[0]?.title || 'مواضيع طبية',
+        sourceName: 'استيراد مواضيع',
+        sourceType: 'manual-topics',
+        createdAt: new Date().toISOString(),
+        ids: { topics: topicIds },
+        fingerprints: { topics: Object.fromEntries(addedTopics.map(tp => [tp.id, JSON.stringify(tp)])) },
+        counts: { topics: addedTopics.length },
+        ignoredDuplicates: Math.max(0, incomingTopics.length - addedTopics.length),
+        requiresReview: changedExisting || topicHasMediaOrBlocks || hasExistingTopicReferences,
+        reviewReason: changedExisting
+          ? 'تم تحديث موضوع موجود مسبقاً؛ الحذف الانتقائي معطّل لحماية المحتوى السابق.'
+          : topicHasMediaOrBlocks
+            ? 'تحتوي المواضيع على وسائط أو كتل محتوى مرتبطة؛ يلزم تنظيف اعتمادياتها قبل الحذف.'
+            : hasExistingTopicReferences
+              ? 'توجد سجلات سابقة مرتبطة بالمواضيع الجديدة؛ أُوقف الحذف لحماية الروابط.'
+              : undefined
+      });
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('umed:import-groups-updated'));
+    }
     let importedCount = 0;
     setTopics((prev) => {
       const next = [...prev];
