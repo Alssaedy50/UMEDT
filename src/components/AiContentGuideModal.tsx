@@ -439,6 +439,9 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
   const [topicName, setTopicName] = useState<string>(
     'Histological Layers of the Heart Wall (الطبقات النسيجية لجدار القلب)'
   );
+  const [taskRequirements, setTaskRequirements] = useState<string>('');
+  const [selectedBlockId, setSelectedBlockId] = useState<string>('');
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
   const [subjectsCount, setSubjectsCount] = useState<number>(4);
   const [topicsCount, setTopicsCount] = useState<number>(12);
   const [termsCount, setTermsCount] = useState<number>(500);
@@ -504,8 +507,8 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
     const subjectSlug = toSlug(cleanSubjectCode || cleanSubjectName, 'med-subject');
     const topicSlug = toSlug(cleanTopicName, 'med-topic');
 
-    const blockIdRef = `block-${blockSlug}`;
-    const subjectIdRef = `subj-${subjectSlug}`;
+    const blockIdRef = selectedBlockId || `block-${blockSlug}`;
+    const subjectIdRef = selectedSubjectId || `subj-${subjectSlug}`;
     const topicIdRef = `tp-${topicSlug}`;
 
     const scopeDescription =
@@ -770,6 +773,9 @@ ${formatInstructions}
     subjectName,
     subjectCode,
     topicName,
+    taskRequirements,
+    selectedBlockId,
+    selectedSubjectId,
     subjectsCount,
     topicsCount,
     termsCount,
@@ -1005,10 +1011,14 @@ ${formatInstructions}
                           if (!b) return;
                           setBlockName(b.titleEn || b.titleAr);
                           setBlockCode(b.code || 'BLK-MED');
+                          setSelectedBlockId(b.id);
                           const firstSub = savedSubjects.find((s) => s.blockId === b.id);
                           if (firstSub) {
                             setSubjectName(firstSub.titleEn || firstSub.titleAr);
                             setSubjectCode(firstSub.code || 'SUB-101');
+                            setSelectedSubjectId(firstSub.id);
+                          } else {
+                            setSelectedSubjectId('');
                           }
                         }}
                         className="min-h-[34px] px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-200"
@@ -1032,7 +1042,7 @@ ${formatInstructions}
                       <input
                         type="text"
                         value={blockName}
-                        onChange={(e) => setBlockName(e.target.value)}
+                        onChange={(e) => { setBlockName(e.target.value); setSelectedBlockId(''); setSelectedSubjectId(''); }}
                         placeholder="مثال: Cardiovascular System Block"
                         className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white"
                       />
@@ -1045,7 +1055,7 @@ ${formatInstructions}
                         type="text"
                         dir="ltr"
                         value={blockCode}
-                        onChange={(e) => setBlockCode(e.target.value)}
+                        onChange={(e) => { setBlockCode(e.target.value); setSelectedBlockId(''); setSelectedSubjectId(''); }}
                         placeholder="BLK-CV"
                         className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-slate-900 dark:text-white"
                       />
@@ -1068,10 +1078,12 @@ ${formatInstructions}
                               if (!s) return;
                               setSubjectName(s.titleEn || s.titleAr);
                               setSubjectCode(s.code || 'SUB-101');
+                              setSelectedSubjectId(s.id);
                               const parentBlk = savedBlocks.find((b) => b.id === s.blockId);
                               if (parentBlk) {
                                 setBlockName(parentBlk.titleEn || parentBlk.titleAr);
                                 setBlockCode(parentBlk.code || 'BLK-MED');
+                                setSelectedBlockId(parentBlk.id);
                               }
                             }}
                             className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-600 dark:text-slate-300"
@@ -1088,7 +1100,7 @@ ${formatInstructions}
                       <input
                         type="text"
                         value={subjectName}
-                        onChange={(e) => setSubjectName(e.target.value)}
+                        onChange={(e) => { setSubjectName(e.target.value); setSelectedSubjectId(''); }}
                         placeholder="مثال: Cardiovascular Histology"
                         className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white"
                       />
@@ -1101,7 +1113,7 @@ ${formatInstructions}
                         type="text"
                         dir="ltr"
                         value={subjectCode}
-                        onChange={(e) => setSubjectCode(e.target.value)}
+                        onChange={(e) => { setSubjectCode(e.target.value); setSelectedSubjectId(''); }}
                         placeholder="CV-HIST"
                         className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-slate-900 dark:text-white"
                       />
