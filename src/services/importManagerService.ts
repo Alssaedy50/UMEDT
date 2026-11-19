@@ -141,7 +141,11 @@ export async function executeAtomicMedicalImport(params: {
   const existingCases = loadStoredClinicalCases();
 
   const groupIds: Partial<Record<ImportGroupDomain, string[]>> = {};
-  const addGroupId = (domain: ImportGroupDomain, id: string) => { (groupIds[domain] ||= []).push(id); };
+  const groupFingerprints: Partial<Record<ImportGroupDomain, Record<string, string>>> = {};
+  const addGroupId = (domain: ImportGroupDomain, id: string, record: unknown) => {
+    (groupIds[domain] ||= []).push(id);
+    (groupFingerprints[domain] ||= {})[id] = JSON.stringify(record);
+  };
   let requiresReview = false;
   const reviewReasons: string[] = [];
 
@@ -174,7 +178,7 @@ export async function executeAtomicMedicalImport(params: {
         nextTerms.push(incoming);
         termMap.set(key, incoming);
         summary.termsAdded++;
-        addGroupId('terms', incoming.id);\n        addGroupId('terms', incoming.id);
+        addGroupId('terms', incoming.id, incoming);\n        addGroupId('terms', incoming.id);
       } else {
         if (params.conflictPolicy === 'overwrite') {
           requiresReview = true;
@@ -222,7 +226,7 @@ export async function executeAtomicMedicalImport(params: {
       if (existingIdx === -1) {
         nextQuestions.push(q);
         summary.questionsAdded++;
-        addGroupId('questions', q.id);
+        addGroupId('questions', q.id, q);
       } else if (params.conflictPolicy === 'overwrite') {
         requiresReview = true;
         reviewReasons.push('تم استبدال سؤال موجود مسبقاً.');
@@ -242,7 +246,7 @@ export async function executeAtomicMedicalImport(params: {
       if (existingIdx === -1) {
         nextSentences.push(s);
         summary.sentencesAdded++;
-        addGroupId('sentences', s.id);
+        addGroupId('sentences', s.id, s);
       } else if (params.conflictPolicy === 'overwrite') {
         requiresReview = true;
         reviewReasons.push('تم استبدال جملة موجودة مسبقاً.');
@@ -260,7 +264,7 @@ export async function executeAtomicMedicalImport(params: {
       if (existingIdx === -1) {
         nextTopics.push(tp);
         summary.topicsAdded++;
-        addGroupId('topics', tp.id);
+        addGroupId('topics', tp.id, tp);
       }
     }
 
@@ -274,7 +278,7 @@ export async function executeAtomicMedicalImport(params: {
       if (existingIdx === -1) {
         nextCases.push(c);
         summary.clinicalCasesAdded++;
-        addGroupId('clinicalCases', c.id);
+        addGroupId('clinicalCases', c.id, c);
       }
     }
 
@@ -284,7 +288,7 @@ export async function executeAtomicMedicalImport(params: {
       if (!nextAffixes.some((ea) => ea.affix === a.affix && ea.type === a.type)) {
         nextAffixes.push(a);
         summary.affixesAdded++;
-        addGroupId('affixes', a.id);
+        addGroupId('affixes', a.id, a);
       }
     }
 
@@ -293,7 +297,7 @@ export async function executeAtomicMedicalImport(params: {
       if (!nextAbbreviations.some((eab) => eab.abbr.toLowerCase() === ab.abbr.toLowerCase())) {
         nextAbbreviations.push(ab);
         summary.abbreviationsAdded++;
-        addGroupId('abbreviations', ab.id);
+        addGroupId('abbreviations', ab.id, ab);
       }
     }
 
@@ -360,6 +364,7 @@ export async function executeAtomicMedicalImport(params: {
       packageId: params.packageManifest?.package_id,
       createdAt: historyEntry.timestamp,
       ids: groupIds,
+      fingerprints: groupFingerprints,
       counts: Object.fromEntries(Object.entries(groupIds).map(([key, ids]) => [key, ids?.length || 0])),
       ignoredDuplicates: summary.ignoredDuplicates,
       requiresReview,
