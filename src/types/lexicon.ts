@@ -346,6 +346,7 @@ export interface PublicContentDeletion {
   id: string;
   deletedAt: string;
   reason: string;
+  recordSha256?: string;
 }
 
 export interface DataPackagePayload {
