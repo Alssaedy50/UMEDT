@@ -932,21 +932,50 @@ export default function App() {
   };
 
   const triggerTTS = (text: string, key: string, lang = 'en-US') => {
-    setSpeakingKey(key);
-    try {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = lang;
-        utterance.rate = 0.95;
-        window.speechSynthesis.speak(utterance);
-      }
-    } catch {
-      // Fallback
+    const cleanText = text?.trim();
+    if (!cleanText || typeof window === 'undefined' ||
+        !('speechSynthesis' in window) ||
+        typeof SpeechSynthesisUtterance === 'undefined') {
+      setSpeakingKey(null);
+      showToast('ميزة النطق غير متاحة. تحقق من تثبيت محرك تحويل النص إلى كلام في الجهاز.');
+      return;
     }
-    setTimeout(() => {
-      setSpeakingKey((prev) => (prev === key ? null : prev));
-    }, 1200);
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    setSpeakingKey(key);
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = lang;
+    utterance.rate = 0.92;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    const finish = () => setSpeakingKey((current) => current === key ? null : current);
+    utterance.onend = finish;
+    utterance.onerror = (event) => {
+      finish();
+      if (event.error !== 'canceled' && event.error !== 'interrupted') {
+        showToast('تعذر تشغيل النطق. تحقق من محرك الصوت واللغة في إعدادات Android.');
+      }
+    };
+    try {
+      synth.resume();
+      window.setTimeout(() => {
+        try {
+          const voices = synth.getVoices();
+          const language = lang.toLowerCase();
+          const voice = voices.find((item) => item.lang.toLowerCase() === language) ||
+            voices.find((item) => item.lang.toLowerCase().startsWith(language.split('-')[0]));
+          if (voice) utterance.voice = voice;
+          synth.speak(utterance);
+          window.setTimeout(finish, Math.max(8000, Math.min(60000, cleanText.length * 180)));
+        } catch {
+          finish();
+          showToast('فشل بدء النطق الصوتي في بيئة التشغيل الحالية.');
+        }
+      }, 60);
+    } catch {
+      finish();
+      showToast('تعذر الوصول إلى خدمة النطق الصوتي.');
+    }
   };
 
   const copyToClipboard = (text: string, key: string, label = 'تم النسخ إلى الحافظة') => {
