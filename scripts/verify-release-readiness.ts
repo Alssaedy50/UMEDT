@@ -290,8 +290,29 @@ async function main() {
   }
   assertCondition(sqliteBlocked, 'SQLite binary files must be rejected');
 
+  // Use an isolated synthetic record when the clean app state has no bundled
+  // academic content. This exercises JSON/ZIP serialization without restoring
+  // medical seed data to the application bundle or modifying production data.
+  const transferTerms = initialState.terms.length > 0 ? initialState.terms : [{
+    id: 'release-transfer-fixture-term',
+    term: 'ReleaseTransferFixture',
+    termNormalized: 'releasetransferfixture',
+    translation: 'سجل اختبار نقل البيانات',
+    phonetic: '/ˈfiːktʃər/',
+    pos: 'noun',
+    category: 'General' as const,
+    keepEnglish: true,
+    favorite: false,
+    collections: [],
+    ingestedAt: new Date(0).toISOString(),
+    definitionAr: 'سجل اصطناعي لاختبار استيراد وتصدير النسخ الاحتياطية.',
+    definitionEn: 'Synthetic record used only to verify backup import/export.',
+    examples: [],
+    relations: { synonyms: [], broader: [], related: [] }
+  }];
+
   const exportedJson = exportFullDatabaseJson({
-    terms: initialState.terms,
+    terms: transferTerms,
     sentences: initialState.sentences,
     topics: initialState.topics,
     customAffixes: initialState.customAffixes,
@@ -300,7 +321,7 @@ async function main() {
     versionMetadata: initialState.versionMetadata
   });
   const exportedZipBytes = exportFullDatabaseZipBytes({
-    terms: initialState.terms,
+    terms: transferTerms,
     sentences: initialState.sentences,
     topics: initialState.topics,
     customAffixes: initialState.customAffixes,
