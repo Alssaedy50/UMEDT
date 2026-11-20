@@ -454,7 +454,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setIsTestingGitHub(true); setGithubFeedback(null);
     try {
       const result = await testGitHubConnection(draftGitHubToken.trim() || undefined, currentGitHubConfig());
-      setGithubFeedback({ ok: true, message: `اتصال ناجح: ${result.repository} · الفرع ${result.branch} موجود · الافتراضي ${result.defaultBranch} · صلاحية الكتابة متاحة.` });
+      setGithubFeedback({ ok: true, message: `اتصال ناجح: ${result.repository} · الفرع ${result.branch} موجود · الافتراضي ${result.defaultBranch} · صلاحية الكتابة متاحة.${result.isPublic ? ' السحب العام متاح.' : ' تنبيه: المستودع خاص؛ السحب الحالي عبر Raw يتطلب مستودعاً عاماً.'}`, });
     } catch (error) { setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) }); }
     finally { setIsTestingGitHub(false); }
   };

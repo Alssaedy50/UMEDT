@@ -44,6 +44,7 @@ import {
 } from './learningHierarchyService';
 import { loadQuizQuestions, saveQuizQuestions } from './quizEngineService';
 import { computeSha256Hex } from './dataPlatformService';
+import { getConfiguredGitHubRawUrl } from './githubRepositoryService';
 import {
   getLocalMediaRecord,
   saveLocalMediaRecord,
@@ -1578,7 +1579,7 @@ export async function syncFromUmedtDataRepository(options?: {
     };
   }
 
-  const targetCatalogUrl = options?.catalogUrl || UMEDT_DATA_CATALOG_URL;
+  const targetCatalogUrl = options?.catalogUrl || getConfiguredGitHubRawUrl('data/catalog.json');
   const catalogRes = await fetchUmedtDataJsonWithFallback(targetCatalogUrl, fetchFn);
   if (!catalogRes || !catalogRes.ok) {
     return {

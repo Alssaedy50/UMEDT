@@ -65,6 +65,13 @@ function branchRefPath(branch: string): string {
   return `/git/ref/heads/${encodeURIComponent(branch)}`;
 }
 
+export function getConfiguredGitHubRawUrl(filePath: string): string {
+  const config = loadGitHubRepositoryConfig();
+  const branchPath = config.branch.split('/').map(encodeURIComponent).join('/');
+  const safeFilePath = filePath.replace(/^\\/+/, '').split('/').map(encodeURIComponent).join('/');
+  return `https://raw.githubusercontent.com/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repository)}/${branchPath}/${safeFilePath}`;
+}
+
 function nativeBridge(): NativeSecretBridge | null {
   if (typeof window === 'undefined') return null;
   const w = window as unknown as {
@@ -159,13 +166,13 @@ export async function listGitHubBranches(tokenOverride?: string, configOverride?
 }
 
 export async function testGitHubConnection(tokenOverride?: string, configOverride?: GitHubRepositoryConfig): Promise<{
-  repository: string; branch: string; defaultBranch: string; canWrite: boolean;
+  repository: string; branch: string; defaultBranch: string; canWrite: boolean; isPublic: boolean;
 }> {
   const token = (tokenOverride || loadGitHubToken()).trim();
   if (!token) throw new Error('أدخل التوكن واحفظه أولاً.');
   const config = validateRepositoryConfig(configOverride || loadGitHubRepositoryConfig());
   const repo = await githubRequest<{
-    full_name: string; default_branch: string; archived?: boolean;
+    full_name: string; default_branch: string; archived?: boolean; private?: boolean;
     permissions?: { push?: boolean; admin?: boolean };
   }>(token, repositoryApiPath(config));
   if (repo.archived) throw new Error('المستودع مؤرشف ولا يقبل النشر.');
@@ -173,7 +180,7 @@ export async function testGitHubConnection(tokenOverride?: string, configOverrid
   await githubRequest<{ object: { sha: string } }>(token, `${repositoryApiPath(config)}${branchRefPath(config.branch)}`);
   return {
     repository: repo.full_name, branch: config.branch,
-    defaultBranch: repo.default_branch || DEFAULT_BRANCH, canWrite: true
+    defaultBranch: repo.default_branch || DEFAULT_BRANCH, canWrite: true, isPublic: !repo.private
   };
 }
 
