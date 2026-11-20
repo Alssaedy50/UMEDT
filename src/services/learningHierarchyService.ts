@@ -36,6 +36,29 @@ export const INITIAL_MEDICAL_BLOCKS: MedicalBlock[] = [];
 
 export const INITIAL_MEDICAL_SUBJECTS: MedicalSubject[] = [];
 
+
+/**
+ * Builds a lookup from remote/custom subjects to their parent blocks.
+ * Academic records are intentionally not bundled in this application repository.
+ */
+function buildSubjectBlockLookup(subjects?: MedicalSubject[]): Map<string, string> {
+  const lookup = new Map<string, string>();
+  if (!Array.isArray(subjects)) return lookup;
+
+  for (const subject of subjects) {
+    const subjectId = typeof subject?.id === 'string' ? subject.id.trim() : '';
+    const blockId = typeof subject?.blockId === 'string' ? subject.blockId.trim() : '';
+    if (subjectId && blockId) lookup.set(subjectId, blockId);
+  }
+  return lookup;
+}
+
+/**
+ * Curated academic titles are supplied by UMEDT-DATA, not bundled with the app.
+ * Keep an empty typed lookup for backward-compatible enrichment logic.
+ */
+const CURATED_TOPIC_ENGLISH_TITLES: Record<string, { titleEn?: string; titleAr?: string }> = {};
+
 export function resolveEffectiveTopicHierarchy(
   topic: TopicArticle,
   availableSubjects?: MedicalSubject[]
