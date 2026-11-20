@@ -319,7 +319,11 @@ async function main() {
   });
   assertCondition(
     jsonImportRes.result.success && zipImportRes.result.success,
-    'Both JSON and ZIP cross-environment data transfer packages must import cleanly'
+    [
+      'Both JSON and ZIP cross-environment data transfer packages must import cleanly.',
+      `JSON: ${jsonImportRes.result.errors?.join(' | ') || jsonImportRes.result.summary.failureReasons?.join(' | ') || (jsonImportRes.result.success ? 'OK' : 'No detailed error returned')}`,
+      `ZIP: ${zipImportRes.result.errors?.join(' | ') || zipImportRes.result.summary.failureReasons?.join(' | ') || (zipImportRes.result.success ? 'OK' : 'No detailed error returned')}`
+    ].join(' ')
   );
   assertCondition(
     Boolean(STORAGE_KEYS.TERMS && STORAGE_KEYS.BACKUP_HISTORY),
