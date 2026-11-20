@@ -1415,10 +1415,10 @@ async function main() {
 
   const initialStateForCloud = loadAppState();
   assertCondition(
-    initialStateForCloud.terms.length >= 40 &&
+    initialStateForCloud.terms.length === 0 &&
       initialStateForCloud.topics.length === 0 &&
       loadMedicalBlocks().length === 0,
-    `Expected post-install state to contain only dictionary terms (terms=${initialStateForCloud.terms.length}) with local topics=0 and blocks=0, got topics=${initialStateForCloud.topics.length}, blocks=${loadMedicalBlocks().length}`
+    `Expected a fresh app install to contain no bundled academic content (terms=0, topics=0, blocks=0), got terms=${initialStateForCloud.terms.length}, topics=${initialStateForCloud.topics.length}, blocks=${loadMedicalBlocks().length}`
   );
 
   // Verify update notification banner is removed from App.tsx, Updates modal is removed from SettingsView.tsx,
