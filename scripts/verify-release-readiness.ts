@@ -191,12 +191,10 @@ async function main() {
   );
   console.log('[PASS] 1. Separated App/Schema/Data Versioning & Non-Activated Default CDN Policy');
 
-  // 2. Verify Cloudflare Pages Configuration, package-lock.json & Production Build Assets
+  // 2. Verify package-lock.json and production web/PWA assets used by the Android bundle.
+  // Cloudflare Pages deployment is intentionally not part of the supported release pipeline.
   const packageLockPath = path.join(ROOT_DIR, 'package-lock.json');
-  const redirectsPath = path.join(ROOT_DIR, 'public', '_redirects');
   const headersPath = path.join(ROOT_DIR, 'public', '_headers');
-  const wranglerPath = path.join(ROOT_DIR, 'wrangler.toml');
-  const cfWorkflowPath = path.join(ROOT_DIR, '.github', 'workflows', 'cloudflare-pages.yml');
   const distIndexPath = path.join(ROOT_DIR, 'dist', 'index.html');
   const distSwPath = path.join(ROOT_DIR, 'dist', 'sw.js');
   const distManifestPath = path.join(ROOT_DIR, 'dist', 'manifest.webmanifest');
@@ -207,25 +205,12 @@ async function main() {
     typeof lockfileJson.lockfileVersion === 'number' && lockfileJson.lockfileVersion >= 2,
     'package-lock.json must have a valid lockfileVersion >= 2'
   );
-  assertCondition(fs.existsSync(redirectsPath), 'public/_redirects must exist');
-  assertCondition(
-    fs.readFileSync(redirectsPath, 'utf8').includes('/* /index.html 200'),
-    'public/_redirects must configure SPA fallback /* /index.html 200'
-  );
+  // Keep the headers file because its policy is independently verified below.
   assertCondition(fs.existsSync(headersPath), 'public/_headers must exist');
-  assertCondition(fs.existsSync(wranglerPath), 'wrangler.toml must exist');
-  assertCondition(fs.existsSync(cfWorkflowPath), 'cloudflare-pages.yml workflow must exist');
-  const cfWorkflowContent = fs.readFileSync(cfWorkflowPath, 'utf8');
-  const cfBuildIndex = cfWorkflowContent.indexOf('run: npm run build');
-  const cfTestIndex = cfWorkflowContent.indexOf('run: npm test');
-  assertCondition(
-    cfBuildIndex !== -1 && cfTestIndex !== -1 && cfBuildIndex < cfTestIndex,
-    'cloudflare-pages.yml must execute npm run build before npm test'
-  );
   assertCondition(fs.existsSync(distIndexPath), 'dist/index.html must exist');
   assertCondition(fs.existsSync(distSwPath), 'dist/sw.js PWA service worker must exist');
   assertCondition(fs.existsSync(distManifestPath), 'dist/manifest.webmanifest must exist');
-  console.log('[PASS] 2. Cloudflare Pages Config (_redirects, _headers, wrangler.toml), package-lock.json & PWA Build Assets');
+  console.log('[PASS] 2. package-lock.json & Production Web/PWA Build Assets');
 
   // 3. Verify Capacitor Android Native Project & APK GitHub Actions Workflow
   const capConfigPath = path.join(ROOT_DIR, 'capacitor.config.ts');
