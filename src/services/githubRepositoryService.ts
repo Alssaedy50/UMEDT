@@ -178,14 +178,15 @@ export type GitHubWorkflowRunSummary = {
 
 export async function getLatestDataReleaseRun(configOverride?: GitHubRepositoryConfig): Promise<GitHubWorkflowRunSummary | null> {
   const config = validateRepositoryConfig(configOverride || loadGitHubRepositoryConfig());
-  const url = `https://api.github.com${repositoryApiPath(config)}/actions/workflows/publish-data-release.yml/runs?branch=${encodeURIComponent(config.branch)}&per_page=1`;
+  const url = `https://api.github.com${repositoryApiPath(config)}/actions/runs?branch=${encodeURIComponent(config.branch)}&per_page=20`;
   const response = await fetch(url, { headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store' });
   if (response.status === 404) {
-    throw new Error('لم يمكن قراءة سجل النشر. قد يكون المستودع خاصاً أو لا يحتوي publish-data-release.yml.');
+    throw new Error('تعذر قراءة سجل GitHub Actions. قد يكون المستودع خاصاً أو لا يتيح السجل العام.');
   }
   if (!response.ok) throw new Error(`تعذر قراءة GitHub Actions (HTTP ${response.status}).`);
-  const payload = await response.json() as { workflow_runs?: GitHubWorkflowRunSummary[] };
-  return Array.isArray(payload.workflow_runs) ? payload.workflow_runs[0] || null : null;
+  const payload = await response.json() as { workflow_runs?: Array<GitHubWorkflowRunSummary & { path?: string }> };
+  const runs = Array.isArray(payload.workflow_runs) ? payload.workflow_runs : [];
+  return runs.find((run) => run.path === '.github/workflows/publish-data-release.yml') || null;
 }
 
 export async function testGitHubConnection(tokenOverride?: string, configOverride?: GitHubRepositoryConfig): Promise<{
