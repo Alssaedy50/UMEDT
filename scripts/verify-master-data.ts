@@ -3,43 +3,29 @@ import os from 'node:os';
 import path from 'node:path';
 import { loadMasterMedicalRepository } from './validate-master-data';
 
+// The app repository must not contain academic master data.
+// UMEDT-DATA is the sole source; missing master files must resolve to empty collections.
 function assert(condition: boolean, message: string): void {
-  if (!condition) throw new Error(`Master-data validation test failed: ${message}`);
+  if (!condition) throw new Error(`Academic-data separation test failed: ${message}`);
 }
 
-const bundled = loadMasterMedicalRepository(process.cwd());
-assert(bundled.terms.length > 0, 'missing master files must fall back to bundled terms');
-assert(bundled.sentences.length > 0, 'missing sentence file must fall back to bundled sentences');
-assert(bundled.topics.length > 0, 'missing topic file must fall back to bundled topics');
-assert(bundled.customAffixes.length > 0, 'missing affix file must fall back to bundled affixes');
-assert(bundled.customAbbreviations.length > 0, 'missing abbreviation file must fall back to bundled abbreviations');
+const root = process.cwd();
+const masterDir = path.join(root, 'data', 'master');
+assert(!fs.existsSync(masterDir), 'UMEDT/data/master must not exist');
 
-const parasitologyIds = [
-  'pt-parasito-01-foundations',
-  'pt-parasito-02-nematodes-intestinal',
-  'pt-parasito-03-nematodes-filaria',
-  'pt-parasito-04-cestodes',
-  'pt-parasito-05-trematodes',
-  'pt-parasito-06-practical-spotter',
-  'pt-parasito-07-one-day-plan',
-  'pt-parasito-08-mcq-viva'
-];
-for (const id of parasitologyIds) {
-  assert(bundled.topics.some((topic) => topic.id === id), `missing Parasitology course topic: ${id}`);
-}
-const parasitology = bundled.topics.filter((topic) => parasitologyIds.includes(topic.id));
-assert(parasitology.reduce((n, topic) => n + topic.images.length, 0) >= 20, 'Parasitology course must include at least 20 learning images/diagrams');
-assert(parasitology.reduce((n, topic) => n + topic.links.length, 0) >= 25, 'Parasitology course must include external reference and 3D model links');
-const mcqTopic = bundled.topics.find((topic) => topic.id === 'pt-parasito-08-mcq-viva');
-assert(Boolean(mcqTopic?.sections.some((section) => section.paragraphs.some((p) => p.startsWith('Q22.')))), 'MCQ topic must contain the full 22-question bank');
+const empty = loadMasterMedicalRepository(root);
+assert(empty.terms.length === 0, 'terms fallback must be empty');
+assert(empty.sentences.length === 0, 'sentences fallback must be empty');
+assert(empty.topics.length === 0, 'topics fallback must be empty');
+assert(empty.customAffixes.length === 0, 'affixes fallback must be empty');
+assert(empty.customAbbreviations.length === 0, 'abbreviations fallback must be empty');
 
-
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'umedt-master-data-'));
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'umedt-data-validation-'));
 try {
-  const masterDir = path.join(tempRoot, 'data', 'master');
-  fs.mkdirSync(masterDir, { recursive: true });
+  const tempMasterDir = path.join(tempRoot, 'data', 'master');
+  fs.mkdirSync(tempMasterDir, { recursive: true });
   fs.writeFileSync(
-    path.join(masterDir, 'terms.json'),
+    path.join(tempMasterDir, 'terms.json'),
     JSON.stringify([
       { id: 'term-a', term: 'Alpha-beta' },
       { id: 'term-b', term: 'Alpha beta' }
@@ -57,7 +43,7 @@ try {
   assert(duplicateRejected, 'punctuation-normalized duplicate terms must be rejected');
 
   fs.writeFileSync(
-    path.join(masterDir, 'terms.json'),
+    path.join(tempMasterDir, 'terms.json'),
     JSON.stringify([
       { id: 'same-id', term: 'Alpha' },
       { id: 'same-id', term: 'Beta' }
@@ -76,4 +62,4 @@ try {
   fs.rmSync(tempRoot, { recursive: true, force: true });
 }
 
-console.log('[PASS] Master medical data fallback, normalized duplicate, and ID validation');
+console.log('[PASS] No bundled academic master data; external data validation remains active');
