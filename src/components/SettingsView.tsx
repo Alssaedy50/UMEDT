@@ -106,7 +106,7 @@ interface SettingsViewProps {
   onImportPackageFile: (file: File) => void;
   onShareDataFile: () => void;
   onResetDefaults: () => void;
-  onPublishLocalData?: () => Promise<{ commitSha: string; filesUpdated: number; branch: string }>;
+  onPublishLocalData?: () => Promise<{ commitSha: string; filesUpdated: number; branch: string; repository: string }>;
   lastBackupTime: string;
   telegramConfig?: TelegramBackupConfig;
   onUpdateTelegramConfig?: (nextConfig: TelegramBackupConfig) => void;
