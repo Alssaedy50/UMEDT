@@ -259,7 +259,7 @@ async function main() {
     gradleContent.includes('org.umed2.dictengine') &&
       gradleContent.includes('versionCode 20406') &&
       gradleContent.includes('versionName "2.4.6"'),
-    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20400, and versionName "2.4.0"'
+    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20406, and versionName "2.4.6"'
   );
   console.log('[PASS] 3. Capacitor Native Android Project (v2.4.6 / 20406) & Bundled Local Web Assets Synced');
 
