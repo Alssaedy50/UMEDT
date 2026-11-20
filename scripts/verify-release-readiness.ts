@@ -476,6 +476,7 @@ async function main() {
   // repository. The application repository intentionally contains no academic
   // master data, and the publisher must never treat app-local empty data as its source.
   const publisherFixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'umedt-publisher-fixture-'));
+  process.once('exit', () => fs.rmSync(publisherFixtureRoot, { recursive: true, force: true }));
   const publisherFixtureMasterDir = path.join(publisherFixtureRoot, 'data', 'master');
   fs.mkdirSync(publisherFixtureMasterDir, { recursive: true });
   const publisherFixtureEnv: NodeJS.ProcessEnv = {
@@ -705,7 +706,6 @@ async function main() {
     if (otaHttpServer) {
       await new Promise<void>((resolve) => otaHttpServer!.close(() => resolve()));
     }
-    fs.rmSync(publisherFixtureRoot, { recursive: true, force: true });
   }
 
   console.log(
@@ -1285,6 +1285,7 @@ async function main() {
 
   const ghFallbackVersion = '2026.12.5-umd';
   const ghPublishedBundle = await executeProductionDataReleasePublish({
+    env: publisherFixtureEnv,
     targetVersion: ghFallbackVersion,
     cdnBaseUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT/main/data/releases/stable',
     privateKeyPem: keyGenA.privateKeyPem,
