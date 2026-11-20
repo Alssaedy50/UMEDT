@@ -1083,30 +1083,18 @@ export async function testTelegramConnection(
 }
 
 export async function computeFileSha256Hex(bytes: Uint8Array): Promise<string> {
-  try {
-    if (typeof globalThis !== 'undefined' && globalThis.crypto?.subtle) {
-      const digest = await globalThis.crypto.subtle.digest(
-        'SHA-256',
-        bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
-      );
-      return Array.from(new Uint8Array(digest))
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join('');
-    }
-  } catch {
-    // fallback to Node crypto below
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) {
+    throw new Error('Web Crypto SHA-256 is unavailable in this environment; refusing to use a non-cryptographic fallback.');
   }
-  try {
-    const nodeCrypto = await import('crypto');
-    return nodeCrypto.createHash('sha256').update(bytes).digest('hex');
-  } catch {
-    let h = 2166136261;
-    for (let i = 0; i < bytes.length; i++) {
-      h ^= bytes[i];
-      h = Math.imul(h, 16777619);
-    }
-    return (h >>> 0).toString(16).padStart(8, '0');
-  }
+
+  const digest = await subtle.digest(
+    'SHA-256',
+    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+  );
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 function extractBytesFromLocalMediaRecord(record: LocalMediaRecord): Uint8Array | null {
