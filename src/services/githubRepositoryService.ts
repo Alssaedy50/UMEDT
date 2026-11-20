@@ -68,7 +68,7 @@ function branchRefPath(branch: string): string {
 export function getConfiguredGitHubRawUrl(filePath: string): string {
   const config = loadGitHubRepositoryConfig();
   const branchPath = config.branch.split('/').map(encodeURIComponent).join('/');
-  const safeFilePath = filePath.replace(/^\\/+/, '').split('/').map(encodeURIComponent).join('/');
+  const safeFilePath = filePath.split('/').filter(Boolean).map(encodeURIComponent).join('/');
   return `https://raw.githubusercontent.com/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repository)}/${branchPath}/${safeFilePath}`;
 }
 
