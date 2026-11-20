@@ -55,7 +55,9 @@ import {
   testGitHubConnection,
   loadGitHubRepositoryConfig,
   saveGitHubRepositoryConfig,
-  listGitHubBranches
+  listGitHubBranches,
+  getLatestDataReleaseRun,
+  GitHubWorkflowRunSummary
 } from '../services/githubRepositoryService';
 import {
   LocalDownloadRecord,
@@ -315,6 +317,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [draftGitHubBranch, setDraftGitHubBranch] = useState<string>(() => loadGitHubRepositoryConfig().branch);
   const [githubBranches, setGithubBranches] = useState<string[]>([]);
   const [isLoadingGitHubBranches, setIsLoadingGitHubBranches] = useState<boolean>(false);
+  const [latestGitHubRun, setLatestGitHubRun] = useState<GitHubWorkflowRunSummary | null>(null);
+  const [isCheckingGitHubRun, setIsCheckingGitHubRun] = useState<boolean>(false);
   const [isTestingGitHub, setIsTestingGitHub] = useState<boolean>(false);
   const [isPublishingGitHub, setIsPublishingGitHub] = useState<boolean>(false);
   const [githubFeedback, setGithubFeedback] = useState<{ ok: boolean; message: string } | null>(null);
@@ -448,6 +452,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setGithubFeedback({ ok: true, message: `تم جلب ${branches.length} فرعاً من المستودع.` });
     } catch (error) { setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) }); }
     finally { setIsLoadingGitHubBranches(false); }
+  };
+
+  const handleCheckGitHubActions = async () => {
+    setIsCheckingGitHubRun(true);
+    setGithubFeedback(null);
+    try {
+      const run = await getLatestDataReleaseRun(currentGitHubConfig());
+      setLatestGitHubRun(run);
+      setGithubFeedback({
+        ok: true,
+        message: run ? `آخر تشغيل للنشر: ${run.status} · ${run.conclusion || 'لم تكتمل النتيجة بعد'} · Run #${run.run_number}.` : 'لا توجد تشغيلات نشر لهذا الفرع حتى الآن.'
+      });
+    } catch (error) {
+      setLatestGitHubRun(null);
+      setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setIsCheckingGitHubRun(false);
+    }
   };
 
   const handleTestGitHub = async () => {
@@ -1491,6 +1513,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <button type="button" disabled={isLoadingGitHubBranches} onClick={() => void handleLoadGitHubBranches()} className="flex-1 min-h-[40px] rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold disabled:opacity-40">{isLoadingGitHubBranches ? 'يجلب الفروع...' : 'جلب الفروع'}</button>
                   </div>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400">القيمة الافتراضية: Alssaedy50/UMEDT-DATA · main. تغيير الوجهة لا ينقل أو يحذف البيانات المحلية.</p>
+                  {draftGitHubOwner.toLowerCase() === 'alssaedy50' && draftGitHubRepository.toLowerCase() === 'umedt-data' && draftGitHubBranch !== 'main' && (
+                    <p className="text-[10px] leading-5 text-amber-700 dark:text-amber-300">تنبيه: Workflow نشر بيانات UMEDT-DATA الحالي يعمل تلقائياً عند التحديث على main فقط؛ النشر على فرع آخر لن يبدأ إصدار OTA تلقائياً.</p>
+                  )}
+                </div>
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">حالة GitHub Actions</div>
+                  <button type="button" disabled={isCheckingGitHubRun} onClick={() => void handleCheckGitHubActions()} className="w-full min-h-[40px] rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold disabled:opacity-40">
+                    {isCheckingGitHubRun ? 'يفحص تشغيل النشر...' : 'فحص آخر تشغيل لنشر البيانات'}
+                  </button>
+                  {latestGitHubRun && (
+                    <div className="space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
+                      <div>Run #{latestGitHubRun.run_number} · {latestGitHubRun.status} · {latestGitHubRun.conclusion || 'قيد التنفيذ'}</div>
+                      <div className="font-mono break-all">Commit: {latestGitHubRun.head_sha.slice(0, 12)}</div>
+                      <a href={latestGitHubRun.html_url} target="_blank" rel="noreferrer" className="inline-flex min-h-[32px] items-center text-sky-600 dark:text-sky-400 underline">فتح تفاصيل GitHub Actions</a>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">فحص الحالة يقرأ سجل Workflow العام؛ لا يعني نجاح رفع Commit أن بناء وتوقيع إصدار البيانات قد نجحا.</p>
                 </div>
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-200">GitHub Fine-grained Personal Access Token</label>

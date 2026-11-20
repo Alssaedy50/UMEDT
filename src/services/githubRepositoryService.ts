@@ -165,6 +165,29 @@ export async function listGitHubBranches(tokenOverride?: string, configOverride?
   return branches.map((branch) => branch.name).filter((name) => typeof name === 'string');
 }
 
+export type GitHubWorkflowRunSummary = {
+  id: number;
+  run_number: number;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  html_url: string;
+  created_at: string;
+  head_sha: string;
+};
+
+export async function getLatestDataReleaseRun(configOverride?: GitHubRepositoryConfig): Promise<GitHubWorkflowRunSummary | null> {
+  const config = validateRepositoryConfig(configOverride || loadGitHubRepositoryConfig());
+  const url = `https://api.github.com${repositoryApiPath(config)}/actions/workflows/publish-data-release.yml/runs?branch=${encodeURIComponent(config.branch)}&per_page=1`;
+  const response = await fetch(url, { headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store' });
+  if (response.status === 404) {
+    throw new Error('لم يمكن قراءة سجل النشر. قد يكون المستودع خاصاً أو لا يحتوي publish-data-release.yml.');
+  }
+  if (!response.ok) throw new Error(`تعذر قراءة GitHub Actions (HTTP ${response.status}).`);
+  const payload = await response.json() as { workflow_runs?: GitHubWorkflowRunSummary[] };
+  return Array.isArray(payload.workflow_runs) ? payload.workflow_runs[0] || null : null;
+}
+
 export async function testGitHubConnection(tokenOverride?: string, configOverride?: GitHubRepositoryConfig): Promise<{
   repository: string; branch: string; defaultBranch: string; canWrite: boolean; isPublic: boolean;
 }> {
