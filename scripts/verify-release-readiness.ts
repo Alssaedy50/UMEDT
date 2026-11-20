@@ -1,6 +1,7 @@
 import fs from 'fs';
 import http from 'http';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import {
   APP_VERSION,
@@ -471,8 +472,73 @@ async function main() {
     'Publisher must fail immediately when VITE_UMED_PUBLIC_KEY_PEM is missing'
   );
 
-  // Verify publisher succeeds when valid matching permanent keys are provided (in-memory without writing artifacts)
+  // Exercise the production publisher against an isolated temporary UMEDT-DATA
+  // repository. The application repository intentionally contains no academic
+  // master data, and the publisher must never treat app-local empty data as its source.
+  const publisherFixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'umedt-publisher-fixture-'));
+  const publisherFixtureMasterDir = path.join(publisherFixtureRoot, 'data', 'master');
+  fs.mkdirSync(publisherFixtureMasterDir, { recursive: true });
+  const publisherFixtureEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    UMED_DATA_REPOSITORY_ROOT: publisherFixtureRoot,
+    UMED_DATA_REPOSITORY: 'Alssaedy50/UMEDT-DATA'
+  };
+
+  // Preserve and explicitly test the production safeguard against empty repositories.
+  let emptyRepositoryRejected = false;
+  try {
+    await executeProductionDataReleasePublish({
+      env: publisherFixtureEnv,
+      privateKeyPem: keyGenA.privateKeyPem,
+      publicKeyPem: keyGenA.publicKeyPem,
+      writeArtifacts: false
+    });
+  } catch (err) {
+    emptyRepositoryRejected =
+      err instanceof Error &&
+      err.message.includes('Refusing to publish an empty medical data repository');
+  }
+  assertCondition(
+    emptyRepositoryRejected,
+    'Publisher must reject an empty UMEDT-DATA repository even when signing keys are valid'
+  );
+
+  // Synthetic data exists only in the temporary test repository, never in the app or live data repository.
+  const publisherFixtureTerm = {
+    id: 'publisher-fixture-term',
+    term: 'PublisherFixtureTerm',
+    termNormalized: 'publisherfixtureterm',
+    translation: 'مصطلح اصطناعي لاختبار الناشر',
+    phonetic: '/ˈfɪkstʃər/',
+    pos: 'noun',
+    category: 'General',
+    keepEnglish: true,
+    favorite: false,
+    collections: [],
+    ingestedAt: new Date(0).toISOString(),
+    definitionAr: 'سجل اصطناعي معزول لاختبار نشر حزمة البيانات.',
+    definitionEn: 'Isolated synthetic record used only to test release publishing.',
+    examples: [],
+    relations: { synonyms: [], broader: [], related: [] }
+  };
+  const publisherFixtureFiles: Record<string, unknown[]> = {
+    'terms.json': [publisherFixtureTerm],
+    'sentences.json': [],
+    'topics.json': [],
+    'custom-affixes.json': [],
+    'custom-abbreviations.json': []
+  };
+  for (const [fileName, records] of Object.entries(publisherFixtureFiles)) {
+    fs.writeFileSync(
+      path.join(publisherFixtureMasterDir, fileName),
+      JSON.stringify(records, null, 2),
+      'utf8'
+    );
+  }
+
+  // Verify publisher succeeds with valid matching keys and isolated source data (without writing artifacts).
   const publishedTest = await executeProductionDataReleasePublish({
+    env: publisherFixtureEnv,
     privateKeyPem: keyGenA.privateKeyPem,
     publicKeyPem: keyGenA.publicKeyPem,
     writeArtifacts: false
@@ -480,8 +546,9 @@ async function main() {
   assertCondition(
     publishedTest.bundle.signatureAlgorithm === 'ECDSA-P256-SHA256' &&
       publishedTest.bundle.keyFingerprintSha256 === keyGenA.fingerprintSha256 &&
-      Boolean(publishedTest.bundle.signature),
-    'Publisher must build and sign release bundle with matching permanent keys'
+      Boolean(publishedTest.bundle.signature) &&
+      publishedTest.bundle.manifest.counts.terms === 1,
+    'Publisher must build and sign a one-record test release from the isolated UMEDT-DATA fixture'
   );
 
   // 7.7 Confirmation that localStorage cannot replace the embedded trusted key (VITE_UMED_PUBLIC_KEY_PEM)
@@ -577,6 +644,7 @@ async function main() {
     serverBaseUrl = `http://127.0.0.1:${port}/releases`;
 
     const livePublished = await executeProductionDataReleasePublish({
+      env: publisherFixtureEnv,
       targetVersion: liveTargetVersion,
       cdnBaseUrl: serverBaseUrl,
       privateKeyPem: keyGenA.privateKeyPem,
@@ -637,6 +705,7 @@ async function main() {
     if (otaHttpServer) {
       await new Promise<void>((resolve) => otaHttpServer!.close(() => resolve()));
     }
+    fs.rmSync(publisherFixtureRoot, { recursive: true, force: true });
   }
 
   console.log(
