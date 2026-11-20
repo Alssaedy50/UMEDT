@@ -2,15 +2,18 @@
  * Direct GitHub repository management for UMEDT.
  * Secrets are persisted only through the native Android Keystore bridge.
  */
-const REPOSITORY_OWNER = 'Alssaedy50';
-const REPOSITORY_NAME = 'UMEDT-DATA';
+const DEFAULT_REPOSITORY_OWNER = 'Alssaedy50';
+const DEFAULT_REPOSITORY_NAME = 'UMEDT-DATA';
 const DEFAULT_BRANCH = 'main';
 const TOKEN_STORAGE_KEY = 'umedt_github_pat_aks_v1';
+const REPOSITORY_CONFIG_STORAGE_KEY = 'umedt_github_repository_config_v1';
 
 type NativeSecretBridge = {
   encryptSecretWithKeystore?: (plainText: string) => string;
   decryptSecretWithKeystore?: (cipherText: string) => string;
 };
+
+export type GitHubRepositoryConfig = { owner: string; repository: string; branch: string };
 
 export type MasterDataSnapshot = {
   terms: unknown[];
@@ -25,6 +28,42 @@ export type MasterDataSnapshot = {
   exams: unknown[];
   mediaAssets: unknown[];
 };
+
+function validateRepositoryConfig(config: GitHubRepositoryConfig): GitHubRepositoryConfig {
+  const owner = String(config.owner || '').trim();
+  const repository = String(config.repository || '').trim();
+  const branch = String(config.branch || '').trim();
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(owner)) throw new Error('اسم مالك المستودع غير صالح.');
+  if (!/^[A-Za-z0-9._-]{1,100}$/.test(repository) || repository === '.' || repository === '..') throw new Error('اسم المستودع غير صالح.');
+  if (!branch || branch.length > 255 || /[\s~^:?*\\]/.test(branch) || branch.includes('[') || branch.includes(']') ||
+      branch.startsWith('/') || branch.endsWith('/') || branch.includes('//') || branch.includes('..') ||
+      branch.includes('@{') || branch.endsWith('.')) throw new Error('اسم الفرع غير صالح وفق قواعد Git.');
+  return { owner, repository, branch };
+}
+
+export function loadGitHubRepositoryConfig(): GitHubRepositoryConfig {
+  const fallback = { owner: DEFAULT_REPOSITORY_OWNER, repository: DEFAULT_REPOSITORY_NAME, branch: DEFAULT_BRANCH };
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(REPOSITORY_CONFIG_STORAGE_KEY) : null;
+    return raw ? validateRepositoryConfig({ ...fallback, ...JSON.parse(raw) }) : fallback;
+  } catch { return fallback; }
+}
+
+export function saveGitHubRepositoryConfig(config: GitHubRepositoryConfig): GitHubRepositoryConfig {
+  const value = validateRepositoryConfig(config);
+  if (typeof localStorage === 'undefined') throw new Error('لا يتوفر التخزين المحلي لحفظ إعدادات المستودع.');
+  localStorage.setItem(REPOSITORY_CONFIG_STORAGE_KEY, JSON.stringify(value));
+  return value;
+}
+
+function repositoryApiPath(config: GitHubRepositoryConfig): string {
+  const value = validateRepositoryConfig(config);
+  return `/repos/${encodeURIComponent(value.owner)}/${encodeURIComponent(value.repository)}`;
+}
+
+function branchRefPath(branch: string): string {
+  return `/git/ref/heads/${encodeURIComponent(branch)}`;
+}
 
 function nativeBridge(): NativeSecretBridge | null {
   if (typeof window === 'undefined') return null;
@@ -111,25 +150,30 @@ async function githubRequest<T>(
   return parsed as T;
 }
 
-export async function testGitHubConnection(tokenOverride?: string): Promise<{
-  repository: string;
-  branch: string;
-  canWrite: boolean;
+export async function listGitHubBranches(tokenOverride?: string, configOverride?: GitHubRepositoryConfig): Promise<string[]> {
+  const token = (tokenOverride || loadGitHubToken()).trim();
+  if (!token) throw new Error('أدخل التوكن واحفظه أولاً.');
+  const config = validateRepositoryConfig(configOverride || loadGitHubRepositoryConfig());
+  const branches = await githubRequest<Array<{ name: string }>>(token, `${repositoryApiPath(config)}/branches?per_page=100`);
+  return branches.map((branch) => branch.name).filter((name) => typeof name === 'string');
+}
+
+export async function testGitHubConnection(tokenOverride?: string, configOverride?: GitHubRepositoryConfig): Promise<{
+  repository: string; branch: string; defaultBranch: string; canWrite: boolean;
 }> {
   const token = (tokenOverride || loadGitHubToken()).trim();
   if (!token) throw new Error('أدخل التوكن واحفظه أولاً.');
+  const config = validateRepositoryConfig(configOverride || loadGitHubRepositoryConfig());
   const repo = await githubRequest<{
-    full_name: string;
-    default_branch: string;
+    full_name: string; default_branch: string; archived?: boolean;
     permissions?: { push?: boolean; admin?: boolean };
-  }>(token, `/repos/${REPOSITORY_OWNER}/${REPOSITORY_NAME}`);
-  if (!repo.permissions?.push) {
-    throw new Error('التوكن متصل، لكنه لا يمتلك صلاحية الكتابة على مستودع UMEDT-DATA.');
-  }
+  }>(token, repositoryApiPath(config));
+  if (repo.archived) throw new Error('المستودع مؤرشف ولا يقبل النشر.');
+  if (!repo.permissions?.push) throw new Error('التوكن متصل، لكنه لا يمتلك صلاحية الكتابة. امنح Contents: Read and write.');
+  await githubRequest<{ object: { sha: string } }>(token, `${repositoryApiPath(config)}${branchRefPath(config.branch)}`);
   return {
-    repository: repo.full_name,
-    branch: repo.default_branch || DEFAULT_BRANCH,
-    canWrite: true
+    repository: repo.full_name, branch: config.branch,
+    defaultBranch: repo.default_branch || DEFAULT_BRANCH, canWrite: true
   };
 }
 
@@ -148,13 +192,12 @@ function encodeBase64Utf8(value: string): string {
  * The data repository's existing push workflow validates and signs the subsequent OTA release.
  */
 export async function publishMasterDataToGitHub(snapshot: MasterDataSnapshot): Promise<{
-  commitSha: string;
-  filesUpdated: number;
-  branch: string;
+  commitSha: string; filesUpdated: number; branch: string; repository: string;
 }> {
   const token = loadGitHubToken();
   if (!token) throw new Error('لا يوجد GitHub Token محفوظ. أضفه من إعدادات إدارة المستودع.');
-  await testGitHubConnection(token);
+  const config = loadGitHubRepositoryConfig();
+  await testGitHubConnection(token, config);
 
   const files: Array<{ path: string; content: string }> = [
     { path: 'data/master/terms.json', content: JSON.stringify(snapshot.terms, null, 2) },
@@ -169,29 +212,26 @@ export async function publishMasterDataToGitHub(snapshot: MasterDataSnapshot): P
     { path: 'data/master/exams.json', content: JSON.stringify(snapshot.exams, null, 2) },
     { path: 'data/master/media-index.json', content: JSON.stringify(snapshot.mediaAssets, null, 2) }
   ];
-  const required = files.slice(0, 5);
-  for (const file of required) {
+  for (const file of files) {
     const parsed = JSON.parse(file.content) as unknown;
     if (!Array.isArray(parsed)) throw new Error(`بيانات غير صالحة في ${file.path}`);
   }
-  if (snapshot.terms.length + snapshot.sentences.length + snapshot.topics.length +
-      snapshot.customAffixes.length + snapshot.customAbbreviations.length === 0) {
-    throw new Error('تم إيقاف النشر لأن مجموع البيانات الأساسية فارغ.');
+  if (files.every((file) => (JSON.parse(file.content) as unknown[]).length === 0)) {
+    throw new Error('تم إيقاف النشر لأن جميع مجموعات البيانات فارغة.');
   }
 
-  const ref = await githubRequest<{ object: { sha: string } }>(
-    token,
-    `/repos/${REPOSITORY_OWNER}/${REPOSITORY_NAME}/git/ref/heads/${DEFAULT_BRANCH}`
-  );
+  const repoPath = repositoryApiPath(config);
+  const refPath = `${repoPath}${branchRefPath(config.branch)}`;
+  const ref = await githubRequest<{ object: { sha: string } }>(token, refPath);
   const parentSha = ref.object.sha;
   const parent = await githubRequest<{ tree: { sha: string } }>(
     token,
-    `/repos/${REPOSITORY_OWNER}/${REPOSITORY_NAME}/git/commits/${parentSha}`
+    `${repoPath}/git/commits/${parentSha}`
   );
   const blobs = await Promise.all(files.map(async (file) => {
     const blob = await githubRequest<{ sha: string }>(
       token,
-      `/repos/${REPOSITORY_OWNER}/${REPOSITORY_NAME}/git/blobs`,
+      `${repoPath}/git/blobs`,
       {
         method: 'POST',
         body: JSON.stringify({
@@ -204,7 +244,7 @@ export async function publishMasterDataToGitHub(snapshot: MasterDataSnapshot): P
   }));
   const tree = await githubRequest<{ sha: string }>(
     token,
-    `/repos/${REPOSITORY_OWNER}/${REPOSITORY_NAME}/git/trees`,
+    `${repoPath}/git/trees`,
     {
       method: 'POST',
       body: JSON.stringify({ base_tree: parent.tree.sha, tree: blobs })
@@ -212,7 +252,7 @@ export async function publishMasterDataToGitHub(snapshot: MasterDataSnapshot): P
   );
   const commit = await githubRequest<{ sha: string }>(
     token,
-    `/repos/${REPOSITORY_OWNER}/${REPOSITORY_NAME}/git/commits`,
+    `${repoPath}/git/commits`,
     {
       method: 'POST',
       body: JSON.stringify({
@@ -222,10 +262,15 @@ export async function publishMasterDataToGitHub(snapshot: MasterDataSnapshot): P
       })
     }
   );
+  const latestRef = await githubRequest<{ object: { sha: string } }>(token, refPath);
+  if (latestRef.object.sha !== parentSha) throw new Error('تغير الفرع أثناء تجهيز النشر. لم يتم تحديث رأس الفرع؛ أعد المحاولة.');
   await githubRequest(
     token,
-    `/repos/${REPOSITORY_OWNER}/${REPOSITORY_NAME}/git/refs/heads/${DEFAULT_BRANCH}`,
+    `${repoPath}/git/refs/heads/${encodeURIComponent(config.branch)}`,
     { method: 'PATCH', body: JSON.stringify({ sha: commit.sha, force: false }) }
   );
-  return { commitSha: commit.sha, filesUpdated: files.length, branch: DEFAULT_BRANCH };
+  return {
+    commitSha: commit.sha, filesUpdated: files.length, branch: config.branch,
+    repository: `${config.owner}/${config.repository}`
+  };
 }

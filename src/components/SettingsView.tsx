@@ -52,7 +52,10 @@ import {
   hasSavedGitHubToken,
   saveGitHubToken,
   clearGitHubToken,
-  testGitHubConnection
+  testGitHubConnection,
+  loadGitHubRepositoryConfig,
+  saveGitHubRepositoryConfig,
+  listGitHubBranches
 } from '../services/githubRepositoryService';
 import {
   LocalDownloadRecord,
@@ -307,6 +310,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isRestoringTelegram, setIsRestoringTelegram] = useState<boolean>(false);
   const [draftGitHubToken, setDraftGitHubToken] = useState<string>('');
   const [hasGitHubToken, setHasGitHubToken] = useState<boolean>(() => hasSavedGitHubToken());
+  const [draftGitHubOwner, setDraftGitHubOwner] = useState<string>(() => loadGitHubRepositoryConfig().owner);
+  const [draftGitHubRepository, setDraftGitHubRepository] = useState<string>(() => loadGitHubRepositoryConfig().repository);
+  const [draftGitHubBranch, setDraftGitHubBranch] = useState<string>(() => loadGitHubRepositoryConfig().branch);
+  const [githubBranches, setGithubBranches] = useState<string[]>([]);
+  const [isLoadingGitHubBranches, setIsLoadingGitHubBranches] = useState<boolean>(false);
   const [isTestingGitHub, setIsTestingGitHub] = useState<boolean>(false);
   const [isPublishingGitHub, setIsPublishingGitHub] = useState<boolean>(false);
   const [githubFeedback, setGithubFeedback] = useState<{ ok: boolean; message: string } | null>(null);
@@ -420,41 +428,49 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  const handleTestGitHub = async () => {
-    setIsTestingGitHub(true);
-    setGithubFeedback(null);
+  const currentGitHubConfig = () => ({
+    owner: draftGitHubOwner.trim(), repository: draftGitHubRepository.trim(), branch: draftGitHubBranch.trim()
+  });
+
+  const handleSaveGitHubRepository = () => {
     try {
-      const result = await testGitHubConnection(draftGitHubToken.trim() || undefined);
-      setGithubFeedback({
-        ok: true,
-        message: `اتصال ناجح: ${result.repository} · الفرع ${result.branch} · صلاحية الكتابة متاحة.`
-      });
-    } catch (error) {
-      setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) });
-    } finally {
-      setIsTestingGitHub(false);
-    }
+      const saved = saveGitHubRepositoryConfig(currentGitHubConfig());
+      setDraftGitHubOwner(saved.owner); setDraftGitHubRepository(saved.repository); setDraftGitHubBranch(saved.branch);
+      setGithubFeedback({ ok: true, message: `تم حفظ ${saved.owner}/${saved.repository} · الفرع ${saved.branch} على هذا الجهاز.` });
+    } catch (error) { setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) }); }
+  };
+
+  const handleLoadGitHubBranches = async () => {
+    setIsLoadingGitHubBranches(true); setGithubFeedback(null);
+    try {
+      const branches = await listGitHubBranches(draftGitHubToken.trim() || undefined, currentGitHubConfig());
+      setGithubBranches(branches);
+      setGithubFeedback({ ok: true, message: `تم جلب ${branches.length} فرعاً من المستودع.` });
+    } catch (error) { setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) }); }
+    finally { setIsLoadingGitHubBranches(false); }
+  };
+
+  const handleTestGitHub = async () => {
+    setIsTestingGitHub(true); setGithubFeedback(null);
+    try {
+      const result = await testGitHubConnection(draftGitHubToken.trim() || undefined, currentGitHubConfig());
+      setGithubFeedback({ ok: true, message: `اتصال ناجح: ${result.repository} · الفرع ${result.branch} موجود · الافتراضي ${result.defaultBranch} · صلاحية الكتابة متاحة.` });
+    } catch (error) { setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) }); }
+    finally { setIsTestingGitHub(false); }
   };
 
   const handlePublishLocalData = async () => {
     if (!onPublishLocalData) return;
-    const confirmed = window.confirm(
-      'سيتم استبدال مجموعات البيانات الرئيسية في UMEDT-DATA بالنسخة المحلية الحالية بالكامل، ثم يبدأ GitHub Actions ببناء إصدار بيانات موقع. هل راجعت بياناتك وتريد المتابعة؟'
-    );
+    const target = currentGitHubConfig();
+    const confirmed = window.confirm(`سيتم استبدال مجموعات البيانات الرئيسية في ${target.owner}/${target.repository} على الفرع ${target.branch} باللقطة المحلية بالكامل. ملفات الوسائط الثنائية لا تُرفع بهذه العملية. هل راجعت البيانات وتريد المتابعة؟`);
     if (!confirmed) return;
-    setIsPublishingGitHub(true);
-    setGithubFeedback(null);
+    setIsPublishingGitHub(true); setGithubFeedback(null);
     try {
+      saveGitHubRepositoryConfig(target);
       const result = await onPublishLocalData();
-      setGithubFeedback({
-        ok: true,
-        message: `تم رفع ${result.filesUpdated} ملفاً في Commit ${result.commitSha.slice(0, 8)} على ${result.branch}. بدأ مسار نشر إصدار البيانات تلقائياً؛ يلزم التحقق من نجاحه في GitHub Actions.`
-      });
-    } catch (error) {
-      setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) });
-    } finally {
-      setIsPublishingGitHub(false);
-    }
+      setGithubFeedback({ ok: true, message: `تم رفع ${result.filesUpdated} ملفاً إلى ${result.repository} في Commit ${result.commitSha.slice(0, 8)} على ${result.branch}. هذا يؤكد إنشاء Commit فقط؛ تحقق من GitHub Actions لإثبات نجاح إصدار البيانات وتوقيعه.` });
+    } catch (error) { setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) }); }
+    finally { setIsPublishingGitHub(false); }
   };
 
   const { isInstallable, isCapacitorNative, install } = usePWAInstall();
@@ -794,6 +810,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           onClick={() => {
             setGithubFeedback(null);
             setDraftGitHubToken('');
+            const config = loadGitHubRepositoryConfig();
+            setDraftGitHubOwner(config.owner); setDraftGitHubRepository(config.repository); setDraftGitHubBranch(config.branch);
+            setGithubBranches([]);
             setHasGitHubToken(hasSavedGitHubToken());
             setActiveModal('github');
           }}
@@ -1449,9 +1468,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </button>
                 </div>
                 <div className="rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 p-3 text-xs text-emerald-900 dark:text-emerald-200 space-y-1">
-                  <div className="flex items-center gap-2 font-bold"><ShieldCheck className="w-4 h-4" /> اتصال مباشر وآمن على Android</div>
-                  <p>المستودع: Alssaedy50/UMEDT-DATA · الصلاحيات المطلوبة: Contents Read and Write فقط.</p>
-                  <p>يُحفظ التوكن مشفراً بواسطة Android Keystore ولا يُخزن كنص مكشوف. لا تشارك هذا التوكن مع أي شخص.</p>
+                  <div className="flex items-center gap-2 font-bold"><ShieldCheck className="w-4 h-4" /> اتصال GitHub مباشر على Android</div>
+                  <p>حدد المستودع والفرع من هنا. يلزم Fine-grained Token بصلاحية Contents: Read and write على المستودع المستهدف.</p>
+                  <p>يُحفظ التوكن مشفراً بواسطة Android Keystore، أما إعدادات المستودع غير السرية فتحفظ محلياً على هذا الجهاز.</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">مستودع البيانات المستهدف</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">Owner
+                      <input type="text" autoCapitalize="none" spellCheck={false} value={draftGitHubOwner} onChange={(e) => setDraftGitHubOwner(e.target.value)} className="mt-1 w-full min-h-[40px] rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2 text-sm font-mono" placeholder="Alssaedy50" />
+                    </label>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">Repository
+                      <input type="text" autoCapitalize="none" spellCheck={false} value={draftGitHubRepository} onChange={(e) => setDraftGitHubRepository(e.target.value)} className="mt-1 w-full min-h-[40px] rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2 text-sm font-mono" placeholder="UMEDT-DATA" />
+                    </label>
+                  </div>
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">Branch
+                    <input type="text" list="umedt-github-branches" autoCapitalize="none" spellCheck={false} value={draftGitHubBranch} onChange={(e) => setDraftGitHubBranch(e.target.value)} className="mt-1 w-full min-h-[40px] rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2 text-sm font-mono" placeholder="main" />
+                    <datalist id="umedt-github-branches">{githubBranches.map((branch) => <option key={branch} value={branch} />)}</datalist>
+                  </label>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={handleSaveGitHubRepository} className="flex-1 min-h-[40px] rounded-lg bg-slate-900 dark:bg-slate-700 text-white text-xs font-bold">حفظ المستودع والفرع</button>
+                    <button type="button" disabled={isLoadingGitHubBranches} onClick={() => void handleLoadGitHubBranches()} className="flex-1 min-h-[40px] rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold disabled:opacity-40">{isLoadingGitHubBranches ? 'يجلب الفروع...' : 'جلب الفروع'}</button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">القيمة الافتراضية: Alssaedy50/UMEDT-DATA · main. تغيير الوجهة لا ينقل أو يحذف البيانات المحلية.</p>
                 </div>
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-200">GitHub Fine-grained Personal Access Token</label>
