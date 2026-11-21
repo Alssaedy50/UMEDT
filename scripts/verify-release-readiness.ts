@@ -1587,123 +1587,83 @@ async function main() {
     `Expected SyncQueue to recover to 'synced' status when connectivity returns, got ${recoveredFlushRes.status}`
   );
 
-  // Sync catalog online and verify >= 25 cloud topics are now fetched over the internet
-  await syncWithRemoteCloudLibrary({
-    localTopics: [],
+  // 16.3 Verify educational content remains device-local after dictionary catalog sync.
+  const previousLocalBlocks = loadMedicalBlocks();
+  const previousLocalSubjects = loadMedicalSubjects();
+  const previousLocalTopics = loadAppState().topics;
+  const previousCloudMirror = loadUnifiedCloudMirror();
+
+  const localOnlyBlock = {
+    id: 'blk-local-only-test',
+    code: 'LOCAL-TEST',
+    titleEn: 'Local Test Block',
+    titleAr: 'بلوك محلي تجريبي',
+    descriptionEn: 'Device-local educational content',
+    descriptionAr: 'محتوى تعليمي محلي على الجهاز',
+    colorAccent: 'emerald',
+    order: 999,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  const localOnlySubject = {
+    id: 'sub-local-only-test',
+    blockId: localOnlyBlock.id,
+    code: 'LOCAL-TEST-01',
+    titleEn: 'Local Test Subject',
+    titleAr: 'مادة محلية تجريبية',
+    descriptionEn: 'Imported locally',
+    descriptionAr: 'مستوردة محلياً',
+    order: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  const localOnlyTopic = {
+    id: 'topic-local-only-test',
+    blockId: localOnlyBlock.id,
+    subjectId: localOnlySubject.id,
+    title: 'Local Test Topic',
+    titleEn: 'Local Test Topic',
+    titleAr: 'موضوع محلي تجريبي',
+    category: 'General' as const,
+    difficulty: 'Intermediate' as const,
+    readingTimeMinutes: 3,
+    favorite: false,
+    sections: [
+      {
+        id: 'section-local-only-test',
+        title: 'Local section',
+        headingEn: 'Local section',
+        headingAr: 'قسم محلي',
+        paragraphs: ['This topic is stored on this device.']
+      }
+    ],
+    images: [],
+    links: [],
+    attachments: [],
+    updatedAt: new Date().toISOString()
+  };
+
+  saveMedicalBlocks([...previousLocalBlocks, localOnlyBlock]);
+  saveMedicalSubjects([...previousLocalSubjects, localOnlySubject]);
+  saveTopics([...previousLocalTopics, localOnlyTopic]);
+
+  const localOnlySync = await syncWithRemoteCloudLibrary({
+    localTopics: [...previousLocalTopics, localOnlyTopic],
     localTerms: initialStateForCloud.terms,
     localSentences: initialStateForCloud.sentences
   });
-  const onlineCatalogView = buildCloudLibraryCatalogView({
-    localTopics: [],
-    localTerms: initialStateForCloud.terms,
-    localSentences: initialStateForCloud.sentences
-  });
   assertCondition(
-    onlineCatalogView.totalCloudTopicsCount >= 1 && onlineCatalogView.blocks.length >= 1,
-    `Expected online synced catalog to have >= 1 topics and >= 1 blocks, got topics=${onlineCatalogView.totalCloudTopicsCount}, blocks=${onlineCatalogView.blocks.length}`
+    localOnlySync.autoMergedTopics.some((topic) => topic.id === localOnlyTopic.id) &&
+      loadMedicalBlocks().some((block) => block.id === localOnlyBlock.id) &&
+      loadMedicalSubjects().some((subject) => subject.id === localOnlySubject.id),
+    'Refreshing the terms-only GitHub dictionary must preserve locally imported blocks, subjects, and topics'
   );
 
-  // 16.4 Selective Download of Individual Topic from Cloud Library (Online) + SHA-256 Deduplication Check
-  const firstPopulatedTopic = onlineCatalogView.blocks
-    .flatMap((b) => b.subjects)
-    .flatMap((s) => s.topics)[0];
-  const firstCloudTopicId = firstPopulatedTopic.id;
-  const downloadSingleTopicRes = await downloadCloudLibraryTarget({
-    targetType: 'topic',
-    targetId: firstCloudTopicId,
-    currentTopics: [],
-    currentTerms: initialStateForCloud.terms,
-    currentSentences: initialStateForCloud.sentences
-  });
-  saveTopics(downloadSingleTopicRes.updatedTopics);
-  assertCondition(
-    downloadSingleTopicRes.success &&
-      downloadSingleTopicRes.downloadedTopicsCount === 1 &&
-      downloadSingleTopicRes.updatedTopics.some((t) => t.id === firstCloudTopicId),
-    'Selective download of a single Topic from Cloud Library must store it in local storage'
-  );
-
-  const downloadedTopicObj = downloadSingleTopicRes.updatedTopics[0];
-  const downloadedTopicHash = await computeEntitySha256('topic', downloadedTopicObj);
-  assertCondition(downloadedTopicHash.length === 64, 'Expected 64-char SHA-256 hex digest');
-
-  // Downloading the same already-downloaded topic again must skip identical SHA-256 content
-  const redundantDownloadRes = await downloadCloudLibraryTarget({
-    targetType: 'topic',
-    targetId: firstCloudTopicId,
-    currentTopics: downloadSingleTopicRes.updatedTopics,
-    currentTerms: downloadSingleTopicRes.updatedTerms,
-    currentSentences: downloadSingleTopicRes.updatedSentences
-  });
-  assertCondition(
-    redundantDownloadRes.success &&
-      redundantDownloadRes.downloadedTopicsCount === 0 &&
-      redundantDownloadRes.skippedIdenticalCount >= 1,
-    'Downloading an already-downloaded topic with matching SHA-256 hash must skip re-downloading identical records'
-  );
-
-  // 16.5 Local-Only Deletion of Topic & Re-Appearance in Cloud Catalog
-  const afterTopicDelete = await deleteCloudLibraryTargetLocally({
-    targetType: 'topic',
-    targetId: firstCloudTopicId,
-    currentTopics: downloadSingleTopicRes.updatedTopics,
-    currentTerms: downloadSingleTopicRes.updatedTerms,
-    currentSentences: initialStateForCloud.sentences
-  });
-  saveTopics(afterTopicDelete.updatedTopics);
-  assertCondition(
-    afterTopicDelete.success &&
-      afterTopicDelete.removedTopicsCount === 1 &&
-      !afterTopicDelete.updatedTopics.some((t) => t.id === firstCloudTopicId),
-    'Local deletion of a Topic must remove it completely from local topics list'
-  );
-
-  const catalogAfterTopicDelete = buildCloudLibraryCatalogView({
-    localTopics: afterTopicDelete.updatedTopics,
-    localTerms: afterTopicDelete.updatedTerms,
-    localSentences: initialStateForCloud.sentences
-  });
-  const deletedTopicCatalogEntry = catalogAfterTopicDelete.blocks
-    .flatMap((b) => b.subjects)
-    .flatMap((s) => s.topics)
-    .find((t) => t.id === firstCloudTopicId);
-  assertCondition(
-    Boolean(deletedTopicCatalogEntry && deletedTopicCatalogEntry.isDownloaded === false),
-    'Locally deleted topic must remain visible in the Cloud Library catalog with isDownloaded === false'
-  );
-
-  // 16.6 Selective Download & Local Deletion of an Entire Block (with its Subjects & Topics)
-  const targetBlockId =
-    onlineCatalogView.blocks.find((b) => b.totalTopicsCount > 0)?.id ||
-    onlineCatalogView.blocks[0].id;
-  const downloadBlockRes = await downloadCloudLibraryTarget({
-    targetType: 'block',
-    targetId: targetBlockId,
-    currentTopics: afterTopicDelete.updatedTopics,
-    currentTerms: afterTopicDelete.updatedTerms,
-    currentSentences: initialStateForCloud.sentences
-  });
-  saveTopics(downloadBlockRes.updatedTopics);
-  assertCondition(
-    downloadBlockRes.success &&
-      loadMedicalBlocks().some((b) => b.id === targetBlockId) &&
-      loadMedicalSubjects().length > 0 &&
-      downloadBlockRes.updatedTopics.length > 0,
-    'Selective download of a Block must download the Block, its Subjects, and its Topics to local storage'
-  );
-
-  const afterBlockDelete = await deleteCloudLibraryTargetLocally({
-    targetType: 'block',
-    targetId: targetBlockId,
-    currentTopics: downloadBlockRes.updatedTopics,
-    currentTerms: downloadBlockRes.updatedTerms,
-    currentSentences: downloadBlockRes.updatedSentences
-  });
-  saveTopics(afterBlockDelete.updatedTopics);
-  assertCondition(
-    afterBlockDelete.success && !loadMedicalBlocks().some((b) => b.id === targetBlockId),
-    'Deleting a Block locally must remove it from local loadMedicalBlocks()'
-  );
+  // Restore the pre-test device state; educational content is never published to UMEDT-DATA.
+  saveMedicalBlocks(previousLocalBlocks);
+  saveMedicalSubjects(previousLocalSubjects);
+  saveTopics(previousLocalTopics);
+  saveUnifiedCloudMirror(previousCloudMirror);
 
   clearLocallyRemovedRegistry();
   console.log(
