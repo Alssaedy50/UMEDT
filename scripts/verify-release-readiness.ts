@@ -2415,6 +2415,35 @@ async function main() {
     saveTerms(seededTerms);
   }
 
+  // Simulate Blocks and Subjects already created by the user inside the app.
+  // The AI importer must preserve these records and only attach generated topics to them.
+  const aiLocalBlock = {
+    id: 'blk-ai-neuro',
+    code: 'BLK-NEURO',
+    titleEn: 'Locally Created Neurology Block',
+    titleAr: 'بلوك الأعصاب المحلي',
+    descriptionEn: 'CNS & PNS',
+    descriptionAr: 'الجهاز العصبي المركزي والطرفي',
+    colorAccent: 'emerald',
+    order: 20,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  const aiLocalSubject = {
+    id: 'subj-ai-neuro',
+    blockId: 'blk-ai-neuro',
+    code: 'NEUR-301',
+    titleEn: 'Locally Created Neuroanatomy',
+    titleAr: 'التشريح العصبي المحلي',
+    descriptionEn: 'Neuroanatomy',
+    descriptionAr: 'التشريح العصبي',
+    order: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  saveMedicalBlocks([...loadMedicalBlocks().filter((item) => item.id !== aiLocalBlock.id), aiLocalBlock]);
+  saveMedicalSubjects([...loadMedicalSubjects().filter((item) => item.id !== aiLocalSubject.id), aiLocalSubject]);
+
   const aiMarkdownPayload = `إليك المحتوى المولّد بالتوافق مع UMEDT:
 \`\`\`json
 {
@@ -2533,9 +2562,11 @@ async function main() {
   const preservedFirstTerm = aiImportRes.updatedState.terms.find((t) => t.id === existingFavoriteTermId);
   assertCondition(
     aiImportRes.success &&
-      aiImportRes.counts.blocks === 1 &&
-      aiImportRes.counts.subjects === 1 &&
+      aiImportRes.counts.blocks === 0 &&
+      aiImportRes.counts.subjects === 0 &&
       aiImportRes.counts.topics === 1 &&
+      aiImportRes.updatedState.blocks.some((block) => block.id === 'blk-ai-neuro' && block.titleEn === 'Locally Created Neurology Block') &&
+      aiImportRes.updatedState.subjects.some((subject) => subject.id === 'subj-ai-neuro' && subject.titleEn === 'Locally Created Neuroanatomy') &&
       aiImportRes.counts.books === 1 &&
       aiImportRes.counts.exams === 1 &&
       aiImportRes.counts.questions === 7 &&
@@ -2543,7 +2574,7 @@ async function main() {
         (preservedFirstTerm?.favorite === true &&
           preservedFirstTerm?.collections?.includes('custom-star-deck') &&
           preservedFirstTerm?.srsData?.interval === 14)),
-    'Universal AI importer must parse Markdown JSON from ChatGPT/Gemini across all entity types while preserving favorite, collections, and SRS progress'
+    'Universal AI importer must parse generated topics against existing local hierarchy, ignore incoming block/subject definitions, and preserve favorite, collections, and SRS progress'
   );
 
   // Deduplication re-import check
