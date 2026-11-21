@@ -697,14 +697,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       }
 
       const quick = lookupQuickWordOrPhraseAr(tEn, terms);
-      const morph = decomposeMedicalWord(tEn, terms);
-      const autoAr =
-        quick?.translationAr ||
-        (morph.synthesizedAr && morph.synthesizedAr !== 'مصطلح أحادي الجذر'
-          ? morph.synthesizedAr
-          : '') ||
-        'مصطلح طبي';
-
       const tAr = (parts[1] || '').trim().replace(/^["']|["']$/g, '') || quick?.translationAr || '';
       if (!tAr || !/[\u0600-\u06FF]/.test(tAr)) {
         rejectedInvalidTerms += 1;
