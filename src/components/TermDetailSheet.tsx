@@ -424,31 +424,27 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
                     شرح مكونات المصطلح
                   </p>
                   <div className="flex items-start gap-2 flex-wrap text-xs leading-relaxed">
-                    {activeDetailTerm.morphology.prefix && (
-                      <span className="inline-flex items-center gap-1">
-                        <b dir="ltr" className="font-mono text-emerald-600 dark:text-emerald-400">{activeDetailTerm.morphology.prefix.affix}</b>
-                        <span>({activeDetailTerm.morphology.prefix.meaningAr}؛ {activeDetailTerm.morphology.prefix.meaningEn})</span>
-                        <span>+</span>
+                    {(activeDetailTerm.morphology.parts?.length
+                      ? activeDetailTerm.morphology.parts
+                      : [
+                          ...(activeDetailTerm.morphology.prefix ? [{ ...activeDetailTerm.morphology.prefix, role: 'prefix' as const }] : []),
+                          ...(activeDetailTerm.morphology.root ? [{ ...activeDetailTerm.morphology.root, role: 'root' as const }] : []),
+                          ...(activeDetailTerm.morphology.suffix ? [{ ...activeDetailTerm.morphology.suffix, role: 'suffix' as const }] : [])
+                        ]
+                    ).map((part, index, all) => (
+                      <span key={`${part.role}-${part.affix}-${index}`} className="inline-flex items-center gap-1">
+                        {index > 0 && <span>+</span>}
+                        <b dir="ltr" className="font-mono text-emerald-600 dark:text-emerald-400">{part.affix}</b>
+                        <span>({part.meaningAr}؛ {part.meaningEn})</span>
                       </span>
-                    )}
-                    <span className="inline-flex items-center gap-1">
-                      <b dir="ltr" className="font-mono text-emerald-600 dark:text-emerald-400">{activeDetailTerm.morphology.root.affix}</b>
-                      <span>({activeDetailTerm.morphology.root.meaningAr}؛ {activeDetailTerm.morphology.root.meaningEn})</span>
-                    </span>
-                    {activeDetailTerm.morphology.suffix && (
-                      <span className="inline-flex items-center gap-1">
-                        <span>+</span>
-                        <b dir="ltr" className="font-mono text-emerald-600 dark:text-emerald-400">{activeDetailTerm.morphology.suffix.affix}</b>
-                        <span>({activeDetailTerm.morphology.suffix.meaningAr}؛ {activeDetailTerm.morphology.suffix.meaningEn})</span>
-                      </span>
-                    )}
+                    ))}
                   </div>
                   <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                     <b>المعنى الناتج من تركيب الأجزاء: </b>
                     {activeDetailTerm.morphology.literalSynthesisAr}
                   </p>
                 </div>
-              )}
+              )}}
             </div>
 
             {/* 3. Contextual Sentences (Clean Divided Rows — No Boxes) */}
