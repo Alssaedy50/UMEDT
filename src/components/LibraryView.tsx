@@ -1772,7 +1772,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 flex items-center justify-between gap-2.5 text-xs">
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <div className="font-extrabold text-slate-900 dark:text-white leading-snug">
-                      حزمة القاموس والسوابق واللواحق السحابية
+                      قاموس المصطلحات السحابي
                     </div>
                     <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 font-mono tabular-nums">
                       {cloudSummary.cloudDictionaryDownloadedCount || 0}/
