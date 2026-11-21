@@ -694,11 +694,18 @@ function normalizeDictionaryTerm(
 ): DictionaryTerm | null {
   const termEn = String(
     raw.term || raw.en || raw.word || raw.titleEn || ''
-  ).trim();
-  if (!termEn) return null;
+  ).trim().replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '').replace(/\s+/g, ' ');
+  const termWords = termEn ? termEn.split(' ') : [];
+  const validTermWord = /^[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*$/;
+  if (
+    termWords.length < 1 ||
+    termWords.length > 2 ||
+    termWords.some((word) => !validTermWord.test(word))
+  ) return null;
   const translation = String(
-    raw.translation || raw.ar || raw.meaning || raw.titleAr || 'مصطلح طبي'
+    raw.translation || raw.ar || raw.meaning || raw.titleAr || ''
   ).trim();
+  if (!translation || !/[\u0600-\u06FF]/.test(translation)) return null;
   const defAr = String(raw.definitionAr || raw.definition || '').trim();
   const defEn = String(raw.definitionEn || '').trim();
 
@@ -730,17 +737,16 @@ function normalizeDictionaryTerm(
   return {
     id: String(raw.id || `u-imp-${Date.now()}-${idx}`),
     term: termEn,
-    termNormalized: termEn.toLowerCase(),
+    termNormalized: termEn.normalize('NFKC').toLowerCase().replace(/\s+/g, ' '),
     translation,
-    phonetic: String(raw.phonetic || `/${termEn.toLowerCase()}/`),
-    pos: String(raw.pos || (termEn.includes(' ') ? 'phrase' : 'noun')),
-    category: asLexiconCategory(raw.category),
-    umdCode: typeof raw.umdCode === 'string' ? raw.umdCode : undefined,
+    phonetic: String(raw.phonetic || raw.pronunciation || ''),
+    pos: 'term',
+    category: 'General',
     keepEnglish: typeof raw.keepEnglish === 'boolean' ? raw.keepEnglish : true,
     favorite: Boolean(raw.favorite),
     collections: Array.isArray(raw.collections)
       ? raw.collections.map((c) => String(c))
-      : ['استيراد ذكي'],
+      : [],
     ingestedAt: String(raw.ingestedAt || 'مستورد الآن'),
     definitionAr: defAr,
     definitionEn: defEn,
