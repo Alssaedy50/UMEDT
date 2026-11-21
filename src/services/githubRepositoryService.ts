@@ -186,7 +186,7 @@ export async function getLatestDataReleaseRun(configOverride?: GitHubRepositoryC
   if (!response.ok) throw new Error(`تعذر قراءة GitHub Actions (HTTP ${response.status}).`);
   const payload = await response.json() as { workflow_runs?: Array<GitHubWorkflowRunSummary & { path?: string }> };
   const runs = Array.isArray(payload.workflow_runs) ? payload.workflow_runs : [];
-  return runs.find((run) => run.path === '.github/workflows/publish-data-release.yml') || null;
+  return runs.find((run) => run.path === '.github/workflows/validate-terms.yml') || null;
 }
 
 export async function testGitHubConnection(tokenOverride?: string, configOverride?: GitHubRepositoryConfig): Promise<{
