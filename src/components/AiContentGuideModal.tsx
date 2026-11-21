@@ -46,7 +46,7 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
   const selectedSubject = availableSubjects.find((item) => item.id === selectedSubjectId);
   const hierarchyReady = Boolean(selectedBlock && selectedSubject && topicTitleEn.trim());
 
-  const topicId = 'tp-' + slugify(topicTitleEn);
+  const topicId = 'tp-' + slugify(selectedSubjectId || selectedBlockId || 'topic') + '-' + slugify(topicTitleEn);
   const topicPrompt = useMemo(() => {
     if (!selectedBlock || !selectedSubject) return '';
     const requestedFeatures = [
@@ -79,7 +79,7 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
       }]
     };
     const questions = includeQuestions ? [{
-      id: 'q-' + slugify(topicTitleEn) + '-1',
+      id: 'q-' + slugify(topicId) + '-1',
       type: 'single_choice',
       blockId: selectedBlock.id,
       subjectId: selectedSubject.id,
@@ -113,11 +113,11 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
       '- Return exactly one valid JSON object. No Markdown fences, preface, commentary, or trailing text.',
       '- The JSON root must contain "topics" and may contain "questions". Do not include "blocks" or "subjects" arrays.',
       '- Use the exact existing blockId and subjectId above. Never create, rename, infer, or modify a Block or Subject.',
-      '- The topic must include id, blockId, subjectId, titleEn, titleAr, category, and sections[].',
+      '- The topic must include id, blockId, subjectId, titleEn, titleAr, category, and sections[]. If titleAr is empty, generate a precise Arabic title instead of leaving it blank.',
       '- Every section must include id, headingEn, headingAr, and contentBlocks[].',
       '- Use only supported content block types: heading, paragraph, table, clinical_note, diagram, image, pdf_viewer, book_reference, exam_link, audio, video, video_link, attachment, question.',
       '- Put English in text and Arabic in textAr. Keep medical terms in standard English alongside accurate Arabic explanations.',
-      '- Do not invent media URLs, books, references, citations, files, or checksums. Only include real, verified resources supplied by the user; otherwise omit them.',
+      '- If the user supplies a lecture PDF or text, use it as the primary source and preserve its teaching sequence where possible. Do not invent media URLs, books, references, citations, files, or checksums. Only include real, verified resources supplied by the user; otherwise omit them.',
       '- Every question must use a supported type, have valid options and correctOptionKeys, and include explanations in both languages.',
       '- Do not include dictionary terms in this topic package. UMEDT automatically links the global dictionary to topic text after import.',
       '- Preserve the exact selected hierarchy IDs.',
