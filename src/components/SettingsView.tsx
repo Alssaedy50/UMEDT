@@ -20,9 +20,6 @@ import {
   Send,
   Type,
   Palette,
-  Github,
-  ShieldCheck,
-  CloudUpload
 } from 'lucide-react';
 import {
   DataBackupRecord,
@@ -48,17 +45,6 @@ import {
   testTelegramConnection,
   uploadPendingMediaToTelegramChannel
 } from '../services/telegramBackupService';
-import {
-  hasSavedGitHubToken,
-  saveGitHubToken,
-  clearGitHubToken,
-  testGitHubConnection,
-  loadGitHubRepositoryConfig,
-  saveGitHubRepositoryConfig,
-  listGitHubBranches,
-  getLatestDataReleaseRun,
-  GitHubWorkflowRunSummary
-} from '../services/githubRepositoryService';
 import {
   LocalDownloadRecord,
   verifyLocalStoragePersistence,
@@ -108,7 +94,6 @@ interface SettingsViewProps {
   onImportPackageFile: (file: File) => void;
   onShareDataFile: () => void;
   onResetDefaults: () => void;
-  onPublishLocalData?: () => Promise<{ commitSha: string; filesUpdated: number; branch: string; repository: string }>;
   lastBackupTime: string;
   telegramConfig?: TelegramBackupConfig;
   onUpdateTelegramConfig?: (nextConfig: TelegramBackupConfig) => void;
@@ -132,7 +117,6 @@ type SettingsModalType =
   | 'conflict'
   | 'backup'
   | 'telegram'
-  | 'github'
   | 'reset';
 
 const FONT_FAMILY_OPTIONS: Array<{
@@ -310,18 +294,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isTestingTelegram, setIsTestingTelegram] = useState<boolean>(false);
   const [isSyncingTelegramMedia, setIsSyncingTelegramMedia] = useState<boolean>(false);
   const [isRestoringTelegram, setIsRestoringTelegram] = useState<boolean>(false);
-  const [draftGitHubToken, setDraftGitHubToken] = useState<string>('');
-  const [hasGitHubToken, setHasGitHubToken] = useState<boolean>(() => hasSavedGitHubToken());
-  const [draftGitHubOwner, setDraftGitHubOwner] = useState<string>(() => loadGitHubRepositoryConfig().owner);
-  const [draftGitHubRepository, setDraftGitHubRepository] = useState<string>(() => loadGitHubRepositoryConfig().repository);
-  const [draftGitHubBranch, setDraftGitHubBranch] = useState<string>(() => loadGitHubRepositoryConfig().branch);
-  const [githubBranches, setGithubBranches] = useState<string[]>([]);
-  const [isLoadingGitHubBranches, setIsLoadingGitHubBranches] = useState<boolean>(false);
-  const [latestGitHubRun, setLatestGitHubRun] = useState<GitHubWorkflowRunSummary | null>(null);
-  const [isCheckingGitHubRun, setIsCheckingGitHubRun] = useState<boolean>(false);
-  const [isTestingGitHub, setIsTestingGitHub] = useState<boolean>(false);
-  const [isPublishingGitHub, setIsPublishingGitHub] = useState<boolean>(false);
-  const [githubFeedback, setGithubFeedback] = useState<{ ok: boolean; message: string } | null>(null);
   const [telegramFeedback, setTelegramFeedback] = useState<{
     ok: boolean;
     message: string;
@@ -419,80 +391,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const saved = saveTelegramBackupConfig(nextCfg);
     onUpdateTelegramConfig?.(saved);
     return saved;
-  };
-
-  const handleSaveGitHubToken = () => {
-    try {
-      saveGitHubToken(draftGitHubToken);
-      setDraftGitHubToken('');
-      setHasGitHubToken(true);
-      setGithubFeedback({ ok: true, message: 'تم تشفير التوكن وحفظه بواسطة Android Keystore على هذا الجهاز.' });
-    } catch (error) {
-      setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) });
-    }
-  };
-
-  const currentGitHubConfig = () => ({
-    owner: draftGitHubOwner.trim(), repository: draftGitHubRepository.trim(), branch: draftGitHubBranch.trim()
-  });
-
-  const handleSaveGitHubRepository = () => {
-    try {
-      const saved = saveGitHubRepositoryConfig(currentGitHubConfig());
-      setDraftGitHubOwner(saved.owner); setDraftGitHubRepository(saved.repository); setDraftGitHubBranch(saved.branch);
-      setGithubFeedback({ ok: true, message: `تم حفظ ${saved.owner}/${saved.repository} · الفرع ${saved.branch} على هذا الجهاز.` });
-    } catch (error) { setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) }); }
-  };
-
-  const handleLoadGitHubBranches = async () => {
-    setIsLoadingGitHubBranches(true); setGithubFeedback(null);
-    try {
-      const branches = await listGitHubBranches(draftGitHubToken.trim() || undefined, currentGitHubConfig());
-      setGithubBranches(branches);
-      setGithubFeedback({ ok: true, message: `تم جلب ${branches.length} فرعاً من المستودع.` });
-    } catch (error) { setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) }); }
-    finally { setIsLoadingGitHubBranches(false); }
-  };
-
-  const handleCheckGitHubActions = async () => {
-    setIsCheckingGitHubRun(true);
-    setGithubFeedback(null);
-    try {
-      const run = await getLatestDataReleaseRun(currentGitHubConfig());
-      setLatestGitHubRun(run);
-      setGithubFeedback({
-        ok: true,
-        message: run ? `آخر تشغيل للنشر: ${run.status} · ${run.conclusion || 'لم تكتمل النتيجة بعد'} · Run #${run.run_number}.` : 'لا توجد تشغيلات نشر لهذا الفرع حتى الآن.'
-      });
-    } catch (error) {
-      setLatestGitHubRun(null);
-      setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) });
-    } finally {
-      setIsCheckingGitHubRun(false);
-    }
-  };
-
-  const handleTestGitHub = async () => {
-    setIsTestingGitHub(true); setGithubFeedback(null);
-    try {
-      const result = await testGitHubConnection(draftGitHubToken.trim() || undefined, currentGitHubConfig());
-      setGithubFeedback({ ok: true, message: `اتصال ناجح: ${result.repository} · الفرع ${result.branch} موجود · الافتراضي ${result.defaultBranch} · صلاحية الكتابة متاحة.${result.isPublic ? ' السحب العام متاح.' : ' تنبيه: المستودع خاص؛ السحب الحالي عبر Raw يتطلب مستودعاً عاماً.'}`, });
-    } catch (error) { setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) }); }
-    finally { setIsTestingGitHub(false); }
-  };
-
-  const handlePublishLocalData = async () => {
-    if (!onPublishLocalData) return;
-    const target = currentGitHubConfig();
-    const confirmed = window.confirm(`سيتم استبدال مجموعات البيانات الرئيسية في ${target.owner}/${target.repository} على الفرع ${target.branch} باللقطة المحلية بالكامل. ملفسيتم إضافة المصطلحات المحلية الجديدة فقط دون استبدال أي سجل سحابي موجود. تأكد من مراجعة الترجمات والتعاريف والأمثلة قبل النشر. هل تريد المتابعة؟`);
-    if (!confirmed) return;
-    setIsPublishingGitHub(true); setGithubFeedback(null);
-    try {
-      saveGitHubRepositoryConfig(target);
-      const result = await onPublishLocalData();
-      setGithubFeedback({ ok: true, message: `تم رفع ${result.filesUpdated} ملفاً إلى ${result.repository} في Commit ${result.commitSha.slice(0, 8)} على ${result.branch}. هذا يؤكد إنشاء Commit فقط؛ تحقق من GitHub Actions للتأكد من اجتياز فحص المصطلحات وتحديث فهرس القاموس.` });
-    } catch (error) { setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) }); }
-    finally { setIsPublishingGitHub(false); }
   };
 
   const { isInstallable, isCapacitorNative, install } = usePWAInstall();
@@ -821,32 +719,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               (telegramConfig?.chatId || draftChatId).trim()
                 ? SCHEDULE_LABELS_AR[telegramConfig?.schedule || 'daily']
                 : 'إعداد'}
-            </span>
-            <ChevronLeft className="w-4 h-4" />
-          </div>
-        </button>
-
-        {/* 3b. Direct GitHub repository management */}
-        <button
-          type="button"
-          onClick={() => {
-            setGithubFeedback(null);
-            setDraftGitHubToken('');
-            const config = loadGitHubRepositoryConfig();
-            setDraftGitHubOwner(config.owner); setDraftGitHubRepository(config.repository); setDraftGitHubBranch(config.branch);
-            setGithubBranches([]);
-            setHasGitHubToken(hasSavedGitHubToken());
-            setActiveModal('github');
-          }}
-          className="w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-right"
-        >
-          <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
-            <Github className="w-4 h-4 text-slate-700 dark:text-slate-200 shrink-0" />
-            <span>مستودع GitHub</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
-            <span className={hasGitHubToken ? 'text-emerald-600 dark:text-emerald-400' : ''}>
-              {hasGitHubToken ? 'توكن محفوظ' : 'إعداد'}
             </span>
             <ChevronLeft className="w-4 h-4" />
           </div>
@@ -1474,94 +1346,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </button>
                   )}
                 </div>
-              </>
-            )}
-
-            {/* Modal: Direct GitHub Repository Management */}
-            {activeModal === 'github' && (
-              <>
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <Github className="w-4 h-4" />
-                    <span className="text-sm font-extrabold text-slate-900 dark:text-white">إدارة مستودع البيانات</span>
-                  </div>
-                  <button type="button" onClick={() => setActiveModal(null)} className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg text-slate-400">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 p-3 text-xs text-emerald-900 dark:text-emerald-200 space-y-1">
-                  <div className="flex items-center gap-2 font-bold"><ShieldCheck className="w-4 h-4" /> اتصال GitHub مباشر على Android</div>
-                  <p>حدد المستودع والفرع من هنا. تنزيل القاموس من المستودع العام لا يحتاج Token؛ يلزم Fine-grained Token بصلاحية Contents: Read and write فقط إذا أردت نشر مصطلحات جديدة من هذا الجهاز.</p>
-                  <p>يُحفظ التوكن مشفراً بواسطة Android Keystore، أما إعدادات المستودع غير السرية فتحفظ محلياً على هذا الجهاز.</p>
-                </div>
-                <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
-                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">مستودع البيانات المستهدف</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">Owner
-                      <input type="text" autoCapitalize="none" spellCheck={false} value={draftGitHubOwner} onChange={(e) => setDraftGitHubOwner(e.target.value)} className="mt-1 w-full min-h-[40px] rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2 text-sm font-mono" placeholder="Alssaedy50" />
-                    </label>
-                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">Repository
-                      <input type="text" autoCapitalize="none" spellCheck={false} value={draftGitHubRepository} onChange={(e) => setDraftGitHubRepository(e.target.value)} className="mt-1 w-full min-h-[40px] rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2 text-sm font-mono" placeholder="UMEDT-DATA" />
-                    </label>
-                  </div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">Branch
-                    <input type="text" list="umedt-github-branches" autoCapitalize="none" spellCheck={false} value={draftGitHubBranch} onChange={(e) => setDraftGitHubBranch(e.target.value)} className="mt-1 w-full min-h-[40px] rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2 text-sm font-mono" placeholder="main" />
-                    <datalist id="umedt-github-branches">{githubBranches.map((branch) => <option key={branch} value={branch} />)}</datalist>
-                  </label>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={handleSaveGitHubRepository} className="flex-1 min-h-[40px] rounded-lg bg-slate-900 dark:bg-slate-700 text-white text-xs font-bold">حفظ المستودع والفرع</button>
-                    <button type="button" disabled={isLoadingGitHubBranches} onClick={() => void handleLoadGitHubBranches()} className="flex-1 min-h-[40px] rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold disabled:opacity-40">{isLoadingGitHubBranches ? 'يجلب الفروع...' : 'جلب الفروع'}</button>
-                  </div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">القيمة الافتراضية: Alssaedy50/UMEDT-DATA · main. تغيير الوجهة لا ينقل أو يحذف البيانات المحلية.</p>
-                  {draftGitHubOwner.toLowerCase() === 'alssaedy50' && draftGitHubRepository.toLowerCase() === 'umedt-data' && draftGitHubBranch !== 'main' && (
-                    <p className="text-[10px] leading-5 text-amber-700 dark:text-amber-300">تنبيه: التحقق التلقائي يعمل على main وعند فتح Pull Request؛ تأكد من دمج التحديث إلى main حتى يقرأه التطبيق.</p>
-                  )}
-                </div>
-                <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
-                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">حالة التحقق من قاموس المصطلحات</div>
-                  <button type="button" disabled={isCheckingGitHubRun} onClick={() => void handleCheckGitHubActions()} className="w-full min-h-[40px] rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold disabled:opacity-40">
-                    {isCheckingGitHubRun ? 'يفحص التحقق...' : 'فحص آخر تشغيل للتحقق من المصطلحات'}
-                  </button>
-                  {latestGitHubRun && (
-                    <div className="space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
-                      <div>Run #{latestGitHubRun.run_number} · {latestGitHubRun.status} · {latestGitHubRun.conclusion || 'قيد التنفيذ'}</div>
-                      <div className="font-mono break-all">Commit: {latestGitHubRun.head_sha.slice(0, 12)}</div>
-                      <a href={latestGitHubRun.html_url} target="_blank" rel="noreferrer" className="inline-flex min-h-[32px] items-center text-sky-600 dark:text-sky-400 underline">فتح تفاصيل GitHub Actions</a>
-                    </div>
-                  )}
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">فحص الحالة يقرأ سجل Workflow العام؛ يوضح اجتياز التحقق البنيوي والتكرار، ولا يغني عن المراجعة اللغوية للمصطلحات.</p>
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200">GitHub Token (اختياري للنشر من الجهاز)</label>
-                  <input
-                    type="password"
-                    autoComplete="off"
-                    value={draftGitHubToken}
-                    onChange={(e) => setDraftGitHubToken(e.target.value)}
-                    placeholder={hasGitHubToken ? 'يوجد توكن محفوظ — أدخل بديلاً لتغييره' : 'أدخل التوكن إذا أردت النشر من هذا الجهاز'}
-                    className="w-full min-h-[44px] rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 text-sm font-mono outline-none focus:border-emerald-500"
-                  />
-                  <div className="flex gap-2">
-                    <button type="button" disabled={!draftGitHubToken.trim()} onClick={handleSaveGitHubToken} className="flex-1 min-h-[42px] rounded-xl bg-emerald-600 text-white text-xs font-extrabold disabled:opacity-40">حفظ مشفر</button>
-                    <button type="button" disabled={isTestingGitHub || (!draftGitHubToken.trim() && !hasGitHubToken)} onClick={() => void handleTestGitHub()} className="flex-1 min-h-[42px] rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-extrabold disabled:opacity-40">{isTestingGitHub ? 'يفحص...' : 'اختبار الاتصال'}</button>
-                  </div>
-                  {hasGitHubToken && (
-                    <button type="button" onClick={() => { clearGitHubToken(); setHasGitHubToken(false); setGithubFeedback({ ok: true, message: 'تم مسح التوكن المحفوظ من هذا الجهاز.' }); }} className="w-full min-h-[38px] rounded-xl border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-300 text-xs font-bold">مسح التوكن المحفوظ</button>
-                  )}
-                </div>
-                <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
-                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">نشر المصطلحات المحلية إلى القاموس السحابي</div>
-                  <p className="text-[11px] leading-5 text-slate-500 dark:text-slate-400">يرفع المصطلحات المحلية فقط إلى data/master/terms.json. يجب أن يحتوي كل مصطلح على كلمة أو كلمتين إنجليزيتين، وترجمة عربية، ونطق، وتعريف باللغتين، ومثال باللغتين. تُضاف المصطلحات الجديدة فقط؛ لا تُستبدل المصطلحات السحابية الموجودة ولا تُرفع المواضيع أو المواد أو الوسائط أو بيانات المستخدم.</p>
-                  <button type="button" disabled={!hasGitHubToken || !onPublishLocalData || isPublishingGitHub} onClick={() => void handlePublishLocalData()} className="w-full min-h-[46px] rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold flex items-center justify-center gap-2 disabled:opacity-40">
-                    <CloudUpload className="w-4 h-4" />
-                    {isPublishingGitHub ? 'جاري رفع البيانات...' : 'نشر المصطلحات المحلية فقط'}
-                  </button>
-                </div>
-                {githubFeedback && (
-                  <div className={`rounded-xl p-3 text-xs leading-5 ${githubFeedback.ok ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200' : 'bg-rose-50 text-rose-800 dark:bg-rose-950/30 dark:text-rose-200'}`}>
-                    {githubFeedback.message}
-                  </div>
-                )}
               </>
             )}
 
