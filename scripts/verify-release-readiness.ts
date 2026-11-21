@@ -271,6 +271,7 @@ async function main() {
   const aiGeneratorContent = fs.readFileSync(aiGeneratorPath, 'utf8');
   const aiImporterContent = fs.readFileSync(aiImporterPath, 'utf8');
   const libraryImportContent = fs.readFileSync(libraryImportPath, 'utf8');
+  const topicsHubImportContent = fs.readFileSync(path.join(ROOT_DIR, 'src', 'components', 'TopicsHub.tsx'), 'utf8');
   assertCondition(
     aiGeneratorContent.includes("type GeneratorMode = 'topic' | 'terms'") &&
       aiGeneratorContent.includes('Do not include "blocks" or "subjects" arrays') &&
@@ -289,6 +290,11 @@ async function main() {
   assertCondition(
     libraryImportContent.includes('syncToCloud: false'),
     'AI/file import from LibraryView must not enqueue imported content for cloud synchronization'
+  );
+  assertCondition(
+    !topicsHubImportContent.includes('enqueueEntitiesForCloudSync({ blocks:') &&
+      !topicsHubImportContent.includes('enqueueEntitiesForCloudSync({ subjects:'),
+    'Block and Subject create/update UI must keep hierarchy records device-local'
   );
   console.log('[PASS] 3b. Two-path AI generator, local hierarchy enforcement, and local-only import verified');
 
