@@ -3699,29 +3699,24 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         {/* Focused Reading Canvas (Full Width, Zero Clutter) */}
         <article
           ref={articleProseRef}
-          onDoubleClick={(e) => {
-            const word = extractWordAtPoint(e.clientX, e.clientY);
-            inspectUserSelection(word || undefined);
+          onClick={(e) => {
+            const tappedWord = extractWordAtPoint(e.clientX, e.clientY);
+            if (tappedWord && findTermForSelectedString(tappedWord)) {
+              inspectUserSelection(tappedWord);
+            }
           }}
           onMouseUp={() => {
             setTimeout(() => inspectUserSelection(), 30);
           }}
           onTouchEnd={(e) => {
             const touch = e.changedTouches?.[0];
-            const now = Date.now();
             if (touch) {
-              const dt = now - lastTapRef.current.time;
-              const dx = Math.abs(touch.clientX - lastTapRef.current.x);
-              const dy = Math.abs(touch.clientY - lastTapRef.current.y);
-              if (dt > 0 && dt < 360 && dx < 36 && dy < 36) {
-                const tappedWord = extractWordAtPoint(touch.clientX, touch.clientY);
-                if (tappedWord) {
-                  inspectUserSelection(tappedWord);
-                  lastTapRef.current = { time: 0, x: 0, y: 0 };
-                  return;
-                }
+              const selected = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
+              const tappedWord = selected || extractWordAtPoint(touch.clientX, touch.clientY);
+              if (tappedWord && findTermForSelectedString(tappedWord)) {
+                inspectUserSelection(tappedWord);
+                return;
               }
-              lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
             }
             setTimeout(() => inspectUserSelection(), 120);
           }}
