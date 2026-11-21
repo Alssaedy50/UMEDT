@@ -2379,6 +2379,19 @@ async function main() {
         ),
       'Explicit dictionary download must install normalized terms with translation, pronunciation, bilingual definition, and example'
     );
+
+    const prefetchedMediaKey = `idb-${computeDeterministicFastHashHex(mockBookPdfUrl).slice(0, 16)}`;
+    const mediaPrefetch = await downloadRemoteMediaToOfflineCache({
+      id: prefetchedMediaKey,
+      remoteUrl: mockBookPdfUrl,
+      fileName: 'cardio_atlas.pdf',
+      mimeType: 'application/pdf',
+      customFetch: mockUmedtFetch
+    });
+    assertCondition(
+      mediaPrefetch.success && Boolean(await getLocalMediaRecord(prefetchedMediaKey)),
+      'Independent local media cache must remain available for imported educational topics and standalone exports'
+    );
   } finally {
     globalThis.fetch = originalFetchForUmedt;
   }
