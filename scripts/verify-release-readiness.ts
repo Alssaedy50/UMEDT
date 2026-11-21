@@ -4221,10 +4221,11 @@ async function main() {
       'utf8'
     );
     assertCondition(
-      aiGuideSource.includes('READY-TO-COPY ENGLISH PROMPT') &&
-        aiGuideSource.includes('targetScope') &&
-        aiGuideSource.includes('termsCount') &&
-        aiGuideSource.includes('topicsCoverage') &&
+      aiGuideSource.includes("type GeneratorMode = 'topic' | 'terms'") &&
+        aiGuideSource.includes('topicPrompt') &&
+        aiGuideSource.includes('termsPrompt') &&
+        aiGuideSource.includes('selectedBlock.id') &&
+        aiGuideSource.includes('selectedSubject.id') &&
         libraryViewSource.includes("activeIngestModal === 'manual_term'") &&
         libraryViewSource.includes("activeIngestModal === 'file_upload'") &&
         libraryViewSource.includes("activeIngestModal === 'paste_text'") &&
