@@ -853,11 +853,11 @@ export function mergeRecordsIntoCloudSnapshot(
 
   const termsMap = new Map(current.terms.map((t) => [t.id, t]));
   const termByNormName = new Map(
-    current.terms.map((t) => [(t.termNormalized || t.term).toLowerCase(), t.id])
+    current.terms.map((t) => [normalizeDictionaryTermKey(t.termNormalized || t.term), t.id])
   );
   for (const term of incoming.terms || []) {
     if (!term || !term.term) continue;
-    const norm = (term.termNormalized || term.term).trim().toLowerCase();
+    const norm = normalizeDictionaryTermKey(term.termNormalized || term.term);
     const resolvedId = termsMap.has(term.id)
       ? term.id
       : termByNormName.get(norm) || term.id;
@@ -1487,6 +1487,55 @@ async function fetchUmedtDataJsonWithFallback(
   return null;
 }
 
+function normalizeDictionaryTermKey(value: string): string {
+  return String(value || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/[‐‑‒–—]/g, '-')
+    .replace(/[^a-z0-9'-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeTermsOnlyRecord(raw: unknown): DictionaryTerm | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const item = raw as Record<string, unknown>;
+  const term = typeof item.term === 'string' ? item.term.trim().replace(/\s+/g, ' ') : '';
+  const words = term ? term.split(' ') : [];
+  const wordPattern = /^[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*$/;
+  if (!term || words.length < 1 || words.length > 2 || words.some((word) => !wordPattern.test(word))) return null;
+  const translation = typeof item.translation === 'string' ? item.translation.trim() : '';
+  const pronunciation = typeof item.pronunciation === 'string'
+    ? item.pronunciation.trim()
+    : typeof item.phonetic === 'string' ? item.phonetic.trim() : '';
+  const definitionEn = typeof item.definitionEn === 'string' ? item.definitionEn.trim() : '';
+  const definitionAr = typeof item.definitionAr === 'string' ? item.definitionAr.trim() : '';
+  const exampleEn = typeof item.exampleEn === 'string' ? item.exampleEn.trim() : '';
+  const exampleAr = typeof item.exampleAr === 'string' ? item.exampleAr.trim() : '';
+  if (!translation || !pronunciation || !definitionEn || !definitionAr || !exampleEn || !exampleAr) return null;
+  const normalized = normalizeDictionaryTermKey(term);
+  const slug = normalized.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  return {
+    ...(item as unknown as DictionaryTerm),
+    id: typeof item.id === 'string' && item.id.trim() ? item.id : `term-${slug}`,
+    term,
+    termNormalized: normalized,
+    translation,
+    phonetic: pronunciation,
+    pos: 'term',
+    category: 'General',
+    keepEnglish: true,
+    favorite: false,
+    collections: [],
+    ingestedAt: typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString().slice(0, 10),
+    definitionEn,
+    definitionAr,
+    examples: [{ en: exampleEn, ar: exampleAr }],
+    relations: { synonyms: [], broader: [], related: [] }
+  };
+}
+
 function extractCollectionArray<T>(raw: unknown, keyHint: string): T[] {
   if (Array.isArray(raw)) return raw as T[];
   if (raw && typeof raw === 'object') {
@@ -1753,7 +1802,9 @@ export async function syncFromUmedtDataRepository(options?: {
       rtLower === 'lexicon_term' ||
       rtLower === 'lexicon_entry'
     ) {
-      incoming.terms = extractCollectionArray<DictionaryTerm>(parsedJson, 'terms');
+      incoming.terms = extractCollectionArray<unknown>(parsedJson, 'terms')
+        .map(normalizeTermsOnlyRecord)
+        .filter((term): term is DictionaryTerm => Boolean(term));
     } else if (
       idLower === 'sentences' ||
       ctLower === 'sentence' ||
