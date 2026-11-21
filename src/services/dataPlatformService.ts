@@ -393,7 +393,7 @@ function validateTermEntry(raw: unknown, index: number, errors: string[]): Dicti
       ? item.termNormalized.trim().toLowerCase()
       : termStr.toLowerCase(),
     translation: translationStr,
-    phonetic: isNonEmptyString(item.phonetic) ? item.phonetic.trim() : '/.../',
+    phonetic: isNonEmptyString(item.phonetic) ? item.phonetic.trim() : isNonEmptyString(item.pronunciation) ? item.pronunciation.trim() : '/.../',
     pos: isNonEmptyString(item.pos) ? item.pos.trim() : 'Noun · مصطلح طبي',
     category: normalizeLexiconCategory(item.category),
     specialty: isNonEmptyString(item.specialty) ? item.specialty.trim() : undefined,
@@ -417,7 +417,12 @@ function validateTermEntry(raw: unknown, index: number, errors: string[]): Dicti
             ar: isNonEmptyString(e.ar) ? e.ar.trim() : ''
           };
         })
-      : [],
+      : (isNonEmptyString(item.exampleEn)
+          ? [{
+              en: item.exampleEn.trim(),
+              ar: isNonEmptyString(item.exampleAr) ? item.exampleAr.trim() : ''
+            }]
+          : []),
     relations: {
       synonyms: Array.isArray(relObj.synonyms) ? relObj.synonyms.map(String) : [],
       broader: Array.isArray(relObj.broader) ? relObj.broader.map(String) : [],
@@ -5212,6 +5217,7 @@ export function resolveTermConflictRecord(
     ),
     srsData: existing.srsData || incoming.srsData,
     examples: mergedExamples,
+    morphology: incoming.morphology || existing.morphology,
     relations: mergedRelations
   };
 }
