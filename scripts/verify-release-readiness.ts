@@ -2241,6 +2241,7 @@ async function main() {
   setCloudSyncSimulatedOffline(false);
 
   const termsUrl = 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/terms.json';
+  const mockBookPdfUrl = 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/media/cardio_atlas.pdf';
   const canonicalTermsFixture = [
     {
       id: 'term-cardiomyocyte',
