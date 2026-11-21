@@ -218,6 +218,12 @@ function encodeBase64Utf8(value: string): string {
   return btoa(binary);
 }
 
+function decodeBase64Utf8(value: string): string {
+  const binary = atob(value.replace(/\s/g, ''));
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
 /**
  * Publishes only reviewed dictionary terms to the terms-only UMEDT-DATA repository.
  * Educational content and local user data are never written to the cloud dictionary.
@@ -280,9 +286,47 @@ export async function publishMasterDataToGitHub(snapshot: MasterDataSnapshot): P
       updatedAt: new Date().toISOString()
     };
   });
-  if (!terms.length) throw new Error('لا توجد مصطلحات للنشر. لن يتم استبدال القاموس السحابي بقائمة فارغة.');
+  if (!terms.length) throw new Error('لا توجد مصطلحات محلية جديدة للنشر.');
 
-  const file = { path: 'data/master/terms.json', content: JSON.stringify(terms, null, 2) + '\n' };
+  // Read the current cloud dictionary and append only genuinely new terms.
+  // Existing cloud records are never replaced by a device snapshot.
+  const remoteResponse = await fetch(getConfiguredGitHubRawUrl('data/master/terms.json'), {
+    headers: { Accept: 'application/json' },
+    cache: 'no-store'
+  });
+  if (!remoteResponse.ok) throw new Error(`تعذر قراءة القاموس السحابي قبل الإضافة (HTTP ${remoteResponse.status}).`);
+  const remoteJson = await remoteResponse.json() as unknown;
+  if (!Array.isArray(remoteJson)) throw new Error('ملف المصطلحات السحابي ليس مصفوفة JSON صالحة.');
+  const mergedTerms = [...remoteJson] as Array<Record<string, unknown>>;
+  const remoteByKey = new Map<string, Record<string, unknown>>();
+  for (const remoteTerm of mergedTerms) {
+    const remoteName = typeof remoteTerm.term === 'string' ? remoteTerm.term : '';
+    const remoteKey = normalize(remoteName);
+    if (!remoteKey) throw new Error('يوجد سجل غير صالح في القاموس السحابي؛ أوقفنا الإضافة لحماية البيانات.');
+    if (remoteByKey.has(remoteKey)) throw new Error(`القاموس السحابي يحتوي بالفعل على تكرار للمصطلح "${remoteName}".`);
+    remoteByKey.set(remoteKey, remoteTerm);
+  }
+
+  const additions: typeof terms = [];
+  const comparableFields = ['term', 'definitionEn', 'definitionAr', 'translation', 'pronunciation', 'exampleEn', 'exampleAr'] as const;
+  for (const localTerm of terms) {
+    const key = normalize(localTerm.term);
+    const existing = remoteByKey.get(key);
+    if (!existing) {
+      additions.push(localTerm);
+      continue;
+    }
+    const sameMeaning = comparableFields.every((field) =>
+      String(existing[field] ?? '').trim() === String(localTerm[field] ?? '').trim()
+    );
+    if (!sameMeaning) {
+      throw new Error(`المصطلح "${localTerm.term}" موجود سحابياً لكن بياناته تختلف. لم نستبدل الترجمة أو التعريف؛ راجع السجل يدوياً أولاً.`);
+    }
+  }
+  if (!additions.length) throw new Error('كل المصطلحات المحلية موجودة بالفعل في القاموس السحابي؛ لم تُجرَ أي كتابة.');
+
+  const nextCloudTerms = [...mergedTerms, ...additions];
+  const file = { path: 'data/master/terms.json', content: JSON.stringify(nextCloudTerms, null, 2) + '\n' };
   const repoPath = repositoryApiPath(config);
   const refPath = `${repoPath}${branchRefPath(config.branch)}`;
   const ref = await githubRequest<{ object: { sha: string } }>(token, refPath);
