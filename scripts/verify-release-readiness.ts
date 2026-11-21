@@ -1667,7 +1667,7 @@ async function main() {
 
   clearLocallyRemovedRegistry();
   console.log(
-    '[PASS] 16. Post-Install Dictionary-Only State, Unified Cloud Library, Automatic Sync Queue, SHA-256 Deduplication, Selective Download & Local Deletion Verified'
+    '[PASS] 16. Terms-Only Cloud Source, Local Educational Content Preservation, Automatic Sync Queue & SHA-256 Deduplication Verified'
   );
 
   // ==========================================================================
