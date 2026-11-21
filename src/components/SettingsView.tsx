@@ -1514,13 +1514,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400">القيمة الافتراضية: Alssaedy50/UMEDT-DATA · main. تغيير الوجهة لا ينقل أو يحذف البيانات المحلية.</p>
                   {draftGitHubOwner.toLowerCase() === 'alssaedy50' && draftGitHubRepository.toLowerCase() === 'umedt-data' && draftGitHubBranch !== 'main' && (
-                    <p className="text-[10px] leading-5 text-amber-700 dark:text-amber-300">تنبيه: Workflow نشر بيانات UMEDT-DATA الحالي يعمل تلقائياً عند التحديث على main فقط؛ النشر على فرع آخر لن يبدأ إصدار OTA تلقائياً.</p>
+                    <p className="text-[10px] leading-5 text-amber-700 dark:text-amber-300">تنبيه: التحقق التلقائي يعمل على main وعند فتح Pull Request؛ تأكد من دمج التحديث إلى main حتى يقرأه التطبيق.</p>
                   )}
                 </div>
                 <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
-                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">حالة GitHub Actions</div>
+                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">حالة التحقق من قاموس المصطلحات</div>
                   <button type="button" disabled={isCheckingGitHubRun} onClick={() => void handleCheckGitHubActions()} className="w-full min-h-[40px] rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold disabled:opacity-40">
-                    {isCheckingGitHubRun ? 'يفحص تشغيل النشر...' : 'فحص آخر تشغيل لنشر البيانات'}
+                    {isCheckingGitHubRun ? 'يفحص التحقق...' : 'فحص آخر تشغيل للتحقق من المصطلحات'}
                   </button>
                   {latestGitHubRun && (
                     <div className="space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
@@ -1550,11 +1550,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   )}
                 </div>
                 <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
-                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">نشر بيانات الجهاز إلى المكتبة السحابية</div>
-                  <p className="text-[11px] leading-5 text-slate-500 dark:text-slate-400">يرفع لقطة كاملة من مجموعات المصطلحات والجمل والمواضيع والبلوكات والمواد والكتب والأسئلة والاختبارات وفهرس الوسائط إلى ملفات data/master. هذا استبدال شامل لمجموعات المصدر، وليس رفعاً جزئياً. الوسائط الثنائية نفسها لا تُرفع بهذه العملية.</p>
+                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">نشر المصطلحات المحلية إلى القاموس السحابي</div>
+                  <p className="text-[11px] leading-5 text-slate-500 dark:text-slate-400">يرفع المصطلحات المحلية فقط إلى data/master/terms.json. يجب أن يحتوي كل مصطلح على كلمة أو كلمتين إنجليزيتين، وترجمة عربية، ونطق، وتعريف باللغتين، ومثال باللغتين. لا تُرفع المواضيع أو المواد أو الوسائط أو بيانات المستخدم.</p>
                   <button type="button" disabled={!hasGitHubToken || !onPublishLocalData || isPublishingGitHub} onClick={() => void handlePublishLocalData()} className="w-full min-h-[46px] rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold flex items-center justify-center gap-2 disabled:opacity-40">
                     <CloudUpload className="w-4 h-4" />
-                    {isPublishingGitHub ? 'جاري رفع البيانات...' : 'نشر لقطة البيانات المحلية'}
+                    {isPublishingGitHub ? 'جاري رفع البيانات...' : 'نشر المصطلحات المحلية فقط'}
                   </button>
                 </div>
                 {githubFeedback && (
