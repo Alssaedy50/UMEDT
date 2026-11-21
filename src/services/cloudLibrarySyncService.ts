@@ -1807,9 +1807,12 @@ export async function syncFromUmedtDataRepository(options?: {
       rtLower === 'lexicon_term' ||
       rtLower === 'lexicon_entry'
     ) {
-      const normalizedTerms = extractCollectionArray<unknown>(parsedJson, 'terms')
-        .map(normalizeTermsOnlyRecord)
-        .filter((term): term is DictionaryTerm => Boolean(term));
+      const rawTermRecords = extractCollectionArray<unknown>(parsedJson, 'terms');
+      const normalizedTermRecords = rawTermRecords.map(normalizeTermsOnlyRecord);
+      if (normalizedTermRecords.some((term) => !term)) {
+        throw new Error('The cloud dictionary contains an invalid term record. The entire terms collection was rejected.');
+      }
+      const normalizedTerms = normalizedTermRecords as DictionaryTerm[];
       const uniqueTerms = new Map<string, DictionaryTerm>();
       for (const term of normalizedTerms) {
         const key = normalizeDictionaryTermKey(term.term);
