@@ -76,7 +76,6 @@ import { TermDetailSheet } from './components/TermDetailSheet';
 import { LibraryView, LibrarySubMode, StagedTermItem } from './components/LibraryView';
 import { SettingsView } from './components/SettingsView';
 import { registerImportGroup, ImportGroupDomain } from './services/importGroupService';
-import { publishMasterDataToGitHub } from './services/githubRepositoryService';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { prepareAndDownloadFile, shareFileWithVerification } from './utils/downloadHelper';
 import {
@@ -2829,19 +2828,6 @@ export default function App() {
             onRestoreFromTelegramNow={handleRestoreFromTelegramNow}
             currentDataSummary={currentDataSummary}
             lastImportedOrCopiedSummary={lastImportedOrCopiedSummary}
-            onPublishLocalData={() => publishMasterDataToGitHub({
-              terms,
-              sentences,
-              topics,
-              customAffixes,
-              customAbbreviations,
-              blocks: loadMedicalBlocks(),
-              subjects: loadMedicalSubjects(),
-              books: loadAcademicBooks(),
-              questions: loadQuizQuestions(topics, terms),
-              exams: loadAcademicExams(),
-              mediaAssets: loadMediaAssetsIndex()
-            })}
             onResetDefaults={() => {
               clearLocallyRemovedRegistry();
               const defaults = resetToDefaults();
