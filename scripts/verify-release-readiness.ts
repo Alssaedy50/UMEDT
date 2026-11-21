@@ -282,10 +282,10 @@ async function main() {
     'AI generator must expose only topic/global-terms modes, use selected local hierarchy IDs, and keep global terms unlinked'
   );
   assertCondition(
-    aiImporterContent.includes('const nextBlocks = currentBlocks;') &&
-      aiImporterContent.includes('const nextSubjects = currentSubjects;') &&
+    aiImporterContent.includes('let nextBlocks = currentBlocks;') &&
+      aiImporterContent.includes('let nextSubjects = currentSubjects;') &&
       aiImporterContent.includes('localBlockIds.has(topicBlockId)') &&
-      aiImporterContent.includes("if (params.syncToCloud !== false)"),
+      aiImporterContent.includes("if (params.syncToCloud === true)"),
     'Universal importer must preserve local blocks/subjects, validate topic hierarchy, and default to local-only imports'
   );
   assertCondition(
