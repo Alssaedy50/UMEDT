@@ -2637,7 +2637,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                           >
                             {block.titleEn}
                           </div>
-                          <div className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed break-words">
+                          <div className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed whitespace-normal break-words [overflow-wrap:anywhere]">
                             {block.titleAr}
                           </div>
                         </div>
@@ -3018,11 +3018,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                       </div>
                       <div
                         dir="ltr"
-                        className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white text-left truncate"
+                        className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white text-left whitespace-normal break-words [overflow-wrap:anywhere] leading-relaxed"
                       >
                         {item.titleEn}
                       </div>
-                      <div className="text-xs text-slate-600 dark:text-slate-300 truncate">
+                      <div className="text-xs text-slate-600 dark:text-slate-300 whitespace-normal break-words [overflow-wrap:anywhere] leading-relaxed">
                         {item.titleAr}
                       </div>
                     </div>
