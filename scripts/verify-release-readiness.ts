@@ -2240,253 +2240,55 @@ async function main() {
   clearLocallyRemovedRegistry();
   setCloudSyncSimulatedOffline(false);
 
-  const umedtPdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a]); // %PDF-1.4\n
-  const mockBookPdfUrl = 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/media/cardio_atlas.pdf';
-
-  const masterPayloads: Record<string, unknown> = {
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/blocks.json': {
-      blocks: [
-        {
-          id: 'blk-umedt-data-1',
-          code: 'BLK-UD1',
-          titleEn: 'Cardiopulmonary Block',
-          titleAr: 'بلوك القلب والتنفس',
-          descriptionEn: 'Cardiopulmonary sciences',
-          descriptionAr: 'علوم القلب والجهاز التنفسي',
-          colorAccent: 'emerald',
-          order: 10,
-          createdAt: '2026-10-01T00:00:00.000Z',
-          updatedAt: '2026-10-01T00:00:00.000Z'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/subjects.json': {
-      subjects: [
-        {
-          id: 'subj-umedt-data-1',
-          blockId: 'blk-umedt-data-1',
-          code: 'CARD-201',
-          titleEn: 'Clinical Cardiology',
-          titleAr: 'أمراض القلب السريرية',
-          descriptionEn: 'Clinical cardiology topics',
-          descriptionAr: 'مواضيع القلب السريرية',
-          order: 1,
-          createdAt: '2026-10-01T00:00:00.000Z',
-          updatedAt: '2026-10-01T00:00:00.000Z'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/topics.json': {
-      topics: [
-        {
-          id: 'topic-umedt-data-1',
-          blockId: 'blk-umedt-data-1',
-          subjectId: 'subj-umedt-data-1',
-          title: 'Acute Coronary Syndrome',
-          titleEn: 'Acute Coronary Syndrome',
-          titleAr: 'المتلازمة التاجية الحادة',
-          subtitle: 'ECG & Troponin Pathway',
-          category: 'Cardiology',
-          system: 'Cardiovascular',
-          difficulty: 'Intermediate',
-          summary: 'Diagnostic pathway for STEMI and NSTEMI.',
-          keyTakeaways: ['Obtain 12-lead ECG within 10 minutes'],
-          sections: [
-            {
-              id: 'sec-ud-1',
-              title: 'Algorithm',
-              body: 'Follow reperfusion pathway.',
-              contentBlocks: [
-                {
-                  id: 'cb-ud-diag',
-                  type: 'diagram',
-                  title: 'ACS ECG Flowchart',
-                  diagramSvg: '<svg viewBox="0 0 120 40"><rect width="120" height="40" fill="#ecfdf5"/><text x="10" y="25">ECG &lt; 10m</text></svg>'
-                },
-                {
-                  id: 'cb-ud-pdf',
-                  type: 'pdf_viewer',
-                  title: 'Guidelines PDF',
-                  url: mockBookPdfUrl
-                },
-                {
-                  id: 'cb-ud-book',
-                  type: 'book_reference',
-                  title: 'Cardio Atlas Reference',
-                  bookId: 'book-umedt-data-1'
-                },
-                {
-                  id: 'cb-ud-exam',
-                  type: 'exam_link',
-                  title: 'ACS Mastery Exam',
-                  examId: 'exam-umedt-data-1'
-                }
-              ]
-            }
-          ],
-          linkedTermIds: ['term-umedt-data-1'],
-          linkedTerms: ['Ischemia'],
-          tags: ['ACS'],
-          updatedAt: '2026-10-01T00:00:00.000Z'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/terms.json': {
-      terms: [
-        {
-          id: 'term-umedt-data-1',
-          term: 'Ischemia',
-          arabicTranslation: 'نقص التروية',
-          category: 'Cardiology',
-          definition: 'Restricted blood supply to tissues.',
-          arabicSummary: 'انخفاض تدفق الدم والأكسجين إلى الأنسجة',
-          exampleSentence: 'Myocardial ischemia causes angina.',
-          exampleTranslation: 'يسبب نقص تروية عضلة القلب ذبحة صدرية.',
-          pronunciation: '/ɪˈskiːmiə/',
-          tags: ['Cardio'],
-          rootBreakdown: { root: 'isch- (hold back) + -emia (blood)' },
-          updatedAt: '2026-10-01T00:00:00.000Z'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/sentences.json': {
-      sentences: [
-        {
-          id: 'sent-umedt-data-1',
-          english: 'ST-segment elevation indicates transmural myocardial injury.',
-          arabic: 'يشير ارتفاع قطعة ST إلى إصابة عابرة لجدار عضلة القلب.',
-          termIds: ['term-umedt-data-1'],
-          sourceTopicId: 'topic-umedt-data-1'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/custom_affixes.json': {
-      affixes: [
-        {
-          id: 'affix-umedt-1',
-          affix: 'isch-',
-          type: 'prefix',
-          meaning: 'Hold back / deficient',
-          meaningAr: 'احتباس / نقص',
-          examples: ['Ischemia'],
-          notes: 'Greek root'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/custom_abbreviations.json': {
-      abbreviations: [
-        {
-          id: 'abbr-umedt-1',
-          abbr: 'STEMI',
-          expansion: 'ST-Elevation Myocardial Infarction',
-          arabicMeaning: 'احتشاء عضلة القلب المصحوب بارتفاع ST',
-          clinicalContext: 'Emergency cardiology'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/books.json': {
-      books: [
-        {
-          id: 'book-umedt-data-1',
-          title: 'Cardio Atlas',
-          titleEn: 'Cardio Atlas',
-          titleAr: 'أطلس أمراض القلب',
-          authors: 'UMEDT Editorial',
-          blockId: 'blk-umedt-data-1',
-          subjectId: 'subj-umedt-data-1',
-          pdfUrl: mockBookPdfUrl,
-          sizeBytes: 9,
-          updatedAt: '2026-10-01T00:00:00.000Z'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/questions.json': {
-      questions: [
-        {
-          id: 'q-umedt-data-1',
-          type: 'single_choice',
-          prompt: 'Which ECG finding confirms STEMI?',
-          promptAr: 'أي علامة في تخطيط القلب تؤكد STEMI؟',
-          options: [
-            { id: 'a', text: 'ST-segment elevation', textAr: 'ارتفاع قطعة ST', isCorrect: true },
-            { id: 'b', text: 'Isolated U wave', textAr: 'موجة U معزولة', isCorrect: false }
-          ],
-          correctOptionIds: ['a'],
-          explanation: 'Persistent ST elevation in contiguous leads defines STEMI.',
-          explanationAr: 'ارتفاع قطعة ST المستمر في اتجاهات متجاورة يحدد STEMI.',
-          difficulty: 'medium',
-          topicId: 'topic-umedt-data-1',
-          blockId: 'blk-umedt-data-1',
-          subjectId: 'subj-umedt-data-1',
-          termId: 'term-umedt-data-1'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/exams.json': {
-      exams: [
-        {
-          id: 'exam-umedt-data-1',
-          title: 'Cardiology Midterm',
-          titleEn: 'Cardiology Midterm',
-          titleAr: 'اختبار منتصف بلوك القلب',
-          blockId: 'blk-umedt-data-1',
-          subjectId: 'subj-umedt-data-1',
-          topicIds: ['topic-umedt-data-1'],
-          questionIds: ['q-umedt-data-1'],
-          timeLimitMinutes: 15,
-          passingScorePercent: 70,
-          updatedAt: '2026-10-01T00:00:00.000Z'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/media_assets.json': {
-      mediaAssets: [
-        {
-          id: 'asset-umedt-1',
-          title: 'Cardio Atlas PDF',
-          kind: 'pdf',
-          url: mockBookPdfUrl,
-          sizeBytes: 9,
-          mimeType: 'application/pdf'
-        }
-      ]
+  const termsUrl = 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/terms.json';
+  const canonicalTermsFixture = [
+    {
+      id: 'term-cardiomyocyte',
+      term: 'Cardiomyocyte',
+      definitionEn: 'A specialized muscle cell that forms the contractile tissue of the heart.',
+      definitionAr: 'خلية عضلية متخصصة تكوّن النسيج القابل للانقباض في القلب.',
+      translation: 'خلية عضلة القلب',
+      pronunciation: '/ˌkɑːr.di.oʊˈmaɪ.oʊ.saɪt/',
+      exampleEn: 'A cardiomyocyte contracts in response to an electrical impulse.',
+      exampleAr: 'تنقبض خلية عضلة القلب استجابةً لنبضة كهربائية.',
+      createdAt: '2026-11-21T00:00:00.000Z',
+      updatedAt: '2026-11-21T00:00:00.000Z'
     }
-  };
-
-  const catalogCollections: Array<{ id: string; contentType: string; rendererType: string; rawUrl: string; sha256: string }> = [
-    { id: 'blocks', contentType: 'blocks', rendererType: 'block_hub', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/blocks.json', sha256: 'hash-blocks-v1' },
-    { id: 'subjects', contentType: 'subjects', rendererType: 'subject_list', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/subjects.json', sha256: 'hash-subjects-v1' },
-    { id: 'topics', contentType: 'topics', rendererType: 'topic_article', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/topics.json', sha256: 'hash-topics-v1' },
-    { id: 'terms', contentType: 'terms', rendererType: 'lexicon_term', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/terms.json', sha256: 'hash-terms-v1' },
-    { id: 'sentences', contentType: 'sentences', rendererType: 'bilingual_sentence', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/sentences.json', sha256: 'hash-sentences-v1' },
-    { id: 'customAffixes', contentType: 'affixes', rendererType: 'morphology_rule', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/custom_affixes.json', sha256: 'hash-affixes-v1' },
-    { id: 'customAbbreviations', contentType: 'abbreviations', rendererType: 'clinical_abbr', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/custom_abbreviations.json', sha256: 'hash-abbr-v1' },
-    { id: 'books', contentType: 'books', rendererType: 'academic_book', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/books.json', sha256: 'hash-books-v1' },
-    { id: 'questions', contentType: 'questions', rendererType: 'quiz_question', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/questions.json', sha256: 'hash-questions-v1' },
-    { id: 'exams', contentType: 'exams', rendererType: 'academic_exam', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/exams.json', sha256: 'hash-exams-v1' },
-    { id: 'mediaAssets', contentType: 'mediaAssets', rendererType: 'media_asset', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/media_assets.json', sha256: 'hash-media-v1' }
   ];
-
+  const termsPayloadText = JSON.stringify(canonicalTermsFixture);
+  const termsPayloadHash = await computeSha256Hex(new TextEncoder().encode(termsPayloadText));
   const mockUmedtFetch: typeof fetch = async (input: RequestInfo | URL) => {
     const urlStr = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     if (urlStr === UMEDT_DATA_CATALOG_URL) {
       return new Response(
         JSON.stringify({
-          schemaVersion: '1.0',
-          version: '2026.11.0-umedt-data',
-          collections: catalogCollections
+          catalogVersion: '2026.11.21-test',
+          schemaVersion: 1,
+          capabilities: { termsOnly: true },
+          contentTypesRegistry: [
+            {
+              contentType: 'term',
+              rendererType: 'lexicon_entry',
+              displayNameAr: 'مصطلح',
+              displayNameEn: 'Dictionary Term'
+            }
+          ],
+          collections: [
+            {
+              id: 'terms',
+              contentType: 'term',
+              rendererType: 'lexicon_entry',
+              rawUrl: termsUrl,
+              sha256: termsPayloadHash,
+              recordCount: canonicalTermsFixture.length
+            }
+          ]
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
     }
-    if (urlStr === mockBookPdfUrl) {
-      return new Response(umedtPdfBytes, {
-        status: 200,
-        headers: { 'Content-Type': 'application/pdf' }
-      });
-    }
-    if (masterPayloads[urlStr]) {
-      return new Response(JSON.stringify(masterPayloads[urlStr]), {
+    if (urlStr === termsUrl) {
+      return new Response(termsPayloadText, {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -2494,19 +2296,20 @@ async function main() {
     return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
   };
 
-  // 18.1 UMEDT-DATA Repository Sync + Incremental SHA-256 Collection Skip
+  // 18.1 Terms-only UMEDT-DATA sync + strict SHA-256 + incremental skip
   const umedtSyncFirst = await syncFromUmedtDataRepository({
     customFetch: mockUmedtFetch
   });
   assertCondition(
     umedtSyncFirst.fetched === true &&
-      umedtSyncFirst.updatedCollectionsCount === 11 &&
+      umedtSyncFirst.termsOnly === true &&
+      umedtSyncFirst.updatedCollectionsCount === 1 &&
       umedtSyncFirst.skippedCollectionsCount === 0 &&
-      (umedtSyncFirst.incoming.books?.length || 0) === 1 &&
-      (umedtSyncFirst.incoming.exams?.length || 0) === 1 &&
-      (umedtSyncFirst.incoming.quizQuestions?.length || 0) === 1 &&
-      (umedtSyncFirst.incoming.topics?.[0]?.sections?.[0]?.contentBlocks?.length || 0) === 4,
-    'syncFromUmedtDataRepository must fetch and parse all 11 UMEDT-DATA master collections including books, exams, questions, and new ContentBlockTypes'
+      umedtSyncFirst.incoming.terms?.length === 1 &&
+      umedtSyncFirst.incoming.terms[0]?.term === 'Cardiomyocyte' &&
+      umedtSyncFirst.incoming.terms[0]?.translation === 'خلية عضلة القلب' &&
+      umedtSyncFirst.incoming.terms[0]?.examples?.[0]?.en.includes('electrical impulse'),
+    'syncFromUmedtDataRepository must normalize the terms-only schema and reject no valid canonical fields'
   );
 
   const umedtSyncSecond = await syncFromUmedtDataRepository({
@@ -2516,11 +2319,11 @@ async function main() {
   assertCondition(
     umedtSyncSecond.fetched === true &&
       umedtSyncSecond.updatedCollectionsCount === 0 &&
-      umedtSyncSecond.skippedCollectionsCount === 11,
-    'syncFromUmedtDataRepository must skip unchanged collections on subsequent syncs when SHA-256 matches'
+      umedtSyncSecond.skippedCollectionsCount === 1,
+    'terms-only catalog must skip unchanged terms collection when SHA-256 matches'
   );
 
-  // 18.2 Full syncWithRemoteCloudLibrary integration with UMEDT-DATA + Offline Book PDF Prefetch
+  // 18.2 Terms-only cloud mirror reset + explicit dictionary download + local-state preservation
   const originalFetchForUmedt = globalThis.fetch;
   try {
     globalThis.fetch = mockUmedtFetch;
@@ -2532,66 +2335,41 @@ async function main() {
       customFetch: mockUmedtFetch
     });
     assertCondition(
-      (fullSyncRes.mirror.books?.length || 0) >= 1 &&
-        (fullSyncRes.mirror.exams?.length || 0) >= 1 &&
-        (fullSyncRes.mirror.quizQuestions?.length || 0) >= 1,
-      'syncWithRemoteCloudLibrary must index UMEDT-DATA books, exams, and questions into the cloud mirror catalog'
+      fullSyncRes.mirror.terms.some((term) => term.id === 'term-cardiomyocyte') &&
+        !(fullSyncRes.mirror.books || []).length &&
+        !(fullSyncRes.mirror.exams || []).length &&
+        !(fullSyncRes.mirror.quizQuestions || []).length &&
+        !fullSyncRes.mirror.topics.some((topic) => topic.id === 'topic-umedt-data-1'),
+      'termsOnly catalog must expose the dictionary and clear legacy cloud-only academic collections'
     );
 
-    const catalogBeforeBookDownload = buildCloudLibraryCatalogView({
+    const dictionarySummary = buildCloudLibraryCatalogView({
       localTopics: fullSyncRes.autoMergedTopics,
       localTerms: fullSyncRes.autoMergedTerms,
       localSentences: fullSyncRes.autoMergedSentences
     });
     assertCondition(
-      catalogBeforeBookDownload.books.some((b) => b.id === 'book-umedt-data-1' && !b.isDownloaded) &&
-        catalogBeforeBookDownload.totalCloudExamsCount >= 1,
-      'Cloud catalog must display UMEDT-DATA book as cloud-available before selective download'
+      (dictionarySummary.cloudDictionaryTotalCount || 0) >= 1,
+      'Cloud Library must expose a standalone terms-only dictionary download target'
     );
 
-    const bookDownloadRes = await downloadCloudLibraryTarget({
-      targetType: 'book',
-      targetId: 'book-umedt-data-1',
+    const dictionaryDownload = await downloadCloudLibraryTarget({
+      targetType: 'dictionary',
+      targetId: 'all',
       currentTopics: fullSyncRes.autoMergedTopics,
       currentTerms: fullSyncRes.autoMergedTerms,
       currentSentences: fullSyncRes.autoMergedSentences,
       customFetch: mockUmedtFetch
     });
-    const prefetchedKey = `idb-${computeDeterministicFastHashHex(mockBookPdfUrl).slice(0, 16)}`;
-    const prefetchedPdfRecord = await getLocalMediaRecord(prefetchedKey);
     assertCondition(
-      bookDownloadRes.success &&
-        loadAcademicBooks().some((b) => b.id === 'book-umedt-data-1') &&
-        bookDownloadRes.downloadedMediaCount >= 1 &&
-        Boolean(prefetchedPdfRecord) &&
-        prefetchedPdfRecord?.mimeType === 'application/pdf',
-      'Downloading a cloud book must persist it locally and prefetch its remote PDF into IndexedDB under its deterministic hashed key'
-    );
-
-    const topicDownloadRes = await downloadCloudLibraryTarget({
-      targetType: 'topic',
-      targetId: 'topic-umedt-data-1',
-      currentTopics: bookDownloadRes.updatedTopics,
-      currentTerms: bookDownloadRes.updatedTerms,
-      currentSentences: bookDownloadRes.updatedSentences,
-      customFetch: mockUmedtFetch
-    });
-    assertCondition(
-      topicDownloadRes.success &&
-        loadAcademicExams().some((e) => e.id === 'exam-umedt-data-1'),
-      'Downloading a cloud topic must also pull its linked UMEDT-DATA exam blueprint locally'
-    );
-
-    const bookDeleteRes = await deleteCloudLibraryTargetLocally({
-      targetType: 'book',
-      targetId: 'book-umedt-data-1',
-      currentTopics: topicDownloadRes.updatedTopics,
-      currentTerms: topicDownloadRes.updatedTerms,
-      currentSentences: topicDownloadRes.updatedSentences
-    });
-    assertCondition(
-      bookDeleteRes.success && !loadAcademicBooks().some((b) => b.id === 'book-umedt-data-1'),
-      'Deleting a downloaded book locally must remove it from local device storage while preserving cloud availability'
+      dictionaryDownload.success &&
+        dictionaryDownload.updatedTerms.some((term) =>
+          term.id === 'term-cardiomyocyte' &&
+          term.translation === 'خلية عضلة القلب' &&
+          term.phonetic === '/ˌkɑːr.di.oʊˈmaɪ.oʊ.saɪt/' &&
+          term.examples[0]?.en.includes('electrical impulse')
+        ),
+      'Explicit dictionary download must install normalized terms with translation, pronunciation, bilingual definition, and example'
     );
   } finally {
     globalThis.fetch = originalFetchForUmedt;
