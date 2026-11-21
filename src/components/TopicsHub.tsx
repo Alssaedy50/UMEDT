@@ -4705,7 +4705,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
 
                   <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3">
                     <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                      الترجمة الطبية:
+                      الترجمة العربية:
                     </span>
                     <span className="text-base font-extrabold text-emerald-700 dark:text-emerald-300">
                       {selectionState.matchedTerm.translation}
