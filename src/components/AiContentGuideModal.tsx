@@ -5,7 +5,6 @@ import { loadMedicalBlocks, loadMedicalSubjects } from '../services/learningHier
 interface AiContentGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onQuickImportReport?: (report: never) => void;
   showToast?: (msg: string, type?: string) => void;
   onOpenPasteModal?: () => void;
   onOpenUploadModal?: () => void;
