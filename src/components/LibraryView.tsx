@@ -287,6 +287,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [activeIngestModal, setActiveIngestModal] = useState<
     'manual_term' | 'file_upload' | 'paste_text' | 'permanent_delete' | null
   >(null);
+  const [showImportCapabilities, setShowImportCapabilities] = useState(false);
   const [pendingDeleteTarget, setPendingDeleteTarget] = useState<{
     targetType: 'block' | 'subject' | 'topic' | 'book' | 'exam' | 'all_data';
     targetId: string;
@@ -2807,6 +2808,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               </div>
               <button
                 type="button"
+                onClick={() => setShowImportCapabilities(true)}
+                className="min-h-[40px] px-3 rounded-xl bg-sky-500/10 text-sky-700 dark:text-sky-300 text-[11px] font-extrabold inline-flex items-center gap-1.5"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>دليل ما يمكن استيراده</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveIngestModal(null)}
                 className="min-h-[40px] min-w-[40px] rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center"
               >
@@ -2896,6 +2905,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   </p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowImportCapabilities(true)}
+                className="min-h-[40px] px-3 rounded-xl bg-sky-500/10 text-sky-700 dark:text-sky-300 text-[11px] font-extrabold inline-flex items-center gap-1.5"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>دليل ما يمكن استيراده</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setActiveIngestModal(null)}
@@ -3222,6 +3239,60 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {showImportCapabilities && (
+        <div onClick={() => setShowImportCapabilities(false)} className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+          <section role="dialog" aria-modal="true" aria-labelledby="umedt-import-capabilities-title" onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl max-h-[90dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4 sm:p-6 shadow-2xl space-y-4">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 id="umedt-import-capabilities-title" className="text-base font-extrabold text-slate-900 dark:text-white">دليل إمكانات القراءة والاستيراد في UMEDT</h3>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">يوضح الدليل أنواع الملفات والبيانات التي يستطيع التطبيق قراءتها، مع بيان حدود الاستخراج الفعلية.</p>
+              </div>
+              <button type="button" onClick={() => setShowImportCapabilities(false)} className="min-h-[40px] min-w-[40px] rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0" aria-label="إغلاق"><X className="w-4 h-4" /></button>
+            </div>
+            <section className="space-y-2">
+              <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">1. صيغ الملفات المقروءة</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {[
+                  ['PDF','استخراج النص والصفحات والجداول النصية الممكنة. PDF المصور قد يحتاج OCR أو تحليلاً بصرياً خارجياً.'],
+                  ['DOCX','قراءة نص مستند Word والفقرات والجداول.'],
+                  ['XLSX','قراءة أوراق العمل والخلايا والجداول من Excel.'],
+                  ['CSV / TSV','قراءة الصفوف والأعمدة والبيانات المفصولة.'],
+                  ['TXT / MD','قراءة النصوص والعناوين والقوائم وجداول Markdown والبنية الهرمية.'],
+                  ['JSON / JSONL','قراءة كائنات ومصفوفات JSON وسجلات JSONL وقوالب UMEDT.'],
+                  ['ZIP / UMEDPACK','فحص الأرشيف واستخراج ملفات البيانات والوسائط المسموح بها ضمن حدود الأمان.'],
+                  ['JPG / PNG','قراءة ملف الصورة وحفظ بياناته؛ لا يعني ذلك إجراء OCR محلي تلقائياً.']
+                ].map(([format,description]) => <div key={format} className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3 space-y-1"><div className="text-xs font-extrabold text-sky-700 dark:text-sky-300">{format}</div><p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">{description}</p></div>)}
+              </div>
+              <p className="text-[11px] font-bold rounded-xl bg-rose-500/10 text-rose-700 dark:text-rose-300 p-3">SQLite (.db / .sqlite) غير مدعوم كصيغة استيراد للمستخدم. كما تُرفض الملفات التنفيذية أو النشطة داخل الأرشيفات لأسباب أمنية.</p>
+            </section>
+            <section className="space-y-2">
+              <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">2. سجلات البيانات التي يتعرف عليها المستورد</h4>
+              <div className="flex flex-wrap gap-2">
+                {['Medical Blocks — البلوكات','Medical Subjects — المواد','Topics — المواضيع','Topic Sections — أقسام الموضوع','Content Blocks — مكونات المحتوى','Terms — المصطلحات','Sentences — الجمل والأمثلة','Morphological Affixes — البادئات والجذور واللواحق','Clinical Abbreviations — الاختصارات','Quiz Questions — أسئلة الاختبارات','Exam Packages — حزم الاختبارات','Academic Books — الكتب والمراجع','Media Assets — الوسائط','User Study Notes — الملاحظات','Quiz Attempts — محاولات الاختبار','Study Statistics — إحصاءات الدراسة','Dynamic Catalogs — القوائم المخصصة'].map((item) => <span key={item} className="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-200">{item}</span>)}
+              </div>
+              <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">يمكن ربط المواضيع بالبلوكات والمواد، مع الاحتفاظ بالمعرّفات والروابط عند وجودها في الحزمة المتوافقة.</p>
+            </section>
+            <section className="space-y-2">
+              <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">3. مكونات الموضوع والوسائط</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {[
+                  ['النصوص والعناوين','عناوين عربية وإنجليزية، عناوين فرعية، فقرات وقوائم.'],
+                  ['الجداول والبيانات','جداول منظمة وصفوف وأعمدة وبيانات مقارنة.'],
+                  ['الصور والرسوم','صور وروابط صور ووسائط مرفقة بالحزمة.'],
+                  ['الصوت والفيديو','روابط وملفات صوت وفيديو بحسب صيغة الوسيط ومصدره.'],
+                  ['PDF والمرفقات','ملفات PDF ومستندات ومرفقات مرتبطة بالموضوع.'],
+                  ['الروابط الخارجية','روابط المراجع والمصادر والمواقع التعليمية.'],
+                  ['الأسئلة والاختبارات','MCQ والخيارات والإجابات والتفسيرات عند تمثيلها في البيانات.'],
+                  ['العناصر السريرية','مصطلحات واختصارات وأمثلة وجمل وملاحظات سريرية منظمة.']
+                ].map(([heading,description]) => <div key={heading} className="rounded-2xl border border-slate-200 dark:border-slate-700 p-3"><div className="text-xs font-extrabold text-slate-800 dark:text-slate-100">{heading}</div><p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{description}</p></div>)}
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-700 dark:text-amber-300 rounded-xl bg-amber-500/10 p-3">قراءة الملف لا تعني تحويل كل محتوياته تلقائياً إلى عناصر مستقلة. الصور المضمنة في PDF أو مستندات Office، والوسائط غير القابلة للاستخراج، قد تتطلب ملفات أو روابط منفصلة أو معالجة إضافية. يعرض التطبيق تحذيرات عند تعذر استخراج جزء من المحتوى.</p>
+            </section>
+            <div className="flex justify-end"><button type="button" onClick={() => setShowImportCapabilities(false)} className="min-h-[42px] px-5 rounded-xl bg-emerald-600 text-white text-xs font-extrabold">فهمت</button></div>
+          </section>
         </div>
       )}
 
