@@ -2241,6 +2241,7 @@ async function main() {
   setCloudSyncSimulatedOffline(false);
 
   const termsUrl = 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/terms.json';
+  const umedtPdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a]);
   const mockBookPdfUrl = 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/media/cardio_atlas.pdf';
   const canonicalTermsFixture = [
     {
@@ -2292,6 +2293,12 @@ async function main() {
       return new Response(termsPayloadText, {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    if (urlStr === mockBookPdfUrl) {
+      return new Response(umedtPdfBytes, {
+        status: 200,
+        headers: { 'Content-Type': 'application/pdf' }
       });
     }
     return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
