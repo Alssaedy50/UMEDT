@@ -283,7 +283,7 @@ async function main() {
     aiImporterContent.includes('const nextBlocks = currentBlocks;') &&
       aiImporterContent.includes('const nextSubjects = currentSubjects;') &&
       aiImporterContent.includes('localBlockIds.has(topicBlockId)') &&
-      aiImporterContent.includes("if (params.syncToCloud === true)"),
+      aiImporterContent.includes("if (params.syncToCloud !== false)"),
     'Universal importer must preserve local blocks/subjects, validate topic hierarchy, and default to local-only imports'
   );
   assertCondition(
