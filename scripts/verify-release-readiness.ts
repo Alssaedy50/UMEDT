@@ -2637,6 +2637,70 @@ async function main() {
   // =========================================================================
   const v2MockSvgUrl = 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/media/ecg_lead_map.svg';
   const v2MockSvgBody = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 40"><rect width="100" height="40" fill="#10b981"/></svg>';
+  const v2MockPayloads = {
+    topics: [
+      {
+        id: 'topic-v2-ecg',
+        blockId: 'blk-ai-neuro',
+        subjectId: 'subj-ai-neuro',
+        title: 'ECG Essentials v2',
+        titleEn: 'ECG Essentials v2',
+        titleAr: 'أساسيات تخطيط القلب v2',
+        subtitle: '12-Lead Interpretation',
+        sections: [
+          {
+            id: 'sec-v2-1',
+            headingEn: 'Lead Groups',
+            headingAr: 'مجموعات المساري',
+            paragraphs: ['Limb and precordial leads assess depolarization vectors.']
+          }
+        ]
+      }
+    ],
+    books: [
+      {
+        id: 'book-v2-ecg',
+        titleEn: 'ECG Pocket Atlas',
+        titleAr: 'أطلس تخطيط القلب المختصر',
+        blockId: 'blk-ai-neuro',
+        downloadUrl: mockBookPdfUrl,
+        format: 'pdf',
+        resourceKind: 'reference_book',
+        publicationYear: 2026
+      }
+    ],
+    exams: [
+      {
+        id: 'exam-v2-ecg',
+        titleEn: 'ECG Mastery Quiz',
+        titleAr: 'اختبار قراءة التخطيط',
+        topicIds: ['topic-v2-ecg'],
+        questionIds: ['q-ai-1'],
+        passingScorePercent: 80,
+        durationMinutes: 15
+      }
+    ],
+    media: [
+      {
+        id: 'media-v2-svg-1',
+        titleEn: 'ECG Lead Diagram',
+        titleAr: 'مخطط مساري القلب',
+        kind: 'svg',
+        format: 'svg',
+        rawUrl: v2MockSvgUrl,
+        linkedEntityType: 'topic',
+        linkedEntityId: 'topic-v2-ecg'
+      }
+    ],
+    flashcards: [
+      {
+        id: 'fc-v2-1',
+        titleEn: 'Murmurs High-Yield Deck',
+        titleAr: 'ملخص النفخات القلبية',
+        descriptionAr: 'مجموعة مكتشفة تلقائياً عبر contentTypesRegistry'
+      }
+    ]
+  };
   const v2MockCatalog = {
     schemaVersion: '2.0.0',
     catalogVersion: '2026.11.0-v2',
@@ -2651,35 +2715,35 @@ async function main() {
         contentType: 'topic',
         rendererType: 'topic_article',
         rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/topics.json',
-        sha256: 'h-topics-v2'
+        sha256: await computeSha256Hex(new TextEncoder().encode(JSON.stringify(v2MockPayloads.topics)))
       },
       {
         id: 'books',
         contentType: 'book',
         rendererType: 'book_pdf_reader',
         rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/books.json',
-        sha256: 'h-books-v2'
+        sha256: await computeSha256Hex(new TextEncoder().encode(JSON.stringify(v2MockPayloads.books)))
       },
       {
         id: 'exams',
         contentType: 'exam',
         rendererType: 'exam_blueprint',
         rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/exams.json',
-        sha256: 'h-exams-v2'
+        sha256: await computeSha256Hex(new TextEncoder().encode(JSON.stringify(v2MockPayloads.exams)))
       },
       {
         id: 'media',
         contentType: 'media',
         rendererType: 'media_gallery',
         rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/media-index.json',
-        sha256: 'h-media-v2'
+        sha256: await computeSha256Hex(new TextEncoder().encode(JSON.stringify(v2MockPayloads.media)))
       },
       {
         id: 'flashcards',
         contentType: 'flashcard_deck',
         rendererType: 'generic_card',
         rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/flashcards.json',
-        sha256: 'h-flashcards-v2'
+        sha256: await computeSha256Hex(new TextEncoder().encode(JSON.stringify(v2MockPayloads.flashcards)))
       }
     ]
   };
@@ -2691,91 +2755,19 @@ async function main() {
       return new Response(JSON.stringify(v2MockCatalog), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     if (urlStr.includes('/topics.json')) {
-      return new Response(
-        JSON.stringify([
-          {
-            id: 'topic-v2-ecg',
-            blockId: 'blk-ai-neuro',
-            subjectId: 'subj-ai-neuro',
-            title: 'ECG Essentials v2',
-            titleEn: 'ECG Essentials v2',
-            titleAr: 'أساسيات تخطيط القلب v2',
-            subtitle: '12-Lead Interpretation',
-            sections: [
-              {
-                id: 'sec-v2-1',
-                headingEn: 'Lead Groups',
-                headingAr: 'مجموعات المساري',
-                paragraphs: ['Limb and precordial leads assess depolarization vectors.']
-              }
-            ]
-          }
-        ]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify(v2MockPayloads.topics), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     if (urlStr.includes('/books.json')) {
-      return new Response(
-        JSON.stringify([
-          {
-            id: 'book-v2-ecg',
-            titleEn: 'ECG Pocket Atlas',
-            titleAr: 'أطلس تخطيط القلب المختصر',
-            blockId: 'blk-ai-neuro',
-            downloadUrl: mockBookPdfUrl,
-            format: 'pdf',
-            resourceKind: 'reference_book',
-            publicationYear: 2026
-          }
-        ]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify(v2MockPayloads.books), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     if (urlStr.includes('/exams.json')) {
-      return new Response(
-        JSON.stringify([
-          {
-            id: 'exam-v2-ecg',
-            titleEn: 'ECG Mastery Quiz',
-            titleAr: 'اختبار قراءة التخطيط',
-            topicIds: ['topic-v2-ecg'],
-            questionIds: ['q-ai-1'],
-            passingScorePercent: 80,
-            durationMinutes: 15
-          }
-        ]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify(v2MockPayloads.exams), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     if (urlStr.includes('/media-index.json')) {
-      return new Response(
-        JSON.stringify([
-          {
-            id: 'media-v2-svg-1',
-            titleEn: 'ECG Lead Diagram',
-            titleAr: 'مخطط مساري القلب',
-            kind: 'svg',
-            format: 'svg',
-            rawUrl: v2MockSvgUrl,
-            linkedEntityType: 'topic',
-            linkedEntityId: 'topic-v2-ecg'
-          }
-        ]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify(v2MockPayloads.media), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     if (urlStr.includes('/flashcards.json')) {
-      return new Response(
-        JSON.stringify([
-          {
-            id: 'fc-v2-1',
-            titleEn: 'Murmurs High-Yield Deck',
-            titleAr: 'ملخص النفخات القلبية',
-            descriptionAr: 'مجموعة مكتشفة تلقائياً عبر contentTypesRegistry'
-          }
-        ]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify(v2MockPayloads.flashcards), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     if (urlStr === v2MockSvgUrl) {
       return new Response(v2MockSvgBody, { status: 200, headers: { 'Content-Type': 'image/svg+xml' } });
