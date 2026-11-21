@@ -1591,7 +1591,6 @@ async function main() {
   const previousLocalBlocks = loadMedicalBlocks();
   const previousLocalSubjects = loadMedicalSubjects();
   const previousLocalTopics = loadAppState().topics;
-  const previousCloudMirror = loadUnifiedCloudMirror();
 
   const localOnlyBlock = {
     id: 'blk-local-only-test',
@@ -1666,7 +1665,13 @@ async function main() {
   saveMedicalBlocks(previousLocalBlocks);
   saveMedicalSubjects(previousLocalSubjects);
   saveTopics(previousLocalTopics);
-  saveUnifiedCloudMirror(previousCloudMirror);
+  const postMigrationMirror = loadUnifiedCloudMirror();
+  saveUnifiedCloudMirror({
+    ...postMigrationMirror,
+    blocks: postMigrationMirror.blocks.filter((block) => block.id !== localOnlyBlock.id),
+    subjects: postMigrationMirror.subjects.filter((subject) => subject.id !== localOnlySubject.id),
+    topics: postMigrationMirror.topics.filter((topic) => topic.id !== localOnlyTopic.id)
+  });
 
   clearLocallyRemovedRegistry();
   console.log(
