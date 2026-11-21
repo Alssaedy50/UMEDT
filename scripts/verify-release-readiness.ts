@@ -4615,13 +4615,14 @@ QUESTION || single_choice || Which vessels unite to form the basilar artery? || 
     );
 
     assertCondition(
-      aiGuideSrc25.includes("type PromptTargetScope = 'block' | 'subject' | 'topic'") &&
-        aiGuideSrc25.includes("'markdown_file'") &&
-        aiGuideSrc25.includes('blockName') &&
-        aiGuideSrc25.includes('subjectName') &&
-        aiGuideSrc25.includes('topicName') &&
-        !/ChatGPT|Gemini Gem/i.test(aiGuideSrc25),
-      'AiContentGuideModal.tsx must provide strictly 3 scopes (block/subject/topic), explicit Block/Subject/Topic inputs, .md file option, and zero ChatGPT/Gemini branding'
+      aiGuideSrc25.includes("type GeneratorMode = 'topic' | 'terms'") &&
+        aiGuideSrc25.includes('termsPrompt') &&
+        aiGuideSrc25.includes('selectedBlock.id') &&
+        aiGuideSrc25.includes('selectedSubject.id') &&
+        aiGuideSrc25.includes('Do not include "blocks" or "subjects" arrays') &&
+        aiGuideSrc25.includes('linkedBlockIds, linkedSubjectIds, linkedTopicIds') &&
+        !aiGuideSrc25.includes("type PromptTargetScope = 'block' | 'subject' | 'topic'"),
+      'AiContentGuideModal.tsx must expose only topic/global-terms modes, select real local hierarchy IDs, and keep dictionary terms unlinked'
     );
 
     assertCondition(
