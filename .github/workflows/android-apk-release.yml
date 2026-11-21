@@ -147,16 +147,16 @@ jobs:
             echo "ERROR: Debug APK was not found in android/app/build/outputs/apk/debug"
             exit 1
           fi
-          cp "$DEBUG_APK" artifacts/apk/UMED-2-v2.4.7-debug.apk
+          cp "$DEBUG_APK" artifacts/apk/UMED-2-v2.4.8-debug.apk
 
           if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk artifacts/apk/UMED-2-v2.4.7-release-signed.apk
+            cp android/app/build/outputs/apk/release/app-release.apk artifacts/apk/UMED-2-v2.4.8-release-signed.apk
           elif [ -f android/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release-unsigned.apk artifacts/apk/UMED-2-v2.4.7-release-unsigned.apk
+            cp android/app/build/outputs/apk/release/app-release-unsigned.apk artifacts/apk/UMED-2-v2.4.8-release-unsigned.apk
           else
             RELEASE_APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
             if [ -n "$RELEASE_APK" ]; then
-              cp "$RELEASE_APK" artifacts/apk/UMED-2-v2.4.7-release-unsigned.apk
+              cp "$RELEASE_APK" artifacts/apk/UMED-2-v2.4.8-release-unsigned.apk
             else
               echo "ERROR: Release APK was not found in android/app/build/outputs/apk/release"
               exit 1
@@ -165,8 +165,8 @@ jobs:
           ls -lh artifacts/apk/
           echo "### UMED-2 Android APK Artifacts Built Successfully" >> $GITHUB_STEP_SUMMARY
           echo "- **Application ID:** \`org.umed2.dictengine\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version:** \`2.4.7 (versionCode 20407)\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Installable Debug APK:** \`UMED-2-v2.4.7-debug.apk\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** \`2.4.8 (versionCode 20408)\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Installable Debug APK:** \`UMED-2-v2.4.8-debug.apk\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Release APK Signing Status:** \`signed=${{ steps.signing_check.outputs.signed }}\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Clean Up Temporary Keystore
@@ -176,16 +176,16 @@ jobs:
       - name: Upload Installable Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UMED-2-v2.4.7-debug-apk
-          path: artifacts/apk/UMED-2-v2.4.7-debug.apk
+          name: UMED-2-v2.4.8-debug-apk
+          path: artifacts/apk/UMED-2-v2.4.8-debug.apk
           if-no-files-found: error
           retention-days: 90
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UMED-2-v2.4.7-release-apk
-          path: artifacts/apk/UMED-2-v2.4.7-release-*.apk
+          name: UMED-2-v2.4.8-release-apk
+          path: artifacts/apk/UMED-2-v2.4.8-release-*.apk
           if-no-files-found: error
           retention-days: 90
 
@@ -193,16 +193,16 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.4.7
-          name: "UMEDT Android APK v2.4.7 (Latest)"
+          tag_name: v2.4.8
+          name: "UMEDT Android APK v2.4.8 (Latest)"
           body: |
-            ### UMEDT — محرك القاموس والمترجم الطبي الهجين (v2.4.7)
-            - **نسخة التثبيت النهائية الموقّعة (Release APK):** `UMED-2-v2.4.7-release-signed.apk`
-            - **نسخة الفحص (Debug APK):** `UMED-2-v2.4.7-debug.apk`
-            - **أبرز تحديثات v2.4.7:** قارئ PDF مدمج يعتمد PDF.js مع تنقل الصفحات والتكبير وإظهار أخطاء التحميل، وتحسين مولّد البرومبت بإضافة أهداف مخصصة، الحفاظ على معرّفات البلوك والمادة المحفوظة، التحقق من الأعداد والروابط والملفات ومنع اختلاق الوسائط، مع اجتياز فحوص TypeScript والبناء واختبارات الجاهزية.
+            ### UMEDT — محرك القاموس والمترجم الطبي الهجين (v2.4.8)
+            - **نسخة التثبيت النهائية الموقّعة (Release APK):** `UMED-2-v2.4.8-release-signed.apk`
+            - **نسخة الفحص (Debug APK):** `UMED-2-v2.4.8-debug.apk`
+            - **أبرز تحديثات v2.4.8:** قارئ PDF مدمج يعتمد PDF.js مع تنقل الصفحات والتكبير وإظهار أخطاء التحميل، وتحسين مولّد البرومبت بإضافة أهداف مخصصة، الحفاظ على معرّفات البلوك والمادة المحفوظة، التحقق من الأعداد والروابط والملفات ومنع اختلاق الوسائط، مع اجتياز فحوص TypeScript والبناء واختبارات الجاهزية.
           files: |
-            artifacts/apk/UMED-2-v2.4.7-release-signed.apk
-            artifacts/apk/UMED-2-v2.4.7-debug.apk
+            artifacts/apk/UMED-2-v2.4.8-release-signed.apk
+            artifacts/apk/UMED-2-v2.4.8-debug.apk
           prerelease: false
           make_latest: true
         env:
