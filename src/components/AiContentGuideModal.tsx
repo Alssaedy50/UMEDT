@@ -145,7 +145,7 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
     '',
     'QUALITY AND DEDUPLICATION RULES:',
     '- Do not repeat a term within the output. Normalize case, whitespace, hyphens, and apostrophes when checking duplicates.',
-    '- Include no blockId, subjectId, topicId, linkedBlockIds, linkedSubjectIds, linkedTopicIds, specialty, or collection-specific hierarchy fields.',
+    '- Do not include blockId, subjectId, topicId, linkedBlockIds, linkedSubjectIds, linkedTopicIds, specialty, or collection-specific hierarchy fields.',
     '- Do not generate blocks, subjects, topics, sentences, questions, or any other record type.',
     '- Do not use generic translations, fabricated IPA, circular definitions, or placeholder examples.',
     '- Prefer established medical terminology and context-appropriate Arabic translations. If a term has multiple meanings, select the domain-appropriate meaning and explain it.',
