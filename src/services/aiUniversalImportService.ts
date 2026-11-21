@@ -2091,38 +2091,16 @@ export function importUniversalAiOrLocalContent(params: {
     const removed = loadLocallyRemovedRegistry();
     const permDeleted = loadPermanentlyDeletedRegistry();
 
-    // 1. Merge Blocks
-    const blocksMap = new Map(currentBlocks.map((b) => [b.id, b]));
-    for (const blk of buckets.blocks) {
-      removed.blocks = removed.blocks.filter((id) => id !== blk.id);
-      permDeleted.blocks = permDeleted.blocks.filter((id) => id !== blk.id);
-      const exists = blocksMap.get(blk.id);
-      if (exists && mode === 'ignore') {
-        skippedDuplicates++;
-        continue;
-      }
-      blocksMap.set(blk.id, exists && mode === 'merge' ? { ...exists, ...blk } : blk);
-      counts.blocks++;
+    // Blocks and Subjects are device-local hierarchy records.
+    // AI/import packages may reference them, but may never create or overwrite them.
+    if (buckets.blocks.length > 0) {
+      warnings.push('تم تجاهل سجلات البلوكات الواردة؛ تُنشأ البلوكات محلياً من إدارة البلوكات داخل التطبيق فقط.');
     }
-    const nextBlocks = Array.from(blocksMap.values()).sort((a, b) => a.order - b.order);
-
-    // 2. Merge Subjects
-    const subjectsMap = new Map(currentSubjects.map((s) => [s.id, s]));
-    for (const subj of buckets.subjects) {
-      removed.subjects = removed.subjects.filter((id) => id !== subj.id);
-      permDeleted.subjects = permDeleted.subjects.filter((id) => id !== subj.id);
-      const exists = subjectsMap.get(subj.id);
-      if (exists && mode === 'ignore') {
-        skippedDuplicates++;
-        continue;
-      }
-      subjectsMap.set(
-        subj.id,
-        exists && mode === 'merge' ? { ...exists, ...subj } : subj
-      );
-      counts.subjects++;
+    if (buckets.subjects.length > 0) {
+      warnings.push('تم تجاهل سجلات المواد الواردة؛ تُنشأ المواد محلياً من إدارة المواد داخل التطبيق فقط.');
     }
-    const nextSubjects = Array.from(subjectsMap.values()).sort((a, b) => a.order - b.order);
+    const nextBlocks = currentBlocks;
+    const nextSubjects = currentSubjects;
 
     // 3. Merge Topics (preserve existing favorite state)
     const topicsMap = new Map(currentState.topics.map((t) => [t.id, t]));
@@ -2130,7 +2108,22 @@ export function importUniversalAiOrLocalContent(params: {
       currentState.topics.map((t) => [(t.titleEn || t.title).toLowerCase(), t.id])
     );
     const mergedTopicsBatch: TopicArticle[] = [];
+    const localBlockIds = new Set(currentBlocks.map((block) => block.id));
+    const localSubjectsById = new Map(currentSubjects.map((subject) => [subject.id, subject]));
     for (const tp of buckets.topics) {
+      const topicBlockId = String(tp.blockId || '').trim();
+      const topicSubjectId = String(tp.subjectId || '').trim();
+      const localSubject = localSubjectsById.get(topicSubjectId);
+      if (
+        !topicBlockId ||
+        !topicSubjectId ||
+        !localBlockIds.has(topicBlockId) ||
+        !localSubject ||
+        String(localSubject.blockId || '') !== topicBlockId
+      ) {
+        warnings.push('تم تجاوز الموضوع "' + String(tp.titleEn || tp.title || tp.id) + '" لأن البلوك أو المادة غير موجودين محلياً أو لا يتبعان التسلسل الهرمي المحدد. أنشئ البلوك والمادة محلياً ثم أعد الاستيراد.');
+        continue;
+      }
       removed.topics = removed.topics.filter((id) => id !== tp.id);
       permDeleted.topics = permDeleted.topics.filter((id) => id !== tp.id);
       const matchedId = topicsMap.has(tp.id)
