@@ -421,11 +421,6 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   const imageFileInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentFileInputRef = useRef<HTMLInputElement | null>(null);
   const articleProseRef = useRef<HTMLDivElement | null>(null);
-  const lastTapRef = useRef<{ time: number; x: number; y: number }>({
-    time: 0,
-    x: 0,
-    y: 0
-  });
   const [saveAlsoAsFavorite, setSaveAlsoAsFavorite] = useState<boolean>(true);
 
   useEffect(() => {
