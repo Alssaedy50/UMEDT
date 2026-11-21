@@ -484,13 +484,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handlePublishLocalData = async () => {
     if (!onPublishLocalData) return;
     const target = currentGitHubConfig();
-    const confirmed = window.confirm(`سيتم استبدال مجموعات البيانات الرئيسية في ${target.owner}/${target.repository} على الفرع ${target.branch} باللقطة المحلية بالكامل. ملفات الوسائط الثنائية لا تُرفع بهذه العملية. هل راجعت البيانات وتريد المتابعة؟`);
+    const confirmed = window.confirm(`سيتم استبدال مجموعات البيانات الرئيسية في ${target.owner}/${target.repository} على الفرع ${target.branch} باللقطة المحلية بالكامل. ملفسيتم إضافة المصطلحات المحلية الجديدة فقط دون استبدال أي سجل سحابي موجود. تأكد من مراجعة الترجمات والتعاريف والأمثلة قبل النشر. هل تريد المتابعة؟`);
     if (!confirmed) return;
     setIsPublishingGitHub(true); setGithubFeedback(null);
     try {
       saveGitHubRepositoryConfig(target);
       const result = await onPublishLocalData();
-      setGithubFeedback({ ok: true, message: `تم رفع ${result.filesUpdated} ملفاً إلى ${result.repository} في Commit ${result.commitSha.slice(0, 8)} على ${result.branch}. هذا يؤكد إنشاء Commit فقط؛ تحقق من GitHub Actions لإثبات نجاح إصدار البيانات وتوقيعه.` });
+      setGithubFeedback({ ok: true, message: `تم رفع ${result.filesUpdated} ملفاً إلى ${result.repository} في Commit ${result.commitSha.slice(0, 8)} على ${result.branch}. هذا يؤكد إنشاء Commit فقط؛ تحقق من GitHub Actions للتأكد من اجتياز فحص المصطلحات وتحديث فهرس القاموس.` });
     } catch (error) { setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) }); }
     finally { setIsPublishingGitHub(false); }
   };
@@ -1491,7 +1491,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
                 <div className="rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 p-3 text-xs text-emerald-900 dark:text-emerald-200 space-y-1">
                   <div className="flex items-center gap-2 font-bold"><ShieldCheck className="w-4 h-4" /> اتصال GitHub مباشر على Android</div>
-                  <p>حدد المستودع والفرع من هنا. يلزم Fine-grained Token بصلاحية Contents: Read and write على المستودع المستهدف.</p>
+                  <p>حدد المستودع والفرع من هنا. تنزيل القاموس من المستودع العام لا يحتاج Token؛ يلزم Fine-grained Token بصلاحية Contents: Read and write فقط إذا أردت نشر مصطلحات جديدة من هذا الجهاز.</p>
                   <p>يُحفظ التوكن مشفراً بواسطة Android Keystore، أما إعدادات المستودع غير السرية فتحفظ محلياً على هذا الجهاز.</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
@@ -1514,13 +1514,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400">القيمة الافتراضية: Alssaedy50/UMEDT-DATA · main. تغيير الوجهة لا ينقل أو يحذف البيانات المحلية.</p>
                   {draftGitHubOwner.toLowerCase() === 'alssaedy50' && draftGitHubRepository.toLowerCase() === 'umedt-data' && draftGitHubBranch !== 'main' && (
-                    <p className="text-[10px] leading-5 text-amber-700 dark:text-amber-300">تنبيه: Workflow نشر بيانات UMEDT-DATA الحالي يعمل تلقائياً عند التحديث على main فقط؛ النشر على فرع آخر لن يبدأ إصدار OTA تلقائياً.</p>
+                    <p className="text-[10px] leading-5 text-amber-700 dark:text-amber-300">تنبيه: التحقق التلقائي يعمل على main وعند فتح Pull Request؛ تأكد من دمج التحديث إلى main حتى يقرأه التطبيق.</p>
                   )}
                 </div>
                 <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
-                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">حالة GitHub Actions</div>
+                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">حالة التحقق من قاموس المصطلحات</div>
                   <button type="button" disabled={isCheckingGitHubRun} onClick={() => void handleCheckGitHubActions()} className="w-full min-h-[40px] rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold disabled:opacity-40">
-                    {isCheckingGitHubRun ? 'يفحص تشغيل النشر...' : 'فحص آخر تشغيل لنشر البيانات'}
+                    {isCheckingGitHubRun ? 'يفحص التحقق...' : 'فحص آخر تشغيل للتحقق من المصطلحات'}
                   </button>
                   {latestGitHubRun && (
                     <div className="space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
@@ -1529,16 +1529,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       <a href={latestGitHubRun.html_url} target="_blank" rel="noreferrer" className="inline-flex min-h-[32px] items-center text-sky-600 dark:text-sky-400 underline">فتح تفاصيل GitHub Actions</a>
                     </div>
                   )}
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">فحص الحالة يقرأ سجل Workflow العام؛ لا يعني نجاح رفع Commit أن بناء وتوقيع إصدار البيانات قد نجحا.</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">فحص الحالة يقرأ سجل Workflow العام؛ يوضح اجتياز التحقق البنيوي والتكرار، ولا يغني عن المراجعة اللغوية للمصطلحات.</p>
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200">GitHub Fine-grained Personal Access Token</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200">GitHub Token (اختياري للنشر من الجهاز)</label>
                   <input
                     type="password"
                     autoComplete="off"
                     value={draftGitHubToken}
                     onChange={(e) => setDraftGitHubToken(e.target.value)}
-                    placeholder={hasGitHubToken ? 'يوجد توكن محفوظ — أدخل بديلاً لتغييره' : 'الصق التوكن هنا'}
+                    placeholder={hasGitHubToken ? 'يوجد توكن محفوظ — أدخل بديلاً لتغييره' : 'أدخل التوكن إذا أردت النشر من هذا الجهاز'}
                     className="w-full min-h-[44px] rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 text-sm font-mono outline-none focus:border-emerald-500"
                   />
                   <div className="flex gap-2">
@@ -1550,11 +1550,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   )}
                 </div>
                 <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
-                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">نشر بيانات الجهاز إلى المكتبة السحابية</div>
-                  <p className="text-[11px] leading-5 text-slate-500 dark:text-slate-400">يرفع لقطة كاملة من مجموعات المصطلحات والجمل والمواضيع والبلوكات والمواد والكتب والأسئلة والاختبارات وفهرس الوسائط إلى ملفات data/master. هذا استبدال شامل لمجموعات المصدر، وليس رفعاً جزئياً. الوسائط الثنائية نفسها لا تُرفع بهذه العملية.</p>
+                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">نشر المصطلحات المحلية إلى القاموس السحابي</div>
+                  <p className="text-[11px] leading-5 text-slate-500 dark:text-slate-400">يرفع المصطلحات المحلية فقط إلى data/master/terms.json. يجب أن يحتوي كل مصطلح على كلمة أو كلمتين إنجليزيتين، وترجمة عربية، ونطق، وتعريف باللغتين، ومثال باللغتين. تُضاف المصطلحات الجديدة فقط؛ لا تُستبدل المصطلحات السحابية الموجودة ولا تُرفع المواضيع أو المواد أو الوسائط أو بيانات المستخدم.</p>
                   <button type="button" disabled={!hasGitHubToken || !onPublishLocalData || isPublishingGitHub} onClick={() => void handlePublishLocalData()} className="w-full min-h-[46px] rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold flex items-center justify-center gap-2 disabled:opacity-40">
                     <CloudUpload className="w-4 h-4" />
-                    {isPublishingGitHub ? 'جاري رفع البيانات...' : 'نشر لقطة البيانات المحلية'}
+                    {isPublishingGitHub ? 'جاري رفع البيانات...' : 'نشر المصطلحات المحلية فقط'}
                   </button>
                 </div>
                 {githubFeedback && (

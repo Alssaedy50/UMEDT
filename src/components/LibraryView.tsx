@@ -168,21 +168,6 @@ interface LibraryViewProps {
   showToast?: (message: string, type?: string) => void;
 }
 
-const CATEGORY_OPTIONS: { value: LexiconCategory; label: string }[] = [
-  { value: 'Medical', label: 'طبي سريري (Medical)' },
-  { value: 'AI', label: 'ذكاء اصطناعي طبي (AI)' },
-  { value: 'Programming', label: 'معلوماتية صحية (Informatics)' },
-  { value: 'General', label: 'مصطلح أكاديمي عام (General)' }
-];
-
-const POS_OPTIONS = [
-  { value: 'noun', label: 'اسم / مفهوم (Noun)' },
-  { value: 'adjective', label: 'صفة سريرية (Adjective)' },
-  { value: 'verb', label: 'فعل / إجراء (Verb)' },
-  { value: 'phrase', label: 'مصطلح مركب / متلازمة (Phrase)' },
-  { value: 'abbreviation', label: 'اختصار طبي (Abbreviation)' }
-];
-
 function computeNextSm2(
   current: SpacedRepetitionData | undefined,
   knewIt: boolean
@@ -311,8 +296,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [manualTerm, setManualTerm] = useState('');
   const [manualTranslation, setManualTranslation] = useState('');
   const [manualPhonetic, setManualPhonetic] = useState('');
-  const [manualCategory, setManualCategory] = useState<LexiconCategory>('Medical');
-  const [manualPos, setManualPos] = useState('noun');
   const [manualCollection, setManualCollection] = useState('');
   const [manualDefAr, setManualDefAr] = useState('');
   const [manualDefEn, setManualDefEn] = useState('');
@@ -346,7 +329,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   }, [initialMode, initialDraftTerm, onInitialModeConsumed]);
 
   const existingTermSet = useMemo(
-    () => new Set(terms.map((t) => t.term.toLowerCase().trim())),
+    () => new Set(terms.map((t) => t.term.normalize('NFKC').toLowerCase().replace(/[’‘]/g, "'").replace(/[‐‑‒–—]/g, '-').replace(/[^a-z0-9'-]+/g, ' ').replace(/\s+/g, ' ').trim())),
     [terms]
   );
 
@@ -541,10 +524,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     const cleanEn = (domEn || manualTerm).trim();
     const cleanAr = (domAr || manualTranslation).trim();
 
-    if (!cleanEn || !cleanAr) {
+    const termWords = cleanEn ? cleanEn.replace(/\s+/g, ' ').split(' ') : [];
+    const validTermWord = /^[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*$/;
+    if (!cleanEn || !cleanAr || termWords.length < 1 || termWords.length > 2 || termWords.some((word) => !validTermWord.test(word))) {
       setOfflineFeedback({
         type: 'error',
-        message: 'يرجى إدخال المصطلح بالإنجليزية وترجمته العربية.'
+        message: 'أدخل مصطلحاً من كلمة إنجليزية واحدة أو كلمتين فقط، مع ترجمته العربية. لا تُدخل جملة.'
       });
       if (!cleanEn) {
         manualTermInputRef.current?.focus();
@@ -569,7 +554,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         id: `sen-manual-${Date.now()}`,
         en: sEn,
         ar: sAr,
-        category: manualCategory,
+        category: 'General',
         sourceType: 'manual',
         linkedTermIds: [newId],
         tags: [cleanEn],
@@ -585,8 +570,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       termNormalized: cleanEn.toLowerCase(),
       translation: cleanAr,
       phonetic: manualPhonetic.trim(),
-      pos: manualPos || 'noun',
-      category: manualCategory || 'Medical',
+      pos: 'term',
+      category: 'General',
       keepEnglish: true,
       favorite: addAlsoToFavorites,
       collections: cleanCollection ? [cleanCollection] : ['مضاف يدوياً'],
@@ -692,6 +677,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       .filter((l) => l.length > 1);
 
     const nextStaged: StagedTermItem[] = [];
+    let rejectedInvalidTerms = 0;
     lines.forEach((line, idx) => {
       const parts = line.includes('\t')
         ? line.split('\t')
@@ -701,19 +687,21 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         ? line.split(' : ')
         : line.split(',');
 
-      const tEn = (parts[0] || '').trim().replace(/^["']|["']$/g, '');
+      const tEn = (parts[0] || '').trim().replace(/^["']|["']$/g, '').replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '').replace(/\s+/g, ' ');
       if (!tEn || tEn.toLowerCase() === 'term') return;
+      const termWords = tEn.split(' ');
+      const validTermWord = /^[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*$/;
+      if (termWords.length < 1 || termWords.length > 2 || termWords.some((word) => !validTermWord.test(word))) {
+        rejectedInvalidTerms += 1;
+        return;
+      }
 
       const quick = lookupQuickWordOrPhraseAr(tEn, terms);
-      const morph = decomposeMedicalWord(tEn, terms);
-      const autoAr =
-        quick?.translationAr ||
-        (morph.synthesizedAr && morph.synthesizedAr !== 'مصطلح أحادي الجذر'
-          ? morph.synthesizedAr
-          : '') ||
-        'مصطلح طبي';
-
-      const tAr = (parts[1] || '').trim().replace(/^["']|["']$/g, '') || autoAr;
+      const tAr = (parts[1] || '').trim().replace(/^["']|["']$/g, '') || quick?.translationAr || '';
+      if (!tAr || !/[\u0600-\u06FF]/.test(tAr) || /^(مصطلح طبي|ترجمة عربية|غير معروف)$/i.test(tAr)) {
+        rejectedInvalidTerms += 1;
+        return;
+      }
       const defAr = (parts[2] || '').trim().replace(/^["']|["']$/g, '');
       const defEn = (parts[3] || '').trim().replace(/^["']|["']$/g, '');
 
@@ -721,9 +709,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         id: `stg-line-${Date.now()}-${idx}`,
         term: tEn,
         translation: tAr,
-        phonetic: `/${tEn.toLowerCase()}/`,
-        pos: tEn.includes(' ') ? 'phrase' : 'noun',
-        category: 'Medical',
+        phonetic: '',
+        pos: 'term',
+        category: 'General',
         definitionAr: defAr,
         definitionEn: defEn,
         examples: [],
@@ -733,7 +721,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           related: []
         },
         selected: true,
-        isDuplicate: existingTermSet.has(tEn.toLowerCase())
+        isDuplicate: existingTermSet.has(tEn.normalize('NFKC').toLowerCase().replace(/[’‘]/g, "'").replace(/[‐‑‒–—]/g, '-').replace(/[^a-z0-9'-]+/g, ' ').replace(/\s+/g, ' ').trim())
       });
     });
 
@@ -741,12 +729,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     if (nextStaged.length === 0) {
       setOfflineFeedback({
         type: 'error',
-        message: 'لم يتم العثور على سجلات صالحة في الملف أو النص.'
+        message: `لم يتم العثور على مصطلحات صالحة. تم استبعاد ${rejectedInvalidTerms} سجل غير مطابق لشرط كلمة أو كلمتين أو دون ترجمة عربية.`
       });
     } else {
       setOfflineFeedback({
         type: 'success',
-        message: `تم تحليل ${nextStaged.length} مصطلح أوفلاين جاهز للحفظ.`
+        message: `تم تحليل ${nextStaged.length} مصطلح أوفلاين. تم استبعاد ${rejectedInvalidTerms} سجل غير مطابق.`
       });
     }
   };
@@ -1772,7 +1760,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 flex items-center justify-between gap-2.5 text-xs">
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <div className="font-extrabold text-slate-900 dark:text-white leading-snug">
-                      حزمة القاموس والسوابق واللواحق السحابية
+                      قاموس المصطلحات السحابي
                     </div>
                     <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 font-mono tabular-nums">
                       {cloudSummary.cloudDictionaryDownloadedCount || 0}/
@@ -2740,41 +2728,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
               {showOptionalManualFields && (
                 <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                        التخصص (اختياري)
-                      </label>
-                      <select
-                        value={manualCategory}
-                        onChange={(e) => setManualCategory(e.target.value as LexiconCategory)}
-                        className="w-full min-h-[40px] px-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
-                      >
-                        {CATEGORY_OPTIONS.map((cat) => (
-                          <option key={cat.value} value={cat.value}>
-                            {cat.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                        النوع اللغوي (اختياري)
-                      </label>
-                      <select
-                        value={manualPos}
-                        onChange={(e) => setManualPos(e.target.value)}
-                        className="w-full min-h-[40px] px-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
-                      >
-                        {POS_OPTIONS.map((p) => (
-                          <option key={p.value} value={p.value}>
-                            {p.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
+                  <div className="grid grid-cols-1 gap-3">
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
                         المجلد (اختياري)

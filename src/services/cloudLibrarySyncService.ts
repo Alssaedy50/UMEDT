@@ -853,11 +853,11 @@ export function mergeRecordsIntoCloudSnapshot(
 
   const termsMap = new Map(current.terms.map((t) => [t.id, t]));
   const termByNormName = new Map(
-    current.terms.map((t) => [(t.termNormalized || t.term).toLowerCase(), t.id])
+    current.terms.map((t) => [normalizeDictionaryTermKey(t.termNormalized || t.term), t.id])
   );
   for (const term of incoming.terms || []) {
     if (!term || !term.term) continue;
-    const norm = (term.termNormalized || term.term).trim().toLowerCase();
+    const norm = normalizeDictionaryTermKey(term.termNormalized || term.term);
     const resolvedId = termsMap.has(term.id)
       ? term.id
       : termByNormName.get(norm) || term.id;
@@ -1487,6 +1487,57 @@ async function fetchUmedtDataJsonWithFallback(
   return null;
 }
 
+function normalizeDictionaryTermKey(value: string): string {
+  return String(value || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/[‐‑‒–—]/g, '-')
+    .replace(/[^a-z0-9'-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeTermsOnlyRecord(raw: unknown): DictionaryTerm | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const item = raw as Record<string, unknown>;
+  const term = typeof item.term === 'string' ? item.term.trim().replace(/\s+/g, ' ') : '';
+  const words = term ? term.split(' ') : [];
+  const wordPattern = /^[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*$/;
+  if (!term || words.length < 1 || words.length > 2 || words.some((word) => !wordPattern.test(word))) return null;
+  const translation = typeof item.translation === 'string' ? item.translation.trim() : '';
+  const pronunciation = typeof item.pronunciation === 'string'
+    ? item.pronunciation.trim()
+    : typeof item.phonetic === 'string' ? item.phonetic.trim() : '';
+  const definitionEn = typeof item.definitionEn === 'string' ? item.definitionEn.trim() : '';
+  const definitionAr = typeof item.definitionAr === 'string' ? item.definitionAr.trim() : '';
+  const exampleEn = typeof item.exampleEn === 'string' ? item.exampleEn.trim() : '';
+  const exampleAr = typeof item.exampleAr === 'string' ? item.exampleAr.trim() : '';
+  if (!translation || !/[\u0600-\u06FF]/.test(translation) || /^(مصطلح طبي|ترجمة عربية|غير معروف)$/i.test(translation) ||
+    !pronunciation || !definitionEn || !definitionAr || !exampleEn || !exampleAr ||
+    /^clinical medical term:/i.test(definitionEn) || /^مصطلح طبي سريري يعني/i.test(definitionAr)) return null;
+  const normalized = normalizeDictionaryTermKey(term);
+  const slug = normalized.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  return {
+    ...(item as unknown as DictionaryTerm),
+    id: typeof item.id === 'string' && item.id.trim() ? item.id : `term-${slug}`,
+    term,
+    termNormalized: normalized,
+    translation,
+    phonetic: pronunciation,
+    pos: 'term',
+    category: 'General',
+    keepEnglish: true,
+    favorite: false,
+    collections: [],
+    ingestedAt: typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString().slice(0, 10),
+    definitionEn,
+    definitionAr,
+    examples: [{ en: exampleEn, ar: exampleAr }],
+    relations: { synonyms: [], broader: [], related: [] }
+  };
+}
+
 function extractCollectionArray<T>(raw: unknown, keyHint: string): T[] {
   if (Array.isArray(raw)) return raw as T[];
   if (raw && typeof raw === 'object') {
@@ -1543,6 +1594,8 @@ export async function syncFromUmedtDataRepository(options?: {
 }): Promise<{
   fetched: boolean;
   catalogVersion?: string;
+  termsOnly?: boolean;
+  termsOnlySource?: string;
   contentTypesRegistry?: ContentTypeRegistryEntry[];
   updatedCollectionsCount: number;
   skippedCollectionsCount: number;
@@ -1668,17 +1721,19 @@ export async function syncFromUmedtDataRepository(options?: {
 
     // Verify per-collection SHA-256: reject explicit corrupt placeholder digests ('000...000'),
     // and accept valid parsed JSON when a collection file was edited directly on GitHub without regenerating catalog.json
-    if (expectedHash && /^[0-9a-f]{64}$/i.test(expectedHash)) {
+    if (expectedHash) {
+      if (!/^[0-9a-f]{64}$/i.test(expectedHash)) {
+        console.warn(`[UMEDT-DATA] Invalid SHA-256 declaration for collection "${col.id}". Skipping payload.`);
+        continue;
+      }
       const actualHash = await computeSha256Hex(new TextEncoder().encode(rawText));
-      if (/^0{64}$/.test(expectedHash)) {
+      if (actualHash.toLowerCase() !== expectedHash.toLowerCase()) {
         console.warn(
           `[UMEDT-DATA] SHA-256 mismatch for collection "${col.id}": expected ${expectedHash}, got ${actualHash}. Skipping corrupted payload.`
         );
         continue;
       }
       nextHashes[col.id] = actualHash;
-    } else if (expectedHash) {
-      nextHashes[col.id] = expectedHash;
     }
 
     const idLower = col.id.toLowerCase();
@@ -1753,7 +1808,30 @@ export async function syncFromUmedtDataRepository(options?: {
       rtLower === 'lexicon_term' ||
       rtLower === 'lexicon_entry'
     ) {
-      incoming.terms = extractCollectionArray<DictionaryTerm>(parsedJson, 'terms');
+      const rawTermRecords = extractCollectionArray<unknown>(parsedJson, 'terms');
+      const normalizedTermRecords = rawTermRecords.map(normalizeTermsOnlyRecord);
+      if (normalizedTermRecords.some((term) => !term)) {
+        throw new Error('The cloud dictionary contains an invalid term record. The entire terms collection was rejected.');
+      }
+      const normalizedTerms = normalizedTermRecords as DictionaryTerm[];
+      const uniqueTerms = new Map<string, DictionaryTerm>();
+      for (const term of normalizedTerms) {
+        const key = normalizeDictionaryTermKey(term.term);
+        const existing = uniqueTerms.get(key);
+        if (!existing) {
+          uniqueTerms.set(key, term);
+          continue;
+        }
+        const sameMeaning =
+          existing.translation.trim() === term.translation.trim() &&
+          existing.definitionEn.trim() === term.definitionEn.trim() &&
+          existing.definitionAr.trim() === term.definitionAr.trim() &&
+          existing.phonetic.trim() === term.phonetic.trim();
+        if (!sameMeaning) {
+          throw new Error(`Conflicting duplicate dictionary term detected in cloud catalog: ${term.term}`);
+        }
+      }
+      incoming.terms = Array.from(uniqueTerms.values());
     } else if (
       idLower === 'sentences' ||
       ctLower === 'sentence' ||
@@ -1886,6 +1964,8 @@ export async function syncFromUmedtDataRepository(options?: {
   return {
     fetched: true,
     catalogVersion: catalog.catalogVersion,
+    termsOnly: (catalog as unknown as { capabilities?: { termsOnly?: boolean } }).capabilities?.termsOnly === true,
+    termsOnlySource: `${String((catalog as unknown as { repository?: string }).repository || 'UMEDT-DATA')}@${String((catalog as unknown as { branch?: string }).branch || 'main')}`,
     contentTypesRegistry: registryEntries,
     updatedCollectionsCount,
     skippedCollectionsCount,
@@ -1972,28 +2052,37 @@ export async function syncWithRemoteCloudLibrary(params: {
       customFetch: params.customFetch
     });
     if (umedtRes.fetched) {
-      const baseBeforeMerge: UnifiedCloudStoreSnapshot = isBrowserRuntime
-        ? {
-            ...currentBeforeUmedt,
-            blocks: umedtRes.incoming.blocks !== undefined ? [] : currentBeforeUmedt.blocks,
-            subjects: umedtRes.incoming.subjects !== undefined ? [] : currentBeforeUmedt.subjects,
-            topics: umedtRes.incoming.topics !== undefined ? [] : currentBeforeUmedt.topics,
-            terms: umedtRes.incoming.terms !== undefined ? [] : currentBeforeUmedt.terms,
-            sentences: umedtRes.incoming.sentences !== undefined ? [] : currentBeforeUmedt.sentences,
-            books: umedtRes.incoming.books !== undefined ? [] : currentBeforeUmedt.books,
-            exams: umedtRes.incoming.exams !== undefined ? [] : currentBeforeUmedt.exams,
-            quizQuestions:
-              umedtRes.incoming.quizQuestions !== undefined ? [] : currentBeforeUmedt.quizQuestions,
-            mediaAssets:
-              umedtRes.incoming.mediaAssets !== undefined ? [] : currentBeforeUmedt.mediaAssets
-          }
-        : currentBeforeUmedt;
+      const termsOnlyMigrationKey = `umedt_terms_only_migration_v1:${umedtRes.termsOnlySource || 'UMEDT-DATA@main'}`;
+      const clearLegacyCloudCollections =
+        umedtRes.termsOnly === true &&
+        getSafeStorage().getItem(termsOnlyMigrationKey) !== 'done';
+      const baseBeforeMerge: UnifiedCloudStoreSnapshot = {
+        ...currentBeforeUmedt,
+        blocks: clearLegacyCloudCollections || umedtRes.incoming.blocks !== undefined ? [] : currentBeforeUmedt.blocks,
+        subjects: clearLegacyCloudCollections || umedtRes.incoming.subjects !== undefined ? [] : currentBeforeUmedt.subjects,
+        topics: clearLegacyCloudCollections || umedtRes.incoming.topics !== undefined ? [] : currentBeforeUmedt.topics,
+        terms: umedtRes.incoming.terms !== undefined ? [] : currentBeforeUmedt.terms,
+        sentences: clearLegacyCloudCollections || umedtRes.incoming.sentences !== undefined ? [] : currentBeforeUmedt.sentences,
+        books: clearLegacyCloudCollections || umedtRes.incoming.books !== undefined ? [] : currentBeforeUmedt.books,
+        exams: clearLegacyCloudCollections || umedtRes.incoming.exams !== undefined ? [] : currentBeforeUmedt.exams,
+        quizQuestions:
+          clearLegacyCloudCollections || umedtRes.incoming.quizQuestions !== undefined ? [] : currentBeforeUmedt.quizQuestions,
+        mediaAssets:
+          clearLegacyCloudCollections || umedtRes.incoming.mediaAssets !== undefined ? [] : currentBeforeUmedt.mediaAssets,
+        customAffixes: clearLegacyCloudCollections ? [] : currentBeforeUmedt.customAffixes,
+        customAbbreviations: clearLegacyCloudCollections ? [] : currentBeforeUmedt.customAbbreviations,
+        dynamicCollections: clearLegacyCloudCollections ? [] : currentBeforeUmedt.dynamicCollections,
+        contentTypesRegistry: umedtRes.contentTypesRegistry || currentBeforeUmedt.contentTypesRegistry
+      };
       const mergedUmedt = mergeRecordsIntoCloudSnapshot(baseBeforeMerge, {
         ...umedtRes.incoming,
         collectionHashes: umedtRes.collectionHashes,
         catalogVersion: umedtRes.catalogVersion
       });
       saveUnifiedCloudMirror(mergedUmedt.snapshot);
+      if (umedtRes.termsOnly === true) {
+        getSafeStorage().setItem(termsOnlyMigrationKey, 'done');
+      }
       if (mergedUmedt.snapshot.mediaAssets && mergedUmedt.snapshot.mediaAssets.length > 0) {
         saveMediaAssetsIndex(mergedUmedt.snapshot.mediaAssets);
       }

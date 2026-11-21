@@ -688,19 +688,37 @@ function normalizeTopicArticle(
   });
 }
 
+function normalizeTermIdentity(value: string): string {
+  return String(value || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/[‐‑‒–—]/g, '-')
+    .replace(/[^a-z0-9'-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function normalizeDictionaryTerm(
   raw: Record<string, unknown>,
   idx: number
 ): DictionaryTerm | null {
   const termEn = String(
     raw.term || raw.en || raw.word || raw.titleEn || ''
-  ).trim();
-  if (!termEn) return null;
+  ).trim().replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '').replace(/\s+/g, ' ');
+  const termWords = termEn ? termEn.split(' ') : [];
+  const validTermWord = /^[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*$/;
+  if (
+    termWords.length < 1 ||
+    termWords.length > 2 ||
+    termWords.some((word) => !validTermWord.test(word))
+  ) return null;
   const translation = String(
-    raw.translation || raw.ar || raw.meaning || raw.titleAr || 'مصطلح طبي'
+    raw.translation || raw.arabicTranslation || raw.ar || raw.meaning || raw.titleAr || ''
   ).trim();
-  const defAr = String(raw.definitionAr || raw.definition || '').trim();
-  const defEn = String(raw.definitionEn || '').trim();
+  if (!translation || !/[\u0600-\u06FF]/.test(translation) || /^(مصطلح طبي|ترجمة عربية|غير معروف)$/i.test(translation)) return null;
+  const defAr = String(raw.definitionAr || raw.arabicDefinition || raw.definition || '').trim();
+  const defEn = String(raw.definitionEn || raw.englishDefinition || '').trim();
 
   const rawExamples = Array.isArray(raw.examples) ? raw.examples : [];
   const examples: DictionaryTerm['examples'] = rawExamples
@@ -730,17 +748,16 @@ function normalizeDictionaryTerm(
   return {
     id: String(raw.id || `u-imp-${Date.now()}-${idx}`),
     term: termEn,
-    termNormalized: termEn.toLowerCase(),
+    termNormalized: normalizeTermIdentity(termEn),
     translation,
-    phonetic: String(raw.phonetic || `/${termEn.toLowerCase()}/`),
-    pos: String(raw.pos || (termEn.includes(' ') ? 'phrase' : 'noun')),
-    category: asLexiconCategory(raw.category),
-    umdCode: typeof raw.umdCode === 'string' ? raw.umdCode : undefined,
+    phonetic: String(raw.phonetic || raw.pronunciation || ''),
+    pos: 'term',
+    category: 'General',
     keepEnglish: typeof raw.keepEnglish === 'boolean' ? raw.keepEnglish : true,
     favorite: Boolean(raw.favorite),
     collections: Array.isArray(raw.collections)
       ? raw.collections.map((c) => String(c))
-      : ['استيراد ذكي'],
+      : [],
     ingestedAt: String(raw.ingestedAt || 'مستورد الآن'),
     definitionAr: defAr,
     definitionEn: defEn,
@@ -2141,12 +2158,12 @@ export function importUniversalAiOrLocalContent(params: {
     // 4. Merge Terms (strict user-state preservation: favorite, collections, srsData)
     const termsMap = new Map(currentState.terms.map((t) => [t.id, t]));
     const termNormToId = new Map(
-      currentState.terms.map((t) => [(t.termNormalized || t.term).toLowerCase(), t.id])
+      currentState.terms.map((t) => [normalizeTermIdentity(t.termNormalized || t.term), t.id])
     );
     const mergedTermsBatch: DictionaryTerm[] = [];
     for (const tm of buckets.terms) {
       permDeleted.terms = permDeleted.terms.filter((id) => id !== tm.id);
-      const normKey = tm.term.trim().toLowerCase();
+      const normKey = normalizeTermIdentity(tm.term);
       const matchedId = termsMap.has(tm.id) ? tm.id : termNormToId.get(normKey);
       const existing = matchedId ? termsMap.get(matchedId) : undefined;
       if (existing && mode === 'ignore') {

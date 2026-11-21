@@ -167,8 +167,8 @@ async function main() {
   console.log('UMED-2 — Independent Web, PWA & Android APK Verification Suite');
   console.log('================================================================');
 
-  // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.4.7)
-  assertCondition(APP_VERSION === '2.4.7', `Expected APP_VERSION 2.4.7, got ${APP_VERSION}`);
+  // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.4.8)
+  assertCondition(APP_VERSION === '2.4.8', `Expected APP_VERSION 2.4.8, got ${APP_VERSION}`);
   assertCondition(DB_SCHEMA_VERSION === 2, `Expected DB_SCHEMA_VERSION 2, got ${DB_SCHEMA_VERSION}`);
   assertCondition(
     BUNDLED_DATA_VERSION === '2026.10.0-umd',
@@ -248,21 +248,21 @@ async function main() {
   assertCondition(
     apkWorkflowContent.includes('assembleDebug') &&
       apkWorkflowContent.includes('assembleRelease') &&
-      apkWorkflowContent.includes('UMED-2-v2.4.7-debug-apk') &&
-      apkWorkflowContent.includes('UMED-2-v2.4.7-release-apk') &&
+      apkWorkflowContent.includes('UMED-2-v2.4.8-debug-apk') &&
+      apkWorkflowContent.includes('UMED-2-v2.4.8-release-apk') &&
       apkWorkflowContent.includes('VITE_UMED_MANIFEST_URL') &&
       apkWorkflowContent.includes('VITE_UMED_PUBLIC_KEY_PEM'),
-    'android-apk-release.yml must build v2.4.7 Debug/Release APKs with Cloud OTA env vars'
+    'android-apk-release.yml must build v2.4.8 Debug/Release APKs with Cloud OTA env vars'
   );
 
   const gradleContent = fs.readFileSync(androidBuildGradlePath, 'utf8');
   assertCondition(
     gradleContent.includes('org.umed2.dictengine') &&
-      gradleContent.includes('versionCode 20407') &&
-      gradleContent.includes('versionName "2.4.7"'),
-    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20407, and versionName "2.4.7"'
+      gradleContent.includes('versionCode 20408') &&
+      gradleContent.includes('versionName "2.4.8"'),
+    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20408, and versionName "2.4.8"'
   );
-  console.log('[PASS] 3. Capacitor Native Android Project (v2.4.7 / 20407) & Bundled Local Web Assets Synced');
+  console.log('[PASS] 3. Capacitor Native Android Project (v2.4.8 / 20408) & Bundled Local Web Assets Synced');
 
   // 4. Verify Safe, Versioned, Idempotent Storage Migration + Backup & Rollback
   const initialState = loadAppState();
@@ -1587,127 +1587,90 @@ async function main() {
     `Expected SyncQueue to recover to 'synced' status when connectivity returns, got ${recoveredFlushRes.status}`
   );
 
-  // Sync catalog online and verify >= 25 cloud topics are now fetched over the internet
-  await syncWithRemoteCloudLibrary({
-    localTopics: [],
+  // 16.3 Verify educational content remains device-local after dictionary catalog sync.
+  const previousLocalBlocks = loadMedicalBlocks();
+  const previousLocalSubjects = loadMedicalSubjects();
+  const previousLocalTopics = loadAppState().topics;
+  const previousCloudMirror = loadUnifiedCloudMirror();
+
+  const localOnlyBlock = {
+    id: 'blk-local-only-test',
+    code: 'LOCAL-TEST',
+    titleEn: 'Local Test Block',
+    titleAr: 'بلوك محلي تجريبي',
+    descriptionEn: 'Device-local educational content',
+    descriptionAr: 'محتوى تعليمي محلي على الجهاز',
+    colorAccent: 'emerald',
+    order: 999,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  const localOnlySubject = {
+    id: 'sub-local-only-test',
+    blockId: localOnlyBlock.id,
+    code: 'LOCAL-TEST-01',
+    titleEn: 'Local Test Subject',
+    titleAr: 'مادة محلية تجريبية',
+    descriptionEn: 'Imported locally',
+    descriptionAr: 'مستوردة محلياً',
+    order: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  const localOnlyTopic = {
+    id: 'topic-local-only-test',
+    blockId: localOnlyBlock.id,
+    subjectId: localOnlySubject.id,
+    title: 'Local Test Topic',
+    titleEn: 'Local Test Topic',
+    titleAr: 'موضوع محلي تجريبي',
+    subtitle: 'Device-local import fixture',
+    author: 'UMEDT test',
+    publishedAt: '2026-11-21',
+    category: 'General' as const,
+    difficulty: 'Intermediate' as const,
+    readingTimeMinutes: 3,
+    favorite: false,
+    sections: [
+      {
+        id: 'section-local-only-test',
+        title: 'Local section',
+        headingEn: 'Local section',
+        headingAr: 'قسم محلي',
+        paragraphs: ['This topic is stored on this device.']
+      }
+    ],
+    images: [],
+    links: [],
+    attachments: [],
+    updatedAt: new Date().toISOString()
+  };
+
+  saveMedicalBlocks([...previousLocalBlocks, localOnlyBlock]);
+  saveMedicalSubjects([...previousLocalSubjects, localOnlySubject]);
+  saveTopics([...previousLocalTopics, localOnlyTopic]);
+
+  const localOnlySync = await syncWithRemoteCloudLibrary({
+    localTopics: [...previousLocalTopics, localOnlyTopic],
     localTerms: initialStateForCloud.terms,
     localSentences: initialStateForCloud.sentences
   });
-  const onlineCatalogView = buildCloudLibraryCatalogView({
-    localTopics: [],
-    localTerms: initialStateForCloud.terms,
-    localSentences: initialStateForCloud.sentences
-  });
   assertCondition(
-    onlineCatalogView.totalCloudTopicsCount >= 1 && onlineCatalogView.blocks.length >= 1,
-    `Expected online synced catalog to have >= 1 topics and >= 1 blocks, got topics=${onlineCatalogView.totalCloudTopicsCount}, blocks=${onlineCatalogView.blocks.length}`
+    localOnlySync.autoMergedTopics.some((topic) => topic.id === localOnlyTopic.id) &&
+      loadMedicalBlocks().some((block) => block.id === localOnlyBlock.id) &&
+      loadMedicalSubjects().some((subject) => subject.id === localOnlySubject.id),
+    'Refreshing the terms-only GitHub dictionary must preserve locally imported blocks, subjects, and topics'
   );
 
-  // 16.4 Selective Download of Individual Topic from Cloud Library (Online) + SHA-256 Deduplication Check
-  const firstPopulatedTopic = onlineCatalogView.blocks
-    .flatMap((b) => b.subjects)
-    .flatMap((s) => s.topics)[0];
-  const firstCloudTopicId = firstPopulatedTopic.id;
-  const downloadSingleTopicRes = await downloadCloudLibraryTarget({
-    targetType: 'topic',
-    targetId: firstCloudTopicId,
-    currentTopics: [],
-    currentTerms: initialStateForCloud.terms,
-    currentSentences: initialStateForCloud.sentences
-  });
-  saveTopics(downloadSingleTopicRes.updatedTopics);
-  assertCondition(
-    downloadSingleTopicRes.success &&
-      downloadSingleTopicRes.downloadedTopicsCount === 1 &&
-      downloadSingleTopicRes.updatedTopics.some((t) => t.id === firstCloudTopicId),
-    'Selective download of a single Topic from Cloud Library must store it in local storage'
-  );
-
-  const downloadedTopicObj = downloadSingleTopicRes.updatedTopics[0];
-  const downloadedTopicHash = await computeEntitySha256('topic', downloadedTopicObj);
-  assertCondition(downloadedTopicHash.length === 64, 'Expected 64-char SHA-256 hex digest');
-
-  // Downloading the same already-downloaded topic again must skip identical SHA-256 content
-  const redundantDownloadRes = await downloadCloudLibraryTarget({
-    targetType: 'topic',
-    targetId: firstCloudTopicId,
-    currentTopics: downloadSingleTopicRes.updatedTopics,
-    currentTerms: downloadSingleTopicRes.updatedTerms,
-    currentSentences: downloadSingleTopicRes.updatedSentences
-  });
-  assertCondition(
-    redundantDownloadRes.success &&
-      redundantDownloadRes.downloadedTopicsCount === 0 &&
-      redundantDownloadRes.skippedIdenticalCount >= 1,
-    'Downloading an already-downloaded topic with matching SHA-256 hash must skip re-downloading identical records'
-  );
-
-  // 16.5 Local-Only Deletion of Topic & Re-Appearance in Cloud Catalog
-  const afterTopicDelete = await deleteCloudLibraryTargetLocally({
-    targetType: 'topic',
-    targetId: firstCloudTopicId,
-    currentTopics: downloadSingleTopicRes.updatedTopics,
-    currentTerms: downloadSingleTopicRes.updatedTerms,
-    currentSentences: initialStateForCloud.sentences
-  });
-  saveTopics(afterTopicDelete.updatedTopics);
-  assertCondition(
-    afterTopicDelete.success &&
-      afterTopicDelete.removedTopicsCount === 1 &&
-      !afterTopicDelete.updatedTopics.some((t) => t.id === firstCloudTopicId),
-    'Local deletion of a Topic must remove it completely from local topics list'
-  );
-
-  const catalogAfterTopicDelete = buildCloudLibraryCatalogView({
-    localTopics: afterTopicDelete.updatedTopics,
-    localTerms: afterTopicDelete.updatedTerms,
-    localSentences: initialStateForCloud.sentences
-  });
-  const deletedTopicCatalogEntry = catalogAfterTopicDelete.blocks
-    .flatMap((b) => b.subjects)
-    .flatMap((s) => s.topics)
-    .find((t) => t.id === firstCloudTopicId);
-  assertCondition(
-    Boolean(deletedTopicCatalogEntry && deletedTopicCatalogEntry.isDownloaded === false),
-    'Locally deleted topic must remain visible in the Cloud Library catalog with isDownloaded === false'
-  );
-
-  // 16.6 Selective Download & Local Deletion of an Entire Block (with its Subjects & Topics)
-  const targetBlockId =
-    onlineCatalogView.blocks.find((b) => b.totalTopicsCount > 0)?.id ||
-    onlineCatalogView.blocks[0].id;
-  const downloadBlockRes = await downloadCloudLibraryTarget({
-    targetType: 'block',
-    targetId: targetBlockId,
-    currentTopics: afterTopicDelete.updatedTopics,
-    currentTerms: afterTopicDelete.updatedTerms,
-    currentSentences: initialStateForCloud.sentences
-  });
-  saveTopics(downloadBlockRes.updatedTopics);
-  assertCondition(
-    downloadBlockRes.success &&
-      loadMedicalBlocks().some((b) => b.id === targetBlockId) &&
-      loadMedicalSubjects().length > 0 &&
-      downloadBlockRes.updatedTopics.length > 0,
-    'Selective download of a Block must download the Block, its Subjects, and its Topics to local storage'
-  );
-
-  const afterBlockDelete = await deleteCloudLibraryTargetLocally({
-    targetType: 'block',
-    targetId: targetBlockId,
-    currentTopics: downloadBlockRes.updatedTopics,
-    currentTerms: downloadBlockRes.updatedTerms,
-    currentSentences: downloadBlockRes.updatedSentences
-  });
-  saveTopics(afterBlockDelete.updatedTopics);
-  assertCondition(
-    afterBlockDelete.success && !loadMedicalBlocks().some((b) => b.id === targetBlockId),
-    'Deleting a Block locally must remove it from local loadMedicalBlocks()'
-  );
+  // Restore the pre-test device state; educational content is never published to UMEDT-DATA.
+  saveMedicalBlocks(previousLocalBlocks);
+  saveMedicalSubjects(previousLocalSubjects);
+  saveTopics(previousLocalTopics);
+  saveUnifiedCloudMirror(previousCloudMirror);
 
   clearLocallyRemovedRegistry();
   console.log(
-    '[PASS] 16. Post-Install Dictionary-Only State, Unified Cloud Library, Automatic Sync Queue, SHA-256 Deduplication, Selective Download & Local Deletion Verified'
+    '[PASS] 16. Terms-Only Cloud Source, Local Educational Content Preservation, Automatic Sync Queue & SHA-256 Deduplication Verified'
   );
 
   // ==========================================================================
@@ -2240,244 +2203,60 @@ async function main() {
   clearLocallyRemovedRegistry();
   setCloudSyncSimulatedOffline(false);
 
-  const umedtPdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a]); // %PDF-1.4\n
+  const termsUrl = 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/terms.json';
+  const umedtPdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a]);
   const mockBookPdfUrl = 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/media/cardio_atlas.pdf';
-
-  const masterPayloads: Record<string, unknown> = {
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/blocks.json': {
-      blocks: [
-        {
-          id: 'blk-umedt-data-1',
-          code: 'BLK-UD1',
-          titleEn: 'Cardiopulmonary Block',
-          titleAr: 'بلوك القلب والتنفس',
-          descriptionEn: 'Cardiopulmonary sciences',
-          descriptionAr: 'علوم القلب والجهاز التنفسي',
-          colorAccent: 'emerald',
-          order: 10,
-          createdAt: '2026-10-01T00:00:00.000Z',
-          updatedAt: '2026-10-01T00:00:00.000Z'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/subjects.json': {
-      subjects: [
-        {
-          id: 'subj-umedt-data-1',
-          blockId: 'blk-umedt-data-1',
-          code: 'CARD-201',
-          titleEn: 'Clinical Cardiology',
-          titleAr: 'أمراض القلب السريرية',
-          descriptionEn: 'Clinical cardiology topics',
-          descriptionAr: 'مواضيع القلب السريرية',
-          order: 1,
-          createdAt: '2026-10-01T00:00:00.000Z',
-          updatedAt: '2026-10-01T00:00:00.000Z'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/topics.json': {
-      topics: [
-        {
-          id: 'topic-umedt-data-1',
-          blockId: 'blk-umedt-data-1',
-          subjectId: 'subj-umedt-data-1',
-          title: 'Acute Coronary Syndrome',
-          titleEn: 'Acute Coronary Syndrome',
-          titleAr: 'المتلازمة التاجية الحادة',
-          subtitle: 'ECG & Troponin Pathway',
-          category: 'Cardiology',
-          system: 'Cardiovascular',
-          difficulty: 'Intermediate',
-          summary: 'Diagnostic pathway for STEMI and NSTEMI.',
-          keyTakeaways: ['Obtain 12-lead ECG within 10 minutes'],
-          sections: [
-            {
-              id: 'sec-ud-1',
-              title: 'Algorithm',
-              body: 'Follow reperfusion pathway.',
-              contentBlocks: [
-                {
-                  id: 'cb-ud-diag',
-                  type: 'diagram',
-                  title: 'ACS ECG Flowchart',
-                  diagramSvg: '<svg viewBox="0 0 120 40"><rect width="120" height="40" fill="#ecfdf5"/><text x="10" y="25">ECG &lt; 10m</text></svg>'
-                },
-                {
-                  id: 'cb-ud-pdf',
-                  type: 'pdf_viewer',
-                  title: 'Guidelines PDF',
-                  url: mockBookPdfUrl
-                },
-                {
-                  id: 'cb-ud-book',
-                  type: 'book_reference',
-                  title: 'Cardio Atlas Reference',
-                  bookId: 'book-umedt-data-1'
-                },
-                {
-                  id: 'cb-ud-exam',
-                  type: 'exam_link',
-                  title: 'ACS Mastery Exam',
-                  examId: 'exam-umedt-data-1'
-                }
-              ]
-            }
-          ],
-          linkedTermIds: ['term-umedt-data-1'],
-          linkedTerms: ['Ischemia'],
-          tags: ['ACS'],
-          updatedAt: '2026-10-01T00:00:00.000Z'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/terms.json': {
-      terms: [
-        {
-          id: 'term-umedt-data-1',
-          term: 'Ischemia',
-          arabicTranslation: 'نقص التروية',
-          category: 'Cardiology',
-          definition: 'Restricted blood supply to tissues.',
-          arabicSummary: 'انخفاض تدفق الدم والأكسجين إلى الأنسجة',
-          exampleSentence: 'Myocardial ischemia causes angina.',
-          exampleTranslation: 'يسبب نقص تروية عضلة القلب ذبحة صدرية.',
-          pronunciation: '/ɪˈskiːmiə/',
-          tags: ['Cardio'],
-          rootBreakdown: { root: 'isch- (hold back) + -emia (blood)' },
-          updatedAt: '2026-10-01T00:00:00.000Z'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/sentences.json': {
-      sentences: [
-        {
-          id: 'sent-umedt-data-1',
-          english: 'ST-segment elevation indicates transmural myocardial injury.',
-          arabic: 'يشير ارتفاع قطعة ST إلى إصابة عابرة لجدار عضلة القلب.',
-          termIds: ['term-umedt-data-1'],
-          sourceTopicId: 'topic-umedt-data-1'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/custom_affixes.json': {
-      affixes: [
-        {
-          id: 'affix-umedt-1',
-          affix: 'isch-',
-          type: 'prefix',
-          meaning: 'Hold back / deficient',
-          meaningAr: 'احتباس / نقص',
-          examples: ['Ischemia'],
-          notes: 'Greek root'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/custom_abbreviations.json': {
-      abbreviations: [
-        {
-          id: 'abbr-umedt-1',
-          abbr: 'STEMI',
-          expansion: 'ST-Elevation Myocardial Infarction',
-          arabicMeaning: 'احتشاء عضلة القلب المصحوب بارتفاع ST',
-          clinicalContext: 'Emergency cardiology'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/books.json': {
-      books: [
-        {
-          id: 'book-umedt-data-1',
-          title: 'Cardio Atlas',
-          titleEn: 'Cardio Atlas',
-          titleAr: 'أطلس أمراض القلب',
-          authors: 'UMEDT Editorial',
-          blockId: 'blk-umedt-data-1',
-          subjectId: 'subj-umedt-data-1',
-          pdfUrl: mockBookPdfUrl,
-          sizeBytes: 9,
-          updatedAt: '2026-10-01T00:00:00.000Z'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/questions.json': {
-      questions: [
-        {
-          id: 'q-umedt-data-1',
-          type: 'single_choice',
-          prompt: 'Which ECG finding confirms STEMI?',
-          promptAr: 'أي علامة في تخطيط القلب تؤكد STEMI؟',
-          options: [
-            { id: 'a', text: 'ST-segment elevation', textAr: 'ارتفاع قطعة ST', isCorrect: true },
-            { id: 'b', text: 'Isolated U wave', textAr: 'موجة U معزولة', isCorrect: false }
-          ],
-          correctOptionIds: ['a'],
-          explanation: 'Persistent ST elevation in contiguous leads defines STEMI.',
-          explanationAr: 'ارتفاع قطعة ST المستمر في اتجاهات متجاورة يحدد STEMI.',
-          difficulty: 'medium',
-          topicId: 'topic-umedt-data-1',
-          blockId: 'blk-umedt-data-1',
-          subjectId: 'subj-umedt-data-1',
-          termId: 'term-umedt-data-1'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/exams.json': {
-      exams: [
-        {
-          id: 'exam-umedt-data-1',
-          title: 'Cardiology Midterm',
-          titleEn: 'Cardiology Midterm',
-          titleAr: 'اختبار منتصف بلوك القلب',
-          blockId: 'blk-umedt-data-1',
-          subjectId: 'subj-umedt-data-1',
-          topicIds: ['topic-umedt-data-1'],
-          questionIds: ['q-umedt-data-1'],
-          timeLimitMinutes: 15,
-          passingScorePercent: 70,
-          updatedAt: '2026-10-01T00:00:00.000Z'
-        }
-      ]
-    },
-    'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/media_assets.json': {
-      mediaAssets: [
-        {
-          id: 'asset-umedt-1',
-          title: 'Cardio Atlas PDF',
-          kind: 'pdf',
-          url: mockBookPdfUrl,
-          sizeBytes: 9,
-          mimeType: 'application/pdf'
-        }
-      ]
+  const canonicalTermsFixture = [
+    {
+      id: 'term-cardiomyocyte',
+      term: 'Cardiomyocyte',
+      definitionEn: 'A specialized muscle cell that forms the contractile tissue of the heart.',
+      definitionAr: 'خلية عضلية متخصصة تكوّن النسيج القابل للانقباض في القلب.',
+      translation: 'خلية عضلة القلب',
+      pronunciation: '/ˌkɑːr.di.oʊˈmaɪ.oʊ.saɪt/',
+      exampleEn: 'A cardiomyocyte contracts in response to an electrical impulse.',
+      exampleAr: 'تنقبض خلية عضلة القلب استجابةً لنبضة كهربائية.',
+      createdAt: '2026-11-21T00:00:00.000Z',
+      updatedAt: '2026-11-21T00:00:00.000Z'
     }
-  };
-
-  const catalogCollections: Array<{ id: string; contentType: string; rendererType: string; rawUrl: string; sha256: string }> = [
-    { id: 'blocks', contentType: 'blocks', rendererType: 'block_hub', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/blocks.json', sha256: 'hash-blocks-v1' },
-    { id: 'subjects', contentType: 'subjects', rendererType: 'subject_list', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/subjects.json', sha256: 'hash-subjects-v1' },
-    { id: 'topics', contentType: 'topics', rendererType: 'topic_article', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/topics.json', sha256: 'hash-topics-v1' },
-    { id: 'terms', contentType: 'terms', rendererType: 'lexicon_term', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/terms.json', sha256: 'hash-terms-v1' },
-    { id: 'sentences', contentType: 'sentences', rendererType: 'bilingual_sentence', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/sentences.json', sha256: 'hash-sentences-v1' },
-    { id: 'customAffixes', contentType: 'affixes', rendererType: 'morphology_rule', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/custom_affixes.json', sha256: 'hash-affixes-v1' },
-    { id: 'customAbbreviations', contentType: 'abbreviations', rendererType: 'clinical_abbr', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/custom_abbreviations.json', sha256: 'hash-abbr-v1' },
-    { id: 'books', contentType: 'books', rendererType: 'academic_book', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/books.json', sha256: 'hash-books-v1' },
-    { id: 'questions', contentType: 'questions', rendererType: 'quiz_question', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/questions.json', sha256: 'hash-questions-v1' },
-    { id: 'exams', contentType: 'exams', rendererType: 'academic_exam', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/exams.json', sha256: 'hash-exams-v1' },
-    { id: 'mediaAssets', contentType: 'mediaAssets', rendererType: 'media_asset', rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/media_assets.json', sha256: 'hash-media-v1' }
   ];
-
+  const termsPayloadText = JSON.stringify(canonicalTermsFixture);
+  const termsPayloadHash = await computeSha256Hex(new TextEncoder().encode(termsPayloadText));
   const mockUmedtFetch: typeof fetch = async (input: RequestInfo | URL) => {
     const urlStr = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     if (urlStr === UMEDT_DATA_CATALOG_URL) {
       return new Response(
         JSON.stringify({
-          schemaVersion: '1.0',
-          version: '2026.11.0-umedt-data',
-          collections: catalogCollections
+          catalogVersion: '2026.11.21-test',
+          schemaVersion: 1,
+          capabilities: { termsOnly: true },
+          contentTypesRegistry: [
+            {
+              contentType: 'term',
+              rendererType: 'lexicon_entry',
+              displayNameAr: 'مصطلح',
+              displayNameEn: 'Dictionary Term'
+            }
+          ],
+          collections: [
+            {
+              id: 'terms',
+              contentType: 'term',
+              rendererType: 'lexicon_entry',
+              rawUrl: termsUrl,
+              sha256: termsPayloadHash,
+              recordCount: canonicalTermsFixture.length
+            }
+          ]
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
+    }
+    if (urlStr === termsUrl) {
+      return new Response(termsPayloadText, {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
     if (urlStr === mockBookPdfUrl) {
       return new Response(umedtPdfBytes, {
@@ -2485,28 +2264,23 @@ async function main() {
         headers: { 'Content-Type': 'application/pdf' }
       });
     }
-    if (masterPayloads[urlStr]) {
-      return new Response(JSON.stringify(masterPayloads[urlStr]), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
     return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
   };
 
-  // 18.1 UMEDT-DATA Repository Sync + Incremental SHA-256 Collection Skip
+  // 18.1 Terms-only UMEDT-DATA sync + strict SHA-256 + incremental skip
   const umedtSyncFirst = await syncFromUmedtDataRepository({
     customFetch: mockUmedtFetch
   });
   assertCondition(
     umedtSyncFirst.fetched === true &&
-      umedtSyncFirst.updatedCollectionsCount === 11 &&
+      umedtSyncFirst.termsOnly === true &&
+      umedtSyncFirst.updatedCollectionsCount === 1 &&
       umedtSyncFirst.skippedCollectionsCount === 0 &&
-      (umedtSyncFirst.incoming.books?.length || 0) === 1 &&
-      (umedtSyncFirst.incoming.exams?.length || 0) === 1 &&
-      (umedtSyncFirst.incoming.quizQuestions?.length || 0) === 1 &&
-      (umedtSyncFirst.incoming.topics?.[0]?.sections?.[0]?.contentBlocks?.length || 0) === 4,
-    'syncFromUmedtDataRepository must fetch and parse all 11 UMEDT-DATA master collections including books, exams, questions, and new ContentBlockTypes'
+      umedtSyncFirst.incoming.terms?.length === 1 &&
+      umedtSyncFirst.incoming.terms[0]?.term === 'Cardiomyocyte' &&
+      umedtSyncFirst.incoming.terms[0]?.translation === 'خلية عضلة القلب' &&
+      umedtSyncFirst.incoming.terms[0]?.examples?.[0]?.en.includes('electrical impulse'),
+    'syncFromUmedtDataRepository must normalize the terms-only schema and reject no valid canonical fields'
   );
 
   const umedtSyncSecond = await syncFromUmedtDataRepository({
@@ -2516,11 +2290,11 @@ async function main() {
   assertCondition(
     umedtSyncSecond.fetched === true &&
       umedtSyncSecond.updatedCollectionsCount === 0 &&
-      umedtSyncSecond.skippedCollectionsCount === 11,
-    'syncFromUmedtDataRepository must skip unchanged collections on subsequent syncs when SHA-256 matches'
+      umedtSyncSecond.skippedCollectionsCount === 1,
+    'terms-only catalog must skip unchanged terms collection when SHA-256 matches'
   );
 
-  // 18.2 Full syncWithRemoteCloudLibrary integration with UMEDT-DATA + Offline Book PDF Prefetch
+  // 18.2 Terms-only cloud mirror reset + explicit dictionary download + local-state preservation
   const originalFetchForUmedt = globalThis.fetch;
   try {
     globalThis.fetch = mockUmedtFetch;
@@ -2532,66 +2306,54 @@ async function main() {
       customFetch: mockUmedtFetch
     });
     assertCondition(
-      (fullSyncRes.mirror.books?.length || 0) >= 1 &&
-        (fullSyncRes.mirror.exams?.length || 0) >= 1 &&
-        (fullSyncRes.mirror.quizQuestions?.length || 0) >= 1,
-      'syncWithRemoteCloudLibrary must index UMEDT-DATA books, exams, and questions into the cloud mirror catalog'
+      fullSyncRes.mirror.terms.some((term) => term.id === 'term-cardiomyocyte') &&
+        !(fullSyncRes.mirror.books || []).length &&
+        !(fullSyncRes.mirror.exams || []).length &&
+        !(fullSyncRes.mirror.quizQuestions || []).length &&
+        !fullSyncRes.mirror.topics.some((topic) => topic.id === 'topic-umedt-data-1'),
+      'termsOnly catalog must expose the dictionary and clear legacy cloud-only academic collections'
     );
 
-    const catalogBeforeBookDownload = buildCloudLibraryCatalogView({
+    const dictionarySummary = buildCloudLibraryCatalogView({
       localTopics: fullSyncRes.autoMergedTopics,
       localTerms: fullSyncRes.autoMergedTerms,
       localSentences: fullSyncRes.autoMergedSentences
     });
     assertCondition(
-      catalogBeforeBookDownload.books.some((b) => b.id === 'book-umedt-data-1' && !b.isDownloaded) &&
-        catalogBeforeBookDownload.totalCloudExamsCount >= 1,
-      'Cloud catalog must display UMEDT-DATA book as cloud-available before selective download'
+      (dictionarySummary.cloudDictionaryTotalCount || 0) >= 1,
+      'Cloud Library must expose a standalone terms-only dictionary download target'
     );
 
-    const bookDownloadRes = await downloadCloudLibraryTarget({
-      targetType: 'book',
-      targetId: 'book-umedt-data-1',
+    const dictionaryDownload = await downloadCloudLibraryTarget({
+      targetType: 'dictionary',
+      targetId: 'all',
       currentTopics: fullSyncRes.autoMergedTopics,
       currentTerms: fullSyncRes.autoMergedTerms,
       currentSentences: fullSyncRes.autoMergedSentences,
       customFetch: mockUmedtFetch
     });
-    const prefetchedKey = `idb-${computeDeterministicFastHashHex(mockBookPdfUrl).slice(0, 16)}`;
-    const prefetchedPdfRecord = await getLocalMediaRecord(prefetchedKey);
     assertCondition(
-      bookDownloadRes.success &&
-        loadAcademicBooks().some((b) => b.id === 'book-umedt-data-1') &&
-        bookDownloadRes.downloadedMediaCount >= 1 &&
-        Boolean(prefetchedPdfRecord) &&
-        prefetchedPdfRecord?.mimeType === 'application/pdf',
-      'Downloading a cloud book must persist it locally and prefetch its remote PDF into IndexedDB under its deterministic hashed key'
+      dictionaryDownload.success &&
+        dictionaryDownload.updatedTerms.some((term) =>
+          term.id === 'term-cardiomyocyte' &&
+          term.translation === 'خلية عضلة القلب' &&
+          term.phonetic === '/ˌkɑːr.di.oʊˈmaɪ.oʊ.saɪt/' &&
+          term.examples[0]?.en.includes('electrical impulse')
+        ),
+      'Explicit dictionary download must install normalized terms with translation, pronunciation, bilingual definition, and example'
     );
 
-    const topicDownloadRes = await downloadCloudLibraryTarget({
-      targetType: 'topic',
-      targetId: 'topic-umedt-data-1',
-      currentTopics: bookDownloadRes.updatedTopics,
-      currentTerms: bookDownloadRes.updatedTerms,
-      currentSentences: bookDownloadRes.updatedSentences,
+    const prefetchedMediaKey = `idb-${computeDeterministicFastHashHex(mockBookPdfUrl).slice(0, 16)}`;
+    const mediaPrefetch = await downloadRemoteMediaToOfflineCache({
+      id: prefetchedMediaKey,
+      remoteUrl: mockBookPdfUrl,
+      fileName: 'cardio_atlas.pdf',
+      mimeType: 'application/pdf',
       customFetch: mockUmedtFetch
     });
     assertCondition(
-      topicDownloadRes.success &&
-        loadAcademicExams().some((e) => e.id === 'exam-umedt-data-1'),
-      'Downloading a cloud topic must also pull its linked UMEDT-DATA exam blueprint locally'
-    );
-
-    const bookDeleteRes = await deleteCloudLibraryTargetLocally({
-      targetType: 'book',
-      targetId: 'book-umedt-data-1',
-      currentTopics: topicDownloadRes.updatedTopics,
-      currentTerms: topicDownloadRes.updatedTerms,
-      currentSentences: topicDownloadRes.updatedSentences
-    });
-    assertCondition(
-      bookDeleteRes.success && !loadAcademicBooks().some((b) => b.id === 'book-umedt-data-1'),
-      'Deleting a downloaded book locally must remove it from local device storage while preserving cloud availability'
+      mediaPrefetch.success && Boolean(await getLocalMediaRecord(prefetchedMediaKey)),
+      'Independent local media cache must remain available for imported educational topics and standalone exports'
     );
   } finally {
     globalThis.fetch = originalFetchForUmedt;
@@ -2838,6 +2600,70 @@ async function main() {
   // =========================================================================
   const v2MockSvgUrl = 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/media/ecg_lead_map.svg';
   const v2MockSvgBody = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 40"><rect width="100" height="40" fill="#10b981"/></svg>';
+  const v2MockPayloads = {
+    topics: [
+      {
+        id: 'topic-v2-ecg',
+        blockId: 'blk-ai-neuro',
+        subjectId: 'subj-ai-neuro',
+        title: 'ECG Essentials v2',
+        titleEn: 'ECG Essentials v2',
+        titleAr: 'أساسيات تخطيط القلب v2',
+        subtitle: '12-Lead Interpretation',
+        sections: [
+          {
+            id: 'sec-v2-1',
+            headingEn: 'Lead Groups',
+            headingAr: 'مجموعات المساري',
+            paragraphs: ['Limb and precordial leads assess depolarization vectors.']
+          }
+        ]
+      }
+    ],
+    books: [
+      {
+        id: 'book-v2-ecg',
+        titleEn: 'ECG Pocket Atlas',
+        titleAr: 'أطلس تخطيط القلب المختصر',
+        blockId: 'blk-ai-neuro',
+        downloadUrl: mockBookPdfUrl,
+        format: 'pdf',
+        resourceKind: 'reference_book',
+        publicationYear: 2026
+      }
+    ],
+    exams: [
+      {
+        id: 'exam-v2-ecg',
+        titleEn: 'ECG Mastery Quiz',
+        titleAr: 'اختبار قراءة التخطيط',
+        topicIds: ['topic-v2-ecg'],
+        questionIds: ['q-ai-1'],
+        passingScorePercent: 80,
+        durationMinutes: 15
+      }
+    ],
+    media: [
+      {
+        id: 'media-v2-svg-1',
+        titleEn: 'ECG Lead Diagram',
+        titleAr: 'مخطط مساري القلب',
+        kind: 'svg',
+        format: 'svg',
+        rawUrl: v2MockSvgUrl,
+        linkedEntityType: 'topic',
+        linkedEntityId: 'topic-v2-ecg'
+      }
+    ],
+    flashcards: [
+      {
+        id: 'fc-v2-1',
+        titleEn: 'Murmurs High-Yield Deck',
+        titleAr: 'ملخص النفخات القلبية',
+        descriptionAr: 'مجموعة مكتشفة تلقائياً عبر contentTypesRegistry'
+      }
+    ]
+  };
   const v2MockCatalog = {
     schemaVersion: '2.0.0',
     catalogVersion: '2026.11.0-v2',
@@ -2852,35 +2678,35 @@ async function main() {
         contentType: 'topic',
         rendererType: 'topic_article',
         rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/topics.json',
-        sha256: 'h-topics-v2'
+        sha256: await computeSha256Hex(new TextEncoder().encode(JSON.stringify(v2MockPayloads.topics)))
       },
       {
         id: 'books',
         contentType: 'book',
         rendererType: 'book_pdf_reader',
         rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/books.json',
-        sha256: 'h-books-v2'
+        sha256: await computeSha256Hex(new TextEncoder().encode(JSON.stringify(v2MockPayloads.books)))
       },
       {
         id: 'exams',
         contentType: 'exam',
         rendererType: 'exam_blueprint',
         rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/exams.json',
-        sha256: 'h-exams-v2'
+        sha256: await computeSha256Hex(new TextEncoder().encode(JSON.stringify(v2MockPayloads.exams)))
       },
       {
         id: 'media',
         contentType: 'media',
         rendererType: 'media_gallery',
         rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/media-index.json',
-        sha256: 'h-media-v2'
+        sha256: await computeSha256Hex(new TextEncoder().encode(JSON.stringify(v2MockPayloads.media)))
       },
       {
         id: 'flashcards',
         contentType: 'flashcard_deck',
         rendererType: 'generic_card',
         rawUrl: 'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/master/flashcards.json',
-        sha256: 'h-flashcards-v2'
+        sha256: await computeSha256Hex(new TextEncoder().encode(JSON.stringify(v2MockPayloads.flashcards)))
       }
     ]
   };
@@ -2892,91 +2718,19 @@ async function main() {
       return new Response(JSON.stringify(v2MockCatalog), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     if (urlStr.includes('/topics.json')) {
-      return new Response(
-        JSON.stringify([
-          {
-            id: 'topic-v2-ecg',
-            blockId: 'blk-ai-neuro',
-            subjectId: 'subj-ai-neuro',
-            title: 'ECG Essentials v2',
-            titleEn: 'ECG Essentials v2',
-            titleAr: 'أساسيات تخطيط القلب v2',
-            subtitle: '12-Lead Interpretation',
-            sections: [
-              {
-                id: 'sec-v2-1',
-                headingEn: 'Lead Groups',
-                headingAr: 'مجموعات المساري',
-                paragraphs: ['Limb and precordial leads assess depolarization vectors.']
-              }
-            ]
-          }
-        ]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify(v2MockPayloads.topics), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     if (urlStr.includes('/books.json')) {
-      return new Response(
-        JSON.stringify([
-          {
-            id: 'book-v2-ecg',
-            titleEn: 'ECG Pocket Atlas',
-            titleAr: 'أطلس تخطيط القلب المختصر',
-            blockId: 'blk-ai-neuro',
-            downloadUrl: mockBookPdfUrl,
-            format: 'pdf',
-            resourceKind: 'reference_book',
-            publicationYear: 2026
-          }
-        ]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify(v2MockPayloads.books), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     if (urlStr.includes('/exams.json')) {
-      return new Response(
-        JSON.stringify([
-          {
-            id: 'exam-v2-ecg',
-            titleEn: 'ECG Mastery Quiz',
-            titleAr: 'اختبار قراءة التخطيط',
-            topicIds: ['topic-v2-ecg'],
-            questionIds: ['q-ai-1'],
-            passingScorePercent: 80,
-            durationMinutes: 15
-          }
-        ]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify(v2MockPayloads.exams), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     if (urlStr.includes('/media-index.json')) {
-      return new Response(
-        JSON.stringify([
-          {
-            id: 'media-v2-svg-1',
-            titleEn: 'ECG Lead Diagram',
-            titleAr: 'مخطط مساري القلب',
-            kind: 'svg',
-            format: 'svg',
-            rawUrl: v2MockSvgUrl,
-            linkedEntityType: 'topic',
-            linkedEntityId: 'topic-v2-ecg'
-          }
-        ]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify(v2MockPayloads.media), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     if (urlStr.includes('/flashcards.json')) {
-      return new Response(
-        JSON.stringify([
-          {
-            id: 'fc-v2-1',
-            titleEn: 'Murmurs High-Yield Deck',
-            titleAr: 'ملخص النفخات القلبية',
-            descriptionAr: 'مجموعة مكتشفة تلقائياً عبر contentTypesRegistry'
-          }
-        ]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify(v2MockPayloads.flashcards), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     if (urlStr === v2MockSvgUrl) {
       return new Response(v2MockSvgBody, { status: 200, headers: { 'Content-Type': 'image/svg+xml' } });

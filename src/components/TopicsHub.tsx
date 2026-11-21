@@ -421,11 +421,6 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   const imageFileInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentFileInputRef = useRef<HTMLInputElement | null>(null);
   const articleProseRef = useRef<HTMLDivElement | null>(null);
-  const lastTapRef = useRef<{ time: number; x: number; y: number }>({
-    time: 0,
-    x: 0,
-    y: 0
-  });
   const [saveAlsoAsFavorite, setSaveAlsoAsFavorite] = useState<boolean>(true);
 
   useEffect(() => {
@@ -1022,51 +1017,27 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     showToast(`تم حذف المادة "${subj.titleAr}" مع الاحتفاظ بالمواضيع.`);
   };
 
-  // Lookup helper for matching a selected word/phrase (including inflections & abbreviations) to an existing DictionaryTerm
+  // Match only an exact one- or two-word entry in the canonical dictionary.
   const findTermForSelectedString = (rawSelection: string): DictionaryTerm | null => {
     const cleaned = rawSelection
       .replace(/^[.,;:!?()[\]{}"'«»“”‘’—–-]+|[.,;:!?()[\]{}"'«»“”‘’—–-]+$/g, '')
+      .trim()
+      .replace(/\s+/g, ' ');
+    const words = cleaned ? cleaned.split(' ') : [];
+    const validWord = /^[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*$/;
+    if (words.length < 1 || words.length > 2 || words.some((word) => !validWord.test(word))) {
+      return null;
+    }
+    const normalize = (value: string) => value
+      .normalize('NFKC')
+      .toLowerCase()
+      .replace(/[’‘]/g, "'")
+      .replace(/[‐‑‒–—]/g, '-')
+      .replace(/[^a-z0-9'-]+/g, ' ')
+      .replace(/\s+/g, ' ')
       .trim();
-    if (!cleaned || cleaned.length < 2) return null;
-
-    const candidates = buildEnglishInflectionCandidates(cleaned);
-
-    for (const cand of candidates) {
-      const direct = terms.find(
-        (t) =>
-          t.term.toLowerCase() === cand ||
-          t.translation.trim() === cleaned ||
-          (t.relations.synonyms || []).some((syn) => syn.toLowerCase() === cand)
-      );
-      if (direct) return direct;
-
-      const aliasTargetKey = Object.keys(EXTRA_LINKABLE_ALIASES).find(
-        (k) => k.toLowerCase() === cand
-      );
-      if (aliasTargetKey) {
-        const targetId = EXTRA_LINKABLE_ALIASES[aliasTargetKey];
-        const aliasTerm = terms.find((t) => t.id === targetId);
-        if (aliasTerm) return aliasTerm;
-      }
-
-      const abbrEntry = CLINICAL_ABBREVIATIONS.find(
-        (a) => a.abbr.toLowerCase() === cand
-      );
-      if (abbrEntry) {
-        const expMatch = terms.find(
-          (t) => t.term.toLowerCase() === abbrEntry.defaultExpansionEn.toLowerCase()
-        );
-        if (expMatch) return expMatch;
-      }
-    }
-
-    const detailed = extractAllTopicMatchesFromText(cleaned, terms);
-    if (detailed.length > 0) {
-      const found = terms.find((t) => t.id === detailed[0].termId);
-      if (found) return found;
-    }
-
-    return null;
+    const normalized = normalize(cleaned);
+    return terms.find((item) => normalize(item.termNormalized || item.term) === normalized) || null;
   };
 
   const extractWordAtPoint = (clientX: number, clientY: number): string => {
@@ -1126,7 +1097,18 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
       end += 1;
     }
 
-    return content.slice(start, end).trim();
+    const selectedWord = content.slice(start, end).trim();
+    if (findTermForSelectedString(selectedWord)) return selectedWord;
+
+    // A tap on either token can resolve an exact two-word dictionary entry.
+    const before = content.slice(0, start).match(/([A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*)\s*$/)?.[1];
+    const after = content.slice(end).match(/^\s*([A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*)/)?.[1];
+    const adjacentCandidates = [
+      before ? before + ' ' + selectedWord : '',
+      after ? selectedWord + ' ' + after : ''
+    ].filter(Boolean);
+    const exactPair = adjacentCandidates.find((candidate) => findTermForSelectedString(candidate));
+    return exactPair || selectedWord;
   };
 
   const inspectUserSelection = (rawText?: string) => {
@@ -3714,31 +3696,22 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         {/* Focused Reading Canvas (Full Width, Zero Clutter) */}
         <article
           ref={articleProseRef}
-          onDoubleClick={(e) => {
-            const word = extractWordAtPoint(e.clientX, e.clientY);
-            inspectUserSelection(word || undefined);
+          onClick={(e) => {
+            const selected = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
+            if (selected) return;
+            const tappedWord = extractWordAtPoint(e.clientX, e.clientY);
+            if (tappedWord && findTermForSelectedString(tappedWord)) {
+              inspectUserSelection(tappedWord);
+            }
           }}
           onMouseUp={() => {
             setTimeout(() => inspectUserSelection(), 30);
           }}
-          onTouchEnd={(e) => {
-            const touch = e.changedTouches?.[0];
-            const now = Date.now();
-            if (touch) {
-              const dt = now - lastTapRef.current.time;
-              const dx = Math.abs(touch.clientX - lastTapRef.current.x);
-              const dy = Math.abs(touch.clientY - lastTapRef.current.y);
-              if (dt > 0 && dt < 360 && dx < 36 && dy < 36) {
-                const tappedWord = extractWordAtPoint(touch.clientX, touch.clientY);
-                if (tappedWord) {
-                  inspectUserSelection(tappedWord);
-                  lastTapRef.current = { time: 0, x: 0, y: 0 };
-                  return;
-                }
-              }
-              lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
+          onTouchEnd={() => {
+            const selected = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
+            if (selected && findTermForSelectedString(selected)) {
+              inspectUserSelection(selected);
             }
-            setTimeout(() => inspectUserSelection(), 120);
           }}
           onCopy={() => {
             setTimeout(() => inspectUserSelection(), 60);
@@ -4683,7 +4656,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 block">
-                        بطاقة الترجمة الفورية · مصطلح مسجل ({selectionState.matchedTerm.category})
+                        بطاقة القاموس · مصطلح مسجل
                       </span>
                       <div className="flex items-center gap-2 flex-wrap mt-1">
                         <h4
@@ -4692,12 +4665,6 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                         >
                           {selectionState.matchedTerm.term}
                         </h4>
-                        <span
-                          dir="ltr"
-                          className="text-xs font-mono text-slate-400"
-                        >
-                          {selectionState.matchedTerm.phonetic}
-                        </span>
                         <button
                           type="button"
                           onClick={() =>
@@ -4723,23 +4690,50 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     </button>
                   </div>
 
-                  <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3">
-                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                      الترجمة الطبية:
-                    </span>
-                    <span className="text-base font-extrabold text-emerald-700 dark:text-emerald-300">
-                      {selectionState.matchedTerm.translation}
+                  <div className="space-y-2">
+                    <div className="space-y-1">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                        Definition (English):
+                      </span>
+                      <p dir="ltr" className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed text-left">
+                        {selectionState.matchedTerm.definitionEn}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                        الشرح والتعريف بالعربية:
+                      </span>
+                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                        {selectionState.matchedTerm.definitionAr}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                        الترجمة العربية:
+                      </span>
+                      <span className="text-base font-extrabold text-emerald-700 dark:text-emerald-300">
+                        {selectionState.matchedTerm.translation}
+                      </span>
+                    </div>
+                    <span dir="ltr" className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                      {selectionState.matchedTerm.phonetic}
                     </span>
                   </div>
 
-                  <div className="space-y-1">
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                      الشرح والتعريف العلمي:
-                    </span>
-                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                      {selectionState.matchedTerm.definitionAr}
-                    </p>
-                  </div>
+                  {selectionState.matchedTerm.examples?.[0] && (
+                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                      <span className="text-[11px] font-bold text-slate-500">Example · مثال:</span>
+                      <p dir="ltr" className="text-xs text-slate-800 dark:text-slate-200 text-left leading-relaxed">
+                        {selectionState.matchedTerm.examples[0].en}
+                      </p>
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300 leading-relaxed">
+                        {selectionState.matchedTerm.examples[0].ar}
+                      </p>
+                    </div>
+                  )}
 
                   {selectionState.quotedSentenceEn && (
                     <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">

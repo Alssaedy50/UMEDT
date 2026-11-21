@@ -72,7 +72,6 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
   terms,
   sentences,
   detailHistory,
-  categoryMeta,
   speakingKey,
   copiedId,
   concordanceMatches,
@@ -176,10 +175,10 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
       termNormalized: editDraft.term.trim().toLowerCase(),
       translation: editDraft.translation.trim(),
       phonetic: editDraft.phonetic.trim() || `/${editDraft.term.trim().toLowerCase()}/`,
-      pos: editDraft.pos.trim() || 'Noun · اسم',
-      category: editDraft.category,
-      specialty: editDraft.specialty.trim() || undefined,
-      umdCode: editDraft.umdCode.trim() || undefined,
+      pos: 'term',
+      category: 'General',
+      specialty: undefined,
+      umdCode: undefined,
       definitionAr: editDraft.definitionAr.trim(),
       definitionEn: editDraft.definitionEn.trim(),
       clinicalNote: editDraft.clinicalNote.trim() || undefined,
@@ -245,9 +244,7 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
                 </button>
               )}
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 break-words">
-                {categoryMeta[activeDetailTerm.category]?.label}
-                {activeDetailTerm.specialty ? ` · ${activeDetailTerm.specialty}` : ''}
-                {activeDetailTerm.umdCode ? ` · ${activeDetailTerm.umdCode}` : ''}
+                قاموس المصطلحات
               </span>
             </div>
 
@@ -746,91 +743,20 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
               </div>
             </div>
 
-            {/* Row 2: Phonetic, POS, Category */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs text-slate-500 block mb-1">
-                  النطق الصوتي (IPA):
-                </label>
-                <input
-                  type="text"
-                  dir="ltr"
-                  value={editDraft.phonetic}
-                  onChange={(e) =>
-                    setEditDraft({ ...editDraft, phonetic: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-500 block mb-1">
-                  التصنيف النحوي (POS):
-                </label>
-                <input
-                  type="text"
-                  value={editDraft.pos}
-                  onChange={(e) =>
-                    setEditDraft({ ...editDraft, pos: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-500 block mb-1">
-                  الفئة المعجمية:
-                </label>
-                <select
-                  value={editDraft.category}
-                  onChange={(e) =>
-                    setEditDraft({
-                      ...editDraft,
-                      category: e.target.value as LexiconCategory
-                    })
-                  }
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
-                >
-                  <option value="Medical">الطب السريري (Medical)</option>
-                  <option value="AI">الذكاء الاصطناعي (AI)</option>
-                  <option value="Programming">هندسة البرمجيات (Programming)</option>
-                  <option value="General">معرفي وعام (General)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Row 3: Specialty & UMD Code */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-slate-500 block mb-1">
-                  التخصص الدقيق (Specialty):
-                </label>
-                <input
-                  type="text"
-                  value={editDraft.specialty}
-                  onChange={(e) =>
-                    setEditDraft({ ...editDraft, specialty: e.target.value })
-                  }
-                  placeholder="مثال: أمراض القلب والأوعية الدموية"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-500 block mb-1">
-                  كود المعجم الطبي الموحد (UMD Code):
-                </label>
-                <input
-                  type="text"
-                  dir="ltr"
-                  value={editDraft.umdCode}
-                  onChange={(e) =>
-                    setEditDraft({ ...editDraft, umdCode: e.target.value })
-                  }
-                  placeholder="UMD-XXXX"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono"
-                />
-              </div>
+            {/* Pronunciation */}
+            <div className="space-y-1">
+              <label className="text-xs text-slate-500 block mb-1">
+                النطق الصوتي (IPA):
+              </label>
+              <input
+                type="text"
+                dir="ltr"
+                value={editDraft.phonetic}
+                onChange={(e) =>
+                  setEditDraft({ ...editDraft, phonetic: e.target.value })
+                }
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono"
+              />
             </div>
 
             {/* Row 4: Arabic & English Definitions + Clinical Note */}
