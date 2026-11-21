@@ -2412,7 +2412,7 @@ export function importUniversalAiOrLocalContent(params: {
     });
     saveUnifiedCloudMirror(updatedMirror.snapshot);
 
-    if (params.syncToCloud !== false) {
+    if (params.syncToCloud === true) {
       void enqueueEntitiesForCloudSync({
         blocks: buckets.blocks,
         subjects: buckets.subjects,
