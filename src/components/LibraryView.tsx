@@ -632,7 +632,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     if (looksStructuredOrRich) {
       const report = importUniversalAiOrLocalContent({
         rawText: text,
-        sourceLabel: sourceFileName
+        sourceLabel: sourceFileName,
+        syncToCloud: false
       });
       if (report.success) {
         onUniversalImportComplete?.(report);
@@ -2384,7 +2385,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     إعداد وتوليد برومبت الذكاء الاصطناعي
                   </h3>
                   <p className="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
-                    حدد (بلوك / مادة / موضوع / آلاف المصطلحات)، الاسم، العدد، والمحاور لإصدار برومبت إنجليزي دقيق
+                    اختر بلوكاً ومادة محليين لتوليد موضوع، أو أنشئ دفعة مصطلحات مستقلة للقاموس العام
                   </p>
                 </div>
                 <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
@@ -3229,22 +3230,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         onClose={() => setIsAiGuideOpen(false)}
         onOpenPasteModal={() => setActiveIngestModal('paste_text')}
         onOpenUploadModal={() => setActiveIngestModal('file_upload')}
-        onQuickImportReport={(report) => {
-          onUniversalImportComplete?.(report);
-          setSyncRevision((prev) => prev + 1);
-          setLastDataSummary(
-            buildConciseDataSummary({
-              terms: report.updatedTerms,
-              sentences: report.updatedSentences,
-              topics: report.updatedTopics,
-              sourceLabel: 'استيراد من دليل الذكاء'
-            })
-          );
-          setOfflineFeedback({
-            type: 'success',
-            message: `تم الاستيراد بنجاح (${report.summaryText}).`
-          });
-        }}
         showToast={showToast}
       />
 
