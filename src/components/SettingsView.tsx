@@ -484,13 +484,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handlePublishLocalData = async () => {
     if (!onPublishLocalData) return;
     const target = currentGitHubConfig();
-    const confirmed = window.confirm(`سيتم استبدال مجموعات البيانات الرئيسية في ${target.owner}/${target.repository} على الفرع ${target.branch} باللقطة المحلية بالكامل. ملفات الوسائط الثنائية لا تُرفع بهذه العملية. هل راجعت البيانات وتريد المتابعة؟`);
+    const confirmed = window.confirm(`سيتم استبدال مجموعات البيانات الرئيسية في ${target.owner}/${target.repository} على الفرع ${target.branch} باللقطة المحلية بالكامل. ملفسيتم إضافة المصطلحات المحلية الجديدة فقط دون استبدال أي سجل سحابي موجود. تأكد من مراجعة الترجمات والتعاريف والأمثلة قبل النشر. هل تريد المتابعة؟`);
     if (!confirmed) return;
     setIsPublishingGitHub(true); setGithubFeedback(null);
     try {
       saveGitHubRepositoryConfig(target);
       const result = await onPublishLocalData();
-      setGithubFeedback({ ok: true, message: `تم رفع ${result.filesUpdated} ملفاً إلى ${result.repository} في Commit ${result.commitSha.slice(0, 8)} على ${result.branch}. هذا يؤكد إنشاء Commit فقط؛ تحقق من GitHub Actions لإثبات نجاح إصدار البيانات وتوقيعه.` });
+      setGithubFeedback({ ok: true, message: `تم رفع ${result.filesUpdated} ملفاً إلى ${result.repository} في Commit ${result.commitSha.slice(0, 8)} على ${result.branch}. هذا يؤكد إنشاء Commit فقط؛ تحقق من GitHub Actions للتأكد من اجتياز فحص المصطلحات وتحديث فهرس القاموس.` });
     } catch (error) { setGithubFeedback({ ok: false, message: error instanceof Error ? error.message : String(error) }); }
     finally { setIsPublishingGitHub(false); }
   };
@@ -1529,7 +1529,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       <a href={latestGitHubRun.html_url} target="_blank" rel="noreferrer" className="inline-flex min-h-[32px] items-center text-sky-600 dark:text-sky-400 underline">فتح تفاصيل GitHub Actions</a>
                     </div>
                   )}
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">فحص الحالة يقرأ سجل Workflow العام؛ لا يعني نجاح رفع Commit أن بناء وتوقيع إصدار البيانات قد نجحا.</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">فحص الحالة يقرأ سجل Workflow العام؛ يوضح اجتياز التحقق البنيوي والتكرار، ولا يغني عن المراجعة اللغوية للمصطلحات.</p>
                 </div>
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-200">GitHub Fine-grained Personal Access Token</label>
