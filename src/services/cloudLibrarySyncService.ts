@@ -1717,17 +1717,19 @@ export async function syncFromUmedtDataRepository(options?: {
 
     // Verify per-collection SHA-256: reject explicit corrupt placeholder digests ('000...000'),
     // and accept valid parsed JSON when a collection file was edited directly on GitHub without regenerating catalog.json
-    if (expectedHash && /^[0-9a-f]{64}$/i.test(expectedHash)) {
+    if (expectedHash) {
+      if (!/^[0-9a-f]{64}$/i.test(expectedHash)) {
+        console.warn(`[UMEDT-DATA] Invalid SHA-256 declaration for collection "${col.id}". Skipping payload.`);
+        continue;
+      }
       const actualHash = await computeSha256Hex(new TextEncoder().encode(rawText));
-      if (/^0{64}$/.test(expectedHash)) {
+      if (actualHash.toLowerCase() !== expectedHash.toLowerCase()) {
         console.warn(
           `[UMEDT-DATA] SHA-256 mismatch for collection "${col.id}": expected ${expectedHash}, got ${actualHash}. Skipping corrupted payload.`
         );
         continue;
       }
       nextHashes[col.id] = actualHash;
-    } else if (expectedHash) {
-      nextHashes[col.id] = expectedHash;
     }
 
     const idLower = col.id.toLowerCase();
