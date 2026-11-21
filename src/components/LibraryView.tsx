@@ -168,21 +168,6 @@ interface LibraryViewProps {
   showToast?: (message: string, type?: string) => void;
 }
 
-const CATEGORY_OPTIONS: { value: LexiconCategory; label: string }[] = [
-  { value: 'Medical', label: 'طبي سريري (Medical)' },
-  { value: 'AI', label: 'ذكاء اصطناعي طبي (AI)' },
-  { value: 'Programming', label: 'معلوماتية صحية (Informatics)' },
-  { value: 'General', label: 'مصطلح أكاديمي عام (General)' }
-];
-
-const POS_OPTIONS = [
-  { value: 'noun', label: 'اسم / مفهوم (Noun)' },
-  { value: 'adjective', label: 'صفة سريرية (Adjective)' },
-  { value: 'verb', label: 'فعل / إجراء (Verb)' },
-  { value: 'phrase', label: 'مصطلح مركب / متلازمة (Phrase)' },
-  { value: 'abbreviation', label: 'اختصار طبي (Abbreviation)' }
-];
-
 function computeNextSm2(
   current: SpacedRepetitionData | undefined,
   knewIt: boolean
@@ -311,8 +296,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [manualTerm, setManualTerm] = useState('');
   const [manualTranslation, setManualTranslation] = useState('');
   const [manualPhonetic, setManualPhonetic] = useState('');
-  const [manualCategory, setManualCategory] = useState<LexiconCategory>('Medical');
-  const [manualPos, setManualPos] = useState('noun');
   const [manualCollection, setManualCollection] = useState('');
   const [manualDefAr, setManualDefAr] = useState('');
   const [manualDefEn, setManualDefEn] = useState('');
@@ -569,7 +552,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         id: `sen-manual-${Date.now()}`,
         en: sEn,
         ar: sAr,
-        category: manualCategory,
+        category: 'General',
         sourceType: 'manual',
         linkedTermIds: [newId],
         tags: [cleanEn],
@@ -585,8 +568,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       termNormalized: cleanEn.toLowerCase(),
       translation: cleanAr,
       phonetic: manualPhonetic.trim(),
-      pos: manualPos || 'noun',
-      category: manualCategory || 'Medical',
+      pos: 'term',
+      category: 'General',
       keepEnglish: true,
       favorite: addAlsoToFavorites,
       collections: cleanCollection ? [cleanCollection] : ['مضاف يدوياً'],
@@ -2740,41 +2723,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
               {showOptionalManualFields && (
                 <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                        التخصص (اختياري)
-                      </label>
-                      <select
-                        value={manualCategory}
-                        onChange={(e) => setManualCategory(e.target.value as LexiconCategory)}
-                        className="w-full min-h-[40px] px-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
-                      >
-                        {CATEGORY_OPTIONS.map((cat) => (
-                          <option key={cat.value} value={cat.value}>
-                            {cat.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-                        النوع اللغوي (اختياري)
-                      </label>
-                      <select
-                        value={manualPos}
-                        onChange={(e) => setManualPos(e.target.value)}
-                        className="w-full min-h-[40px] px-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
-                      >
-                        {POS_OPTIONS.map((p) => (
-                          <option key={p.value} value={p.value}>
-                            {p.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
+                  <div className="grid grid-cols-1 gap-3">
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
                         المجلد (اختياري)
