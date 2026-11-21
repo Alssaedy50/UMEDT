@@ -688,6 +688,17 @@ function normalizeTopicArticle(
   });
 }
 
+function normalizeTermIdentity(value: string): string {
+  return String(value || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/[‐‑‒–—]/g, '-')
+    .replace(/[^a-z0-9'-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function normalizeDictionaryTerm(
   raw: Record<string, unknown>,
   idx: number
@@ -737,7 +748,7 @@ function normalizeDictionaryTerm(
   return {
     id: String(raw.id || `u-imp-${Date.now()}-${idx}`),
     term: termEn,
-    termNormalized: termEn.normalize('NFKC').toLowerCase().replace(/\s+/g, ' '),
+    termNormalized: normalizeTermIdentity(termEn),
     translation,
     phonetic: String(raw.phonetic || raw.pronunciation || ''),
     pos: 'term',
@@ -2147,12 +2158,12 @@ export function importUniversalAiOrLocalContent(params: {
     // 4. Merge Terms (strict user-state preservation: favorite, collections, srsData)
     const termsMap = new Map(currentState.terms.map((t) => [t.id, t]));
     const termNormToId = new Map(
-      currentState.terms.map((t) => [(t.termNormalized || t.term).toLowerCase(), t.id])
+      currentState.terms.map((t) => [normalizeTermIdentity(t.termNormalized || t.term), t.id])
     );
     const mergedTermsBatch: DictionaryTerm[] = [];
     for (const tm of buckets.terms) {
       permDeleted.terms = permDeleted.terms.filter((id) => id !== tm.id);
-      const normKey = tm.term.trim().toLowerCase();
+      const normKey = normalizeTermIdentity(tm.term);
       const matchedId = termsMap.has(tm.id) ? tm.id : termNormToId.get(normKey);
       const existing = matchedId ? termsMap.get(matchedId) : undefined;
       if (existing && mode === 'ignore') {
