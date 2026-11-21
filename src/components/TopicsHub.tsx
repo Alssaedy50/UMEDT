@@ -3697,6 +3697,8 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         <article
           ref={articleProseRef}
           onClick={(e) => {
+            const selected = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
+            if (selected) return;
             const tappedWord = extractWordAtPoint(e.clientX, e.clientY);
             if (tappedWord && findTermForSelectedString(tappedWord)) {
               inspectUserSelection(tappedWord);
@@ -3705,17 +3707,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           onMouseUp={() => {
             setTimeout(() => inspectUserSelection(), 30);
           }}
-          onTouchEnd={(e) => {
-            const touch = e.changedTouches?.[0];
-            if (touch) {
-              const selected = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
-              const tappedWord = selected || extractWordAtPoint(touch.clientX, touch.clientY);
-              if (tappedWord && findTermForSelectedString(tappedWord)) {
-                inspectUserSelection(tappedWord);
-                return;
-              }
+          onTouchEnd={() => {
+            const selected = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
+            if (selected && findTermForSelectedString(selected)) {
+              inspectUserSelection(selected);
             }
-            setTimeout(() => inspectUserSelection(), 120);
           }}
           onCopy={() => {
             setTimeout(() => inspectUserSelection(), 60);
