@@ -4665,12 +4665,6 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                         >
                           {selectionState.matchedTerm.term}
                         </h4>
-                        <span
-                          dir="ltr"
-                          className="text-xs font-mono text-slate-400"
-                        >
-                          {selectionState.matchedTerm.phonetic}
-                        </span>
                         <button
                           type="button"
                           onClick={() =>
