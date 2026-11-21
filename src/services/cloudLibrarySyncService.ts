@@ -1595,6 +1595,7 @@ export async function syncFromUmedtDataRepository(options?: {
   fetched: boolean;
   catalogVersion?: string;
   termsOnly?: boolean;
+  termsOnlySource?: string;
   contentTypesRegistry?: ContentTypeRegistryEntry[];
   updatedCollectionsCount: number;
   skippedCollectionsCount: number;
@@ -1964,6 +1965,7 @@ export async function syncFromUmedtDataRepository(options?: {
     fetched: true,
     catalogVersion: catalog.catalogVersion,
     termsOnly: (catalog as unknown as { capabilities?: { termsOnly?: boolean } }).capabilities?.termsOnly === true,
+    termsOnlySource: `${String((catalog as unknown as { repository?: string }).repository || 'UMEDT-DATA')}@${String((catalog as unknown as { branch?: string }).branch || 'main')}`,
     contentTypesRegistry: registryEntries,
     updatedCollectionsCount,
     skippedCollectionsCount,
@@ -2050,7 +2052,10 @@ export async function syncWithRemoteCloudLibrary(params: {
       customFetch: params.customFetch
     });
     if (umedtRes.fetched) {
-      const clearLegacyCloudCollections = umedtRes.termsOnly === true;
+      const termsOnlyMigrationKey = `umedt_terms_only_migration_v1:${umedtRes.termsOnlySource || 'UMEDT-DATA@main'}`;
+      const clearLegacyCloudCollections =
+        umedtRes.termsOnly === true &&
+        getSafeStorage().getItem(termsOnlyMigrationKey) !== 'done';
       const baseBeforeMerge: UnifiedCloudStoreSnapshot = {
         ...currentBeforeUmedt,
         blocks: clearLegacyCloudCollections || umedtRes.incoming.blocks !== undefined ? [] : currentBeforeUmedt.blocks,
@@ -2075,6 +2080,9 @@ export async function syncWithRemoteCloudLibrary(params: {
         catalogVersion: umedtRes.catalogVersion
       });
       saveUnifiedCloudMirror(mergedUmedt.snapshot);
+      if (umedtRes.termsOnly === true) {
+        getSafeStorage().setItem(termsOnlyMigrationKey, 'done');
+      }
       if (mergedUmedt.snapshot.mediaAssets && mergedUmedt.snapshot.mediaAssets.length > 0) {
         saveMediaAssetsIndex(mergedUmedt.snapshot.mediaAssets);
       }
