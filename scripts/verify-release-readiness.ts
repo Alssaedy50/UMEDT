@@ -248,21 +248,21 @@ async function main() {
   assertCondition(
     apkWorkflowContent.includes('assembleDebug') &&
       apkWorkflowContent.includes('assembleRelease') &&
-      apkWorkflowContent.includes('UMED-2-v2.5.0-debug-apk') &&
-      apkWorkflowContent.includes('UMED-2-v2.5.0-release-apk') &&
+      apkWorkflowContent.includes('UMED-2-v2.5.1-debug-apk') &&
+      apkWorkflowContent.includes('UMED-2-v2.5.1-release-apk') &&
       apkWorkflowContent.includes('VITE_UMED_MANIFEST_URL') &&
       apkWorkflowContent.includes('VITE_UMED_PUBLIC_KEY_PEM'),
-    'android-apk-release.yml must build v2.5.0 Debug/Release APKs with Cloud OTA env vars'
+    'android-apk-release.yml must build v2.5.1 Debug/Release APKs with Cloud OTA env vars'
   );
 
   const gradleContent = fs.readFileSync(androidBuildGradlePath, 'utf8');
   assertCondition(
     gradleContent.includes('org.umed2.dictengine') &&
-      gradleContent.includes('versionCode 20500') &&
-      gradleContent.includes('versionName "2.5.0"'),
-    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20500, and versionName "2.5.0"'
+      gradleContent.includes('versionCode 20501') &&
+      gradleContent.includes('versionName "2.5.1"'),
+    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20501, and versionName "2.5.1"'
   );
-  console.log('[PASS] 3. Capacitor Native Android Project (v2.5.0 / 20500) & Bundled Local Web Assets Synced');
+  console.log('[PASS] 3. Capacitor Native Android Project (v2.5.1 / 20501) & Bundled Local Web Assets Synced');
 
   // 3b. Verify the two-path AI generator and local-only hierarchy/import contract.
   const aiGeneratorPath = path.join(ROOT_DIR, 'src', 'components', 'AiContentGuideModal.tsx');
