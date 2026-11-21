@@ -1513,7 +1513,9 @@ function normalizeTermsOnlyRecord(raw: unknown): DictionaryTerm | null {
   const definitionAr = typeof item.definitionAr === 'string' ? item.definitionAr.trim() : '';
   const exampleEn = typeof item.exampleEn === 'string' ? item.exampleEn.trim() : '';
   const exampleAr = typeof item.exampleAr === 'string' ? item.exampleAr.trim() : '';
-  if (!translation || !pronunciation || !definitionEn || !definitionAr || !exampleEn || !exampleAr) return null;
+  if (!translation || !/[\u0600-\u06FF]/.test(translation) || /^(مصطلح طبي|ترجمة عربية|غير معروف)$/i.test(translation) ||
+    !pronunciation || !definitionEn || !definitionAr || !exampleEn || !exampleAr ||
+    /^clinical medical term:/i.test(definitionEn) || /^مصطلح طبي سريري يعني/i.test(definitionAr)) return null;
   const normalized = normalizeDictionaryTermKey(term);
   const slug = normalized.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
   return {
@@ -1805,9 +1807,27 @@ export async function syncFromUmedtDataRepository(options?: {
       rtLower === 'lexicon_term' ||
       rtLower === 'lexicon_entry'
     ) {
-      incoming.terms = extractCollectionArray<unknown>(parsedJson, 'terms')
+      const normalizedTerms = extractCollectionArray<unknown>(parsedJson, 'terms')
         .map(normalizeTermsOnlyRecord)
         .filter((term): term is DictionaryTerm => Boolean(term));
+      const uniqueTerms = new Map<string, DictionaryTerm>();
+      for (const term of normalizedTerms) {
+        const key = normalizeDictionaryTermKey(term.term);
+        const existing = uniqueTerms.get(key);
+        if (!existing) {
+          uniqueTerms.set(key, term);
+          continue;
+        }
+        const sameMeaning =
+          existing.translation.trim() === term.translation.trim() &&
+          existing.definitionEn.trim() === term.definitionEn.trim() &&
+          existing.definitionAr.trim() === term.definitionAr.trim() &&
+          existing.phonetic.trim() === term.phonetic.trim();
+        if (!sameMeaning) {
+          throw new Error(`Conflicting duplicate dictionary term detected in cloud catalog: ${term.term}`);
+        }
+      }
+      incoming.terms = Array.from(uniqueTerms.values());
     } else if (
       idLower === 'sentences' ||
       ctLower === 'sentence' ||
