@@ -444,7 +444,7 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
                     {activeDetailTerm.morphology.literalSynthesisAr}
                   </p>
                 </div>
-              )}}
+              )}
             </div>
 
             {/* 3. Contextual Sentences (Clean Divided Rows — No Boxes) */}
