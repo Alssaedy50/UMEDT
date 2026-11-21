@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { X, Copy, Check, Sparkles, BookOpen, Languages, Download, FileText, Layers, Upload } from 'lucide-react';
+import { X, Copy, Check, Sparkles, BookOpen, Languages, Download, Layers, Upload } from 'lucide-react';
 import { loadMedicalBlocks, loadMedicalSubjects } from '../services/learningHierarchyService';
 
 interface AiContentGuideModalProps {
