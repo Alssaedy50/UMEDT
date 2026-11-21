@@ -419,26 +419,34 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
               )}
 
               {activeDetailTerm.morphology && (
-                <div className="pt-1 flex items-center gap-2 flex-wrap text-xs text-slate-500 dark:text-slate-400">
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">
-                    الجذور:
-                  </span>
-                  {activeDetailTerm.morphology.prefix && (
-                    <span dir="ltr" className="font-mono">
-                      {activeDetailTerm.morphology.prefix.affix} (
-                      {activeDetailTerm.morphology.prefix.meaningAr}) +
+                <div className="mt-2 pt-2 border-t border-slate-200/70 dark:border-slate-700/70 space-y-1.5">
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                    شرح مكونات المصطلح
+                  </p>
+                  <div className="flex items-start gap-2 flex-wrap text-xs leading-relaxed">
+                    {activeDetailTerm.morphology.prefix && (
+                      <span className="inline-flex items-center gap-1">
+                        <b dir="ltr" className="font-mono text-emerald-600 dark:text-emerald-400">{activeDetailTerm.morphology.prefix.affix}</b>
+                        <span>({activeDetailTerm.morphology.prefix.meaningAr}؛ {activeDetailTerm.morphology.prefix.meaningEn})</span>
+                        <span>+</span>
+                      </span>
+                    )}
+                    <span className="inline-flex items-center gap-1">
+                      <b dir="ltr" className="font-mono text-emerald-600 dark:text-emerald-400">{activeDetailTerm.morphology.root.affix}</b>
+                      <span>({activeDetailTerm.morphology.root.meaningAr}؛ {activeDetailTerm.morphology.root.meaningEn})</span>
                     </span>
-                  )}
-                  <span dir="ltr" className="font-mono text-emerald-600 dark:text-emerald-400">
-                    {activeDetailTerm.morphology.root.affix} (
-                    {activeDetailTerm.morphology.root.meaningAr})
-                  </span>
-                  {activeDetailTerm.morphology.suffix && (
-                    <span dir="ltr" className="font-mono">
-                      + {activeDetailTerm.morphology.suffix.affix} (
-                      {activeDetailTerm.morphology.suffix.meaningAr})
-                    </span>
-                  )}
+                    {activeDetailTerm.morphology.suffix && (
+                      <span className="inline-flex items-center gap-1">
+                        <span>+</span>
+                        <b dir="ltr" className="font-mono text-emerald-600 dark:text-emerald-400">{activeDetailTerm.morphology.suffix.affix}</b>
+                        <span>({activeDetailTerm.morphology.suffix.meaningAr}؛ {activeDetailTerm.morphology.suffix.meaningEn})</span>
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    <b>المعنى الناتج من تركيب الأجزاء: </b>
+                    {activeDetailTerm.morphology.literalSynthesisAr}
+                  </p>
                 </div>
               )}
             </div>
