@@ -1026,47 +1026,32 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   const findTermForSelectedString = (rawSelection: string): DictionaryTerm | null => {
     const cleaned = rawSelection
       .replace(/^[.,;:!?()[\]{}"'«»“”‘’—–-]+|[.,;:!?()[\]{}"'«»“”‘’—–-]+$/g, '')
+      .trim()
+      .replace(/\s+/g, ' ');
+    const words = cleaned ? cleaned.split(' ') : [];
+    const validWord = /^[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*$/;
+    if (words.length < 1 || words.length > 2 || words.some((word) => !validWord.test(word))) {
+      return null;
+    }
+    const normalized = cleaned
+      .normalize('NFKC')
+      .toLowerCase()
+      .replace(/[’‘]/g, "'")
+      .replace(/[‐‑‒–—]/g, '-')
+      .replace(/[^a-z0-9'-]+/g, ' ')
+      .replace(/\s+/g, ' ')
       .trim();
-    if (!cleaned || cleaned.length < 2) return null;
-
-    const candidates = buildEnglishInflectionCandidates(cleaned);
-
-    for (const cand of candidates) {
-      const direct = terms.find(
-        (t) =>
-          t.term.toLowerCase() === cand ||
-          t.translation.trim() === cleaned ||
-          (t.relations.synonyms || []).some((syn) => syn.toLowerCase() === cand)
-      );
-      if (direct) return direct;
-
-      const aliasTargetKey = Object.keys(EXTRA_LINKABLE_ALIASES).find(
-        (k) => k.toLowerCase() === cand
-      );
-      if (aliasTargetKey) {
-        const targetId = EXTRA_LINKABLE_ALIASES[aliasTargetKey];
-        const aliasTerm = terms.find((t) => t.id === targetId);
-        if (aliasTerm) return aliasTerm;
-      }
-
-      const abbrEntry = CLINICAL_ABBREVIATIONS.find(
-        (a) => a.abbr.toLowerCase() === cand
-      );
-      if (abbrEntry) {
-        const expMatch = terms.find(
-          (t) => t.term.toLowerCase() === abbrEntry.defaultExpansionEn.toLowerCase()
-        );
-        if (expMatch) return expMatch;
-      }
-    }
-
-    const detailed = extractAllTopicMatchesFromText(cleaned, terms);
-    if (detailed.length > 0) {
-      const found = terms.find((t) => t.id === detailed[0].termId);
-      if (found) return found;
-    }
-
-    return null;
+    return terms.find((item) => {
+      const dictionaryKey = String(item.termNormalized || item.term || '')
+        .normalize('NFKC')
+        .toLowerCase()
+        .replace(/[’‘]/g, "'")
+        .replace(/[‐‑‒–—]/g, '-')
+        .replace(/[^a-z0-9'-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return dictionaryKey === normalized;
+    }) || null;
   };
 
   const extractWordAtPoint = (clientX: number, clientY: number): string => {
