@@ -264,6 +264,34 @@ async function main() {
   );
   console.log('[PASS] 3. Capacitor Native Android Project (v2.5.0 / 20500) & Bundled Local Web Assets Synced');
 
+  // 3b. Verify the two-path AI generator and local-only hierarchy/import contract.
+  const aiGeneratorPath = path.join(ROOT_DIR, 'src', 'components', 'AiContentGuideModal.tsx');
+  const aiImporterPath = path.join(ROOT_DIR, 'src', 'services', 'aiUniversalImportService.ts');
+  const libraryImportPath = path.join(ROOT_DIR, 'src', 'components', 'LibraryView.tsx');
+  const aiGeneratorContent = fs.readFileSync(aiGeneratorPath, 'utf8');
+  const aiImporterContent = fs.readFileSync(aiImporterPath, 'utf8');
+  const libraryImportContent = fs.readFileSync(libraryImportPath, 'utf8');
+  assertCondition(
+    aiGeneratorContent.includes("type GeneratorMode = 'topic' | 'terms'") &&
+      aiGeneratorContent.includes('Do not include "blocks" or "subjects" arrays') &&
+      aiGeneratorContent.includes('Do not include blockId, subjectId, topicId, linkedBlockIds, linkedSubjectIds, linkedTopicIds') &&
+      aiGeneratorContent.includes('selectedBlock.id') &&
+      aiGeneratorContent.includes('selectedSubject.id'),
+    'AI generator must expose only topic/global-terms modes, use selected local hierarchy IDs, and keep global terms unlinked'
+  );
+  assertCondition(
+    aiImporterContent.includes('const nextBlocks = currentBlocks;') &&
+      aiImporterContent.includes('const nextSubjects = currentSubjects;') &&
+      aiImporterContent.includes('localBlockIds.has(topicBlockId)') &&
+      aiImporterContent.includes("if (params.syncToCloud === true)"),
+    'Universal importer must preserve local blocks/subjects, validate topic hierarchy, and default to local-only imports'
+  );
+  assertCondition(
+    libraryImportContent.includes('syncToCloud: false'),
+    'AI/file import from LibraryView must not enqueue imported content for cloud synchronization'
+  );
+  console.log('[PASS] 3b. Two-path AI generator, local hierarchy enforcement, and local-only import verified');
+
   // 4. Verify Safe, Versioned, Idempotent Storage Migration + Backup & Rollback
   const initialState = loadAppState();
   const idempotentCheck = runSafeVersionedStorageMigration();
