@@ -3720,9 +3720,6 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           onCopy={() => {
             setTimeout(() => inspectUserSelection(), 60);
           }}
-          onCopy={() => {
-            setTimeout(() => inspectUserSelection(), 60);
-          }}
           className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 p-5 sm:p-8 space-y-7 shadow-xs"
         >
           {/* Clean Article Header */}
