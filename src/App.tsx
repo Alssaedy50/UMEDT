@@ -937,44 +937,57 @@ export default function App() {
         !('speechSynthesis' in window) ||
         typeof SpeechSynthesisUtterance === 'undefined') {
       setSpeakingKey(null);
-      showToast('ميزة النطق غير متاحة. تحقق من تثبيت محرك تحويل النص إلى كلام في الجهاز.');
+      showToast('ميزة النطق غير متاحة في WebView. تحقق من تثبيت محرك تحويل النص إلى كلام في Android.');
       return;
     }
+
     const synth = window.speechSynthesis;
-    synth.cancel();
-    setSpeakingKey(key);
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = lang;
-    utterance.rate = 0.92;
-    utterance.pitch = 1;
-    utterance.volume = 1;
-    const finish = () => setSpeakingKey((current) => current === key ? null : current);
-    utterance.onend = finish;
-    utterance.onerror = (event) => {
-      finish();
-      if (event.error !== 'canceled' && event.error !== 'interrupted') {
-        showToast('تعذر تشغيل النطق. تحقق من محرك الصوت واللغة في إعدادات Android.');
-      }
-    };
     try {
+      // Keep speak() in the original tap/click call stack; delaying it can cause
+      // Android WebView to discard the speech request on some devices.
+      synth.cancel();
       synth.resume();
-      window.setTimeout(() => {
-        try {
-          const voices = synth.getVoices();
-          const language = lang.toLowerCase();
-          const voice = voices.find((item) => item.lang.toLowerCase() === language) ||
-            voices.find((item) => item.lang.toLowerCase().startsWith(language.split('-')[0]));
-          if (voice) utterance.voice = voice;
-          synth.speak(utterance);
-          window.setTimeout(finish, Math.max(8000, Math.min(60000, cleanText.length * 180)));
-        } catch {
-          finish();
-          showToast('فشل بدء النطق الصوتي في بيئة التشغيل الحالية.');
+
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = lang;
+      utterance.rate = 0.92;
+      utterance.pitch = 1;
+      utterance.volume = 1;
+
+      const voices = synth.getVoices();
+      const normalizedLanguage = lang.toLowerCase();
+      const preferredVoice =
+        voices.find((voice) => voice.lang.toLowerCase() === normalizedLanguage) ||
+        voices.find((voice) => voice.lang.toLowerCase().startsWith(normalizedLanguage.split('-')[0]));
+      if (preferredVoice) utterance.voice = preferredVoice;
+
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        setSpeakingKey((current) => current === key ? null : current);
+      };
+
+      utterance.onstart = () => setSpeakingKey(key);
+      utterance.onend = finish;
+      utterance.onerror = (event) => {
+        finish();
+        if (event.error !== 'canceled' && event.error !== 'interrupted') {
+          showToast('تعذر تشغيل النطق. تحقق من محرك تحويل النص إلى كلام واللغة الإنجليزية في إعدادات Android.');
         }
-      }, 60);
+      };
+
+      setSpeakingKey(key);
+      synth.speak(utterance);
+
+      // Defensive cleanup for WebViews that fail to dispatch onend/onerror.
+      window.setTimeout(finish, Math.max(7000, Math.min(45000, cleanText.length * 220)));
+      if (voices.length === 0) {
+        showToast('أُرسل طلب النطق. إذا لم تسمع صوتاً، ثبّت أو فعّل محرك تحويل النص إلى كلام في Android.');
+      }
     } catch {
-      finish();
-      showToast('تعذر الوصول إلى خدمة النطق الصوتي.');
+      setSpeakingKey(null);
+      showToast('تعذر الوصول إلى خدمة النطق الصوتي في بيئة التشغيل الحالية.');
     }
   };
 
