@@ -329,7 +329,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   }, [initialMode, initialDraftTerm, onInitialModeConsumed]);
 
   const existingTermSet = useMemo(
-    () => new Set(terms.map((t) => t.term.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim())),
+    () => new Set(terms.map((t) => t.term.normalize('NFKC').toLowerCase().replace(/[’‘]/g, "'").replace(/[‐‑‒–—]/g, '-').replace(/[^a-z0-9'-]+/g, ' ').replace(/\s+/g, ' ').trim())),
     [terms]
   );
 
@@ -721,7 +721,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           related: []
         },
         selected: true,
-        isDuplicate: existingTermSet.has(tEn.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim())
+        isDuplicate: existingTermSet.has(tEn.normalize('NFKC').toLowerCase().replace(/[’‘]/g, "'").replace(/[‐‑‒–—]/g, '-').replace(/[^a-z0-9'-]+/g, ' ').replace(/\s+/g, ' ').trim())
       });
     });
 
