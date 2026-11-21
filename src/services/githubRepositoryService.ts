@@ -269,10 +269,10 @@ export async function publishMasterDataToGitHub(snapshot: MasterDataSnapshot): P
     return {
       id: `term-${slug}`,
       term,
-      translation,
-      pronunciation,
       definitionEn,
       definitionAr,
+      translation,
+      pronunciation,
       exampleEn,
       exampleAr,
       createdAt: typeof item.ingestedAt === 'string' && !/^\d{4}-\d{2}-\d{2}$/.test(item.ingestedAt)
