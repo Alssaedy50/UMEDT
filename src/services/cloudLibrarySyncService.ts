@@ -1592,6 +1592,7 @@ export async function syncFromUmedtDataRepository(options?: {
 }): Promise<{
   fetched: boolean;
   catalogVersion?: string;
+  termsOnly?: boolean;
   contentTypesRegistry?: ContentTypeRegistryEntry[];
   updatedCollectionsCount: number;
   skippedCollectionsCount: number;
@@ -1939,6 +1940,7 @@ export async function syncFromUmedtDataRepository(options?: {
   return {
     fetched: true,
     catalogVersion: catalog.catalogVersion,
+    termsOnly: (catalog as unknown as { capabilities?: { termsOnly?: boolean } }).capabilities?.termsOnly === true,
     contentTypesRegistry: registryEntries,
     updatedCollectionsCount,
     skippedCollectionsCount,
@@ -2025,20 +2027,25 @@ export async function syncWithRemoteCloudLibrary(params: {
       customFetch: params.customFetch
     });
     if (umedtRes.fetched) {
+      const clearLegacyCloudCollections = umedtRes.termsOnly === true;
       const baseBeforeMerge: UnifiedCloudStoreSnapshot = isBrowserRuntime
         ? {
             ...currentBeforeUmedt,
-            blocks: umedtRes.incoming.blocks !== undefined ? [] : currentBeforeUmedt.blocks,
-            subjects: umedtRes.incoming.subjects !== undefined ? [] : currentBeforeUmedt.subjects,
-            topics: umedtRes.incoming.topics !== undefined ? [] : currentBeforeUmedt.topics,
+            blocks: clearLegacyCloudCollections || umedtRes.incoming.blocks !== undefined ? [] : currentBeforeUmedt.blocks,
+            subjects: clearLegacyCloudCollections || umedtRes.incoming.subjects !== undefined ? [] : currentBeforeUmedt.subjects,
+            topics: clearLegacyCloudCollections || umedtRes.incoming.topics !== undefined ? [] : currentBeforeUmedt.topics,
             terms: umedtRes.incoming.terms !== undefined ? [] : currentBeforeUmedt.terms,
-            sentences: umedtRes.incoming.sentences !== undefined ? [] : currentBeforeUmedt.sentences,
-            books: umedtRes.incoming.books !== undefined ? [] : currentBeforeUmedt.books,
-            exams: umedtRes.incoming.exams !== undefined ? [] : currentBeforeUmedt.exams,
+            sentences: clearLegacyCloudCollections || umedtRes.incoming.sentences !== undefined ? [] : currentBeforeUmedt.sentences,
+            books: clearLegacyCloudCollections || umedtRes.incoming.books !== undefined ? [] : currentBeforeUmedt.books,
+            exams: clearLegacyCloudCollections || umedtRes.incoming.exams !== undefined ? [] : currentBeforeUmedt.exams,
             quizQuestions:
-              umedtRes.incoming.quizQuestions !== undefined ? [] : currentBeforeUmedt.quizQuestions,
+              clearLegacyCloudCollections || umedtRes.incoming.quizQuestions !== undefined ? [] : currentBeforeUmedt.quizQuestions,
             mediaAssets:
-              umedtRes.incoming.mediaAssets !== undefined ? [] : currentBeforeUmedt.mediaAssets
+              clearLegacyCloudCollections || umedtRes.incoming.mediaAssets !== undefined ? [] : currentBeforeUmedt.mediaAssets,
+            customAffixes: clearLegacyCloudCollections ? [] : currentBeforeUmedt.customAffixes,
+            customAbbreviations: clearLegacyCloudCollections ? [] : currentBeforeUmedt.customAbbreviations,
+            dynamicCollections: clearLegacyCloudCollections ? [] : currentBeforeUmedt.dynamicCollections,
+            contentTypesRegistry: umedtRes.contentTypesRegistry || currentBeforeUmedt.contentTypesRegistry
           }
         : currentBeforeUmedt;
       const mergedUmedt = mergeRecordsIntoCloudSnapshot(baseBeforeMerge, {
