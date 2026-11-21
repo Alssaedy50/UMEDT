@@ -25,7 +25,7 @@ function validateRepositoryConfig(config: GitHubRepositoryConfig): GitHubReposit
   if (!/^[A-Za-z0-9._-]{1,100}$/.test(repository) || repository === '.' || repository === '..') {
     throw new Error('اسم المستودع غير صالح.');
   }
-  if (!branch || branch.length > 255 || /[\\s~^:?*\\\\]/.test(branch) ||
+  if (!branch || branch.length > 255 || /\s/.test(branch) || /[~^:?*\\]/.test(branch) ||
       branch.includes('[') || branch.includes(']') || branch.startsWith('/') ||
       branch.endsWith('/') || branch.includes('//') || branch.includes('..') ||
       branch.includes('@{') || branch.endsWith('.')) {
