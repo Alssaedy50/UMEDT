@@ -714,11 +714,11 @@ function normalizeDictionaryTerm(
     termWords.some((word) => !validTermWord.test(word))
   ) return null;
   const translation = String(
-    raw.translation || raw.ar || raw.meaning || raw.titleAr || ''
+    raw.translation || raw.arabicTranslation || raw.ar || raw.meaning || raw.titleAr || ''
   ).trim();
   if (!translation || !/[\u0600-\u06FF]/.test(translation) || /^(مصطلح طبي|ترجمة عربية|غير معروف)$/i.test(translation)) return null;
-  const defAr = String(raw.definitionAr || raw.definition || '').trim();
-  const defEn = String(raw.definitionEn || '').trim();
+  const defAr = String(raw.definitionAr || raw.arabicDefinition || raw.definition || '').trim();
+  const defEn = String(raw.definitionEn || raw.englishDefinition || '').trim();
 
   const rawExamples = Array.isArray(raw.examples) ? raw.examples : [];
   const examples: DictionaryTerm['examples'] = rawExamples
