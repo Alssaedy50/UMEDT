@@ -218,11 +218,6 @@ function encodeBase64Utf8(value: string): string {
   return btoa(binary);
 }
 
-function decodeBase64Utf8(value: string): string {
-  const binary = atob(value.replace(/\s/g, ''));
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
-}
 
 /**
  * Publishes only reviewed dictionary terms to the terms-only UMEDT-DATA repository.
