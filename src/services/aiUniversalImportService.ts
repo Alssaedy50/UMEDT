@@ -705,7 +705,7 @@ function normalizeDictionaryTerm(
   const translation = String(
     raw.translation || raw.ar || raw.meaning || raw.titleAr || ''
   ).trim();
-  if (!translation || !/[\u0600-\u06FF]/.test(translation)) return null;
+  if (!translation || !/[\u0600-\u06FF]/.test(translation) || /^(مصطلح طبي|ترجمة عربية|غير معروف)$/i.test(translation)) return null;
   const defAr = String(raw.definitionAr || raw.definition || '').trim();
   const defEn = String(raw.definitionEn || '').trim();
 
