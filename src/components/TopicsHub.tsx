@@ -4643,7 +4643,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           </div>
         )}
 
-        {/* READER POPUP CARD 4: QUICK WORD TRANSLATION MODAL ON DOUBLE-CLICK / DOUBLE-TAP */}
+        {/* READER POPUP CARD 4: EXACT DICTIONARY TERM CARD ON TAP / TEXT SELECTION / COPY */}
         {selectionState && (
           <div
             onClick={() => setSelectionState(null)}
@@ -4658,7 +4658,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 block">
-                        بطاقة الترجمة الفورية · مصطلح مسجل ({selectionState.matchedTerm.category})
+                        بطاقة القاموس · مصطلح مسجل
                       </span>
                       <div className="flex items-center gap-2 flex-wrap mt-1">
                         <h4
@@ -4707,14 +4707,36 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     </span>
                   </div>
 
-                  <div className="space-y-1">
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                      الشرح والتعريف العلمي:
-                    </span>
-                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                      {selectionState.matchedTerm.definitionAr}
-                    </p>
+                  <div className="space-y-2">
+                    <div className="space-y-1">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                        Definition (English):
+                      </span>
+                      <p dir="ltr" className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed text-left">
+                        {selectionState.matchedTerm.definitionEn}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                        الشرح والتعريف بالعربية:
+                      </span>
+                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                        {selectionState.matchedTerm.definitionAr}
+                      </p>
+                    </div>
                   </div>
+
+                  {selectionState.matchedTerm.examples?.[0] && (
+                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                      <span className="text-[11px] font-bold text-slate-500">Example · مثال:</span>
+                      <p dir="ltr" className="text-xs text-slate-800 dark:text-slate-200 text-left leading-relaxed">
+                        {selectionState.matchedTerm.examples[0].en}
+                      </p>
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300 leading-relaxed">
+                        {selectionState.matchedTerm.examples[0].ar}
+                      </p>
+                    </div>
+                  )}
 
                   {selectionState.quotedSentenceEn && (
                     <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
