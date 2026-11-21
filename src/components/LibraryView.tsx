@@ -698,7 +698,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
       const quick = lookupQuickWordOrPhraseAr(tEn, terms);
       const tAr = (parts[1] || '').trim().replace(/^["']|["']$/g, '') || quick?.translationAr || '';
-      if (!tAr || !/[\u0600-\u06FF]/.test(tAr)) {
+      if (!tAr || !/[\u0600-\u06FF]/.test(tAr) || /^(مصطلح طبي|ترجمة عربية|غير معروف)$/i.test(tAr)) {
         rejectedInvalidTerms += 1;
         return;
       }
