@@ -4046,6 +4046,7 @@ async function main() {
 
     const hdReport = importUniversalAiOrLocalContent({
       rawText: hdStreamText,
+      allowHierarchyCreation: true,
       sourceLabel: 'اختبار النص عالي الكثافة'
     });
     assertCondition(
@@ -4074,6 +4075,7 @@ async function main() {
 
     const mdReport = importUniversalAiOrLocalContent({
       rawText: mdText,
+      allowHierarchyCreation: true,
       sourceLabel: 'اختبار Markdown'
     });
     assertCondition(
@@ -4124,6 +4126,7 @@ async function main() {
 
     const nestedReport = importUniversalAiOrLocalContent({
       rawText: looseNestedJson,
+      allowHierarchyCreation: true,
       sourceLabel: 'اختبار JSON المتداخل والفواصل الزائدة'
     });
     assertCondition(
@@ -4582,6 +4585,7 @@ QUESTION || single_choice || Which vessels unite to form the basilar artery? || 
 
     const mdReport25 = importUniversalAiOrLocalContent({
       rawText: markdownSample25,
+      allowHierarchyCreation: true,
       sourceLabel: 'اختبار Markdown 25'
     });
     assertCondition(
@@ -4596,7 +4600,7 @@ QUESTION || single_choice || Which vessels unite to form the basilar artery? || 
       )}`
     );
 
-    // 25.4 Verify UI cleanup: 3-scope Any-AI Prompt Builder, collision-free LibraryView header, & Block->Subject->Topic drilldown in TopicsHub
+    // 25.4 Verify UI cleanup: two-path local-hierarchy AI generator, collision-free LibraryView header, & Block->Subject->Topic drilldown in TopicsHub
     const aiGuideSrc25 = fs.readFileSync(
       path.join(ROOT_DIR, 'src', 'components', 'AiContentGuideModal.tsx'),
       'utf8'
