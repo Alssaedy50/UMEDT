@@ -16,9 +16,19 @@ export interface TermExample {
   ar: string;
 }
 
+export interface TermMorphologyPart {
+  affix: string;
+  role: 'prefix' | 'root' | 'suffix' | 'combining-form';
+  meaningAr: string;
+  meaningEn: string;
+}
+
 export interface TermMorphology {
+  // Preferred format: supports multiple roots/combining forms in one medical term.
+  parts?: TermMorphologyPart[];
+  // Legacy format retained for backward compatibility with existing records.
   prefix?: { affix: string; meaningAr: string; meaningEn: string };
-  root: { affix: string; meaningAr: string; meaningEn: string };
+  root?: { affix: string; meaningAr: string; meaningEn: string };
   suffix?: { affix: string; meaningAr: string; meaningEn: string };
   literalSynthesisAr: string;
 }
