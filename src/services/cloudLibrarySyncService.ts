@@ -2028,26 +2028,24 @@ export async function syncWithRemoteCloudLibrary(params: {
     });
     if (umedtRes.fetched) {
       const clearLegacyCloudCollections = umedtRes.termsOnly === true;
-      const baseBeforeMerge: UnifiedCloudStoreSnapshot = isBrowserRuntime
-        ? {
-            ...currentBeforeUmedt,
-            blocks: clearLegacyCloudCollections || umedtRes.incoming.blocks !== undefined ? [] : currentBeforeUmedt.blocks,
-            subjects: clearLegacyCloudCollections || umedtRes.incoming.subjects !== undefined ? [] : currentBeforeUmedt.subjects,
-            topics: clearLegacyCloudCollections || umedtRes.incoming.topics !== undefined ? [] : currentBeforeUmedt.topics,
-            terms: umedtRes.incoming.terms !== undefined ? [] : currentBeforeUmedt.terms,
-            sentences: clearLegacyCloudCollections || umedtRes.incoming.sentences !== undefined ? [] : currentBeforeUmedt.sentences,
-            books: clearLegacyCloudCollections || umedtRes.incoming.books !== undefined ? [] : currentBeforeUmedt.books,
-            exams: clearLegacyCloudCollections || umedtRes.incoming.exams !== undefined ? [] : currentBeforeUmedt.exams,
-            quizQuestions:
-              clearLegacyCloudCollections || umedtRes.incoming.quizQuestions !== undefined ? [] : currentBeforeUmedt.quizQuestions,
-            mediaAssets:
-              clearLegacyCloudCollections || umedtRes.incoming.mediaAssets !== undefined ? [] : currentBeforeUmedt.mediaAssets,
-            customAffixes: clearLegacyCloudCollections ? [] : currentBeforeUmedt.customAffixes,
-            customAbbreviations: clearLegacyCloudCollections ? [] : currentBeforeUmedt.customAbbreviations,
-            dynamicCollections: clearLegacyCloudCollections ? [] : currentBeforeUmedt.dynamicCollections,
-            contentTypesRegistry: umedtRes.contentTypesRegistry || currentBeforeUmedt.contentTypesRegistry
-          }
-        : currentBeforeUmedt;
+      const baseBeforeMerge: UnifiedCloudStoreSnapshot = {
+        ...currentBeforeUmedt,
+        blocks: clearLegacyCloudCollections || umedtRes.incoming.blocks !== undefined ? [] : currentBeforeUmedt.blocks,
+        subjects: clearLegacyCloudCollections || umedtRes.incoming.subjects !== undefined ? [] : currentBeforeUmedt.subjects,
+        topics: clearLegacyCloudCollections || umedtRes.incoming.topics !== undefined ? [] : currentBeforeUmedt.topics,
+        terms: umedtRes.incoming.terms !== undefined ? [] : currentBeforeUmedt.terms,
+        sentences: clearLegacyCloudCollections || umedtRes.incoming.sentences !== undefined ? [] : currentBeforeUmedt.sentences,
+        books: clearLegacyCloudCollections || umedtRes.incoming.books !== undefined ? [] : currentBeforeUmedt.books,
+        exams: clearLegacyCloudCollections || umedtRes.incoming.exams !== undefined ? [] : currentBeforeUmedt.exams,
+        quizQuestions:
+          clearLegacyCloudCollections || umedtRes.incoming.quizQuestions !== undefined ? [] : currentBeforeUmedt.quizQuestions,
+        mediaAssets:
+          clearLegacyCloudCollections || umedtRes.incoming.mediaAssets !== undefined ? [] : currentBeforeUmedt.mediaAssets,
+        customAffixes: clearLegacyCloudCollections ? [] : currentBeforeUmedt.customAffixes,
+        customAbbreviations: clearLegacyCloudCollections ? [] : currentBeforeUmedt.customAbbreviations,
+        dynamicCollections: clearLegacyCloudCollections ? [] : currentBeforeUmedt.dynamicCollections,
+        contentTypesRegistry: umedtRes.contentTypesRegistry || currentBeforeUmedt.contentTypesRegistry
+      };
       const mergedUmedt = mergeRecordsIntoCloudSnapshot(baseBeforeMerge, {
         ...umedtRes.incoming,
         collectionHashes: umedtRes.collectionHashes,
