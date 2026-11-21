@@ -262,8 +262,12 @@ export async function publishMasterDataToGitHub(snapshot: MasterDataSnapshot): P
     const examples = Array.isArray(item.examples) ? item.examples as Array<Record<string, unknown>> : [];
     const exampleEn = typeof examples[0]?.en === 'string' ? String(examples[0].en).trim() : '';
     const exampleAr = typeof examples[0]?.ar === 'string' ? String(examples[0].ar).trim() : '';
-    if (!translation || !/[\u0600-\u06FF]/.test(translation)) throw new Error(`الترجمة العربية مفقودة أو غير صالحة للمصطلح "${term}".`);
-    if (!pronunciation || !definitionEn || !definitionAr || !exampleEn || !exampleAr) {
+    if (!translation || !/[\u0600-\u06FF]/.test(translation) || /^(مصطلح طبي|ترجمة عربية|غير معروف)$/i.test(translation)) {
+      throw new Error(`الترجمة العربية مفقودة أو عامة وغير صالحة للمصطلح "${term}".`);
+    }
+    if (!pronunciation || !definitionEn || !definitionAr || !exampleEn || !exampleAr ||
+      /^clinical medical term:/i.test(definitionEn) ||
+      /^مصطلح طبي سريري يعني/i.test(definitionAr)) {
       throw new Error(`المصطلح "${term}" يحتاج إلى النطق والتعريف باللغتين ومثال باللغتين قبل النشر.`);
     }
     const slug = key.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
