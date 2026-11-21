@@ -167,8 +167,8 @@ async function main() {
   console.log('UMED-2 — Independent Web, PWA & Android APK Verification Suite');
   console.log('================================================================');
 
-  // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.4.8)
-  assertCondition(APP_VERSION === '2.4.8', `Expected APP_VERSION 2.4.8, got ${APP_VERSION}`);
+  // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.5.0)
+  assertCondition(APP_VERSION === '2.5.0', `Expected APP_VERSION 2.5.0, got ${APP_VERSION}`);
   assertCondition(DB_SCHEMA_VERSION === 2, `Expected DB_SCHEMA_VERSION 2, got ${DB_SCHEMA_VERSION}`);
   assertCondition(
     BUNDLED_DATA_VERSION === '2026.10.0-umd',
@@ -248,21 +248,64 @@ async function main() {
   assertCondition(
     apkWorkflowContent.includes('assembleDebug') &&
       apkWorkflowContent.includes('assembleRelease') &&
-      apkWorkflowContent.includes('UMED-2-v2.4.8-debug-apk') &&
-      apkWorkflowContent.includes('UMED-2-v2.4.8-release-apk') &&
+      apkWorkflowContent.includes('UMED-2-v2.5.0-debug-apk') &&
+      apkWorkflowContent.includes('UMED-2-v2.5.0-release-apk') &&
       apkWorkflowContent.includes('VITE_UMED_MANIFEST_URL') &&
       apkWorkflowContent.includes('VITE_UMED_PUBLIC_KEY_PEM'),
-    'android-apk-release.yml must build v2.4.8 Debug/Release APKs with Cloud OTA env vars'
+    'android-apk-release.yml must build v2.5.0 Debug/Release APKs with Cloud OTA env vars'
   );
 
   const gradleContent = fs.readFileSync(androidBuildGradlePath, 'utf8');
   assertCondition(
     gradleContent.includes('org.umed2.dictengine') &&
-      gradleContent.includes('versionCode 20408') &&
-      gradleContent.includes('versionName "2.4.8"'),
-    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20408, and versionName "2.4.8"'
+      gradleContent.includes('versionCode 20500') &&
+      gradleContent.includes('versionName "2.5.0"'),
+    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20500, and versionName "2.5.0"'
   );
-  console.log('[PASS] 3. Capacitor Native Android Project (v2.4.8 / 20408) & Bundled Local Web Assets Synced');
+  console.log('[PASS] 3. Capacitor Native Android Project (v2.5.0 / 20500) & Bundled Local Web Assets Synced');
+
+  // 3b. Verify the two-path AI generator and local-only hierarchy/import contract.
+  const aiGeneratorPath = path.join(ROOT_DIR, 'src', 'components', 'AiContentGuideModal.tsx');
+  const aiImporterPath = path.join(ROOT_DIR, 'src', 'services', 'aiUniversalImportService.ts');
+  const libraryImportPath = path.join(ROOT_DIR, 'src', 'components', 'LibraryView.tsx');
+  const aiGeneratorContent = fs.readFileSync(aiGeneratorPath, 'utf8');
+  const aiImporterContent = fs.readFileSync(aiImporterPath, 'utf8');
+  const libraryImportContent = fs.readFileSync(libraryImportPath, 'utf8');
+  const topicsHubImportContent = fs.readFileSync(path.join(ROOT_DIR, 'src', 'components', 'TopicsHub.tsx'), 'utf8');
+  const topicReaderContent = fs.readFileSync(path.join(ROOT_DIR, 'src', 'components', 'TopicsHub.tsx'), 'utf8');
+  assertCondition(
+    aiGeneratorContent.includes("type GeneratorMode = 'topic' | 'terms'") &&
+      aiGeneratorContent.includes('Do not include "blocks" or "subjects" arrays') &&
+      aiGeneratorContent.includes('Do not include blockId, subjectId, topicId, linkedBlockIds, linkedSubjectIds, linkedTopicIds') &&
+      aiGeneratorContent.includes('selectedBlock.id') &&
+      aiGeneratorContent.includes('selectedSubject.id'),
+    'AI generator must expose only topic/global-terms modes, use selected local hierarchy IDs, and keep global terms unlinked'
+  );
+  assertCondition(
+    aiImporterContent.includes('let nextBlocks = currentBlocks;') &&
+      aiImporterContent.includes('let nextSubjects = currentSubjects;') &&
+      aiImporterContent.includes('localBlockIds.has(topicBlockId)') &&
+      aiImporterContent.includes("if (params.syncToCloud === true)"),
+    'Universal importer must preserve local blocks/subjects, validate topic hierarchy, and default to local-only imports'
+  );
+  assertCondition(
+    libraryImportContent.includes('syncToCloud: false'),
+    'AI/file import from LibraryView must not enqueue imported content for cloud synchronization'
+  );
+  assertCondition(
+    !topicsHubImportContent.includes('enqueueEntitiesForCloudSync({ blocks:') &&
+      !topicsHubImportContent.includes('enqueueEntitiesForCloudSync({ subjects:'),
+    'Block and Subject create/update UI must keep hierarchy records device-local'
+  );
+  assertCondition(
+    topicReaderContent.includes('findTermForSelectedString') &&
+      topicReaderContent.includes('terms.find((item)') &&
+      topicReaderContent.includes('onMouseUp={() =>') &&
+      topicReaderContent.includes('onTouchEnd={() =>') &&
+      topicReaderContent.includes('onCopy={() =>'),
+    'Topic reader must automatically resolve imported global terms on tap, selection, and copy'
+  );
+  console.log('[PASS] 3b. Two-path AI generator, local hierarchy enforcement, and local-only import verified');
 
   // 4. Verify Safe, Versioned, Idempotent Storage Migration + Backup & Rollback
   const initialState = loadAppState();
@@ -2387,6 +2430,35 @@ async function main() {
     saveTerms(seededTerms);
   }
 
+  // Simulate Blocks and Subjects already created by the user inside the app.
+  // The AI importer must preserve these records and only attach generated topics to them.
+  const aiLocalBlock = {
+    id: 'blk-ai-neuro',
+    code: 'BLK-NEURO',
+    titleEn: 'Locally Created Neurology Block',
+    titleAr: 'بلوك الأعصاب المحلي',
+    descriptionEn: 'CNS & PNS',
+    descriptionAr: 'الجهاز العصبي المركزي والطرفي',
+    colorAccent: 'emerald',
+    order: 20,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  const aiLocalSubject = {
+    id: 'subj-ai-neuro',
+    blockId: 'blk-ai-neuro',
+    code: 'NEUR-301',
+    titleEn: 'Locally Created Neuroanatomy',
+    titleAr: 'التشريح العصبي المحلي',
+    descriptionEn: 'Neuroanatomy',
+    descriptionAr: 'التشريح العصبي',
+    order: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  saveMedicalBlocks([...loadMedicalBlocks().filter((item) => item.id !== aiLocalBlock.id), aiLocalBlock]);
+  saveMedicalSubjects([...loadMedicalSubjects().filter((item) => item.id !== aiLocalSubject.id), aiLocalSubject]);
+
   const aiMarkdownPayload = `إليك المحتوى المولّد بالتوافق مع UMEDT:
 \`\`\`json
 {
@@ -2505,9 +2577,11 @@ async function main() {
   const preservedFirstTerm = aiImportRes.updatedState.terms.find((t) => t.id === existingFavoriteTermId);
   assertCondition(
     aiImportRes.success &&
-      aiImportRes.counts.blocks === 1 &&
-      aiImportRes.counts.subjects === 1 &&
+      aiImportRes.counts.blocks === 0 &&
+      aiImportRes.counts.subjects === 0 &&
       aiImportRes.counts.topics === 1 &&
+      aiImportRes.updatedState.blocks.some((block) => block.id === 'blk-ai-neuro' && block.titleEn === 'Locally Created Neurology Block') &&
+      aiImportRes.updatedState.subjects.some((subject) => subject.id === 'subj-ai-neuro' && subject.titleEn === 'Locally Created Neuroanatomy') &&
       aiImportRes.counts.books === 1 &&
       aiImportRes.counts.exams === 1 &&
       aiImportRes.counts.questions === 7 &&
@@ -2515,7 +2589,7 @@ async function main() {
         (preservedFirstTerm?.favorite === true &&
           preservedFirstTerm?.collections?.includes('custom-star-deck') &&
           preservedFirstTerm?.srsData?.interval === 14)),
-    'Universal AI importer must parse Markdown JSON from ChatGPT/Gemini across all entity types while preserving favorite, collections, and SRS progress'
+    'Universal AI importer must parse generated topics against existing local hierarchy, ignore incoming block/subject definitions, and preserve favorite, collections, and SRS progress'
   );
 
   // Deduplication re-import check
@@ -3987,6 +4061,7 @@ async function main() {
 
     const hdReport = importUniversalAiOrLocalContent({
       rawText: hdStreamText,
+      allowHierarchyCreation: true,
       sourceLabel: 'اختبار النص عالي الكثافة'
     });
     assertCondition(
@@ -4015,6 +4090,7 @@ async function main() {
 
     const mdReport = importUniversalAiOrLocalContent({
       rawText: mdText,
+      allowHierarchyCreation: true,
       sourceLabel: 'اختبار Markdown'
     });
     assertCondition(
@@ -4065,6 +4141,7 @@ async function main() {
 
     const nestedReport = importUniversalAiOrLocalContent({
       rawText: looseNestedJson,
+      allowHierarchyCreation: true,
       sourceLabel: 'اختبار JSON المتداخل والفواصل الزائدة'
     });
     assertCondition(
@@ -4144,10 +4221,11 @@ async function main() {
       'utf8'
     );
     assertCondition(
-      aiGuideSource.includes('READY-TO-COPY ENGLISH PROMPT') &&
-        aiGuideSource.includes('targetScope') &&
-        aiGuideSource.includes('termsCount') &&
-        aiGuideSource.includes('topicsCoverage') &&
+      aiGuideSource.includes("type GeneratorMode = 'topic' | 'terms'") &&
+        aiGuideSource.includes('topicPrompt') &&
+        aiGuideSource.includes('termsPrompt') &&
+        aiGuideSource.includes('selectedBlock.id') &&
+        aiGuideSource.includes('selectedSubject.id') &&
         libraryViewSource.includes("activeIngestModal === 'manual_term'") &&
         libraryViewSource.includes("activeIngestModal === 'file_upload'") &&
         libraryViewSource.includes("activeIngestModal === 'paste_text'") &&
@@ -4523,6 +4601,7 @@ QUESTION || single_choice || Which vessels unite to form the basilar artery? || 
 
     const mdReport25 = importUniversalAiOrLocalContent({
       rawText: markdownSample25,
+      allowHierarchyCreation: true,
       sourceLabel: 'اختبار Markdown 25'
     });
     assertCondition(
@@ -4537,7 +4616,7 @@ QUESTION || single_choice || Which vessels unite to form the basilar artery? || 
       )}`
     );
 
-    // 25.4 Verify UI cleanup: 3-scope Any-AI Prompt Builder, collision-free LibraryView header, & Block->Subject->Topic drilldown in TopicsHub
+    // 25.4 Verify UI cleanup: two-path local-hierarchy AI generator, collision-free LibraryView header, & Block->Subject->Topic drilldown in TopicsHub
     const aiGuideSrc25 = fs.readFileSync(
       path.join(ROOT_DIR, 'src', 'components', 'AiContentGuideModal.tsx'),
       'utf8'
@@ -4552,13 +4631,14 @@ QUESTION || single_choice || Which vessels unite to form the basilar artery? || 
     );
 
     assertCondition(
-      aiGuideSrc25.includes("type PromptTargetScope = 'block' | 'subject' | 'topic'") &&
-        aiGuideSrc25.includes("'markdown_file'") &&
-        aiGuideSrc25.includes('blockName') &&
-        aiGuideSrc25.includes('subjectName') &&
-        aiGuideSrc25.includes('topicName') &&
-        !/ChatGPT|Gemini Gem/i.test(aiGuideSrc25),
-      'AiContentGuideModal.tsx must provide strictly 3 scopes (block/subject/topic), explicit Block/Subject/Topic inputs, .md file option, and zero ChatGPT/Gemini branding'
+      aiGuideSrc25.includes("type GeneratorMode = 'topic' | 'terms'") &&
+        aiGuideSrc25.includes('termsPrompt') &&
+        aiGuideSrc25.includes('selectedBlock.id') &&
+        aiGuideSrc25.includes('selectedSubject.id') &&
+        aiGuideSrc25.includes('Do not include "blocks" or "subjects" arrays') &&
+        aiGuideSrc25.includes('linkedBlockIds, linkedSubjectIds, linkedTopicIds') &&
+        !aiGuideSrc25.includes("type PromptTargetScope = 'block' | 'subject' | 'topic'"),
+      'AiContentGuideModal.tsx must expose only topic/global-terms modes, select real local hierarchy IDs, and keep dictionary terms unlinked'
     );
 
     assertCondition(
