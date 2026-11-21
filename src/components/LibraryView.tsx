@@ -329,7 +329,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   }, [initialMode, initialDraftTerm, onInitialModeConsumed]);
 
   const existingTermSet = useMemo(
-    () => new Set(terms.map((t) => t.term.toLowerCase().trim())),
+    () => new Set(terms.map((t) => t.term.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim())),
     [terms]
   );
 
@@ -524,10 +524,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     const cleanEn = (domEn || manualTerm).trim();
     const cleanAr = (domAr || manualTranslation).trim();
 
-    if (!cleanEn || !cleanAr) {
+    const termWords = cleanEn ? cleanEn.replace(/\s+/g, ' ').split(' ') : [];
+    const validTermWord = /^[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*$/;
+    if (!cleanEn || !cleanAr || termWords.length < 1 || termWords.length > 2 || termWords.some((word) => !validTermWord.test(word))) {
       setOfflineFeedback({
         type: 'error',
-        message: 'يرجى إدخال المصطلح بالإنجليزية وترجمته العربية.'
+        message: 'أدخل مصطلحاً من كلمة إنجليزية واحدة أو كلمتين فقط، مع ترجمته العربية. لا تُدخل جملة.'
       });
       if (!cleanEn) {
         manualTermInputRef.current?.focus();
@@ -675,6 +677,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       .filter((l) => l.length > 1);
 
     const nextStaged: StagedTermItem[] = [];
+    let rejectedInvalidTerms = 0;
     lines.forEach((line, idx) => {
       const parts = line.includes('\t')
         ? line.split('\t')
@@ -684,8 +687,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         ? line.split(' : ')
         : line.split(',');
 
-      const tEn = (parts[0] || '').trim().replace(/^["']|["']$/g, '');
+      const tEn = (parts[0] || '').trim().replace(/^["']|["']$/g, '').replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '').replace(/\s+/g, ' ');
       if (!tEn || tEn.toLowerCase() === 'term') return;
+      const termWords = tEn.split(' ');
+      const validTermWord = /^[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*$/;
+      if (termWords.length < 1 || termWords.length > 2 || termWords.some((word) => !validTermWord.test(word))) {
+        rejectedInvalidTerms += 1;
+        return;
+      }
 
       const quick = lookupQuickWordOrPhraseAr(tEn, terms);
       const morph = decomposeMedicalWord(tEn, terms);
@@ -696,7 +705,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           : '') ||
         'مصطلح طبي';
 
-      const tAr = (parts[1] || '').trim().replace(/^["']|["']$/g, '') || autoAr;
+      const tAr = (parts[1] || '').trim().replace(/^["']|["']$/g, '') || quick?.translationAr || '';
+      if (!tAr || !/[\u0600-\u06FF]/.test(tAr)) {
+        rejectedInvalidTerms += 1;
+        return;
+      }
       const defAr = (parts[2] || '').trim().replace(/^["']|["']$/g, '');
       const defEn = (parts[3] || '').trim().replace(/^["']|["']$/g, '');
 
@@ -704,9 +717,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         id: `stg-line-${Date.now()}-${idx}`,
         term: tEn,
         translation: tAr,
-        phonetic: `/${tEn.toLowerCase()}/`,
-        pos: tEn.includes(' ') ? 'phrase' : 'noun',
-        category: 'Medical',
+        phonetic: '',
+        pos: 'term',
+        category: 'General',
         definitionAr: defAr,
         definitionEn: defEn,
         examples: [],
@@ -716,7 +729,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           related: []
         },
         selected: true,
-        isDuplicate: existingTermSet.has(tEn.toLowerCase())
+        isDuplicate: existingTermSet.has(tEn.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim())
       });
     });
 
@@ -724,12 +737,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     if (nextStaged.length === 0) {
       setOfflineFeedback({
         type: 'error',
-        message: 'لم يتم العثور على سجلات صالحة في الملف أو النص.'
+        message: `لم يتم العثور على مصطلحات صالحة. تم استبعاد ${rejectedInvalidTerms} سجل غير مطابق لشرط كلمة أو كلمتين أو دون ترجمة عربية.`
       });
     } else {
       setOfflineFeedback({
         type: 'success',
-        message: `تم تحليل ${nextStaged.length} مصطلح أوفلاين جاهز للحفظ.`
+        message: `تم تحليل ${nextStaged.length} مصطلح أوفلاين. تم استبعاد ${rejectedInvalidTerms} سجل غير مطابق.`
       });
     }
   };
