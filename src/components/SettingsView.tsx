@@ -1551,7 +1551,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
                 <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
                   <div className="text-xs font-extrabold text-slate-900 dark:text-white">نشر المصطلحات المحلية إلى القاموس السحابي</div>
-                  <p className="text-[11px] leading-5 text-slate-500 dark:text-slate-400">يرفع المصطلحات المحلية فقط إلى data/master/terms.json. يجب أن يحتوي كل مصطلح على كلمة أو كلمتين إنجليزيتين، وترجمة عربية، ونطق، وتعريف باللغتين، ومثال باللغتين. لا تُرفع المواضيع أو المواد أو الوسائط أو بيانات المستخدم.</p>
+                  <p className="text-[11px] leading-5 text-slate-500 dark:text-slate-400">يرفع المصطلحات المحلية فقط إلى data/master/terms.json. يجب أن يحتوي كل مصطلح على كلمة أو كلمتين إنجليزيتين، وترجمة عربية، ونطق، وتعريف باللغتين، ومثال باللغتين. تُضاف المصطلحات الجديدة فقط؛ لا تُستبدل المصطلحات السحابية الموجودة ولا تُرفع المواضيع أو المواد أو الوسائط أو بيانات المستخدم.</p>
                   <button type="button" disabled={!hasGitHubToken || !onPublishLocalData || isPublishingGitHub} onClick={() => void handlePublishLocalData()} className="w-full min-h-[46px] rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold flex items-center justify-center gap-2 disabled:opacity-40">
                     <CloudUpload className="w-4 h-4" />
                     {isPublishingGitHub ? 'جاري رفع البيانات...' : 'نشر المصطلحات المحلية فقط'}
