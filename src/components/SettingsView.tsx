@@ -1491,7 +1491,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
                 <div className="rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 p-3 text-xs text-emerald-900 dark:text-emerald-200 space-y-1">
                   <div className="flex items-center gap-2 font-bold"><ShieldCheck className="w-4 h-4" /> اتصال GitHub مباشر على Android</div>
-                  <p>حدد المستودع والفرع من هنا. يلزم Fine-grained Token بصلاحية Contents: Read and write على المستودع المستهدف.</p>
+                  <p>حدد المستودع والفرع من هنا. تنزيل القاموس من المستودع العام لا يحتاج Token؛ يلزم Fine-grained Token بصلاحية Contents: Read and write فقط إذا أردت نشر مصطلحات جديدة من هذا الجهاز.</p>
                   <p>يُحفظ التوكن مشفراً بواسطة Android Keystore، أما إعدادات المستودع غير السرية فتحفظ محلياً على هذا الجهاز.</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
@@ -1532,13 +1532,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <p className="text-[10px] text-slate-500 dark:text-slate-400">فحص الحالة يقرأ سجل Workflow العام؛ يوضح اجتياز التحقق البنيوي والتكرار، ولا يغني عن المراجعة اللغوية للمصطلحات.</p>
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200">GitHub Fine-grained Personal Access Token</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200">GitHub Token (اختياري للنشر من الجهاز)</label>
                   <input
                     type="password"
                     autoComplete="off"
                     value={draftGitHubToken}
                     onChange={(e) => setDraftGitHubToken(e.target.value)}
-                    placeholder={hasGitHubToken ? 'يوجد توكن محفوظ — أدخل بديلاً لتغييره' : 'الصق التوكن هنا'}
+                    placeholder={hasGitHubToken ? 'يوجد توكن محفوظ — أدخل بديلاً لتغييره' : 'أدخل التوكن إذا أردت النشر من هذا الجهاز'}
                     className="w-full min-h-[44px] rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 text-sm font-mono outline-none focus:border-emerald-500"
                   />
                   <div className="flex gap-2">
