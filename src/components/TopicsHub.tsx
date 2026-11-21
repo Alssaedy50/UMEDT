@@ -4696,15 +4696,6 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     </button>
                   </div>
 
-                  <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3">
-                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                      الترجمة العربية:
-                    </span>
-                    <span className="text-base font-extrabold text-emerald-700 dark:text-emerald-300">
-                      {selectionState.matchedTerm.translation}
-                    </span>
-                  </div>
-
                   <div className="space-y-2">
                     <div className="space-y-1">
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
@@ -4722,6 +4713,20 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                         {selectionState.matchedTerm.definitionAr}
                       </p>
                     </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
+                        الترجمة العربية:
+                      </span>
+                      <span className="text-base font-extrabold text-emerald-700 dark:text-emerald-300">
+                        {selectionState.matchedTerm.translation}
+                      </span>
+                    </div>
+                    <span dir="ltr" className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                      {selectionState.matchedTerm.phonetic}
+                    </span>
                   </div>
 
                   {selectionState.matchedTerm.examples?.[0] && (
