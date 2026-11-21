@@ -219,8 +219,8 @@ function encodeBase64Utf8(value: string): string {
 }
 
 /**
- * Publishes a complete snapshot of the app's current master collections in one Git commit.
- * The data repository's existing push workflow validates and signs the subsequent OTA release.
+ * Publishes only reviewed dictionary terms to the terms-only UMEDT-DATA repository.
+ * Educational content and local user data are never written to the cloud dictionary.
  */
 export async function publishMasterDataToGitHub(snapshot: MasterDataSnapshot): Promise<{
   commitSha: string; filesUpdated: number; branch: string; repository: string;
@@ -230,78 +230,86 @@ export async function publishMasterDataToGitHub(snapshot: MasterDataSnapshot): P
   const config = loadGitHubRepositoryConfig();
   await testGitHubConnection(token, config);
 
-  const files: Array<{ path: string; content: string }> = [
-    { path: 'data/master/terms.json', content: JSON.stringify(snapshot.terms, null, 2) },
-    { path: 'data/master/sentences.json', content: JSON.stringify(snapshot.sentences, null, 2) },
-    { path: 'data/master/topics.json', content: JSON.stringify(snapshot.topics, null, 2) },
-    { path: 'data/master/custom-affixes.json', content: JSON.stringify(snapshot.customAffixes, null, 2) },
-    { path: 'data/master/custom-abbreviations.json', content: JSON.stringify(snapshot.customAbbreviations, null, 2) },
-    { path: 'data/master/blocks.json', content: JSON.stringify(snapshot.blocks, null, 2) },
-    { path: 'data/master/subjects.json', content: JSON.stringify(snapshot.subjects, null, 2) },
-    { path: 'data/master/books.json', content: JSON.stringify(snapshot.books, null, 2) },
-    { path: 'data/master/questions.json', content: JSON.stringify(snapshot.questions, null, 2) },
-    { path: 'data/master/exams.json', content: JSON.stringify(snapshot.exams, null, 2) },
-    { path: 'data/master/media-index.json', content: JSON.stringify(snapshot.mediaAssets, null, 2) }
-  ];
-  for (const file of files) {
-    const parsed = JSON.parse(file.content) as unknown;
-    if (!Array.isArray(parsed)) throw new Error(`بيانات غير صالحة في ${file.path}`);
-  }
-  if (files.every((file) => (JSON.parse(file.content) as unknown[]).length === 0)) {
-    throw new Error('تم إيقاف النشر لأن جميع مجموعات البيانات فارغة.');
-  }
+  const normalize = (value: string) => value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/[‐‑‒–—]/g, '-')
+    .replace(/[^a-z0-9'-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const validWord = /^[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*$/;
+  const seen = new Map<string, string>();
+  const terms = snapshot.terms.map((raw, index) => {
+    if (!raw || typeof raw !== 'object') throw new Error(`سجل المصطلح رقم ${index + 1} غير صالح.`);
+    const item = raw as Record<string, unknown>;
+    const term = typeof item.term === 'string' ? item.term.trim().replace(/\s+/g, ' ') : '';
+    const words = term ? term.split(' ') : [];
+    if (words.length < 1 || words.length > 2 || words.some((word) => !validWord.test(word))) {
+      throw new Error(`المصطلح "${term || index + 1}" يجب أن يكون كلمة إنجليزية واحدة أو كلمتين فقط، وليس جملة.`);
+    }
+    const key = normalize(term);
+    if (seen.has(key)) throw new Error(`مصطلح مكرر: "${term}" يتعارض مع "${seen.get(key)}".`);
+    seen.set(key, term);
 
+    const translation = typeof item.translation === 'string' ? item.translation.trim() : '';
+    const pronunciation = typeof item.phonetic === 'string'
+      ? item.phonetic.trim()
+      : typeof item.pronunciation === 'string' ? item.pronunciation.trim() : '';
+    const definitionEn = typeof item.definitionEn === 'string' ? item.definitionEn.trim() : '';
+    const definitionAr = typeof item.definitionAr === 'string' ? item.definitionAr.trim() : '';
+    const examples = Array.isArray(item.examples) ? item.examples as Array<Record<string, unknown>> : [];
+    const exampleEn = typeof examples[0]?.en === 'string' ? String(examples[0].en).trim() : '';
+    const exampleAr = typeof examples[0]?.ar === 'string' ? String(examples[0].ar).trim() : '';
+    if (!translation || !/[\u0600-\u06FF]/.test(translation)) throw new Error(`الترجمة العربية مفقودة أو غير صالحة للمصطلح "${term}".`);
+    if (!pronunciation || !definitionEn || !definitionAr || !exampleEn || !exampleAr) {
+      throw new Error(`المصطلح "${term}" يحتاج إلى النطق والتعريف باللغتين ومثال باللغتين قبل النشر.`);
+    }
+    const slug = key.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    return {
+      id: `term-${slug}`,
+      term,
+      translation,
+      pronunciation,
+      definitionEn,
+      definitionAr,
+      exampleEn,
+      exampleAr,
+      createdAt: typeof item.ingestedAt === 'string' && !/^\d{4}-\d{2}-\d{2}$/.test(item.ingestedAt)
+        ? item.ingestedAt : new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+  });
+  if (!terms.length) throw new Error('لا توجد مصطلحات للنشر. لن يتم استبدال القاموس السحابي بقائمة فارغة.');
+
+  const file = { path: 'data/master/terms.json', content: JSON.stringify(terms, null, 2) + '\n' };
   const repoPath = repositoryApiPath(config);
   const refPath = `${repoPath}${branchRefPath(config.branch)}`;
   const ref = await githubRequest<{ object: { sha: string } }>(token, refPath);
   const parentSha = ref.object.sha;
-  const parent = await githubRequest<{ tree: { sha: string } }>(
-    token,
-    `${repoPath}/git/commits/${parentSha}`
-  );
-  const blobs = await Promise.all(files.map(async (file) => {
-    const blob = await githubRequest<{ sha: string }>(
-      token,
-      `${repoPath}/git/blobs`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          content: encodeBase64Utf8(file.content),
-          encoding: 'base64'
-        })
-      }
-    );
-    return { path: file.path, mode: '100644', type: 'blob', sha: blob.sha };
-  }));
-  const tree = await githubRequest<{ sha: string }>(
-    token,
-    `${repoPath}/git/trees`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ base_tree: parent.tree.sha, tree: blobs })
-    }
-  );
-  const commit = await githubRequest<{ sha: string }>(
-    token,
-    `${repoPath}/git/commits`,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        message: 'chore(data): publish UMEDT local master snapshot',
-        tree: tree.sha,
-        parents: [parentSha]
-      })
-    }
-  );
+  const parent = await githubRequest<{ tree: { sha: string } }>(token, `${repoPath}/git/commits/${parentSha}`);
+  const blob = await githubRequest<{ sha: string }>(token, `${repoPath}/git/blobs`, {
+    method: 'POST',
+    body: JSON.stringify({ content: encodeBase64Utf8(file.content), encoding: 'base64' })
+  });
+  const tree = await githubRequest<{ sha: string }>(token, `${repoPath}/git/trees`, {
+    method: 'POST',
+    body: JSON.stringify({ base_tree: parent.tree.sha, tree: [{ path: file.path, mode: '100644', type: 'blob', sha: blob.sha }] })
+  });
+  const commit = await githubRequest<{ sha: string }>(token, `${repoPath}/git/commits`, {
+    method: 'POST',
+    body: JSON.stringify({ message: 'chore(terms): publish reviewed dictionary terms', tree: tree.sha, parents: [parentSha] })
+  });
   const latestRef = await githubRequest<{ object: { sha: string } }>(token, refPath);
   if (latestRef.object.sha !== parentSha) throw new Error('تغير الفرع أثناء تجهيز النشر. لم يتم تحديث رأس الفرع؛ أعد المحاولة.');
-  await githubRequest(
-    token,
-    `${repoPath}/git/refs/heads/${encodeURIComponent(config.branch)}`,
-    { method: 'PATCH', body: JSON.stringify({ sha: commit.sha, force: false }) }
-  );
+  await githubRequest(token, `${repoPath}/git/refs/heads/${encodeURIComponent(config.branch)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ sha: commit.sha, force: false })
+  });
   return {
-    commitSha: commit.sha, filesUpdated: files.length, branch: config.branch,
+    commitSha: commit.sha,
+    filesUpdated: 1,
+    branch: config.branch,
     repository: `${config.owner}/${config.repository}`
   };
 }
