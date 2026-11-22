@@ -1703,7 +1703,15 @@ export async function syncFromUmedtDataRepository(options?: {
     if (!col || !col.id || !col.rawUrl) continue;
     const resolvedColUrl = resolveRepoRelativeUrl(col.rawUrl, targetCatalogUrl);
     const expectedHash = (col.sha256 || '').trim();
-    if (expectedHash && prevHashes[col.id] === expectedHash) {
+    // The dictionary is the primary UMEDT-DATA payload. Always re-fetch it on
+    // an explicit catalog refresh: the stored hash can outlive a cleared/empty
+    // cloud mirror, which otherwise makes the app report a successful sync while
+    // showing zero dictionary terms. Keep hash-based skipping for other collections.
+    if (
+      col.id.toLowerCase() !== 'terms' &&
+      expectedHash &&
+      prevHashes[col.id] === expectedHash
+    ) {
       skippedCollectionsCount += 1;
       continue;
     }
