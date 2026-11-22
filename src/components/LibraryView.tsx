@@ -275,6 +275,44 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     return unsub;
   }, []);
 
+  // Dynamically refresh the remote cloud catalog index whenever the user opens the Cloud Library view
+  // (strictly updates the cloud catalog index ONLY; never auto-downloads into local state).
+  const autoCatalogSyncedRef = useRef(false);
+  useEffect(() => {
+    if (libraryMode !== 'cloud_library') {
+      autoCatalogSyncedRef.current = false;
+      return;
+    }
+    if (autoCatalogSyncedRef.current || !isCloudSyncOnline()) return;
+    autoCatalogSyncedRef.current = true;
+    let cancelled = false;
+    setBusyTargetKey('catalog:refresh');
+    void syncWithRemoteCloudLibrary({
+      localTerms: terms,
+      localSentences: sentences,
+      localTopics: topics
+    })
+      .then((res) => {
+        if (cancelled) return;
+        setSyncRevision((prev) => prev + 1);
+        if (res.syncError) {
+          showToast?.(`تعذر مزامنة الفهرس السحابي: ${res.syncError}`, 'info');
+        }
+      })
+      .catch(() => {
+        // Keep current cached catalog on transient network error
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setBusyTargetKey((prev) => (prev === 'catalog:refresh' ? null : prev));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [libraryMode]);
+
   const cloudSummary: CloudLibraryStateSummary = useMemo(
     () =>
       buildCloudLibraryCatalogView({
@@ -1021,13 +1059,28 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     setBusyTargetKey('catalog:refresh');
     try {
       await processCloudSyncQueue({ forceRetryFailed: true });
-      await syncWithRemoteCloudLibrary({
+      const syncRes = await syncWithRemoteCloudLibrary({
         localTerms: terms,
         localSentences: sentences,
         localTopics: topics
       });
       setSyncRevision((prev) => prev + 1);
-      showToast?.('تم تحديث فهرس المكتبة السحابية؛ اضغط تنزيل على أي عنصر لتحميله');
+      if (syncRes.syncError) {
+        showToast?.(`تعذر مزامنة المستودع السحابي: ${syncRes.syncError}`, 'info');
+      } else if (!syncRes.fetchedFromRemote) {
+        showToast?.('تعذر الوصول إلى مستودع UMEDT-DATA حالياً؛ تحقق من الاتصال وحاول مجدداً', 'info');
+      } else {
+        const cloudTermsCount = syncRes.mirror.terms?.length || 0;
+        const skippedNote =
+          (syncRes.skippedInvalidRecordsCount || 0) > 0
+            ? ` (تم تخطي ${syncRes.skippedInvalidRecordsCount} سجل غير مكتمل)`
+            : '';
+        showToast?.(
+          cloudTermsCount > 0
+            ? `تم تحديث الفهرس السحابي (${cloudTermsCount} مصطلح متاح)${skippedNote}؛ اضغط تنزيل للتحميل`
+            : `تم تحديث فهرس المكتبة السحابية${skippedNote}؛ اضغط تنزيل على أي عنصر لتحميله`
+        );
+      }
     } finally {
       setBusyTargetKey(null);
     }
@@ -1772,46 +1825,52 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             )}
 
             {/* Cloud Dictionary & Lexicon Pack (Manual Download Only) */}
-            {(cloudSummary.cloudDictionaryTotalCount || 0) > 0 && (
-              <div className="pt-2 space-y-2 border-t border-slate-100 dark:border-slate-800">
-                <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 flex items-center justify-between gap-2.5 text-xs">
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    <div className="font-extrabold text-slate-900 dark:text-white leading-snug">
-                      قاموس المصطلحات السحابي
+            {(cloudSummary.cloudDictionaryTotalCount || 0) > 0 && (() => {
+              const totalDict = cloudSummary.cloudDictionaryTotalCount || 0;
+              const downloadedDict = cloudSummary.cloudDictionaryDownloadedCount || 0;
+              const pendingUpdates =
+                cloudSummary.cloudDictionaryUpdateCount ?? Math.max(0, totalDict - downloadedDict);
+              const isFullyUpToDate = downloadedDict >= totalDict && pendingUpdates === 0;
+              const isUpdateOnly = downloadedDict >= totalDict && pendingUpdates > 0;
+              return (
+                <div className="pt-2 space-y-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 flex items-center justify-between gap-2.5 text-xs">
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="font-extrabold text-slate-900 dark:text-white leading-snug">
+                        قاموس المصطلحات السحابي
+                      </div>
+                      <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 font-mono tabular-nums">
+                        {downloadedDict}/{totalDict} عنصر ·{' '}
+                        <span
+                          className={
+                            isFullyUpToDate
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-amber-600 dark:text-amber-400'
+                          }
+                        >
+                          {isFullyUpToDate
+                            ? 'محلي ومحدّث'
+                            : isUpdateOnly
+                              ? `تحديث متاح (${pendingUpdates})`
+                              : 'سحابي'}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-                      {cloudSummary.cloudDictionaryDownloadedCount || 0}/
-                      {cloudSummary.cloudDictionaryTotalCount || 0} عنصر ·{' '}
-                      <span
-                        className={
-                          (cloudSummary.cloudDictionaryDownloadedCount || 0) >=
-                          (cloudSummary.cloudDictionaryTotalCount || 0)
-                            ? 'text-emerald-600 dark:text-emerald-400'
-                            : 'text-amber-600 dark:text-amber-400'
-                        }
+                    {!isFullyUpToDate && (
+                      <button
+                        type="button"
+                        disabled={busyTargetKey === 'dictionary:all'}
+                        onClick={() => void handleDownloadTarget('dictionary', 'all')}
+                        className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center gap-1 disabled:opacity-50 whitespace-nowrap shrink-0"
                       >
-                        {(cloudSummary.cloudDictionaryDownloadedCount || 0) >=
-                        (cloudSummary.cloudDictionaryTotalCount || 0)
-                          ? 'محلي'
-                          : 'سحابي'}
-                      </span>
-                    </div>
+                        <Download className="w-3.5 h-3.5" />
+                        <span>{isUpdateOnly ? 'تحديث' : 'تنزيل'}</span>
+                      </button>
+                    )}
                   </div>
-                  {(cloudSummary.cloudDictionaryDownloadedCount || 0) <
-                    (cloudSummary.cloudDictionaryTotalCount || 0) && (
-                    <button
-                      type="button"
-                      disabled={busyTargetKey === 'dictionary:all'}
-                      onClick={() => void handleDownloadTarget('dictionary', 'all')}
-                      className="min-h-[40px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center gap-1 disabled:opacity-50 whitespace-nowrap shrink-0"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>تنزيل</span>
-                    </button>
-                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Academic Exam Packages Section */}
             {filteredCloudExams.length > 0 && (

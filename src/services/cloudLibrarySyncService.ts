@@ -225,6 +225,7 @@ export interface CloudLibraryStateSummary {
   totalCloudExamsCount?: number;
   cloudDictionaryTotalCount?: number;
   cloudDictionaryDownloadedCount?: number;
+  cloudDictionaryUpdateCount?: number;
   catalogVersion?: string;
   books?: CloudCatalogBookEntry[];
   exams?: AcademicExamPackage[];
@@ -767,7 +768,23 @@ export function saveUnifiedCloudMirror(snapshot: UnifiedCloudStoreSnapshot): voi
         JSON.stringify({ ...snapshot, mediaRecords: [] })
       );
     } catch {
-      // ignore
+      // If quota is still exceeded (e.g. very large cloud dictionary alongside local state),
+      // persist lightweight catalog metadata without stale terms hash so next boot re-fetches cleanly.
+      try {
+        const nextCollectionHashes = { ...(snapshot.collectionHashes || {}) };
+        delete nextCollectionHashes.terms;
+        getSafeStorage().setItem(
+          CLOUD_LIBRARY_STORAGE_KEYS.CLOUD_SNAPSHOT_MIRROR,
+          JSON.stringify({
+            ...snapshot,
+            mediaRecords: [],
+            terms: [],
+            collectionHashes: nextCollectionHashes
+          })
+        );
+      } catch {
+        // Keep full snapshot in memory for the current session
+      }
     }
   }
 }
@@ -1493,9 +1510,40 @@ function normalizeDictionaryTermKey(value: string): string {
     .toLowerCase()
     .replace(/[’‘]/g, "'")
     .replace(/[‐‑‒–—]/g, '-')
-    .replace(/[^a-z0-9'-]+/g, ' ')
+    .replace(/[^a-z0-9\u0370-\u03ff'-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function computeDictionaryTermContentFingerprint(term: DictionaryTerm): string {
+  const examples = Array.isArray(term.examples)
+    ? term.examples
+        .map((ex) => `${String(ex?.en || '').trim()}|${String(ex?.ar || '').trim()}`)
+        .filter(Boolean)
+    : [];
+  const payload = {
+    term: String(term.term || '').trim(),
+    translation: String(term.translation || '').trim(),
+    phonetic: String(term.phonetic || '').trim(),
+    definitionEn: String(term.definitionEn || '').trim(),
+    definitionAr: String(term.definitionAr || '').trim(),
+    clinicalNote: String(term.clinicalNote || '').trim(),
+    morphology: term.morphology || null,
+    examples
+  };
+  return computeDeterministicFastHashHex(JSON.stringify(payload));
+}
+
+function scoreDictionaryTermRichness(term: DictionaryTerm): number {
+  let score = 0;
+  if (term.translation) score += 2 + Math.min(4, Math.floor(term.translation.length / 20));
+  if (term.phonetic) score += 2;
+  if (term.definitionEn) score += 2 + Math.min(5, Math.floor(term.definitionEn.length / 60));
+  if (term.definitionAr) score += 2 + Math.min(5, Math.floor(term.definitionAr.length / 60));
+  if (term.examples?.length) score += 2 + term.examples.length;
+  if (term.morphology) score += 3;
+  if (term.clinicalNote) score += 1;
+  return score;
 }
 
 function normalizeTermsOnlyRecord(raw: unknown): DictionaryTerm | null {
@@ -1503,39 +1551,155 @@ function normalizeTermsOnlyRecord(raw: unknown): DictionaryTerm | null {
   const item = raw as Record<string, unknown>;
   const term = typeof item.term === 'string' ? item.term.trim().replace(/\s+/g, ' ') : '';
   const words = term ? term.split(' ') : [];
-  const wordPattern = /^[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*$/;
-  if (!term || words.length < 1 || words.length > 2 || words.some((word) => !wordPattern.test(word))) return null;
-  const translation = typeof item.translation === 'string' ? item.translation.trim() : '';
-  const pronunciation = typeof item.pronunciation === 'string'
-    ? item.pronunciation.trim()
-    : typeof item.phonetic === 'string' ? item.phonetic.trim() : '';
-  const definitionEn = typeof item.definitionEn === 'string' ? item.definitionEn.trim() : '';
-  const definitionAr = typeof item.definitionAr === 'string' ? item.definitionAr.trim() : '';
+  // Accept canonical single/multi-word medical terms including parentheses (e.g. Lipoprotein(a)),
+  // Greek symbols (α/β/γ), slashes (V/Q, IgG/IgM), plus/minus (CD4+, Gram-negative), and abbreviations.
+  const medicalTokenPattern =
+    /^[A-Za-z0-9\u00C0-\u024F\u0370-\u03FF()[\]{}.,'’+\-/]+$/;
+  const hasAlphaNumeric = /[A-Za-z0-9\u0370-\u03FF]/.test(term);
+  const looksLikeSentence =
+    words.length > 6 || term.length > 120 || /[.?!]\s+\S/.test(term);
+  if (
+    !term ||
+    !hasAlphaNumeric ||
+    looksLikeSentence ||
+    words.length < 1 ||
+    words.some((word) => !medicalTokenPattern.test(word))
+  ) {
+    return null;
+  }
+
+  const translation = (
+    typeof item.translation === 'string'
+      ? item.translation
+      : typeof item.arabicTranslation === 'string'
+        ? item.arabicTranslation
+        : typeof item.ar === 'string'
+          ? item.ar
+          : ''
+  ).trim();
+  const pronunciation = (
+    typeof item.pronunciation === 'string'
+      ? item.pronunciation
+      : typeof item.phonetic === 'string'
+        ? item.phonetic
+        : ''
+  ).trim();
+  const definitionEn = (
+    typeof item.definitionEn === 'string'
+      ? item.definitionEn
+      : typeof item.englishDefinition === 'string'
+        ? item.englishDefinition
+        : typeof item.definition === 'string'
+          ? item.definition
+          : ''
+  ).trim();
+  const definitionAr = (
+    typeof item.definitionAr === 'string'
+      ? item.definitionAr
+      : typeof item.arabicDefinition === 'string'
+        ? item.arabicDefinition
+        : ''
+  ).trim();
   const exampleEn = typeof item.exampleEn === 'string' ? item.exampleEn.trim() : '';
   const exampleAr = typeof item.exampleAr === 'string' ? item.exampleAr.trim() : '';
-  if (!translation || !/[\u0600-\u06FF]/.test(translation) || /^(مصطلح طبي|ترجمة عربية|غير معروف)$/i.test(translation) ||
-    !pronunciation || !definitionEn || !definitionAr || !exampleEn || !exampleAr ||
-    /^clinical medical term:/i.test(definitionEn) || /^مصطلح طبي سريري يعني/i.test(definitionAr)) return null;
+
+  const normalizedExamples: DictionaryTerm['examples'] = [];
+  if (Array.isArray(item.examples)) {
+    for (const ex of item.examples) {
+      if (!ex || typeof ex !== 'object') continue;
+      const exObj = ex as Record<string, unknown>;
+      const en = typeof exObj.en === 'string' ? exObj.en.trim() : '';
+      const ar = typeof exObj.ar === 'string' ? exObj.ar.trim() : '';
+      if (en || ar) normalizedExamples.push({ en, ar });
+    }
+  }
+  if (normalizedExamples.length === 0 && (exampleEn || exampleAr)) {
+    normalizedExamples.push({ en: exampleEn, ar: exampleAr });
+  }
+
+  const isPlaceholderTranslation = /^(مصطلح طبي|ترجمة عربية|غير معروف)$/i.test(translation);
+  const isPlaceholderDefEn = /^clinical medical term:/i.test(definitionEn);
+  const isPlaceholderDefAr = /^مصطلح طبي سريري يعني/i.test(definitionAr);
+  if (
+    isPlaceholderTranslation ||
+    isPlaceholderDefEn ||
+    isPlaceholderDefAr ||
+    (!translation && !definitionEn && !definitionAr)
+  ) {
+    return null;
+  }
+
   const normalized = normalizeDictionaryTermKey(term);
-  const slug = normalized.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
-  return {
-    ...(item as unknown as DictionaryTerm),
-    id: typeof item.id === 'string' && item.id.trim() ? item.id : `term-${slug}`,
+  if (!normalized) return null;
+  const slug = normalized
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  const rawRelations =
+    item.relations && typeof item.relations === 'object' && !Array.isArray(item.relations)
+      ? (item.relations as Record<string, unknown>)
+      : null;
+  const toStringArray = (val: unknown): string[] =>
+    Array.isArray(val) ? val.map((v) => String(v || '').trim()).filter(Boolean) : [];
+
+  const validCategories = new Set(['Medical', 'AI', 'Programming', 'General']);
+  const category =
+    typeof item.category === 'string' && validCategories.has(item.category)
+      ? (item.category as DictionaryTerm['category'])
+      : 'General';
+
+  const result: DictionaryTerm = {
+    id:
+      typeof item.id === 'string' && item.id.trim()
+        ? item.id.trim()
+        : `term-${slug || computeDeterministicFastHashHex(normalized).slice(0, 12)}`,
     term,
     termNormalized: normalized,
-    translation,
+    translation: translation || definitionAr || term,
     phonetic: pronunciation,
-    pos: 'term',
-    category: 'General',
-    keepEnglish: true,
+    pos: typeof item.pos === 'string' && item.pos.trim() ? item.pos.trim() : 'term',
+    category,
+    keepEnglish: typeof item.keepEnglish === 'boolean' ? item.keepEnglish : true,
     favorite: false,
-    collections: [],
-    ingestedAt: typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString().slice(0, 10),
+    collections: toStringArray(item.collections),
+    ingestedAt:
+      typeof item.ingestedAt === 'string' && item.ingestedAt.trim()
+        ? item.ingestedAt.trim()
+        : typeof item.createdAt === 'string' && item.createdAt.trim()
+          ? item.createdAt.trim()
+          : new Date().toISOString().slice(0, 10),
     definitionEn,
     definitionAr,
-    examples: [{ en: exampleEn, ar: exampleAr }],
-    relations: { synonyms: [], broader: [], related: [] }
+    examples: normalizedExamples,
+    relations: {
+      synonyms: toStringArray(rawRelations?.synonyms),
+      broader: toStringArray(rawRelations?.broader),
+      related: toStringArray(rawRelations?.related)
+    }
   };
+
+  if (typeof item.specialty === 'string' && item.specialty.trim()) {
+    result.specialty = item.specialty.trim();
+  }
+  if (typeof item.umdCode === 'string' && item.umdCode.trim()) {
+    result.umdCode = item.umdCode.trim();
+  }
+  if (typeof item.clinicalNote === 'string' && item.clinicalNote.trim()) {
+    result.clinicalNote = item.clinicalNote.trim();
+  }
+  if (item.morphology && typeof item.morphology === 'object' && !Array.isArray(item.morphology)) {
+    result.morphology = item.morphology as DictionaryTerm['morphology'];
+  }
+  const linkedTopicIds = toStringArray(item.linkedTopicIds);
+  if (linkedTopicIds.length > 0) result.linkedTopicIds = linkedTopicIds;
+  const linkedSubjectIds = toStringArray(item.linkedSubjectIds);
+  if (linkedSubjectIds.length > 0) result.linkedSubjectIds = linkedSubjectIds;
+  const linkedBlockIds = toStringArray(item.linkedBlockIds);
+  if (linkedBlockIds.length > 0) result.linkedBlockIds = linkedBlockIds;
+
+  return result;
 }
 
 function extractCollectionArray<T>(raw: unknown, keyHint: string): T[] {
@@ -1599,6 +1763,7 @@ export async function syncFromUmedtDataRepository(options?: {
   contentTypesRegistry?: ContentTypeRegistryEntry[];
   updatedCollectionsCount: number;
   skippedCollectionsCount: number;
+  skippedInvalidRecordsCount?: number;
   collectionHashes: Record<string, string>;
   incoming: {
     blocks?: MedicalBlock[];
@@ -1685,14 +1850,15 @@ export async function syncFromUmedtDataRepository(options?: {
 
   let updatedCollectionsCount = 0;
   let skippedCollectionsCount = 0;
+  let skippedInvalidRecordsCount = 0;
 
   const resolveRepoRelativeUrl = (rawOrRel: string, baseCatalogUrl: string): string => {
     const clean = (rawOrRel || '').trim();
     if (!clean) return '';
     if (/^(?:https?:|data:|blob:)/i.test(clean)) return clean;
     try {
-      // Base repo root when catalog URL is .../data/catalog.json -> .../
-      const repoRootUrl = baseCatalogUrl.replace(/\/data\/catalog\.json(?:[?#].*)?$/i, '/');
+      // Base repo root when catalog URL is .../data/catalog.json or .../catalog.json -> .../
+      const repoRootUrl = baseCatalogUrl.replace(/\/(?:data\/)?catalog\.json(?:[?#].*)?$/i, '/');
       return new URL(clean.replace(/^\/+/, ''), repoRootUrl).toString();
     } catch {
       return clean;
@@ -1700,8 +1866,13 @@ export async function syncFromUmedtDataRepository(options?: {
   };
 
   for (const col of catalog.collections) {
-    if (!col || !col.id || !col.rawUrl) continue;
-    const resolvedColUrl = resolveRepoRelativeUrl(col.rawUrl, targetCatalogUrl);
+    const colRecord = col as unknown as Record<string, unknown>;
+    const rawOrPath =
+      col?.rawUrl ||
+      (typeof colRecord?.path === 'string' ? colRecord.path : '') ||
+      (typeof colRecord?.url === 'string' ? colRecord.url : '');
+    if (!col || !col.id || !rawOrPath) continue;
+    const resolvedColUrl = resolveRepoRelativeUrl(rawOrPath, targetCatalogUrl);
     const expectedHash = (col.sha256 || '').trim();
     // The dictionary is the primary UMEDT-DATA payload. Always re-fetch it on
     // an explicit catalog refresh: the stored hash can outlive a cleared/empty
@@ -1817,11 +1988,27 @@ export async function syncFromUmedtDataRepository(options?: {
       rtLower === 'lexicon_entry'
     ) {
       const rawTermRecords = extractCollectionArray<unknown>(parsedJson, 'terms');
-      const normalizedTermRecords = rawTermRecords.map(normalizeTermsOnlyRecord);
-      if (normalizedTermRecords.some((term) => !term)) {
-        throw new Error('The cloud dictionary contains an invalid term record. The entire terms collection was rejected.');
+      const normalizedTerms: DictionaryTerm[] = [];
+      let invalidTermsInBatch = 0;
+      for (const rawRecord of rawTermRecords) {
+        const normalizedRecord = normalizeTermsOnlyRecord(rawRecord);
+        if (!normalizedRecord) {
+          invalidTermsInBatch += 1;
+          continue;
+        }
+        normalizedTerms.push(normalizedRecord);
       }
-      const normalizedTerms = normalizedTermRecords as DictionaryTerm[];
+      if (invalidTermsInBatch > 0) {
+        skippedInvalidRecordsCount += invalidTermsInBatch;
+        console.warn(
+          `[UMEDT-DATA] Skipped ${invalidTermsInBatch} invalid term record(s) while retaining ${normalizedTerms.length} valid dictionary terms.`
+        );
+      }
+      if (rawTermRecords.length > 0 && normalizedTerms.length === 0) {
+        throw new Error(
+          'The cloud dictionary contains no valid term records. The entire terms collection was rejected.'
+        );
+      }
       const uniqueTerms = new Map<string, DictionaryTerm>();
       for (const term of normalizedTerms) {
         const key = normalizeDictionaryTermKey(term.term);
@@ -1830,13 +2017,14 @@ export async function syncFromUmedtDataRepository(options?: {
           uniqueTerms.set(key, term);
           continue;
         }
-        const sameMeaning =
-          existing.translation.trim() === term.translation.trim() &&
-          existing.definitionEn.trim() === term.definitionEn.trim() &&
-          existing.definitionAr.trim() === term.definitionAr.trim() &&
-          existing.phonetic.trim() === term.phonetic.trim();
-        if (!sameMeaning) {
-          throw new Error(`Conflicting duplicate dictionary term detected in cloud catalog: ${term.term}`);
+        // Deterministically keep the richer entry on duplicates without failing the whole sync
+        if (scoreDictionaryTermRichness(term) > scoreDictionaryTermRichness(existing)) {
+          uniqueTerms.set(key, {
+            ...term,
+            collections: Array.from(
+              new Set([...(existing.collections || []), ...(term.collections || [])])
+            )
+          });
         }
       }
       incoming.terms = Array.from(uniqueTerms.values());
@@ -1977,6 +2165,7 @@ export async function syncFromUmedtDataRepository(options?: {
     contentTypesRegistry: registryEntries,
     updatedCollectionsCount,
     skippedCollectionsCount,
+    skippedInvalidRecordsCount,
     collectionHashes: nextHashes,
     incoming
   };
@@ -2003,6 +2192,10 @@ export async function syncWithRemoteCloudLibrary(params: {
   autoMergedAffixes: MorphologicalAffix[];
   autoMergedAbbreviations: ClinicalAbbreviation[];
   newUpdatesApplied: number;
+  fetchedFromRemote?: boolean;
+  syncError?: string;
+  catalogVersion?: string;
+  skippedInvalidRecordsCount?: number;
 }> {
   const loadLocalAffixes = (): MorphologicalAffix[] => {
     try {
@@ -2034,7 +2227,8 @@ export async function syncWithRemoteCloudLibrary(params: {
       autoMergedSubjects: loadMedicalSubjects(),
       autoMergedAffixes: loadLocalAffixes(),
       autoMergedAbbreviations: loadLocalAbbreviations(),
-      newUpdatesApplied: 0
+      newUpdatesApplied: 0,
+      fetchedFromRemote: false
     };
   }
 
@@ -2051,15 +2245,27 @@ export async function syncWithRemoteCloudLibrary(params: {
 
   const isBrowserRuntime = typeof window !== 'undefined';
   let fetchedRemoteSnapshot = false;
+  let remoteSyncError: string | undefined;
+  let remoteCatalogVersion: string | undefined;
+  let remoteSkippedInvalidRecordsCount = 0;
 
   // 1. Primary remote source: external GitHub UMEDT-DATA catalog.json
   try {
     const currentBeforeUmedt = loadUnifiedCloudMirror();
+    const hasPopulatedMirror =
+      currentBeforeUmedt.terms.length > 0 ||
+      currentBeforeUmedt.topics.length > 0 ||
+      (currentBeforeUmedt.books || []).length > 0 ||
+      (currentBeforeUmedt.exams || []).length > 0;
     const umedtRes = await syncFromUmedtDataRepository({
-      currentCollectionHashes: currentBeforeUmedt.collectionHashes || {},
+      currentCollectionHashes: hasPopulatedMirror
+        ? currentBeforeUmedt.collectionHashes || {}
+        : {},
       customFetch: params.customFetch
     });
     if (umedtRes.fetched) {
+      remoteCatalogVersion = umedtRes.catalogVersion;
+      remoteSkippedInvalidRecordsCount = umedtRes.skippedInvalidRecordsCount || 0;
       const termsOnlyMigrationKey = `umedt_terms_only_migration_v1:${umedtRes.termsOnlySource || 'UMEDT-DATA@main'}`;
       const clearLegacyCloudCollections =
         umedtRes.termsOnly === true &&
@@ -2096,8 +2302,9 @@ export async function syncWithRemoteCloudLibrary(params: {
       }
       fetchedRemoteSnapshot = true;
     }
-  } catch {
-    // Continue to fallback below when running in Node/test environment
+  } catch (err) {
+    remoteSyncError = err instanceof Error ? err.message : String(err);
+    console.warn('[UMEDT-DATA] Remote catalog sync failed:', remoteSyncError);
   }
 
   // 2. Only when NOT in browser runtime and UMEDT-DATA was not fetched, query /api/cloud-library snapshot
@@ -2162,12 +2369,41 @@ export async function syncWithRemoteCloudLibrary(params: {
   const localSubjects = loadMedicalSubjects();
 
   const currentMirror = loadUnifiedCloudMirror();
+  const mirrorBlockIds = new Set(currentMirror.blocks.map((b) => b.id));
+  const mirrorSubjectIds = new Set(currentMirror.subjects.map((s) => s.id));
+  const mirrorTopicIds = new Set(currentMirror.topics.map((t) => t.id));
+  const mirrorTermIds = new Set(currentMirror.terms.map((t) => t.id));
+  const mirrorTermNormKeys = new Set(
+    currentMirror.terms.map((t) => normalizeDictionaryTermKey(t.termNormalized || t.term))
+  );
+  const mirrorSentenceIds = new Set(currentMirror.sentences.map((s) => s.id));
+
+  const localOnlyBlocks = fetchedRemoteSnapshot
+    ? localBlocks.filter((b) => !mirrorBlockIds.has(b.id))
+    : localBlocks;
+  const localOnlySubjects = fetchedRemoteSnapshot
+    ? localSubjects.filter((s) => !mirrorSubjectIds.has(s.id))
+    : localSubjects;
+  const localOnlyTopics = fetchedRemoteSnapshot
+    ? params.localTopics.filter((t) => !mirrorTopicIds.has(t.id))
+    : params.localTopics;
+  const localOnlyTerms = fetchedRemoteSnapshot
+    ? params.localTerms.filter(
+        (t) =>
+          !mirrorTermIds.has(t.id) &&
+          !mirrorTermNormKeys.has(normalizeDictionaryTermKey(t.termNormalized || t.term))
+      )
+    : params.localTerms;
+  const localOnlySentences = fetchedRemoteSnapshot
+    ? params.localSentences.filter((s) => !mirrorSentenceIds.has(s.id))
+    : params.localSentences;
+
   const syncedMirrorRes = mergeRecordsIntoCloudSnapshot(currentMirror, {
-    blocks: localBlocks,
-    subjects: localSubjects,
-    topics: params.localTopics,
-    terms: params.localTerms,
-    sentences: params.localSentences
+    blocks: localOnlyBlocks,
+    subjects: localOnlySubjects,
+    topics: localOnlyTopics,
+    terms: localOnlyTerms,
+    sentences: localOnlySentences
   });
   const mirror = syncedMirrorRes.snapshot;
   saveUnifiedCloudMirror(mirror);
@@ -2185,7 +2421,11 @@ export async function syncWithRemoteCloudLibrary(params: {
     autoMergedSubjects: localSubjects,
     autoMergedAffixes: loadLocalAffixes(),
     autoMergedAbbreviations: loadLocalAbbreviations(),
-    newUpdatesApplied: 0
+    newUpdatesApplied: 0,
+    fetchedFromRemote: fetchedRemoteSnapshot,
+    syncError: remoteSyncError,
+    catalogVersion: remoteCatalogVersion || mirror.catalogVersion,
+    skippedInvalidRecordsCount: remoteSkippedInvalidRecordsCount
   };
 }
 
@@ -2587,7 +2827,11 @@ export function buildCloudLibraryCatalogView(params: {
     .map((ex) => ex.id);
 
   // Cloud Dictionary Pack counts (Terms, Sentences, Affixes, Abbreviations in mirror vs local)
-  const localTermIdsSet = new Set(params.localTerms.map((t) => t.id));
+  // Match terms by BOTH canonical ID and normalized term key so locally imported terms never double-count.
+  const localTermById = new Map(params.localTerms.map((t) => [t.id, t]));
+  const localTermByNorm = new Map(
+    params.localTerms.map((t) => [normalizeDictionaryTermKey(t.termNormalized || t.term), t])
+  );
   const localSentenceIdsSet = new Set(params.localSentences.map((s) => s.id));
   const cloudDictTerms = (mirror.terms || []).filter(
     (tm) => !(permDeleted.terms || []).includes(tm.id)
@@ -2619,18 +2863,38 @@ export function buildCloudLibraryCatalogView(params: {
     // ignore
   }
 
+  let downloadedDictTermsCount = 0;
+  let updatedDictTermsCount = 0;
+  for (const ctm of cloudDictTerms) {
+    const localMatch =
+      localTermById.get(ctm.id) ||
+      localTermByNorm.get(normalizeDictionaryTermKey(ctm.termNormalized || ctm.term));
+    if (localMatch) {
+      downloadedDictTermsCount += 1;
+      if (
+        computeDictionaryTermContentFingerprint(localMatch) !==
+        computeDictionaryTermContentFingerprint(ctm)
+      ) {
+        updatedDictTermsCount += 1;
+      }
+    }
+  }
+
   const cloudDictionaryTotalCount =
     cloudDictTerms.length +
     cloudDictSentences.length +
     cloudDictAffixes.length +
     cloudDictAbbrs.length;
   const cloudDictionaryDownloadedCount =
-    cloudDictTerms.filter((t) => localTermIdsSet.has(t.id)).length +
+    downloadedDictTermsCount +
     cloudDictSentences.filter((s) => localSentenceIdsSet.has(s.id)).length +
     cloudDictAffixes.filter((a) =>
       localAffixKeysSet.has(`${(a.cleanKey || a.affix).toLowerCase()}_${a.type}`)
     ).length +
     cloudDictAbbrs.filter((a) => localAbbrKeysSet.has(a.abbr.toLowerCase())).length;
+  const cloudDictionaryUpdateCount =
+    Math.max(0, cloudDictionaryTotalCount - cloudDictionaryDownloadedCount) +
+    updatedDictTermsCount;
 
   return {
     overallSyncStatus,
@@ -2654,6 +2918,7 @@ export function buildCloudLibraryCatalogView(params: {
     totalCloudExamsCount: visibleExams.length,
     cloudDictionaryTotalCount,
     cloudDictionaryDownloadedCount,
+    cloudDictionaryUpdateCount,
     catalogVersion: mirror.catalogVersion,
     books: bookEntries,
     exams: visibleExams,
@@ -2784,12 +3049,18 @@ export async function downloadCloudLibraryTarget(params: {
   }
 
   let mirror = loadUnifiedCloudMirror();
+  const needsDictionaryRefresh =
+    params.targetType === 'dictionary' &&
+    (mirror.terms || []).length === 0 &&
+    (mirror.customAffixes || []).length === 0 &&
+    (mirror.customAbbreviations || []).length === 0;
   if (
-    mirror.topics.length === 0 &&
-    (mirror.books || []).length === 0 &&
-    (mirror.exams || []).length === 0 &&
-    mirror.terms.length === 0 &&
-    mirror.blocks.length === 0
+    needsDictionaryRefresh ||
+    (mirror.topics.length === 0 &&
+      (mirror.books || []).length === 0 &&
+      (mirror.exams || []).length === 0 &&
+      mirror.terms.length === 0 &&
+      mirror.blocks.length === 0)
   ) {
     const syncRes = await syncWithRemoteCloudLibrary({
       localTopics: params.currentTopics,
@@ -2807,37 +3078,94 @@ export async function downloadCloudLibraryTarget(params: {
 
   // Handle Cloud Dictionary Pack (Terms, Sentences, Affixes & Abbreviations) explicit download
   if (params.targetType === 'dictionary') {
+    if (
+      (mirror.terms || []).length === 0 &&
+      (mirror.sentences || []).length === 0 &&
+      (mirror.customAffixes || []).length === 0 &&
+      (mirror.customAbbreviations || []).length === 0
+    ) {
+      return {
+        success: false,
+        downloadedTopicsCount: 0,
+        downloadedTermsCount: 0,
+        downloadedMediaCount: 0,
+        skippedIdenticalCount: 0,
+        bytesDownloaded: 0,
+        updatedTopics: params.currentTopics,
+        updatedTerms: params.currentTerms,
+        updatedSentences: params.currentSentences,
+        updatedBlocks: localBlocks,
+        updatedSubjects: localSubjects,
+        messageAr: 'تعذر جلب بيانات القاموس السحابي؛ يرجى التحقق من الاتصال والمحاولة مجدداً'
+      };
+    }
+
     const permTermIds = new Set(permDeleted.terms || []);
     const permSentenceIds = new Set(permDeleted.sentences || []);
     let downloadedTermsCount = 0;
     let skippedIdenticalCount = 0;
     let bytesDownloaded = 0;
 
+    // Index existing local terms by BOTH ID and normalized term key so cloud sync merges
+    // cleanly with locally created or locally imported terms (zero duplicates, zero lost progress).
     const nextTermsMap = new Map(params.currentTerms.map((t) => [t.id, t]));
+    const localIdByNormKey = new Map<string, string>();
+    for (const lt of params.currentTerms) {
+      const k = normalizeDictionaryTermKey(lt.termNormalized || lt.term);
+      if (k && !localIdByNormKey.has(k)) {
+        localIdByNormKey.set(k, lt.id);
+      }
+    }
+
     for (const ctm of mirror.terms || []) {
       if (permTermIds.has(ctm.id)) continue;
       removed.terms = removed.terms.filter((id) => id !== ctm.id);
-      const existing = nextTermsMap.get(ctm.id);
-      const incomingHash = await computeEntitySha256('term', ctm);
-      const existingHash = existing ? await computeEntitySha256('term', existing) : '';
-      if (existing && existingHash === incomingHash) {
+      const normKey = normalizeDictionaryTermKey(ctm.termNormalized || ctm.term);
+      const matchedLocalId = nextTermsMap.has(ctm.id)
+        ? ctm.id
+        : normKey
+          ? localIdByNormKey.get(normKey)
+          : undefined;
+      const existing = matchedLocalId ? nextTermsMap.get(matchedLocalId) : undefined;
+      const isIdenticalContent =
+        existing !== undefined &&
+        computeDictionaryTermContentFingerprint(existing) ===
+          computeDictionaryTermContentFingerprint(ctm);
+
+      if (existing && isIdenticalContent) {
         skippedIdenticalCount += 1;
       } else {
-        nextTermsMap.set(
-          ctm.id,
-          existing
-            ? {
-                ...ctm,
-                favorite: existing.favorite,
-                collections: Array.from(
-                  new Set([...(existing.collections || []), ...(ctm.collections || [])])
-                ),
-                srsData: existing.srsData || ctm.srsData,
-                lastStudiedAt: existing.lastStudiedAt || ctm.lastStudiedAt,
-                studyCount: existing.studyCount ?? ctm.studyCount
-              }
-            : ctm
-        );
+        const mergedTerm: DictionaryTerm = existing
+          ? {
+              ...ctm,
+              id: ctm.id,
+              favorite: existing.favorite,
+              collections: Array.from(
+                new Set([...(existing.collections || []), ...(ctm.collections || [])])
+              ),
+              clinicalNote: existing.clinicalNote || ctm.clinicalNote,
+              morphology: ctm.morphology || existing.morphology,
+              linkedTopicIds: Array.from(
+                new Set([...(existing.linkedTopicIds || []), ...(ctm.linkedTopicIds || [])])
+              ),
+              linkedSubjectIds: Array.from(
+                new Set([...(existing.linkedSubjectIds || []), ...(ctm.linkedSubjectIds || [])])
+              ),
+              linkedBlockIds: Array.from(
+                new Set([...(existing.linkedBlockIds || []), ...(ctm.linkedBlockIds || [])])
+              ),
+              srsData: existing.srsData || ctm.srsData,
+              lastStudiedAt: existing.lastStudiedAt || ctm.lastStudiedAt,
+              studyCount: existing.studyCount ?? ctm.studyCount
+            }
+          : ctm;
+        if (matchedLocalId && matchedLocalId !== ctm.id) {
+          nextTermsMap.delete(matchedLocalId);
+        }
+        nextTermsMap.set(ctm.id, mergedTerm);
+        if (normKey) {
+          localIdByNormKey.set(normKey, ctm.id);
+        }
         downloadedTermsCount += 1;
         bytesDownloaded += computeEntitySizeBytes(ctm);
       }

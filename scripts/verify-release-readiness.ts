@@ -2392,6 +2392,118 @@ async function main() {
       'Explicit dictionary download must install normalized terms with translation, pronunciation, bilingual definition, and example'
     );
 
+    // 18.2b Medical notation (e.g. Lipoprotein(a)), partial-invalid resilience & local-import dedupe
+    const resilientFixture = [
+      {
+        id: 'term-lipoprotein-a',
+        term: 'Lipoprotein(a)',
+        translation: 'بروتين دهني (أ)',
+        pronunciation: '/ˌlɪp.oʊˈproʊ.tiːn eɪ/',
+        definitionEn: 'An LDL-like particle containing apolipoprotein(a) associated with atherosclerotic risk.',
+        definitionAr: 'جسيم شبيه بـ LDL يحتوي على أبوليبوبروتين (أ) ويرتبط بخطر التصلب العصيدي.',
+        exampleEn: 'Lipoprotein(a) was measured due to premature cardiovascular disease.',
+        exampleAr: 'قيس البروتين الدهني (أ) بسبب أمراض القلب المبكرة.'
+      },
+      {
+        id: 'term-malformed-placeholder',
+        term: '',
+        translation: 'غير معروف'
+      }
+    ];
+    const resilientPayloadText = JSON.stringify(resilientFixture);
+    const resilientPayloadHash = await computeSha256Hex(
+      new TextEncoder().encode(resilientPayloadText)
+    );
+    const resilientFetch: typeof fetch = async (input: RequestInfo | URL) => {
+      const urlStr =
+        typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      if (urlStr === UMEDT_DATA_CATALOG_URL) {
+        return new Response(
+          JSON.stringify({
+            catalogVersion: '2026.11.22-resilient',
+            schemaVersion: 1,
+            capabilities: { termsOnly: true },
+            collections: [
+              {
+                id: 'terms',
+                contentType: 'term',
+                rendererType: 'lexicon_entry',
+                path: 'data/master/terms.json',
+                rawUrl: termsUrl,
+                sha256: resilientPayloadHash,
+                recordCount: resilientFixture.length
+              }
+            ]
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (urlStr === termsUrl) {
+        return new Response(resilientPayloadText, {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      return new Response('{}', { status: 404 });
+    };
+    const locallyImportedLipoprotein = {
+      id: 'ai-local-lipoprotein-a',
+      term: 'Lipoprotein(a)',
+      termNormalized: 'lipoprotein a',
+      translation: 'بروتين دهني أ',
+      phonetic: '',
+      pos: 'term',
+      category: 'Medical' as const,
+      keepEnglish: true,
+      favorite: true,
+      collections: ['Lipids-Local'],
+      ingestedAt: '2026-11-20',
+      definitionEn: 'Local short note',
+      definitionAr: 'ملاحظة محلية مختصرة',
+      examples: [],
+      relations: { synonyms: [], broader: [], related: [] }
+    };
+    const resilientSync = await syncWithRemoteCloudLibrary({
+      localTopics: fullSyncRes.autoMergedTopics,
+      localTerms: [locallyImportedLipoprotein],
+      localSentences: fullSyncRes.autoMergedSentences,
+      customFetch: resilientFetch
+    });
+    assertCondition(
+      resilientSync.fetchedFromRemote === true &&
+        !resilientSync.syncError &&
+        resilientSync.skippedInvalidRecordsCount === 1 &&
+        resilientSync.mirror.terms.some((t) => t.id === 'term-lipoprotein-a'),
+      'Cloud sync must accept medical notation like Lipoprotein(a) and skip single invalid records without rejecting the dictionary'
+    );
+    const resilientDownload = await downloadCloudLibraryTarget({
+      targetType: 'dictionary',
+      targetId: 'all',
+      currentTopics: fullSyncRes.autoMergedTopics,
+      currentTerms: [locallyImportedLipoprotein],
+      currentSentences: fullSyncRes.autoMergedSentences,
+      customFetch: resilientFetch
+    });
+    const lipoMatches = resilientDownload.updatedTerms.filter(
+      (t) => t.term.toLowerCase() === 'lipoprotein(a)'
+    );
+    assertCondition(
+      resilientDownload.success &&
+        lipoMatches.length === 1 &&
+        lipoMatches[0].id === 'term-lipoprotein-a' &&
+        lipoMatches[0].favorite === true &&
+        lipoMatches[0].collections.includes('Lipids-Local') &&
+        lipoMatches[0].phonetic === '/ˌlɪp.oʊˈproʊ.tiːn eɪ/',
+      'Cloud dictionary download must merge cleanly with locally imported terms (zero duplicates, full user-state preservation)'
+    );
+    // Restore original mock mirror for subsequent tests
+    await syncWithRemoteCloudLibrary({
+      localTopics: preSyncState.topics,
+      localTerms: preSyncState.terms,
+      localSentences: preSyncState.sentences,
+      customFetch: mockUmedtFetch
+    });
+
     const prefetchedMediaKey = `idb-${computeDeterministicFastHashHex(mockBookPdfUrl).slice(0, 16)}`;
     const mediaPrefetch = await downloadRemoteMediaToOfflineCache({
       id: prefetchedMediaKey,
