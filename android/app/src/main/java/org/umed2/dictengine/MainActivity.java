@@ -1,6 +1,7 @@
 package org.umed2.dictengine;
 
 import android.Manifest;
+import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
@@ -14,7 +15,9 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
+import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.util.Base64;
@@ -25,6 +28,9 @@ import android.webkit.URLUtil;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
@@ -74,9 +80,34 @@ public class MainActivity extends BridgeActivity {
     private volatile String pendingTtsLang = null;
     private volatile String pendingTtsKey = null;
 
+    private ActivityResultLauncher<Intent> voiceSearchLauncher;
+    private SpeechRecognizer nativeSpeechRecognizer;
+    private volatile String pendingVoiceLang = null;
+    private volatile boolean voiceRecognizerActive = false;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        voiceSearchLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    voiceRecognizerActive = false;
+                    try {
+                        Intent data = result.getData();
+                        if (result.getResultCode() == RESULT_OK && data != null) {
+                            ArrayList<String> matches = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+                            if (matches != null && !matches.isEmpty() && matches.get(0) != null && !matches.get(0).trim().isEmpty()) {
+                                String spokenText = matches.get(0).trim();
+                                dispatchJsEvent("umed-voice-search-result", "{\"text\":" + JSONObject.quote(spokenText) + "}");
+                                return;
+                            }
+                        }
+                        dispatchJsEvent("umed-voice-search-error", "{\"code\":\"cancelled\"}");
+                    } catch (Exception e) {
+                        dispatchJsEvent("umed-voice-search-error", "{\"code\":\"error\",\"message\":" + JSONObject.quote("تعذر معالجة الصوت الملتقط. حاول مرة أخرى.") + "}");
+                    }
+                }
+        );
         applySafeSystemBarInsets();
         attachNativeDownloadBridge();
         initNativeTts();
@@ -90,6 +121,10 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onDestroy() {
+        try {
+            destroyNativeSpeechRecognizer();
+        } catch (Exception ignored) {
+        }
         try {
             if (nativeTts != null) {
                 nativeTts.stop();
@@ -220,10 +255,204 @@ public class MainActivity extends BridgeActivity {
         });
     }
 
+    private void destroyNativeSpeechRecognizer() {
+        voiceRecognizerActive = false;
+        if (nativeSpeechRecognizer != null) {
+            try {
+                nativeSpeechRecognizer.cancel();
+            } catch (Exception ignored) {
+            }
+            try {
+                nativeSpeechRecognizer.destroy();
+            } catch (Exception ignored) {
+            }
+            nativeSpeechRecognizer = null;
+        }
+    }
+
+    private Intent buildVoiceRecognizerIntent(final String resolvedLang) {
+        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, resolvedLang);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, resolvedLang);
+        intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
+        intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+        intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
+        intent.putExtra(
+                RecognizerIntent.EXTRA_PROMPT,
+                resolvedLang.toLowerCase(Locale.ROOT).startsWith("ar")
+                        ? "انطق الكلمة أو المصطلح بالعربية..."
+                        : "Speak the English word or medical term..."
+        );
+        return intent;
+    }
+
+    private void launchVoiceIntentFallback(final String resolvedLang) {
+        runOnUiThread(() -> {
+            try {
+                destroyNativeSpeechRecognizer();
+                Intent intent = buildVoiceRecognizerIntent(resolvedLang);
+                voiceRecognizerActive = true;
+                dispatchJsEvent("umed-voice-search-started", "{\"engine\":\"intent_dialog\",\"lang\":" + JSONObject.quote(resolvedLang) + "}");
+                if (voiceSearchLauncher != null) {
+                    voiceSearchLauncher.launch(intent);
+                } else {
+                    startActivityForResult(intent, REQ_VOICE_SEARCH_CODE);
+                }
+            } catch (ActivityNotFoundException e) {
+                voiceRecognizerActive = false;
+                dispatchJsEvent(
+                        "umed-voice-search-error",
+                        "{\"code\":\"not_available\",\"message\":" + JSONObject.quote("لا توجد خدمة تعرّف على الصوت مفعّلة على هذا الجهاز. فعّل تطبيق Google أو خدمات الكلام من إعدادات الهاتف.") + "}"
+                );
+            } catch (Exception e) {
+                voiceRecognizerActive = false;
+                dispatchJsEvent(
+                        "umed-voice-search-error",
+                        "{\"code\":\"launch_failed\",\"message\":" + JSONObject.quote("تعذر فتح خدمة الإدخال الصوتي على هذا الجهاز.") + "}"
+                );
+            }
+        });
+    }
+
+    private void launchNativeVoiceSearchOnUi(final String resolvedLang) {
+        runOnUiThread(() -> {
+            try {
+                if (nativeTts != null) {
+                    try {
+                        nativeTts.stop();
+                    } catch (Exception ignored) {
+                    }
+                }
+                destroyNativeSpeechRecognizer();
+
+                if (SpeechRecognizer.isRecognitionAvailable(MainActivity.this)) {
+                    final SpeechRecognizer recognizer = SpeechRecognizer.createSpeechRecognizer(MainActivity.this);
+                    if (recognizer != null) {
+                        nativeSpeechRecognizer = recognizer;
+                        recognizer.setRecognitionListener(new RecognitionListener() {
+                            @Override
+                            public void onReadyForSpeech(Bundle params) {
+                                voiceRecognizerActive = true;
+                                dispatchJsEvent("umed-voice-search-started", "{\"engine\":\"native_in_app\",\"lang\":" + JSONObject.quote(resolvedLang) + "}");
+                            }
+
+                            @Override
+                            public void onBeginningOfSpeech() {
+                                voiceRecognizerActive = true;
+                            }
+
+                            @Override
+                            public void onRmsChanged(float rmsdB) {
+                            }
+
+                            @Override
+                            public void onBufferReceived(byte[] buffer) {
+                            }
+
+                            @Override
+                            public void onEndOfSpeech() {
+                            }
+
+                            @Override
+                            public void onError(int error) {
+                                destroyNativeSpeechRecognizer();
+                                if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                                    dispatchJsEvent(
+                                            "umed-voice-search-error",
+                                            "{\"code\":\"no_speech\",\"message\":" + JSONObject.quote("لم يتم التقاط أي صوت. اضغط زر الميكروفون وتحدث بوضوح.") + "}"
+                                    );
+                                    return;
+                                }
+                                if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                                    dispatchJsEvent(
+                                            "umed-voice-search-error",
+                                            "{\"code\":\"permission_denied\",\"message\":" + JSONObject.quote("يرجى السماح بصلاحية الميكروفون من إعدادات التطبيق لاستخدام الإدخال الصوتي.") + "}"
+                                    );
+                                    return;
+                                }
+                                if (error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT) {
+                                    dispatchJsEvent(
+                                            "umed-voice-search-error",
+                                            "{\"code\":\"network\",\"message\":" + JSONObject.quote("تعذر التعرف على الصوت. تحقق من اتصال الإنترنت أو حزمة الصوت الأوفلاين على هاتفك.") + "}"
+                                    );
+                                    return;
+                                }
+                                // Fallback to system RecognizerIntent dialog for client/busy/audio/server errors
+                                launchVoiceIntentFallback(resolvedLang);
+                            }
+
+                            @Override
+                            public void onResults(Bundle results) {
+                                destroyNativeSpeechRecognizer();
+                                if (results != null) {
+                                    ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                                    if (matches != null && !matches.isEmpty() && matches.get(0) != null && !matches.get(0).trim().isEmpty()) {
+                                        String spokenText = matches.get(0).trim();
+                                        dispatchJsEvent("umed-voice-search-result", "{\"text\":" + JSONObject.quote(spokenText) + "}");
+                                        return;
+                                    }
+                                }
+                                dispatchJsEvent(
+                                        "umed-voice-search-error",
+                                        "{\"code\":\"no_speech\",\"message\":" + JSONObject.quote("لم يتم التقاط كلمة واضحة. حاول مرة أخرى.") + "}"
+                                );
+                            }
+
+                            @Override
+                            public void onPartialResults(Bundle partialResults) {
+                                if (partialResults != null) {
+                                    ArrayList<String> partials = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                                    if (partials != null && !partials.isEmpty() && partials.get(0) != null && !partials.get(0).trim().isEmpty()) {
+                                        dispatchJsEvent("umed-voice-search-partial", "{\"text\":" + JSONObject.quote(partials.get(0).trim()) + "}");
+                                    }
+                                }
+                            }
+
+                            @Override
+                            public void onEvent(int eventType, Bundle params) {
+                            }
+                        });
+
+                        Intent listenIntent = buildVoiceRecognizerIntent(resolvedLang);
+                        voiceRecognizerActive = true;
+                        dispatchJsEvent("umed-voice-search-started", "{\"engine\":\"native_in_app\",\"lang\":" + JSONObject.quote(resolvedLang) + "}");
+                        recognizer.startListening(listenIntent);
+                        return;
+                    }
+                }
+            } catch (Exception ignored) {
+                destroyNativeSpeechRecognizer();
+            }
+            launchVoiceIntentFallback(resolvedLang);
+        });
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_RECORD_AUDIO_CODE) {
+            String langToResume = pendingVoiceLang;
+            pendingVoiceLang = null;
+            boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            if (langToResume != null) {
+                if (granted) {
+                    launchNativeVoiceSearchOnUi(langToResume);
+                } else {
+                    dispatchJsEvent(
+                            "umed-voice-search-error",
+                            "{\"code\":\"permission_denied\",\"message\":" + JSONObject.quote("تم رفض صلاحية الميكروفون. فعّل إذن الميكروفون من إعدادات التطبيق لاستخدام البحث الصوتي.") + "}"
+                    );
+                }
+            }
+        }
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQ_VOICE_SEARCH_CODE) {
+            voiceRecognizerActive = false;
             try {
                 if (resultCode == RESULT_OK && data != null) {
                     ArrayList<String> matches = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
@@ -467,6 +696,9 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public boolean isVoiceSearchAvailable() {
             try {
+                if (SpeechRecognizer.isRecognitionAvailable(MainActivity.this)) {
+                    return true;
+                }
                 Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
                 List<?> activities = getPackageManager().queryIntentActivities(intent, 0);
                 return activities != null && !activities.isEmpty();
@@ -480,32 +712,20 @@ public class MainActivity extends BridgeActivity {
             JSONObject res = new JSONObject();
             try {
                 final String resolvedLang = (lang != null && !lang.trim().isEmpty()) ? lang.trim() : "en-US";
-                Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, resolvedLang);
-                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, resolvedLang);
-                intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
-                intent.putExtra(
-                        RecognizerIntent.EXTRA_PROMPT,
-                        resolvedLang.toLowerCase(Locale.ROOT).startsWith("ar")
-                                ? "انطق الكلمة أو المصطلح بالعربية..."
-                                : "Speak the English word or medical term..."
-                );
-
-                List<?> activities = getPackageManager().queryIntentActivities(intent, 0);
-                if (activities == null || activities.isEmpty()) {
+                if (!hasMicrophonePermission()) {
+                    pendingVoiceLang = resolvedLang;
+                    MainActivity.this.runOnUiThread(() -> ActivityCompat.requestPermissions(
+                            MainActivity.this,
+                            new String[]{Manifest.permission.RECORD_AUDIO},
+                            REQ_RECORD_AUDIO_CODE
+                    ));
                     res.put("ok", false);
-                    res.put("error", "خدمة التعرف على الصوت غير مثبّتة على هذا الجهاز");
+                    res.put("permissionRequested", true);
+                    res.put("message", "يرجى الموافقة على صلاحية الميكروفون لبدء البحث الصوتي...");
                     return res.toString();
                 }
 
-                MainActivity.this.runOnUiThread(() -> {
-                    try {
-                        startActivityForResult(intent, REQ_VOICE_SEARCH_CODE);
-                    } catch (Exception e) {
-                        dispatchJsEvent("umed-voice-search-error", "{\"code\":\"launch_failed\"}");
-                    }
-                });
+                launchNativeVoiceSearchOnUi(resolvedLang);
                 res.put("ok", true);
             } catch (Exception e) {
                 try {
@@ -515,6 +735,12 @@ public class MainActivity extends BridgeActivity {
                 }
             }
             return res.toString();
+        }
+
+        @JavascriptInterface
+        public void stopVoiceSearch() {
+            pendingVoiceLang = null;
+            MainActivity.this.runOnUiThread(MainActivity.this::destroyNativeSpeechRecognizer);
         }
 
         @JavascriptInterface

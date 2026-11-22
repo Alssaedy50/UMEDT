@@ -149,6 +149,19 @@ export const SearchHub: React.FC<SearchHubProps> = ({
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    const handleNativeVoiceStarted = () => {
+      setIsVoiceListening(true);
+      setVoiceInterimText('');
+    };
+
+    const handleNativeVoicePartial = (event: Event) => {
+      const custom = event as CustomEvent<{ text?: string }>;
+      if (custom?.detail?.text) {
+        setIsVoiceListening(true);
+        setVoiceInterimText(custom.detail.text);
+      }
+    };
+
     const handleNativeVoiceResult = (event: Event) => {
       const custom = event as CustomEvent<{ text?: string }>;
       setIsVoiceListening(false);
@@ -159,18 +172,36 @@ export const SearchHub: React.FC<SearchHubProps> = ({
     };
 
     const handleNativeVoiceError = (event: Event) => {
-      const custom = event as CustomEvent<{ code?: string }>;
+      const custom = event as CustomEvent<{ code?: string; message?: string }>;
       setIsVoiceListening(false);
       setVoiceInterimText('');
-      if (custom?.detail?.code && custom.detail.code !== 'cancelled') {
-        showToast('تعذر التقاط الصوت. تأكد من صلاحية الميكروفون وحاول مرة أخرى.', 'info');
+      const code = custom?.detail?.code;
+      if (code && code !== 'cancelled') {
+        const customMessage = custom?.detail?.message;
+        if (customMessage) {
+          showToast(customMessage, 'info');
+        } else if (code === 'permission_denied') {
+          showToast('يرجى السماح بصلاحية الميكروفون من إعدادات التطبيق لاستخدام البحث الصوتي.', 'info');
+        } else if (code === 'no_speech') {
+          showToast('لم يتم التقاط أي صوت. اضغط الميكروفون وتحدث بوضوح.', 'info');
+        } else if (code === 'network') {
+          showToast('تعذر التعرف على الصوت. تحقق من اتصال الإنترنت أو حزمة الصوت على الهاتف.', 'info');
+        } else if (code === 'not_available') {
+          showToast('لا توجد خدمة تعرّف على الصوت مفعّلة على هذا الجهاز.', 'info');
+        } else {
+          showToast('تعذر التقاط الصوت. تأكد من صلاحية الميكروفون وحاول مرة أخرى.', 'info');
+        }
       }
     };
 
+    window.addEventListener('umed-voice-search-started', handleNativeVoiceStarted);
+    window.addEventListener('umed-voice-search-partial', handleNativeVoicePartial);
     window.addEventListener('umed-voice-search-result', handleNativeVoiceResult);
     window.addEventListener('umed-voice-search-error', handleNativeVoiceError);
 
     return () => {
+      window.removeEventListener('umed-voice-search-started', handleNativeVoiceStarted);
+      window.removeEventListener('umed-voice-search-partial', handleNativeVoicePartial);
       window.removeEventListener('umed-voice-search-result', handleNativeVoiceResult);
       window.removeEventListener('umed-voice-search-error', handleNativeVoiceError);
       if (blurTimeoutRef.current !== null) {
@@ -187,7 +218,34 @@ export const SearchHub: React.FC<SearchHubProps> = ({
     };
   }, [applySpokenQuery, showToast]);
 
+  const getNativeVoiceBridge = () => {
+    if (typeof window === 'undefined') return undefined;
+    const win = window as unknown as {
+      UMEDAndroidBridge?: {
+        isVoiceSearchAvailable?: () => boolean;
+        startVoiceSearch?: (lang: string) => string;
+        stopVoiceSearch?: () => void;
+        hasMicrophonePermission?: () => boolean;
+        requestMicrophonePermission?: () => boolean;
+      };
+      UMEDNativeDownloader?: {
+        isVoiceSearchAvailable?: () => boolean;
+        startVoiceSearch?: (lang: string) => string;
+        stopVoiceSearch?: () => void;
+      };
+    };
+    return win.UMEDAndroidBridge || win.UMEDNativeDownloader;
+  };
+
   const stopVoiceSearch = () => {
+    try {
+      const nativeBridge = getNativeVoiceBridge();
+      if (nativeBridge && typeof nativeBridge.stopVoiceSearch === 'function') {
+        nativeBridge.stopVoiceSearch();
+      }
+    } catch {
+      // ignore
+    }
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -207,32 +265,33 @@ export const SearchHub: React.FC<SearchHubProps> = ({
     }
     if (typeof window === 'undefined') return;
 
-    // 1. Prefer native Android RecognizerIntent bridge when running inside Android APK
-    try {
-      const win = window as unknown as {
-        UMEDAndroidBridge?: {
-          isVoiceSearchAvailable?: () => boolean;
-          startVoiceSearch?: (lang: string) => string;
-          hasMicrophonePermission?: () => boolean;
-          requestMicrophonePermission?: () => boolean;
-        };
-        UMEDNativeDownloader?: {
-          isVoiceSearchAvailable?: () => boolean;
-          startVoiceSearch?: (lang: string) => string;
-        };
-      };
-      const nativeBridge = win.UMEDAndroidBridge || win.UMEDNativeDownloader;
-      if (nativeBridge && typeof nativeBridge.startVoiceSearch === 'function') {
+    // 1. Native Android dual-engine bridge (in-app SpeechRecognizer + RecognizerIntent fallback)
+    const nativeBridge = getNativeVoiceBridge();
+    if (nativeBridge && typeof nativeBridge.startVoiceSearch === 'function') {
+      try {
         const raw = nativeBridge.startVoiceSearch(voiceLang);
         const parsed = raw ? JSON.parse(raw) : { ok: false };
+        if (parsed?.permissionRequested) {
+          showToast(
+            parsed.message || 'يرجى الموافقة على إذن الميكروفون ليبدأ البحث الصوتي تلقائياً.',
+            'info'
+          );
+          return;
+        }
         if (parsed?.ok) {
           setIsVoiceListening(true);
           setVoiceInterimText('');
           return;
         }
+        showToast(
+          parsed?.error || 'تعذر بدء الإدخال الصوتي على هذا الجهاز. تحقق من إعدادات الصوت والميكروفون.',
+          'info'
+        );
+        return;
+      } catch {
+        showToast('تعذر تشغيل الإدخال الصوتي على جهاز Android. حاول مرة أخرى.', 'info');
+        return;
       }
-    } catch {
-      // Fall back to Web SpeechRecognition below
     }
 
     // 2. Web Speech API (Chrome / Edge / Safari / Mobile Browsers)
@@ -593,7 +652,7 @@ export const SearchHub: React.FC<SearchHubProps> = ({
               aria-controls="dictionary-search-suggestions"
               aria-expanded={isSearchFocused && suggestedTerms.length > 0}
               placeholder="ابحث بالإنجليزية أو العربية أو انطق الكلمة..."
-              className="w-full min-h-[50px] pr-10 pl-28 py-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none transition-colors shadow-sm [user-select:text] [-webkit-user-select:text]"
+              className="w-full min-h-[50px] pr-10 pl-32 py-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none transition-colors shadow-sm [user-select:text] [-webkit-user-select:text]"
             />
             <div className="absolute left-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
               <button

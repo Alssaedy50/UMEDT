@@ -345,12 +345,40 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   const [hierarchyModalMode, setHierarchyModalMode] = useState<
     null | 'block' | 'subject'
   >(null);
+  const [hierarchyModalSession, setHierarchyModalSession] = useState<number>(0);
   const [editingHierarchyId, setEditingHierarchyId] = useState<string | null>(null);
   const [hTitleEn, setHTitleEn] = useState<string>('');
   const [hTitleAr, setHTitleAr] = useState<string>('');
   const [hDescAr, setHDescAr] = useState<string>('');
   const [hCode, setHCode] = useState<string>('');
   const [hParentBlockId, setHParentBlockId] = useState<string>('');
+  const hTitleEnInputRef = useRef<HTMLInputElement | null>(null);
+  const hCodeInputRef = useRef<HTMLInputElement | null>(null);
+  const hTitleArInputRef = useRef<HTMLInputElement | null>(null);
+  const hParentBlockSelectRef = useRef<HTMLSelectElement | null>(null);
+
+  const openHierarchyModal = (
+    mode: 'block' | 'subject',
+    options?: {
+      editingId?: string | null;
+      titleEn?: string;
+      titleAr?: string;
+      code?: string;
+      descAr?: string;
+      parentBlockId?: string;
+    }
+  ) => {
+    setEditingHierarchyId(options?.editingId ?? null);
+    setHTitleEn(options?.titleEn ?? '');
+    setHTitleAr(options?.titleAr ?? '');
+    setHCode(options?.code ?? '');
+    setHDescAr(options?.descAr ?? '');
+    if (options?.parentBlockId !== undefined) {
+      setHParentBlockId(options.parentBlockId);
+    }
+    setHierarchyModalSession((prev) => prev + 1);
+    setHierarchyModalMode(mode);
+  };
 
   // Quick Setup Modal State before opening New Topic Editor
   const [setupBlockId, setSetupBlockId] = useState<string>('block-hematology');
@@ -381,6 +409,8 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   const [draftTitleEn, setDraftTitleEn] = useState<string>('');
   const [draftTitleAr, setDraftTitleAr] = useState<string>('');
   const [draftSubtitle, setDraftSubtitle] = useState<string>('');
+  const draftTitleEnInputRef = useRef<HTMLInputElement | null>(null);
+  const draftTitleArInputRef = useRef<HTMLInputElement | null>(null);
   const [draftCategory, setDraftCategory] = useState<TopicCategory>('Medical');
   const [draftBlockId, setDraftBlockId] = useState<string>('block-hematology');
   const [draftSubjectId, setDraftSubjectId] = useState<string>('subj-hematology');
@@ -855,10 +885,33 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   };
 
   // Save/Create Medical Block or Subject
-  const handleSaveHierarchyEntity = (e: React.FormEvent) => {
+  const handleSaveHierarchyEntity = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const cleanEn = hTitleEn.trim();
-    const cleanAr = hTitleAr.trim();
+    const formData = new FormData(e.currentTarget);
+    const liveEn =
+      hTitleEnInputRef.current?.value ??
+      (typeof formData.get('hierarchyTitleEn') === 'string'
+        ? String(formData.get('hierarchyTitleEn'))
+        : hTitleEn);
+    const liveAr =
+      hTitleArInputRef.current?.value ??
+      (typeof formData.get('hierarchyTitleAr') === 'string'
+        ? String(formData.get('hierarchyTitleAr'))
+        : hTitleAr);
+    const liveCode =
+      hCodeInputRef.current?.value ??
+      (typeof formData.get('hierarchyCode') === 'string'
+        ? String(formData.get('hierarchyCode'))
+        : hCode);
+    const liveParentBlockId =
+      hParentBlockSelectRef.current?.value ??
+      (typeof formData.get('hierarchyParentBlockId') === 'string'
+        ? String(formData.get('hierarchyParentBlockId'))
+        : hParentBlockId);
+
+    const cleanEn = liveEn.trim();
+    const cleanAr = liveAr.trim();
+    const cleanCode = liveCode.trim();
     if (!cleanEn || !cleanAr) {
       showToast('يرجى إدخال الاسم الإنجليزي والاسم العربي', 'info');
       return;
@@ -872,7 +925,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         : undefined;
       const nextBlock: MedicalBlock = {
         id: editingHierarchyId || `block-custom-${Date.now()}`,
-        code: (hCode.trim() || 'BLK-MED').toUpperCase(),
+        code: (cleanCode || 'BLK-MED').toUpperCase(),
         titleEn: cleanEn,
         titleAr: cleanAr,
         descriptionEn: cleanEn,
@@ -910,9 +963,9 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         : undefined;
       const nextSubj: MedicalSubject = {
         id: editingHierarchyId || `subj-custom-${Date.now()}`,
-        blockId: hParentBlockId || undefined,
-        isStandalone: !hParentBlockId,
-        code: (hCode.trim() || 'SUBJ').toUpperCase(),
+        blockId: liveParentBlockId || undefined,
+        isStandalone: !liveParentBlockId,
+        code: (cleanCode || 'SUBJ').toUpperCase(),
         titleEn: cleanEn,
         titleAr: cleanAr,
         descriptionEn: cleanEn,
@@ -1678,10 +1731,10 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     }
   };
 
-  const handlePublishTopic = (e: React.FormEvent) => {
+  const handlePublishTopic = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const cleanTitleEn = draftTitleEn.trim();
-    const cleanTitleAr = draftTitleAr.trim();
+    const cleanTitleEn = (draftTitleEnInputRef.current?.value ?? draftTitleEn).trim();
+    const cleanTitleAr = (draftTitleArInputRef.current?.value ?? draftTitleAr).trim();
 
     if (!cleanTitleEn) {
       showToast('يرجى كتابة العنوان الأكاديمي الإنجليزي للموضوع قبل النشر', 'info');
@@ -1850,7 +1903,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl"
+            className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl"
           >
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
@@ -1871,18 +1924,26 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleSaveHierarchyEntity} className="space-y-3">
+            <form
+              key={`${hierarchyModalMode}-${editingHierarchyId || 'new'}-${hierarchyModalSession}`}
+              onSubmit={handleSaveHierarchyEntity}
+              className="space-y-3"
+            >
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <div className="sm:col-span-2">
                   <label className="text-[11px] font-bold text-slate-500 block mb-1">
                     الاسم الإنجليزي *
                   </label>
                   <input
+                    ref={hTitleEnInputRef}
+                    name="hierarchyTitleEn"
                     type="text"
                     dir="auto"
                     required
-                    value={hTitleEn}
-                    onChange={(e) => setHTitleEn(e.target.value)}
+                    defaultValue={hTitleEn}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
                     placeholder={
                       hierarchyModalMode === 'block'
                         ? 'Hematology'
@@ -1896,10 +1957,14 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     الاختصار (Code)
                   </label>
                   <input
+                    ref={hCodeInputRef}
+                    name="hierarchyCode"
                     type="text"
                     dir="ltr"
-                    value={hCode}
-                    onChange={(e) => setHCode(e.target.value)}
+                    defaultValue={hCode}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
                     placeholder={
                       hierarchyModalMode === 'block' ? 'BLK-HEME' : 'HEME-101'
                     }
@@ -1913,11 +1978,15 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   الاسم العربي *
                 </label>
                 <input
+                  ref={hTitleArInputRef}
+                  name="hierarchyTitleAr"
                   type="text"
                   dir="auto"
                   required
-                  value={hTitleAr}
-                  onChange={(e) => setHTitleAr(e.target.value)}
+                  defaultValue={hTitleAr}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder={
                     hierarchyModalMode === 'block'
                       ? 'أمراض الدم'
@@ -1933,9 +2002,10 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     البلوك التابع له
                   </label>
                   <select
+                    ref={hParentBlockSelectRef}
+                    name="hierarchyParentBlockId"
                     dir="auto"
-                    value={hParentBlockId}
-                    onChange={(e) => setHParentBlockId(e.target.value)}
+                    defaultValue={hParentBlockId}
                     className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white"
                   >
                     <option value="">مادة مستقلة</option>
@@ -1988,7 +2058,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl"
+              className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl"
             >
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
@@ -2231,16 +2301,10 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
               onClick={() => {
                 const targetMode = setupPickerMode;
                 setSetupPickerMode(null);
-                setEditingHierarchyId(null);
-                setHTitleEn('');
-                setHTitleAr('');
-                setHCode('');
-                setHDescAr('');
                 if (targetMode === 'subject') {
-                  setHParentBlockId(setupBlockId);
-                  setHierarchyModalMode('subject');
+                  openHierarchyModal('subject', { parentBlockId: setupBlockId });
                 } else {
-                  setHierarchyModalMode('block');
+                  openHierarchyModal('block');
                 }
               }}
               className="w-full min-h-[40px] px-3 py-2 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5 text-xs font-extrabold"
@@ -2355,12 +2419,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
             <button
               type="button"
               onClick={() => {
-                setEditingHierarchyId(null);
-                setHTitleEn('');
-                setHTitleAr('');
-                setHCode('');
-                setHDescAr('');
-                setHierarchyModalMode('block');
+                openHierarchyModal('block');
               }}
               className="w-full min-h-[40px] px-3 py-2 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5 text-xs font-extrabold"
             >
@@ -2469,17 +2528,12 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
             <button
               type="button"
               onClick={() => {
-                setEditingHierarchyId(null);
-                setHTitleEn('');
-                setHTitleAr('');
-                setHCode('');
-                setHDescAr('');
-                setHParentBlockId(
-                  activeBlockFilter !== 'ALL'
-                    ? activeBlockFilter
-                    : blocks[0]?.id || ''
-                );
-                setHierarchyModalMode('subject');
+                openHierarchyModal('subject', {
+                  parentBlockId:
+                    activeBlockFilter !== 'ALL'
+                      ? activeBlockFilter
+                      : blocks[0]?.id || ''
+                });
               }}
               className="w-full min-h-[40px] px-3 py-2 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5 text-xs font-extrabold"
             >
@@ -2626,14 +2680,9 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    setEditingHierarchyId(null);
-                    setHTitleEn('');
-                    setHTitleAr('');
-                    setHCode('');
-                    setHDescAr('');
-                    setHParentBlockId(blocks[0]?.id || '');
-                    setHierarchyModalMode(
-                      activePopup === 'blocks_manager' ? 'block' : 'subject'
+                    openHierarchyModal(
+                      activePopup === 'blocks_manager' ? 'block' : 'subject',
+                      { parentBlockId: blocks[0]?.id || '' }
                     );
                   }}
                   className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1 whitespace-nowrap"
@@ -2704,12 +2753,13 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                           <button
                             type="button"
                             onClick={() => {
-                              setEditingHierarchyId(block.id);
-                              setHTitleEn(block.titleEn);
-                              setHTitleAr(block.titleAr);
-                              setHCode(block.code);
-                              setHDescAr(block.descriptionAr);
-                              setHierarchyModalMode('block');
+                              openHierarchyModal('block', {
+                                editingId: block.id,
+                                titleEn: block.titleEn,
+                                titleAr: block.titleAr,
+                                code: block.code,
+                                descAr: block.descriptionAr
+                              });
                             }}
                             className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold whitespace-nowrap"
                           >
@@ -2774,13 +2824,14 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                         <button
                           type="button"
                           onClick={() => {
-                            setEditingHierarchyId(subj.id);
-                            setHTitleEn(subj.titleEn);
-                            setHTitleAr(subj.titleAr);
-                            setHCode(subj.code);
-                            setHDescAr(subj.descriptionAr);
-                            setHParentBlockId(subj.blockId || '');
-                            setHierarchyModalMode('subject');
+                            openHierarchyModal('subject', {
+                              editingId: subj.id,
+                              titleEn: subj.titleEn,
+                              titleAr: subj.titleAr,
+                              code: subj.code,
+                              descAr: subj.descriptionAr,
+                              parentBlockId: subj.blockId || ''
+                            });
                           }}
                           className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold whitespace-nowrap"
                         >
@@ -3383,11 +3434,16 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   العنوان الأكاديمي الإنجليزي (English Title) *
                 </label>
                 <input
+                  ref={draftTitleEnInputRef}
                   type="text"
                   dir="ltr"
                   required
                   value={draftTitleEn}
                   onChange={(e) => setDraftTitleEn(e.target.value)}
+                  onCompositionEnd={(e) => setDraftTitleEn(e.currentTarget.value)}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder="e.g., Iron Deficiency Anemia & Microcytic Differential"
                   className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm font-extrabold text-left focus:outline-none focus:border-emerald-500"
                 />
@@ -3398,9 +3454,15 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   الترجمة العربية للعنوان (Arabic Title)
                 </label>
                 <input
+                  ref={draftTitleArInputRef}
                   type="text"
+                  dir="auto"
                   value={draftTitleAr}
                   onChange={(e) => setDraftTitleAr(e.target.value)}
+                  onCompositionEnd={(e) => setDraftTitleAr(e.currentTarget.value)}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder="مثال: فقر الدم بعوز الحديد والتشخيص التفريقي"
                   className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm font-bold focus:outline-none focus:border-emerald-500"
                 />
@@ -3415,14 +3477,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   </label>
                   <button
                     type="button"
-                    onClick={() => {
-                      setEditingHierarchyId(null);
-                      setHTitleEn('');
-                      setHTitleAr('');
-                      setHCode('');
-                      setHDescAr('');
-                      setHierarchyModalMode('block');
-                    }}
+                    onClick={() => openHierarchyModal('block')}
                     className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400"
                   >
                     + بلوك جديد
@@ -3449,15 +3504,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   </label>
                   <button
                     type="button"
-                    onClick={() => {
-                      setEditingHierarchyId(null);
-                      setHTitleEn('');
-                      setHTitleAr('');
-                      setHCode('');
-                      setHDescAr('');
-                      setHParentBlockId(draftBlockId);
-                      setHierarchyModalMode('subject');
-                    }}
+                    onClick={() => openHierarchyModal('subject', { parentBlockId: draftBlockId })}
                     className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400"
                   >
                     + مادة جديدة
@@ -5435,11 +5482,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                           className="group w-full rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/70 transition-all p-4 flex flex-col justify-between gap-3 cursor-pointer shadow-xs"
                         >
                           <div className="space-y-1.5">
-                            <h2 dir="auto" className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white line-clamp-1">
+                            <h2 dir="auto" className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white leading-snug line-clamp-2 break-words">
                               {primaryTitle}
                             </h2>
                             {secondaryTitle && secondaryTitle !== primaryTitle && (
-                              <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 line-clamp-1">
+                              <div dir="auto" className="text-xs font-bold text-emerald-700 dark:text-emerald-300 leading-snug line-clamp-2 break-words">
                                 {secondaryTitle}
                               </div>
                             )}
@@ -5570,11 +5617,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                                   </span>
                                 )}
                               </div>
-                              <h2 dir="auto" className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white line-clamp-1">
+                              <h2 dir="auto" className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white leading-snug line-clamp-2 break-words">
                                 {primaryTitle}
                               </h2>
                               {secondaryTitle && secondaryTitle !== primaryTitle && (
-                                <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 line-clamp-1">
+                                <div dir="auto" className="text-xs font-bold text-emerald-700 dark:text-emerald-300 leading-snug line-clamp-2 break-words">
                                   {secondaryTitle}
                                 </div>
                               )}
@@ -5678,16 +5725,16 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                       </div>
                     </div>
 
-                    {/* Topic Titles (Concise, 1-line each, no paragraph wall) */}
+                    {/* Topic Titles (up to 2 clean lines without mid-word clipping) */}
                     <h2
                       dir="auto"
-                      className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-snug line-clamp-1"
+                      className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-snug line-clamp-2 break-words"
                     >
                       {primaryTitle}
                     </h2>
 
                     {secondaryTitle && secondaryTitle !== primaryTitle && (
-                      <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 line-clamp-1">
+                      <div dir="auto" className="text-xs font-bold text-emerald-700 dark:text-emerald-300 leading-snug line-clamp-2 break-words">
                         {secondaryTitle}
                       </div>
                     )}

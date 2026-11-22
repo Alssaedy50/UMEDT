@@ -1223,8 +1223,33 @@ async function main() {
 
   assertCondition(
     mainActivityJava.includes('hasMicrophonePermission') &&
-      mainActivityJava.includes('requestMicrophonePermission'),
-    'MainActivity.java must expose hasMicrophonePermission and requestMicrophonePermission'
+      mainActivityJava.includes('requestMicrophonePermission') &&
+      mainActivityJava.includes('SpeechRecognizer.createSpeechRecognizer') &&
+      mainActivityJava.includes('onRequestPermissionsResult') &&
+      mainActivityJava.includes('stopVoiceSearch'),
+    'MainActivity.java must expose mic permission auto-resume, native SpeechRecognizer, ActivityResult fallback, and stopVoiceSearch'
+  );
+
+  const searchHubSrc = fs.readFileSync(
+    path.join(ROOT_DIR, 'src', 'components', 'SearchHub.tsx'),
+    'utf8'
+  );
+  assertCondition(
+    searchHubSrc.includes('umed-voice-search-partial') &&
+      searchHubSrc.includes('permissionRequested') &&
+      searchHubSrc.includes('stopVoiceSearch'),
+    'SearchHub.tsx must handle native Android voice partial transcripts, permissionRequested flow, and stopVoiceSearch'
+  );
+
+  const topicsHubSrc = fs.readFileSync(
+    path.join(ROOT_DIR, 'src', 'components', 'TopicsHub.tsx'),
+    'utf8'
+  );
+  assertCondition(
+    topicsHubSrc.includes('hTitleArInputRef') &&
+      topicsHubSrc.includes('name="hierarchyTitleAr"') &&
+      topicsHubSrc.includes('defaultValue={hTitleAr}'),
+    'TopicsHub.tsx must use uncontrolled DOM-ref inputs for Block/Subject Arabic titles so Android IME composition never drops the last word'
   );
 
   const audioHeadersPath = path.join(ROOT_DIR, 'public', '_headers');

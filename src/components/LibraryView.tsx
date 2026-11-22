@@ -729,11 +729,21 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         ? line.split(' : ')
         : line.split(',');
 
-      const tEn = (parts[0] || '').trim().replace(/^["']|["']$/g, '').replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '').replace(/\s+/g, ' ');
+      const tEn = (parts[0] || '')
+        .trim()
+        .replace(/^["']|["']$/g, '')
+        .replace(/^\s*[-–—•·*]+\s*/, '')
+        .replace(/\s+/g, ' ');
       if (!tEn || tEn.toLowerCase() === 'term') return;
       const termWords = tEn.split(' ');
-      const validTermWord = /^[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*$/;
-      if (termWords.length < 1 || termWords.length > 2 || termWords.some((word) => !validTermWord.test(word))) {
+      const validTermWord =
+        /^[A-Za-z0-9α-ωΑ-Ωµμ]+(?:[-'’/+.()[\],][A-Za-z0-9α-ωΑ-Ωµμ+]*)*[+²³)]?$/;
+      if (
+        termWords.length < 1 ||
+        termWords.length > 6 ||
+        !/[A-Za-z]/.test(tEn) ||
+        termWords.some((word) => !validTermWord.test(word))
+      ) {
         rejectedInvalidTerms += 1;
         return;
       }
