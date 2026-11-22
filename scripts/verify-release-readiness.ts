@@ -2337,9 +2337,10 @@ async function main() {
   });
   assertCondition(
     umedtSyncSecond.fetched === true &&
-      umedtSyncSecond.updatedCollectionsCount === 0 &&
-      umedtSyncSecond.skippedCollectionsCount === 1,
-    'terms-only catalog must skip unchanged terms collection when SHA-256 matches'
+      umedtSyncSecond.updatedCollectionsCount === 1 &&
+      umedtSyncSecond.skippedCollectionsCount === 0 &&
+      umedtSyncSecond.incoming.terms?.[0]?.term === 'Cardiomyocyte',
+    'terms-only catalog must re-fetch terms on explicit refresh even when SHA-256 matches'
   );
 
   // 18.2 Terms-only cloud mirror reset + explicit dictionary download + local-state preservation
