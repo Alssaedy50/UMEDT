@@ -27,6 +27,10 @@ import {
   mergeMatchedTermRecord
 } from '../src/utils/termIdentity';
 import {
+  normalizeNumericDigits,
+  parseFlexibleNumber
+} from '../src/components/MobileSafeInput';
+import {
   DEFAULT_ONLINE_UPDATE_CONFIG,
   STORAGE_KEYS,
   executeAtomicPackageImport,
@@ -5749,8 +5753,66 @@ QUESTION || single_choice || Which vessels unite to form the basilar artery? || 
     );
   }
 
+  // 28. [Mobile IME-Safe Text & Numeric Inputs Across Topics, Quizzes, Settings & Library]
+  {
+    assertCondition(
+      normalizeNumericDigits('٢٥') === '25' &&
+        normalizeNumericDigits('۱۵') === '15' &&
+        normalizeNumericDigits('٠٫٥', true) === '0.5' &&
+        normalizeNumericDigits('12,5', true) === '12.5',
+      'normalizeNumericDigits must normalize Arabic-Indic, Persian, and decimal separators accurately'
+    );
+
+    assertCondition(
+      parseFlexibleNumber('') === null &&
+        parseFlexibleNumber('   ') === null &&
+        parseFlexibleNumber('٢٥') === 25 &&
+        parseFlexibleNumber('۱۵') === 15 &&
+        parseFlexibleNumber('٠٫٥', { allowDecimal: true }) === 0.5 &&
+        parseFlexibleNumber('abc') === null,
+      'parseFlexibleNumber must handle empty strings cleanly as null and parse English/Arabic/Persian digits accurately'
+    );
+
+    const componentsDir = path.join(ROOT_DIR, 'src', 'components');
+    const componentFiles = fs
+      .readdirSync(componentsDir)
+      .filter((f) => f.endsWith('.tsx'));
+
+    for (const fileName of componentFiles) {
+      if (fileName === 'MobileSafeInput.tsx') continue;
+      const srcText = fs.readFileSync(path.join(componentsDir, fileName), 'utf8');
+      assertCondition(
+        !srcText.includes('type="number"'),
+        `Fragile <input type="number"> found in src/components/${fileName}; must use MobileSafeNumericInput`
+      );
+    }
+
+    const requiredMobileSafeUsers = [
+      'AiContentGuideModal.tsx',
+      'TopicsHub.tsx',
+      'TopicContentBlockEditor.tsx',
+      'QuizCenterModal.tsx',
+      'SettingsView.tsx',
+      'LibraryView.tsx',
+      'TermDetailSheet.tsx',
+      'VoiceRecorderBlock.tsx',
+      'FlashcardsStudyStudio.tsx'
+    ];
+    for (const fileName of requiredMobileSafeUsers) {
+      const srcText = fs.readFileSync(path.join(componentsDir, fileName), 'utf8');
+      assertCondition(
+        srcText.includes('./MobileSafeInput'),
+        `${fileName} must use MobileSafeInput primitives for Android WebView IME safety`
+      );
+    }
+
+    console.log(
+      '[PASS] 28. Mobile IME-Safe Text & Numeric Inputs Verified (Arabic/Persian/English Digit Parsing, Zero Fragile type="number" Inputs, All Topic/Quiz/Library/Settings Forms Protected)'
+    );
+  }
+
   console.log('================================================================');
-  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (27/27 — 100%)');
+  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (28/28 — 100%)');
   console.log('================================================================');
 }
 

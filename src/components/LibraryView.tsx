@@ -51,6 +51,7 @@ import {
   getCanonicalTermKey
 } from '../utils/termIdentity';
 import { FlashcardsStudyStudio } from './FlashcardsStudyStudio';
+import { MobileSafeInput, MobileSafeTextarea } from './MobileSafeInput';
 import {
   ConciseDataSummary,
   buildConciseDataSummary
@@ -1439,10 +1440,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
               <div className="relative flex-1 max-w-md">
                 <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
+                <MobileSafeInput
                   type="text"
+                  dir="auto"
                   value={cloudSearchQuery}
-                  onChange={(e) => setCloudSearchQuery(e.target.value)}
+                  onValueChange={setCloudSearchQuery}
                   placeholder="بحث..."
                   className="w-full min-h-[38px] pr-9 pl-3 py-1.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-medium focus:outline-none focus:border-emerald-500"
                 />
@@ -2119,10 +2121,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             {/* Search inside favorites */}
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
+              <MobileSafeInput
                 type="text"
+                dir="auto"
                 value={favSearchQuery}
-                onChange={(e) => setFavSearchQuery(e.target.value)}
+                onValueChange={setFavSearchQuery}
                 placeholder="ابحث في المفضلة..."
                 className="w-full min-h-[42px] pr-10 pl-4 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-medium focus:outline-none focus:border-emerald-500"
               />
@@ -2661,17 +2664,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       <span>ترجمة تلقائية</span>
                     </button>
                   </div>
-                  <input
+                  <MobileSafeInput
                     ref={manualTermInputRef}
                     type="text"
-                    dir="ltr"
+                    dir="auto"
                     value={manualTerm}
-                    onChange={(e) => {
-                      setManualTerm(e.target.value);
-                      if (offlineFeedback) setOfflineFeedback(null);
-                    }}
-                    onInput={(e) => {
-                      setManualTerm((e.target as HTMLInputElement).value);
+                    onValueChange={(val) => {
+                      setManualTerm(val);
                       if (offlineFeedback) setOfflineFeedback(null);
                     }}
                     placeholder="e.g., Cardiomyopathy"
@@ -2683,16 +2682,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   <label className="text-xs font-extrabold text-slate-700 dark:text-slate-200 block">
                     الترجمة بالعربية *
                   </label>
-                  <input
+                  <MobileSafeInput
                     ref={manualTranslationInputRef}
                     type="text"
+                    dir="auto"
                     value={manualTranslation}
-                    onChange={(e) => {
-                      setManualTranslation(e.target.value);
-                      if (offlineFeedback) setOfflineFeedback(null);
-                    }}
-                    onInput={(e) => {
-                      setManualTranslation((e.target as HTMLInputElement).value);
+                    onValueChange={(val) => {
+                      setManualTranslation(val);
                       if (offlineFeedback) setOfflineFeedback(null);
                     }}
                     placeholder="اكتب الترجمة بالعربية..."
@@ -2747,10 +2743,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
                         المجلد (اختياري)
                       </label>
-                      <input
+                      <MobileSafeInput
                         type="text"
+                        dir="auto"
                         value={manualCollection}
-                        onChange={(e) => setManualCollection(e.target.value)}
+                        onValueChange={setManualCollection}
                         placeholder="مضاف يدوياً"
                         className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                       />
@@ -2761,28 +2758,30 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
                       التعريف (اختياري)
                     </label>
-                    <textarea
+                    <MobileSafeTextarea
                       rows={2}
+                      dir="auto"
                       value={manualDefAr}
-                      onChange={(e) => setManualDefAr(e.target.value)}
+                      onValueChange={setManualDefAr}
                       placeholder="تعريف مختصر (اختياري)..."
                       className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed"
                     />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <input
+                    <MobileSafeInput
                       type="text"
-                      dir="ltr"
+                      dir="auto"
                       value={manualSentenceEn}
-                      onChange={(e) => setManualSentenceEn(e.target.value)}
+                      onValueChange={setManualSentenceEn}
                       placeholder="Example sentence (optional)..."
                       className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-left"
                     />
-                    <input
+                    <MobileSafeInput
                       type="text"
+                      dir="auto"
                       value={manualSentenceAr}
-                      onChange={(e) => setManualSentenceAr(e.target.value)}
+                      onValueChange={setManualSentenceAr}
                       placeholder="ترجمة الجملة (اختياري)..."
                       className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                     />
@@ -3030,11 +3029,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             )}
 
             <div className="space-y-3">
-              <textarea
+              <MobileSafeTextarea
                 rows={8}
                 dir="auto"
                 value={rawBatchInput}
-                onChange={(e) => setRawBatchInput(e.target.value)}
+                onValueChange={setRawBatchInput}
                 placeholder={
                   importDataType === 'terms'
                     ? `الصق هنا نصوص أو JSON المصطلحات:\n- أسطر نصية: TERM || Myocardial infarction || احتشاء عضلة القلب || ...\n- أو كائن JSON يحتوي على مصفوفة "terms"`

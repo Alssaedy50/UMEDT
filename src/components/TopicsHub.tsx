@@ -98,6 +98,7 @@ import {
   SectionContentBlocksRenderer,
   SectionContentBlocksEditor
 } from './TopicContentBlockEditor';
+import { MobileSafeInput, MobileSafeTextarea } from './MobileSafeInput';
 import { QuizCenterModal } from './QuizCenterModal';
 import { GranularExportModal } from './GranularExportModal';
 import {
@@ -406,14 +407,15 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
 
   // Rich Publisher / Editor State
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
+  const [editorSession, setEditorSession] = useState<number>(0);
   const [draftTitleEn, setDraftTitleEn] = useState<string>('');
   const [draftTitleAr, setDraftTitleAr] = useState<string>('');
   const [draftSubtitle, setDraftSubtitle] = useState<string>('');
   const draftTitleEnInputRef = useRef<HTMLInputElement | null>(null);
   const draftTitleArInputRef = useRef<HTMLInputElement | null>(null);
   const [draftCategory, setDraftCategory] = useState<TopicCategory>('Medical');
-  const [draftBlockId, setDraftBlockId] = useState<string>('block-hematology');
-  const [draftSubjectId, setDraftSubjectId] = useState<string>('subj-hematology');
+  const [draftBlockId, setDraftBlockId] = useState<string>('');
+  const [draftSubjectId, setDraftSubjectId] = useState<string>('');
   const [draftRelatedTopicIds, setDraftRelatedTopicIds] = useState<string[]>([]);
   const [draftAuthor, setDraftAuthor] = useState<string>('محرر المنظومة المعرفية');
   const [draftSections, setDraftSections] = useState<TopicSection[]>([
@@ -1478,13 +1480,14 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     setDraftCategory(selectedCategory === 'All' ? 'Medical' : selectedCategory);
     const defaultBlock =
       opts?.blockId ||
-      (activeBlockFilter !== 'ALL' ? activeBlockFilter : 'block-hematology');
+      (activeBlockFilter !== 'ALL' ? activeBlockFilter : blocks[0]?.id || '');
     const defaultSubj =
       opts?.subjectId ||
       (activeSubjectFilter !== 'ALL'
         ? activeSubjectFilter
         : subjects.find((s) => s.blockId === defaultBlock)?.id ||
-          'subj-hematology');
+          subjects[0]?.id ||
+          '');
     setDraftBlockId(defaultBlock);
     setDraftSubjectId(defaultSubj);
     setDraftRelatedTopicIds([]);
@@ -1511,6 +1514,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     setDraftAttachments([]);
     setShowBulkPasteHelper(false);
     setBulkRawArticleText('');
+    setEditorSession((prev) => prev + 1);
     setViewMode('editor');
   };
 
@@ -1525,8 +1529,14 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     setDraftTitleAr(topic.titleAr || topic.subtitle || '');
     setDraftSubtitle(topic.subtitle || '');
     setDraftCategory(topic.category);
-    setDraftBlockId(topic.blockId || 'block-hematology');
-    setDraftSubjectId(topic.subjectId || 'subj-hematology');
+    const resolvedBlockId = topic.blockId || blocks[0]?.id || '';
+    const resolvedSubjectId =
+      topic.subjectId ||
+      subjects.find((s) => s.blockId === resolvedBlockId)?.id ||
+      subjects[0]?.id ||
+      '';
+    setDraftBlockId(resolvedBlockId);
+    setDraftSubjectId(resolvedSubjectId);
     setDraftRelatedTopicIds(topic.relatedTopicIds || []);
     setDraftAuthor(topic.author);
     setDraftSections(
@@ -1562,6 +1572,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     setDraftAttachments([...topic.attachments]);
     setShowBulkPasteHelper(false);
     setBulkRawArticleText('');
+    setEditorSession((prev) => prev + 1);
     setViewMode('editor');
   };
 
@@ -1736,14 +1747,17 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     const cleanTitleEn = (draftTitleEnInputRef.current?.value ?? draftTitleEn).trim();
     const cleanTitleAr = (draftTitleArInputRef.current?.value ?? draftTitleAr).trim();
 
-    if (!cleanTitleEn) {
-      showToast('يرجى كتابة العنوان الأكاديمي الإنجليزي للموضوع قبل النشر', 'info');
+    if (!cleanTitleEn && !cleanTitleAr) {
+      showToast('يرجى كتابة عنوان الموضوع (بالعربية أو الإنجليزية) قبل النشر', 'info');
       return;
     }
 
-    const combinedTitle = cleanTitleAr
-      ? `${cleanTitleEn} — ${cleanTitleAr}`
-      : cleanTitleEn;
+    const effectiveTitleEn = cleanTitleEn || cleanTitleAr;
+    const effectiveTitleAr = cleanTitleAr || draftSubtitle.trim() || cleanTitleEn;
+    const combinedTitle =
+      cleanTitleEn && cleanTitleAr
+        ? `${cleanTitleEn} — ${cleanTitleAr}`
+        : effectiveTitleEn;
 
     const syncedFields = syncContentBlocksToLegacyTopicFields(
       draftSections,
@@ -1762,9 +1776,9 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     const finalTopic: TopicArticle = {
       id: editingTopicId || `topic-${Date.now()}`,
       title: combinedTitle,
-      titleEn: cleanTitleEn,
-      titleAr: cleanTitleAr || draftSubtitle.trim() || cleanTitleEn,
-      subtitle: draftSubtitle.trim() || cleanTitleAr || cleanTitleEn,
+      titleEn: effectiveTitleEn,
+      titleAr: effectiveTitleAr,
+      subtitle: draftSubtitle.trim() || effectiveTitleAr,
       category: draftCategory,
       blockId: draftBlockId || undefined,
       subjectId: draftSubjectId || undefined,
@@ -3402,10 +3416,10 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <textarea
+            <MobileSafeTextarea
               rows={7}
               value={bulkRawArticleText}
-              onChange={(e) => setBulkRawArticleText(e.target.value)}
+              onValueChange={setBulkRawArticleText}
               placeholder="الصق النص الكامل للمحاضرة أو الورقة العلمية هنا..."
               className="w-full rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 text-xs leading-relaxed focus:outline-none focus:border-emerald-500"
             />
@@ -3421,7 +3435,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           </div>
         )}
 
-        <form onSubmit={handlePublishTopic} className="space-y-6">
+        <form key={`topic-editor-${editorSession}`} onSubmit={handlePublishTopic} className="space-y-6">
           {/* 1. Academic Hierarchy & Bilingual Titles Card */}
           <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-4">
             <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">
@@ -3431,19 +3445,14 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                  العنوان الأكاديمي الإنجليزي (English Title) *
+                  العنوان الأكاديمي الإنجليزي (English Title)
                 </label>
-                <input
+                <MobileSafeInput
                   ref={draftTitleEnInputRef}
                   type="text"
-                  dir="ltr"
-                  required
+                  dir="auto"
                   value={draftTitleEn}
-                  onChange={(e) => setDraftTitleEn(e.target.value)}
-                  onCompositionEnd={(e) => setDraftTitleEn(e.currentTarget.value)}
-                  autoComplete="off"
-                  autoCorrect="off"
-                  spellCheck={false}
+                  onValueChange={setDraftTitleEn}
                   placeholder="e.g., Iron Deficiency Anemia & Microcytic Differential"
                   className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm font-extrabold text-left focus:outline-none focus:border-emerald-500"
                 />
@@ -3451,18 +3460,14 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                  الترجمة العربية للعنوان (Arabic Title)
+                  العنوان بالعربية (Arabic Title)
                 </label>
-                <input
+                <MobileSafeInput
                   ref={draftTitleArInputRef}
                   type="text"
                   dir="auto"
                   value={draftTitleAr}
-                  onChange={(e) => setDraftTitleAr(e.target.value)}
-                  onCompositionEnd={(e) => setDraftTitleAr(e.currentTarget.value)}
-                  autoComplete="off"
-                  autoCorrect="off"
-                  spellCheck={false}
+                  onValueChange={setDraftTitleAr}
                   placeholder="مثال: فقر الدم بعوز الحديد والتشخيص التفريقي"
                   className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm font-bold focus:outline-none focus:border-emerald-500"
                 />
@@ -3486,7 +3491,19 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 <select
                   dir="auto"
                   value={draftBlockId}
-                  onChange={(e) => setDraftBlockId(e.target.value)}
+                  onChange={(e) => {
+                    const nextBlockId = e.target.value;
+                    setDraftBlockId(nextBlockId);
+                    const matchingSubjects = subjects.filter(
+                      (s) => !nextBlockId || !s.blockId || s.blockId === nextBlockId
+                    );
+                    if (
+                      matchingSubjects.length > 0 &&
+                      !matchingSubjects.some((s) => s.id === draftSubjectId)
+                    ) {
+                      setDraftSubjectId(matchingSubjects[0].id);
+                    }
+                  }}
                   className="w-full min-h-[44px] px-3 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                 >
                   {blocks.map((b) => (
@@ -3516,11 +3533,23 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   onChange={(e) => setDraftSubjectId(e.target.value)}
                   className="w-full min-h-[44px] px-3 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                 >
-                  {subjects.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.titleAr} — {s.titleEn}
-                    </option>
-                  ))}
+                  {(() => {
+                    const scopedSubjects = draftBlockId
+                      ? subjects.filter(
+                          (s) =>
+                            s.blockId === draftBlockId ||
+                            !s.blockId ||
+                            s.id === draftSubjectId
+                        )
+                      : subjects;
+                    const displaySubjects =
+                      scopedSubjects.length > 0 ? scopedSubjects : subjects;
+                    return displaySubjects.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.titleAr} — {s.titleEn}
+                      </option>
+                    ));
+                  })()}
                 </select>
               </div>
             </div>
@@ -3576,12 +3605,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
                     <div className="sm:col-span-6">
-                      <input
+                      <MobileSafeInput
                         type="text"
-                        dir="ltr"
+                        dir="auto"
                         value={sec.headingEn || sec.heading || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
+                        onValueChange={(val) => {
                           setDraftSections((prev) =>
                             prev.map((item, i) =>
                               i === idx
@@ -3595,11 +3623,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                       />
                     </div>
                     <div className="sm:col-span-5">
-                      <input
+                      <MobileSafeInput
                         type="text"
+                        dir="auto"
                         value={sec.headingAr || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
+                        onValueChange={(val) => {
                           setDraftSections((prev) =>
                             prev.map((item, i) =>
                               i === idx ? { ...item, headingAr: val } : item
@@ -4383,17 +4411,19 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                       )}
 
                       <div className="space-y-2">
-                        <input
+                        <MobileSafeInput
                           type="text"
+                          dir="auto"
                           value={newNoteTitle}
-                          onChange={(e) => setNewNoteTitle(e.target.value)}
+                          onValueChange={setNewNoteTitle}
                           placeholder="عنوان الملاحظة (اختياري)..."
                           className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                         />
-                        <textarea
+                        <MobileSafeTextarea
                           rows={2}
+                          dir="auto"
                           value={newNoteContent}
-                          onChange={(e) => setNewNoteContent(e.target.value)}
+                          onValueChange={setNewNoteContent}
                           placeholder="اكتب ملاحظتك السريرية الخاصة على هذا الموضوع..."
                           className="w-full p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed"
                         />
@@ -5031,15 +5061,12 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                       <label className="text-[11px] font-bold text-slate-500 block mb-1">
                         المصطلح بالإنجليزية *
                       </label>
-                      <input
+                      <MobileSafeInput
                         ref={topicNewTermInputRef}
                         type="text"
                         dir="auto"
                         value={editableNewTerm}
-                        onChange={(e) => setEditableNewTerm(e.target.value)}
-                        onInput={(e) =>
-                          setEditableNewTerm((e.target as HTMLInputElement).value)
-                        }
+                        onValueChange={setEditableNewTerm}
                         className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                       />
                     </div>
@@ -5047,14 +5074,12 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                       <label className="text-[11px] font-bold text-slate-500 block mb-1">
                         الترجمة بالعربية *
                       </label>
-                      <input
+                      <MobileSafeInput
                         ref={topicTranslationArInputRef}
                         type="text"
+                        dir="auto"
                         value={editableTranslationAr}
-                        onChange={(e) => setEditableTranslationAr(e.target.value)}
-                        onInput={(e) =>
-                          setEditableTranslationAr((e.target as HTMLInputElement).value)
-                        }
+                        onValueChange={setEditableTranslationAr}
                         placeholder="اكتب الترجمة العربية..."
                         className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-emerald-500/50 text-xs font-bold text-emerald-700 dark:text-emerald-300"
                       />
@@ -5065,10 +5090,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     <label className="text-[11px] font-bold text-slate-500 block mb-1">
                       التعريف المختصر (اختياري):
                     </label>
-                    <input
+                    <MobileSafeInput
                       type="text"
+                      dir="auto"
                       value={editableDefinitionAr}
-                      onChange={(e) => setEditableDefinitionAr(e.target.value)}
+                      onValueChange={setEditableDefinitionAr}
                       placeholder="اختياري..."
                       className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                     />
@@ -5181,10 +5207,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         <div className="flex items-center gap-2">
           <div className="relative flex-1 min-w-0">
             <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
+            <MobileSafeInput
               type="text"
+              dir="auto"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onValueChange={setSearchQuery}
               placeholder="بحث في المواضيع أو المصطلحات..."
               className="w-full min-h-[40px] pr-9 pl-9 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs focus:outline-none focus:border-emerald-500"
             />

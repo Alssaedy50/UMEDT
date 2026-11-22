@@ -24,6 +24,7 @@ import {
   TermExample
 } from '../types/lexicon';
 import { runHybridGcNmtPipeline } from '../engine/hybridTranslator';
+import { MobileSafeInput, MobileSafeTextarea } from './MobileSafeInput';
 
 interface ConcordanceMatch {
   sourceTermId: string;
@@ -488,19 +489,20 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
                       <span>ترجمة تلقائية</span>
                     </button>
                   </div>
-                  <input
+                  <MobileSafeInput
                     type="text"
-                    dir="ltr"
+                    dir="auto"
                     value={newSentEn}
-                    onChange={(e) => setNewSentEn(e.target.value)}
+                    onValueChange={setNewSentEn}
                     placeholder={`Sentence with ${activeDetailTerm.term}...`}
                     className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs outline-none focus:border-emerald-500"
                     required
                   />
-                  <input
+                  <MobileSafeInput
                     type="text"
+                    dir="auto"
                     value={newSentAr}
-                    onChange={(e) => setNewSentAr(e.target.value)}
+                    onValueChange={setNewSentAr}
                     placeholder="الترجمة العربية..."
                     className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs outline-none focus:border-emerald-500"
                     required
@@ -719,12 +721,12 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
                 <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
                   المصطلح الإنجليزي:
                 </label>
-                <input
+                <MobileSafeInput
                   type="text"
-                  dir="ltr"
+                  dir="auto"
                   value={editDraft.term}
-                  onChange={(e) =>
-                    setEditDraft({ ...editDraft, term: e.target.value })
+                  onValueChange={(val) =>
+                    setEditDraft({ ...editDraft, term: val })
                   }
                   className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                   required
@@ -735,11 +737,12 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
                 <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
                   الترجمة العربية المعتمدة (UMD):
                 </label>
-                <input
+                <MobileSafeInput
                   type="text"
+                  dir="auto"
                   value={editDraft.translation}
-                  onChange={(e) =>
-                    setEditDraft({ ...editDraft, translation: e.target.value })
+                  onValueChange={(val) =>
+                    setEditDraft({ ...editDraft, translation: val })
                   }
                   className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold text-emerald-700 dark:text-emerald-300"
                   required
@@ -752,12 +755,12 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
               <label className="text-xs text-slate-500 block mb-1">
                 النطق الصوتي (IPA):
               </label>
-              <input
+              <MobileSafeInput
                 type="text"
                 dir="ltr"
                 value={editDraft.phonetic}
-                onChange={(e) =>
-                  setEditDraft({ ...editDraft, phonetic: e.target.value })
+                onValueChange={(val) =>
+                  setEditDraft({ ...editDraft, phonetic: val })
                 }
                 className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono"
               />
@@ -769,11 +772,12 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
                 <label className="text-xs text-slate-500 block mb-1">
                   التعريف العربي:
                 </label>
-                <textarea
+                <MobileSafeTextarea
                   rows={3}
+                  dir="auto"
                   value={editDraft.definitionAr}
-                  onChange={(e) =>
-                    setEditDraft({ ...editDraft, definitionAr: e.target.value })
+                  onValueChange={(val) =>
+                    setEditDraft({ ...editDraft, definitionAr: val })
                   }
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed"
                   required
@@ -784,12 +788,12 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
                 <label className="text-xs text-slate-500 block mb-1">
                   التعريف الإنجليزي:
                 </label>
-                <textarea
+                <MobileSafeTextarea
                   rows={3}
-                  dir="ltr"
+                  dir="auto"
                   value={editDraft.definitionEn}
-                  onChange={(e) =>
-                    setEditDraft({ ...editDraft, definitionEn: e.target.value })
+                  onValueChange={(val) =>
+                    setEditDraft({ ...editDraft, definitionEn: val })
                   }
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed"
                 />
@@ -800,11 +804,12 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
               <label className="text-xs text-slate-500 block mb-1">
                 الملاحظة السريرية (Clinical Note):
               </label>
-              <input
+              <MobileSafeInput
                 type="text"
+                dir="auto"
                 value={editDraft.clinicalNote}
-                onChange={(e) =>
-                  setEditDraft({ ...editDraft, clinicalNote: e.target.value })
+                onValueChange={(val) =>
+                  setEditDraft({ ...editDraft, clinicalNote: val })
                 }
                 placeholder="ملاحظة تشخيصية أو دوائية إضافية..."
                 className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
@@ -859,24 +864,25 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
                         </button>
                       )}
                     </div>
-                    <input
+                    <MobileSafeInput
                       type="text"
-                      dir="ltr"
+                      dir="auto"
                       value={ex.en}
-                      onChange={(e) => {
+                      onValueChange={(val) => {
                         const next = [...editDraft.examples];
-                        next[i] = { ...next[i], en: e.target.value };
+                        next[i] = { ...next[i], en: val };
                         setEditDraft({ ...editDraft, examples: next });
                       }}
                       placeholder="English clinical example..."
                       className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono"
                     />
-                    <input
+                    <MobileSafeInput
                       type="text"
+                      dir="auto"
                       value={ex.ar}
-                      onChange={(e) => {
+                      onValueChange={(val) => {
                         const next = [...editDraft.examples];
-                        next[i] = { ...next[i], ar: e.target.value };
+                        next[i] = { ...next[i], ar: val };
                         setEditDraft({ ...editDraft, examples: next });
                       }}
                       placeholder="الترجمة العربية للمثال..."
@@ -893,12 +899,12 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
                 <label className="text-xs text-slate-500 block mb-1">
                   المرادفات (مفصولة بفاصلة):
                 </label>
-                <input
+                <MobileSafeInput
                   type="text"
-                  dir="ltr"
+                  dir="auto"
                   value={editDraft.synonymsText}
-                  onChange={(e) =>
-                    setEditDraft({ ...editDraft, synonymsText: e.target.value })
+                  onValueChange={(val) =>
+                    setEditDraft({ ...editDraft, synonymsText: val })
                   }
                   placeholder="Synonym 1, Synonym 2"
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
@@ -909,12 +915,12 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
                 <label className="text-xs text-slate-500 block mb-1">
                   المفاهيم الأعم (Broader):
                 </label>
-                <input
+                <MobileSafeInput
                   type="text"
-                  dir="ltr"
+                  dir="auto"
                   value={editDraft.broaderText}
-                  onChange={(e) =>
-                    setEditDraft({ ...editDraft, broaderText: e.target.value })
+                  onValueChange={(val) =>
+                    setEditDraft({ ...editDraft, broaderText: val })
                   }
                   placeholder="Cardiology, Pathology"
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
@@ -925,12 +931,12 @@ export const TermDetailSheet: React.FC<TermDetailSheetProps> = ({
                 <label className="text-xs text-slate-500 block mb-1">
                   المصطلحات المرتبطة (Related):
                 </label>
-                <input
+                <MobileSafeInput
                   type="text"
-                  dir="ltr"
+                  dir="auto"
                   value={editDraft.relatedText}
-                  onChange={(e) =>
-                    setEditDraft({ ...editDraft, relatedText: e.target.value })
+                  onValueChange={(val) =>
+                    setEditDraft({ ...editDraft, relatedText: val })
                   }
                   placeholder="Ischemia, Hypoxia"
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"

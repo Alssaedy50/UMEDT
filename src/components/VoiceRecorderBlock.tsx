@@ -24,6 +24,7 @@ import {
   prepareAndDownloadFile,
   base64ToUint8Array
 } from '../utils/downloadHelper';
+import { MobileSafeInput } from './MobileSafeInput';
 
 interface VoiceRecorderBlockProps {
   topicId?: string;
@@ -675,12 +676,11 @@ export const VoiceRecorderBlock: React.FC<VoiceRecorderBlockProps> = ({
               </>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <input
+                <MobileSafeInput
                   type="text"
                   dir="ltr"
                   value={titleEn}
-                  onChange={(e) => {
-                    const nextEn = e.target.value;
+                  onValueChange={(nextEn) => {
                     setTitleEn(nextEn);
                     onChange?.({
                       mediaUrl: audioUrl,
@@ -694,11 +694,10 @@ export const VoiceRecorderBlock: React.FC<VoiceRecorderBlockProps> = ({
                   placeholder="Audio Title (English)..."
                   className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white"
                 />
-                <input
+                <MobileSafeInput
                   type="text"
                   value={titleAr}
-                  onChange={(e) => {
-                    const nextAr = e.target.value;
+                  onValueChange={(nextAr) => {
                     setTitleAr(nextAr);
                     onChange?.({
                       mediaUrl: audioUrl,
@@ -1039,11 +1038,11 @@ export const VoiceRecorderBlock: React.FC<VoiceRecorderBlockProps> = ({
                   </p>
                 </div>
 
-                <input
+                <MobileSafeInput
                   type="url"
                   dir="ltr"
                   value={externalAudioUrlDraft}
-                  onChange={(e) => setExternalAudioUrlDraft(e.target.value)}
+                  onValueChange={setExternalAudioUrlDraft}
                   placeholder="https://example.com/audio.mp3"
                   className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono text-left focus:outline-none focus:border-emerald-500"
                 />

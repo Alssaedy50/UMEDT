@@ -47,6 +47,11 @@ import { computeDeterministicFastHashHex } from '../services/cloudLibrarySyncSer
 import { generateStandaloneExamHtmlDocument } from '../services/standaloneExportService';
 import { executeVerifiedExportDownload } from '../services/exportDownloadService';
 import { sendInteractiveFileToTelegram } from '../services/telegramBackupService';
+import {
+  MobileSafeInput,
+  MobileSafeTextarea,
+  MobileSafeNumericInput
+} from './MobileSafeInput';
 
 interface QuizCenterModalProps {
   isOpen: boolean;
@@ -137,6 +142,7 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
   );
 
   const [desiredCount, setDesiredCount] = useState<number>(10);
+  const [desiredCountText, setDesiredCountText] = useState<string>('10');
   const [randomizeQuestions, setRandomizeQuestions] = useState<boolean>(true);
   const [randomizeOptions, setRandomizeOptions] = useState<boolean>(false);
   const [gradingMode, setGradingMode] = useState<'instant' | 'exam'>('instant');
@@ -896,21 +902,62 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
 
                 {/* Quiz Settings Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
                     <label className="text-xs font-bold text-slate-600 dark:text-slate-400 block">
                       عدد الأسئلة (المتوفر: {availableScopeQuestions.length})
                     </label>
-                    <select
-                      value={desiredCount}
-                      onChange={(e) => setDesiredCount(Number(e.target.value))}
-                      className="w-full min-h-[42px] px-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-bold text-slate-900 dark:text-white"
-                    >
-                      <option value={5}>5 أسئلة</option>
-                      <option value={10}>10 أسئلة</option>
-                      <option value={15}>15 سؤال</option>
-                      <option value={25}>25 سؤال</option>
-                      <option value={999}>كل الأسئلة ({availableScopeQuestions.length})</option>
-                    </select>
+                    <MobileSafeNumericInput
+                      min={1}
+                      max={Math.max(1, availableScopeQuestions.length || 500)}
+                      fallbackOnBlur={Math.min(
+                        10,
+                        Math.max(1, availableScopeQuestions.length || 10)
+                      )}
+                      value={desiredCountText}
+                      onRawChange={setDesiredCountText}
+                      onNumberChange={(parsed) => {
+                        if (parsed !== null && parsed >= 1) {
+                          setDesiredCount(parsed);
+                        }
+                      }}
+                      placeholder="10"
+                      className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm font-mono font-extrabold text-center text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                    />
+                    <div className="flex flex-wrap gap-1">
+                      {[5, 10, 15, 25].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => {
+                            setDesiredCount(preset);
+                            setDesiredCountText(String(preset));
+                          }}
+                          className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold border transition-colors ${
+                            desiredCount === preset && desiredCountText === String(preset)
+                              ? 'bg-emerald-600 text-white border-emerald-600'
+                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                      {availableScopeQuestions.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDesiredCount(availableScopeQuestions.length);
+                            setDesiredCountText(String(availableScopeQuestions.length));
+                          }}
+                          className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition-colors ${
+                            desiredCount >= availableScopeQuestions.length
+                              ? 'bg-emerald-600 text-white border-emerald-600'
+                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'
+                          }`}
+                        >
+                          الكل ({availableScopeQuestions.length})
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
@@ -1181,17 +1228,17 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                   {(currentQuestion.type === 'fill_blank' ||
                     currentQuestion.type === 'short_answer') && (
                     <div className="space-y-2 pt-2">
-                      <input
+                      <MobileSafeInput
                         type="text"
                         dir="auto"
                         disabled={isCurrentQuestionRevealed}
                         value={currentUserResp.textAnswer}
-                        onChange={(e) =>
+                        onValueChange={(val) =>
                           setUserResponses((prev) => ({
                             ...prev,
                             [currentQuestion.id]: {
                               ...currentUserResp,
-                              textAnswer: e.target.value
+                              textAnswer: val
                             }
                           }))
                         }
@@ -1659,11 +1706,11 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                   {manualType === 'image_based' && (
                     <div className="space-y-1">
                       <label className="text-xs font-bold block">رابط الصورة التشخيصية:</label>
-                      <input
+                      <MobileSafeInput
                         type="text"
                         dir="ltr"
                         value={manualImageUrl}
-                        onChange={(e) => setManualImageUrl(e.target.value)}
+                        onValueChange={setManualImageUrl}
                         placeholder="https://... or data:image/..."
                         className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs"
                       />
@@ -1676,12 +1723,12 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                     <label className="text-xs font-bold block">
                       نص السؤال بالإنجليزية (Academic English Question):
                     </label>
-                    <textarea
+                    <MobileSafeTextarea
                       rows={3}
-                      dir="ltr"
+                      dir="auto"
                       required
                       value={manualQuestionEn}
-                      onChange={(e) => setManualQuestionEn(e.target.value)}
+                      onValueChange={setManualQuestionEn}
                       placeholder="Write the clinical question stem in English..."
                       className="w-full p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs"
                     />
@@ -1690,10 +1737,11 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                     <label className="text-xs font-bold block">
                       ترجمة السؤال بالعربية (اختياري):
                     </label>
-                    <textarea
+                    <MobileSafeTextarea
                       rows={3}
+                      dir="auto"
                       value={manualQuestionAr}
-                      onChange={(e) => setManualQuestionAr(e.target.value)}
+                      onValueChange={setManualQuestionAr}
                       placeholder="ترجمة السؤال بالعربية..."
                       className="w-full p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs"
                     />
@@ -1733,12 +1781,11 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                           >
                             {opt.key}
                           </button>
-                          <input
+                          <MobileSafeInput
                             type="text"
-                            dir="ltr"
+                            dir="auto"
                             value={opt.textEn}
-                            onChange={(e) => {
-                              const val = e.target.value;
+                            onValueChange={(val) => {
                               setManualOptions((prev) =>
                                 prev.map((item, i) =>
                                   i === idx ? { ...item, textEn: val } : item
@@ -1787,11 +1834,11 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                     <label className="text-xs font-bold block">
                       الإجابات المقبولة (افصل بين المرادفات بعلامة | ):
                     </label>
-                    <input
+                    <MobileSafeInput
                       type="text"
-                      dir="ltr"
+                      dir="auto"
                       value={manualAcceptableText}
-                      onChange={(e) => setManualAcceptableText(e.target.value)}
+                      onValueChange={setManualAcceptableText}
                       placeholder="e.g., von Willebrand factor | vWF"
                       className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs"
                     />
@@ -1817,12 +1864,11 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                     </div>
                     {manualMatchingPairs.map((pair, pIdx) => (
                       <div key={pair.id} className="grid grid-cols-2 gap-2">
-                        <input
+                        <MobileSafeInput
                           type="text"
-                          dir="ltr"
+                          dir="auto"
                           value={pair.leftEn}
-                          onChange={(e) => {
-                            const val = e.target.value;
+                          onValueChange={(val) => {
                             setManualMatchingPairs((prev) =>
                               prev.map((item, i) =>
                                 i === pIdx ? { ...item, leftEn: val } : item
@@ -1832,12 +1878,11 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                           placeholder="العنصر الأول (Left)..."
                           className="min-h-[40px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs"
                         />
-                        <input
+                        <MobileSafeInput
                           type="text"
-                          dir="ltr"
+                          dir="auto"
                           value={pair.rightEn}
-                          onChange={(e) => {
-                            const val = e.target.value;
+                          onValueChange={(val) => {
                             setManualMatchingPairs((prev) =>
                               prev.map((item, i) =>
                                 i === pIdx ? { ...item, rightEn: val } : item
@@ -1857,11 +1902,11 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                     <label className="text-xs font-bold block">
                       التفسير العلمي (Explanation in English):
                     </label>
-                    <textarea
+                    <MobileSafeTextarea
                       rows={2}
-                      dir="ltr"
+                      dir="auto"
                       value={manualExplanationEn}
-                      onChange={(e) => setManualExplanationEn(e.target.value)}
+                      onValueChange={setManualExplanationEn}
                       placeholder="Explain why the answer is correct..."
                       className="w-full p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs"
                     />
@@ -1870,10 +1915,11 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                     <label className="text-xs font-bold block">
                       التفسير بالعربية (اختياري):
                     </label>
-                    <textarea
+                    <MobileSafeTextarea
                       rows={2}
+                      dir="auto"
                       value={manualExplanationAr}
-                      onChange={(e) => setManualExplanationAr(e.target.value)}
+                      onValueChange={setManualExplanationAr}
                       placeholder="شرح سبب الإجابة بالعربية..."
                       className="w-full p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs"
                     />
@@ -1905,11 +1951,11 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                   </button>
                 </div>
 
-                <textarea
+                <MobileSafeTextarea
                   rows={10}
-                  dir="ltr"
+                  dir="auto"
                   value={bulkPasteText}
-                  onChange={(e) => setBulkPasteText(e.target.value)}
+                  onValueChange={setBulkPasteText}
                   className="w-full p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono leading-relaxed text-left"
                 />
 
@@ -2029,12 +2075,11 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                             استبعاد
                           </button>
                         </div>
-                        <input
+                        <MobileSafeInput
                           type="text"
-                          dir="ltr"
+                          dir="auto"
                           value={sq.questionEn}
-                          onChange={(e) => {
-                            const val = e.target.value;
+                          onValueChange={(val) => {
                             setStagedPreviewQuestions((prev) =>
                               prev.map((item, i) =>
                                 i === sIdx ? { ...item, questionEn: val } : item

@@ -49,6 +49,78 @@ import {
   prepareAndDownloadFile,
   base64ToUint8Array
 } from '../utils/downloadHelper';
+import { MobileSafeInput, MobileSafeTextarea } from './MobileSafeInput';
+
+const TableBlockEditorFields: React.FC<{
+  blk: TopicContentBlock;
+  onUpdate: (patch: Partial<TopicContentBlock>) => void;
+}> = ({ blk, onUpdate }) => {
+  const [headersText, setHeadersText] = useState<string>(() =>
+    (blk.tableHeaders || []).join(' | ')
+  );
+  const [rowsText, setRowsText] = useState<string>(() =>
+    (blk.tableRows || []).map((r) => r.join(' | ')).join('\n')
+  );
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <MobileSafeInput
+          type="text"
+          dir="auto"
+          value={blk.titleEn || ''}
+          onValueChange={(val) => onUpdate({ titleEn: val })}
+          placeholder="Table Title (English)..."
+          className="w-full min-w-0 min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+        />
+        <MobileSafeInput
+          type="text"
+          dir="auto"
+          value={blk.titleAr || ''}
+          onValueChange={(val) => onUpdate({ titleAr: val })}
+          placeholder="عنوان الجدول بالعربية..."
+          className="w-full min-w-0 min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+        />
+      </div>
+      <div className="space-y-1">
+        <label className="text-[11px] font-bold text-slate-500 block">
+          عناوين الأعمدة (افصل بين الأعمدة بعلامة | ):
+        </label>
+        <MobileSafeInput
+          type="text"
+          dir="auto"
+          value={headersText}
+          onValueChange={(val) => {
+            setHeadersText(val);
+            onUpdate({
+              tableHeaders: val.split('|').map((s) => s.trim())
+            });
+          }}
+          className="w-full px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono"
+        />
+      </div>
+      <div className="space-y-1">
+        <label className="text-[11px] font-bold text-slate-500 block">
+          صفوف الجدول (كل سطر يمثل صفاً، وافصل الخلايا بعلامة | ):
+        </label>
+        <MobileSafeTextarea
+          rows={4}
+          dir="auto"
+          value={rowsText}
+          onValueChange={(val) => {
+            setRowsText(val);
+            onUpdate({
+              tableRows: val
+                .split('\n')
+                .map((line) => line.split('|').map((c) => c.trim()))
+            });
+          }}
+          className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono"
+        />
+      </div>
+    </div>
+  );
+};
 
 export function sanitizeSvgMarkup(rawSvg: string): string {
   if (!rawSvg || typeof rawSvg !== 'string') return '';
@@ -2009,21 +2081,22 @@ export const SectionContentBlocksEditor: React.FC<
             {/* Type-Specific Editor Fields */}
             {blk.type === 'heading' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <input
+                <MobileSafeInput
                   type="text"
-                  dir="ltr"
+                  dir="auto"
                   value={blk.titleEn || ''}
-                  onChange={(e) =>
-                    updateBlockById(blk.id, { titleEn: e.target.value })
+                  onValueChange={(val) =>
+                    updateBlockById(blk.id, { titleEn: val })
                   }
                   placeholder="English Subheading (Primary)..."
                   className="w-full min-w-0 min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                 />
-                <input
+                <MobileSafeInput
                   type="text"
+                  dir="auto"
                   value={blk.titleAr || ''}
-                  onChange={(e) =>
-                    updateBlockById(blk.id, { titleAr: e.target.value })
+                  onValueChange={(val) =>
+                    updateBlockById(blk.id, { titleAr: val })
                   }
                   placeholder="الترجمة العربية للعنوان الفرعي..."
                   className="w-full min-w-0 min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
@@ -2035,33 +2108,34 @@ export const SectionContentBlocksEditor: React.FC<
               <div className="space-y-2">
                 {blk.type === 'clinical_note' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input
+                    <MobileSafeInput
                       type="text"
-                      dir="ltr"
+                      dir="auto"
                       value={blk.titleEn || ''}
-                      onChange={(e) =>
-                        updateBlockById(blk.id, { titleEn: e.target.value })
+                      onValueChange={(val) =>
+                        updateBlockById(blk.id, { titleEn: val })
                       }
                       placeholder="Clinical Note Title (EN)..."
                       className="w-full min-w-0 min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                     />
-                    <input
+                    <MobileSafeInput
                       type="text"
+                      dir="auto"
                       value={blk.titleAr || ''}
-                      onChange={(e) =>
-                        updateBlockById(blk.id, { titleAr: e.target.value })
+                      onValueChange={(val) =>
+                        updateBlockById(blk.id, { titleAr: val })
                       }
                       placeholder="عنوان الملاحظة السريرية (عربي)..."
                       className="w-full min-w-0 min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                     />
                   </div>
                 )}
-                <textarea
+                <MobileSafeTextarea
                   rows={4}
                   dir="auto"
                   value={blk.text || ''}
-                  onChange={(e) =>
-                    updateBlockById(blk.id, { text: e.target.value })
+                  onValueChange={(val) =>
+                    updateBlockById(blk.id, { text: val })
                   }
                   placeholder="اكتب الشرح العلمي هنا (المصطلحات الإنجليزية ستُربط تلقائياً بالقاموس)..."
                   className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed"
@@ -2070,65 +2144,10 @@ export const SectionContentBlocksEditor: React.FC<
             )}
 
             {blk.type === 'table' && (
-              <div className="space-y-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input
-                    type="text"
-                    dir="ltr"
-                    value={blk.titleEn || ''}
-                    onChange={(e) =>
-                      updateBlockById(blk.id, { titleEn: e.target.value })
-                    }
-                    placeholder="Table Title (English)..."
-                    className="w-full min-w-0 min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
-                  />
-                  <input
-                    type="text"
-                    value={blk.titleAr || ''}
-                    onChange={(e) =>
-                      updateBlockById(blk.id, { titleAr: e.target.value })
-                    }
-                    placeholder="عنوان الجدول بالعربية..."
-                    className="w-full min-w-0 min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-500 block">
-                    عناوين الأعمدة (افصل بين الأعمدة بعلامة | ):
-                  </label>
-                  <input
-                    type="text"
-                    dir="ltr"
-                    value={(blk.tableHeaders || []).join(' | ')}
-                    onChange={(e) =>
-                      updateBlockById(blk.id, {
-                        tableHeaders: e.target.value.split('|').map((s) => s.trim())
-                      })
-                    }
-                    className="w-full px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-500 block">
-                    صفوف الجدول (كل سطر يمثل صفاً، وافصل الخلايا بعلامة | ):
-                  </label>
-                  <textarea
-                    rows={4}
-                    dir="ltr"
-                    value={(blk.tableRows || [])
-                      .map((r) => r.join(' | '))
-                      .join('\n')}
-                    onChange={(e) =>
-                      updateBlockById(blk.id, {
-                        tableRows: e.target.value
-                          .split('\n')
-                          .map((line) => line.split('|').map((c) => c.trim()))
-                      })
-                    }
-                    className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono"
-                  />
-                </div>
-              </div>
+              <TableBlockEditorFields
+                blk={blk}
+                onUpdate={(patch) => updateBlockById(blk.id, patch)}
+              />
             )}
 
             {blk.type === 'image' && (
@@ -2145,7 +2164,7 @@ export const SectionContentBlocksEditor: React.FC<
                     <Upload className="w-3.5 h-3.5" />
                     <span>رفع صورة من الهاتف</span>
                   </button>
-                  <input
+                  <MobileSafeInput
                     type="text"
                     dir="ltr"
                     value={
@@ -2154,24 +2173,24 @@ export const SectionContentBlocksEditor: React.FC<
                         ? blk.mediaUrl
                         : '')
                     }
-                    onChange={(e) =>
+                    onValueChange={(val) =>
                       updateBlockById(blk.id, {
-                        externalUrl: e.target.value,
-                        mediaUrl: e.target.value
+                        externalUrl: val,
+                        mediaUrl: val
                       })
                     }
                     placeholder="أو الصق رابط الصورة المباشر (https://...)"
                     className="w-full sm:w-auto sm:flex-1 min-w-0 min-h-[44px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                   />
                 </div>
-                <input
+                <MobileSafeInput
                   type="text"
                   dir="auto"
                   value={blk.captionEn || ''}
-                  onChange={(e) =>
+                  onValueChange={(val) =>
                     updateBlockById(blk.id, {
-                      captionEn: e.target.value,
-                      captionAr: e.target.value
+                      captionEn: val,
+                      captionAr: val
                     })
                   }
                   placeholder="وصف الشكل أو الصورة التوضيحية..."
@@ -2202,35 +2221,36 @@ export const SectionContentBlocksEditor: React.FC<
                     <Upload className="w-3.5 h-3.5" />
                     <span>رفع فيديو من الهاتف</span>
                   </button>
-                  <input
+                  <MobileSafeInput
                     type="url"
                     dir="ltr"
                     value={blk.externalUrl || ''}
-                    onChange={(e) =>
-                      updateBlockById(blk.id, { externalUrl: e.target.value })
+                    onValueChange={(val) =>
+                      updateBlockById(blk.id, { externalUrl: val })
                     }
                     placeholder="أو الصق رابط فيديو (YouTube / Drive / MP4 https://...)"
                     className="w-full sm:w-auto sm:flex-1 min-w-0 min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input
+                  <MobileSafeInput
                     type="text"
-                    dir="ltr"
+                    dir="auto"
                     value={blk.titleEn || ''}
-                    onChange={(e) =>
-                      updateBlockById(blk.id, { titleEn: e.target.value })
+                    onValueChange={(val) =>
+                      updateBlockById(blk.id, { titleEn: val })
                     }
                     placeholder="Video Title (EN)..."
                     className="w-full min-w-0 min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                   />
-                  <input
+                  <MobileSafeInput
                     type="text"
+                    dir="auto"
                     value={blk.titleAr || ''}
-                    onChange={(e) =>
+                    onValueChange={(val) =>
                       updateBlockById(blk.id, {
-                        titleAr: e.target.value,
-                        text: e.target.value
+                        titleAr: val,
+                        text: val
                       })
                     }
                     placeholder="وصف مختصر بالعربية..."
@@ -2260,14 +2280,14 @@ export const SectionContentBlocksEditor: React.FC<
                   onChange={(updated) => updateBlockById(blk.id, updated)}
                   showToast={showToast}
                 />
-                <input
+                <MobileSafeInput
                   type="url"
                   dir="ltr"
                   value={blk.externalUrl || ''}
-                  onChange={(e) =>
+                  onValueChange={(val) =>
                     updateBlockById(blk.id, {
-                      externalUrl: e.target.value,
-                      mediaUrl: e.target.value || blk.mediaUrl
+                      externalUrl: val,
+                      mediaUrl: val || blk.mediaUrl
                     })
                   }
                   placeholder="أو الصق رابط ملف صوتي خارجي (MP3 / WAV / M4A https://...)"
@@ -2290,28 +2310,28 @@ export const SectionContentBlocksEditor: React.FC<
                     <Upload className="w-3.5 h-3.5" />
                     <span>رفع ملف PDF أو مستند من الهاتف</span>
                   </button>
-                  <input
+                  <MobileSafeInput
                     type="url"
                     dir="ltr"
                     value={blk.externalUrl || ''}
-                    onChange={(e) =>
+                    onValueChange={(val) =>
                       updateBlockById(blk.id, {
-                        externalUrl: e.target.value,
-                        mediaUrl: e.target.value || blk.mediaUrl
+                        externalUrl: val,
+                        mediaUrl: val || blk.mediaUrl
                       })
                     }
                     placeholder="أو الصق رابط ملف PDF خارجي (https://...)"
                     className="w-full sm:w-auto sm:flex-1 min-w-0 min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                   />
                 </div>
-                <input
+                <MobileSafeInput
                   type="text"
                   dir="auto"
                   value={blk.titleEn || blk.mediaFileName || ''}
-                  onChange={(e) =>
+                  onValueChange={(val) =>
                     updateBlockById(blk.id, {
-                      titleEn: e.target.value,
-                      mediaFileName: e.target.value
+                      titleEn: val,
+                      mediaFileName: val
                     })
                   }
                   placeholder="اسم الملف أو عنوان المرجع (PDF Title)..."
@@ -2327,15 +2347,15 @@ export const SectionContentBlocksEditor: React.FC<
 
             {blk.type === 'question' && blk.inlineQuestion && (
               <div className="space-y-2">
-                <input
+                <MobileSafeInput
                   type="text"
-                  dir="ltr"
+                  dir="auto"
                   value={blk.inlineQuestion.questionEn}
-                  onChange={(e) =>
+                  onValueChange={(val) =>
                     updateBlockById(blk.id, {
                       inlineQuestion: {
                         ...blk.inlineQuestion!,
-                        questionEn: e.target.value
+                        questionEn: val
                       }
                     })
                   }
@@ -2367,12 +2387,11 @@ export const SectionContentBlocksEditor: React.FC<
                         >
                           {opt.key}
                         </button>
-                        <input
+                        <MobileSafeInput
                           type="text"
-                          dir="ltr"
+                          dir="auto"
                           value={opt.textEn}
-                          onChange={(e) => {
-                            const val = e.target.value;
+                          onValueChange={(val) => {
                             const nextOpts = blk.inlineQuestion!.options.map(
                               (item, i) =>
                                 i === oIdx ? { ...item, textEn: val } : item
@@ -2391,15 +2410,15 @@ export const SectionContentBlocksEditor: React.FC<
                     );
                   })}
                 </div>
-                <input
+                <MobileSafeInput
                   type="text"
-                  dir="ltr"
+                  dir="auto"
                   value={blk.inlineQuestion.explanationEn}
-                  onChange={(e) =>
+                  onValueChange={(val) =>
                     updateBlockById(blk.id, {
                       inlineQuestion: {
                         ...blk.inlineQuestion!,
-                        explanationEn: e.target.value
+                        explanationEn: val
                       }
                     })
                   }
@@ -2412,38 +2431,39 @@ export const SectionContentBlocksEditor: React.FC<
             {blk.type === 'diagram' && (
               <div className="space-y-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input
+                  <MobileSafeInput
                     type="text"
-                    dir="ltr"
+                    dir="auto"
                     value={blk.titleEn || ''}
-                    onChange={(e) => updateBlockById(blk.id, { titleEn: e.target.value })}
+                    onValueChange={(val) => updateBlockById(blk.id, { titleEn: val })}
                     placeholder="Diagram Title (EN)..."
                     className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                   />
-                  <input
+                  <MobileSafeInput
                     type="text"
+                    dir="auto"
                     value={blk.titleAr || ''}
-                    onChange={(e) => updateBlockById(blk.id, { titleAr: e.target.value })}
+                    onValueChange={(val) => updateBlockById(blk.id, { titleAr: val })}
                     placeholder="عنوان المخطط بالعربية..."
                     className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                   />
                 </div>
-                <textarea
+                <MobileSafeTextarea
                   rows={3}
                   dir="ltr"
                   value={blk.diagramSvg || ''}
-                  onChange={(e) => updateBlockById(blk.id, { diagramSvg: e.target.value })}
+                  onValueChange={(val) => updateBlockById(blk.id, { diagramSvg: val })}
                   placeholder="<svg viewBox='0 0 400 200'>...</svg> أو اتركه فارغاً لاستخدام رابط الصورة"
                   className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono"
                 />
-                <input
+                <MobileSafeInput
                   type="url"
                   dir="ltr"
                   value={blk.externalUrl || ''}
-                  onChange={(e) =>
+                  onValueChange={(val) =>
                     updateBlockById(blk.id, {
-                      externalUrl: e.target.value,
-                      mediaUrl: e.target.value
+                      externalUrl: val,
+                      mediaUrl: val
                     })
                   }
                   placeholder="أو رابط صورة المخطط (https://...)"
@@ -2455,30 +2475,31 @@ export const SectionContentBlocksEditor: React.FC<
             {blk.type === 'pdf_viewer' && (
               <div className="space-y-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input
+                  <MobileSafeInput
                     type="text"
+                    dir="auto"
                     value={blk.titleAr || ''}
-                    onChange={(e) => updateBlockById(blk.id, { titleAr: e.target.value })}
+                    onValueChange={(val) => updateBlockById(blk.id, { titleAr: val })}
                     placeholder="عنوان ملف PDF بالعربية..."
                     className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                   />
-                  <input
+                  <MobileSafeInput
                     type="text"
                     dir="ltr"
                     value={blk.mediaFileName || ''}
-                    onChange={(e) => updateBlockById(blk.id, { mediaFileName: e.target.value })}
+                    onValueChange={(val) => updateBlockById(blk.id, { mediaFileName: val })}
                     placeholder="filename.pdf"
                     className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono"
                   />
                 </div>
-                <input
+                <MobileSafeInput
                   type="url"
                   dir="ltr"
                   value={blk.externalUrl || ''}
-                  onChange={(e) =>
+                  onValueChange={(val) =>
                     updateBlockById(blk.id, {
-                      externalUrl: e.target.value,
-                      mediaUrl: e.target.value
+                      externalUrl: val,
+                      mediaUrl: val
                     })
                   }
                   placeholder="رابط ملف PDF المباشر (https://...pdf)"
@@ -2490,27 +2511,28 @@ export const SectionContentBlocksEditor: React.FC<
             {blk.type === 'book_reference' && (
               <div className="space-y-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input
+                  <MobileSafeInput
                     type="text"
+                    dir="auto"
                     value={blk.titleAr || ''}
-                    onChange={(e) => updateBlockById(blk.id, { titleAr: e.target.value })}
+                    onValueChange={(val) => updateBlockById(blk.id, { titleAr: val })}
                     placeholder="اسم الكتاب أو الفصل..."
                     className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                   />
-                  <input
+                  <MobileSafeInput
                     type="text"
                     dir="ltr"
                     value={blk.bookId || ''}
-                    onChange={(e) => updateBlockById(blk.id, { bookId: e.target.value })}
+                    onValueChange={(val) => updateBlockById(blk.id, { bookId: val })}
                     placeholder="bookId (e.g. book-robbins-heme)"
                     className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono"
                   />
                 </div>
-                <input
+                <MobileSafeInput
                   type="url"
                   dir="ltr"
                   value={blk.externalUrl || ''}
-                  onChange={(e) => updateBlockById(blk.id, { externalUrl: e.target.value })}
+                  onValueChange={(val) => updateBlockById(blk.id, { externalUrl: val })}
                   placeholder="رابط PDF الكتاب (اختياري https://...)"
                   className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                 />
@@ -2520,26 +2542,28 @@ export const SectionContentBlocksEditor: React.FC<
             {blk.type === 'exam_link' && (
               <div className="space-y-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input
+                  <MobileSafeInput
                     type="text"
+                    dir="auto"
                     value={blk.titleAr || ''}
-                    onChange={(e) => updateBlockById(blk.id, { titleAr: e.target.value })}
+                    onValueChange={(val) => updateBlockById(blk.id, { titleAr: val })}
                     placeholder="عنوان الاختبار المرتبط..."
                     className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
                   />
-                  <input
+                  <MobileSafeInput
                     type="text"
                     dir="ltr"
                     value={blk.examId || ''}
-                    onChange={(e) => updateBlockById(blk.id, { examId: e.target.value })}
+                    onValueChange={(val) => updateBlockById(blk.id, { examId: val })}
                     placeholder="examId (e.g. exam-heme-01)"
                     className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono"
                   />
                 </div>
-                <input
+                <MobileSafeInput
                   type="text"
+                  dir="auto"
                   value={blk.text || ''}
-                  onChange={(e) => updateBlockById(blk.id, { text: e.target.value })}
+                  onValueChange={(val) => updateBlockById(blk.id, { text: val })}
                   placeholder="وصف مختصر للاختبار..."
                   className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                 />

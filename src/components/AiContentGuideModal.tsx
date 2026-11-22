@@ -1,6 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useDeferredValue, useMemo, useState } from 'react';
 import { X, Copy, Check, Sparkles, BookOpen, Languages, Download, Layers, Upload, FileText, FileJson, FileArchive } from 'lucide-react';
 import { loadMedicalBlocks, loadMedicalSubjects } from '../services/learningHierarchyService';
+import {
+  MobileSafeInput,
+  MobileSafeNumericInput,
+  MobileSafeTextarea,
+  normalizeNumericDigits
+} from './MobileSafeInput';
 
 interface AiContentGuideModalProps {
   isOpen: boolean;
@@ -15,11 +21,6 @@ type TermsOutputFormat = 'text' | 'json' | 'zip';
 
 const slugify = (value: string): string =>
   value.normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'topic';
-
-const normalizeDigits = (value: string): string =>
-  value
-    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
-    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0));
 
 export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
   isOpen,
@@ -39,28 +40,53 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
   const [includeDiagrams, setIncludeDiagrams] = useState(true);
   const [includeClinicalNotes, setIncludeClinicalNotes] = useState(true);
   const [includeQuestions, setIncludeQuestions] = useState(true);
-  const [questionCount, setQuestionCount] = useState(10);
+  const [questionCountText, setQuestionCountText] = useState('10');
   const [extraInstructions, setExtraInstructions] = useState('');
   const [termDomain, setTermDomain] = useState('General medical and academic English');
   const [termCount, setTermCount] = useState('');
   const [termsOutputFormat, setTermsOutputFormat] = useState<TermsOutputFormat>('text');
   const [copied, setCopied] = useState(false);
 
+  const parsedQuestionCount = useMemo(() => {
+    const cleaned = normalizeNumericDigits(questionCountText).replace(/[^\d]/g, '');
+    if (!cleaned) return 0;
+    const count = Number(cleaned);
+    return Number.isSafeInteger(count) && count >= 1 && count <= 100 ? count : 0;
+  }, [questionCountText]);
+
+  const effectiveQuestionCount = useMemo(() => {
+    const cleaned = normalizeNumericDigits(questionCountText).replace(/[^\d]/g, '');
+    if (!cleaned) return 0;
+    const count = Number(cleaned);
+    if (!Number.isSafeInteger(count) || count < 1) return 0;
+    return Math.min(100, count);
+  }, [questionCountText]);
+
   const parsedTermCount = useMemo(() => {
-    const cleaned = normalizeDigits(termCount).trim();
+    const cleaned = normalizeNumericDigits(termCount).replace(/[^\d]/g, '');
     if (!/^\d+$/.test(cleaned)) return 0;
     const count = Number(cleaned);
     return Number.isSafeInteger(count) && count > 0 ? count : 0;
   }, [termCount]);
+
+  const deferredTopicTitleEn = useDeferredValue(topicTitleEn);
+  const deferredTopicTitleAr = useDeferredValue(topicTitleAr);
+  const deferredExtraInstructions = useDeferredValue(extraInstructions);
+  const deferredTermDomain = useDeferredValue(termDomain);
 
   const blocks = useMemo(() => isOpen ? loadMedicalBlocks() : [], [isOpen]);
   const subjects = useMemo(() => isOpen ? loadMedicalSubjects() : [], [isOpen]);
   const selectedBlock = blocks.find((item) => item.id === selectedBlockId);
   const availableSubjects = subjects.filter((item) => item.blockId === selectedBlockId);
   const selectedSubject = availableSubjects.find((item) => item.id === selectedSubjectId);
-  const hierarchyReady = Boolean(selectedBlock && selectedSubject && topicTitleEn.trim());
+  const hierarchyReady = Boolean(
+    selectedBlock &&
+      selectedSubject &&
+      topicTitleEn.trim() &&
+      (!includeQuestions || effectiveQuestionCount >= 1)
+  );
 
-  const topicId = 'tp-' + slugify(selectedSubjectId || selectedBlockId || 'topic') + '-' + slugify(topicTitleEn);
+  const topicId = 'tp-' + slugify(selectedSubjectId || selectedBlockId || 'topic') + '-' + slugify(deferredTopicTitleEn);
   const topicPrompt = useMemo(() => {
     if (!selectedBlock || !selectedSubject) return '';
     const requestedFeatures = [
@@ -71,14 +97,14 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
       includeTables ? 'Include clinically useful comparison tables with explicit column headers and complete rows.' : '',
       includeDiagrams ? 'Include meaningful inline SVG diagrams or flowcharts. SVG must be valid, self-contained, responsive, and contain no external dependencies.' : '',
       includeClinicalNotes ? 'Include clinical pearls, red flags, common exam traps, and practical notes where relevant.' : '',
-      includeQuestions ? 'Add ' + questionCount + ' validated assessment questions using supported UMEDT types. Each question must have a correct answer and explanations in English and Arabic.' : ''
+      includeQuestions && effectiveQuestionCount > 0 ? 'Add ' + effectiveQuestionCount + ' validated assessment questions using supported UMEDT types. Each question must have a correct answer and explanations in English and Arabic.' : ''
     ].filter(Boolean);
     const topic = {
       id: topicId,
       blockId: selectedBlock.id,
       subjectId: selectedSubject.id,
-      titleEn: topicTitleEn.trim(),
-      titleAr: topicTitleAr.trim(),
+      titleEn: deferredTopicTitleEn.trim(),
+      titleAr: deferredTopicTitleAr.trim(),
       category: 'Medical',
       sections: [{
         id: 'sec-1',
@@ -117,11 +143,11 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
       }, null, 2),
       '',
       'TOPIC REQUEST:',
-      JSON.stringify({ titleEn: topicTitleEn.trim(), titleAr: topicTitleAr.trim(), level: topicLevel, depth: topicDepth }, null, 2),
+      JSON.stringify({ titleEn: deferredTopicTitleEn.trim(), titleAr: deferredTopicTitleAr.trim(), level: topicLevel, depth: topicDepth }, null, 2),
       '',
       'CONTENT REQUIREMENTS:',
       ...requestedFeatures.map((item) => '- ' + item),
-      extraInstructions.trim() ? '- Additional instructions: ' + extraInstructions.trim() : '',
+      deferredExtraInstructions.trim() ? '- Additional instructions: ' + deferredExtraInstructions.trim() : '',
       '',
       'STRICT UMEDT IMPORT CONTRACT:',
       '- Return exactly one valid JSON object. No Markdown fences, preface, commentary, or trailing text.',
@@ -139,15 +165,15 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
       'EXPECTED JSON SHAPE (illustrative fields; replace all placeholders with complete content):',
       JSON.stringify({ topics: [topic], ...(includeQuestions ? { questions } : {}) }, null, 2)
     ].filter(Boolean).join('\n');
-  }, [selectedBlock, selectedSubject, topicTitleEn, topicTitleAr, topicLevel, topicDepth, includeTables, includeDiagrams, includeClinicalNotes, includeQuestions, questionCount, extraInstructions, topicId]);
+  }, [selectedBlock, selectedSubject, deferredTopicTitleEn, deferredTopicTitleAr, topicLevel, topicDepth, includeTables, includeDiagrams, includeClinicalNotes, includeQuestions, effectiveQuestionCount, deferredExtraInstructions, topicId]);
 
   const termsPrompt = useMemo(() => {
-    if (parsedTermCount <= 0 || !termDomain.trim()) return '';
+    if (parsedTermCount <= 0 || !deferredTermDomain.trim()) return '';
 
     const sharedHeader = [
       'You are a bilingual medical and academic lexicographer preparing import-ready UMEDT dictionary records.',
       '',
-      'Generate exactly ' + parsedTermCount + ' unique English terms for this domain: ' + termDomain.trim(),
+      'Generate exactly ' + parsedTermCount + ' unique English terms for this domain: ' + deferredTermDomain.trim(),
       ''
     ];
 
@@ -247,7 +273,7 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
       'EXPECTED JSON FILE STRUCTURE:',
       jsonRecordExample
     ].join('\n');
-  }, [parsedTermCount, termDomain, termsOutputFormat]);
+  }, [parsedTermCount, deferredTermDomain, termsOutputFormat]);
 
   const generatedPrompt = mode === 'topic' ? topicPrompt : termsPrompt;
   const promptReady = mode === 'topic' ? hierarchyReady : termDomain.trim().length > 0 && parsedTermCount > 0;
@@ -323,14 +349,28 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
                     <span className="text-xs font-bold">البلوك</span>
                     <select value={selectedBlockId} onChange={(event) => { setSelectedBlockId(event.target.value); setSelectedSubjectId(''); }} className="w-full min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm">
                       <option value="">اختر بلوكاً محفوظاً</option>
-                      {blocks.map((block) => <option key={block.id} value={block.id}>{block.code} — {block.titleAr || block.titleEn}</option>)}
+                      {blocks.map((block) => (
+                        <option key={block.id} value={block.id}>
+                          {block.code} — {block.titleAr || block.titleEn}
+                          {block.titleEn && block.titleAr && block.titleEn !== block.titleAr
+                            ? ` (${block.titleEn})`
+                            : ''}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <label className="space-y-1 block">
                     <span className="text-xs font-bold">المادة</span>
                     <select value={selectedSubjectId} onChange={(event) => setSelectedSubjectId(event.target.value)} disabled={!selectedBlockId} className="w-full min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm disabled:opacity-50">
                       <option value="">اختر مادة تابعة للبلوك</option>
-                      {availableSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.code} — {subject.titleAr || subject.titleEn}</option>)}
+                      {availableSubjects.map((subject) => (
+                        <option key={subject.id} value={subject.id}>
+                          {subject.code} — {subject.titleAr || subject.titleEn}
+                          {subject.titleEn && subject.titleAr && subject.titleEn !== subject.titleAr
+                            ? ` (${subject.titleEn})`
+                            : ''}
+                        </option>
+                      ))}
                     </select>
                   </label>
                 </div>
@@ -342,8 +382,26 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
               <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-3 sm:p-4 space-y-3">
                 <h3 className="text-sm font-extrabold">بيانات الموضوع</h3>
                 <div className="grid sm:grid-cols-2 gap-3">
-                  <label className="space-y-1 block"><span className="text-xs font-bold">عنوان الموضوع بالإنجليزية *</span><input value={topicTitleEn} onChange={(event) => setTopicTitleEn(event.target.value)} placeholder="e.g. Acute Coronary Syndrome" className="w-full min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm" dir="auto" /></label>
-                  <label className="space-y-1 block"><span className="text-xs font-bold">عنوان الموضوع بالعربية</span><input value={topicTitleAr} onChange={(event) => setTopicTitleAr(event.target.value)} placeholder="المتلازمة التاجية الحادة" className="w-full min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm" dir="auto" /></label>
+                  <label className="space-y-1 block">
+                    <span className="text-xs font-bold">عنوان الموضوع بالإنجليزية *</span>
+                    <MobileSafeInput
+                      value={topicTitleEn}
+                      onValueChange={setTopicTitleEn}
+                      placeholder="e.g. Acute Coronary Syndrome"
+                      className="w-full min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm text-left focus:outline-none focus:border-emerald-500"
+                      dir="ltr"
+                    />
+                  </label>
+                  <label className="space-y-1 block">
+                    <span className="text-xs font-bold">عنوان الموضوع بالعربية</span>
+                    <MobileSafeInput
+                      value={topicTitleAr}
+                      onValueChange={setTopicTitleAr}
+                      placeholder="المتلازمة التاجية الحادة"
+                      className="w-full min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm text-right focus:outline-none focus:border-emerald-500"
+                      dir="auto"
+                    />
+                  </label>
                   <label className="space-y-1 block"><span className="text-xs font-bold">المستوى العلمي</span><select value={topicLevel} onChange={(event) => setTopicLevel(event.target.value)} className="w-full min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm"><option>Basic medical student</option><option>Intermediate medical student</option><option>Advanced medical student</option><option>Clinical / Internship level</option></select></label>
                   <label className="space-y-1 block"><span className="text-xs font-bold">عمق الشرح</span><select value={topicDepth} onChange={(event) => setTopicDepth(event.target.value)} className="w-full min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm"><option>Concise</option><option>Comprehensive</option><option>Detailed</option></select></label>
                 </div>
@@ -355,28 +413,77 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
                     { label: 'أسئلة MCQ', value: includeQuestions, set: setIncludeQuestions }
                   ].map((option) => <label key={option.label} className="flex items-center gap-2 rounded-xl bg-slate-50 dark:bg-slate-950 px-2.5 py-2 text-xs font-bold"><input type="checkbox" checked={option.value} onChange={(event) => option.set(event.target.checked)} />{option.label}</label>)}
                 </div>
-                {includeQuestions ? <label className="flex items-center gap-2 text-xs"><span>عدد الأسئلة</span><input type="number" min={1} max={100} value={questionCount} onChange={(event) => setQuestionCount(Math.max(1, Math.min(100, Number(event.target.value) || 1)))} className="w-24 min-h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-2" /></label> : null}
-                <label className="space-y-1 block"><span className="text-xs font-bold">تعليمات إضافية (اختياري)</span><textarea rows={3} value={extraInstructions} onChange={(event) => setExtraInstructions(event.target.value)} placeholder="مثلاً: اتبع ترتيب المحاضرة المرفقة، وركّز على نقاط الامتحان..." className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-3 text-sm" /></label>
+                {includeQuestions ? (
+                  <div className="flex flex-wrap items-center gap-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800 p-2.5">
+                    <label className="flex items-center gap-2 text-xs font-bold">
+                      <span>عدد الأسئلة (1 - 100)</span>
+                      <MobileSafeNumericInput
+                        value={questionCountText}
+                        onRawChange={setQuestionCountText}
+                        min={1}
+                        max={100}
+                        fallbackOnBlur={10}
+                        placeholder="10"
+                        className="w-24 min-h-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm font-mono font-bold text-center focus:outline-none focus:border-emerald-500"
+                      />
+                    </label>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {[5, 10, 20, 30].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setQuestionCountText(String(preset))}
+                          className={`min-h-8 px-2.5 rounded-lg text-[11px] font-extrabold font-mono border transition-colors ${
+                            effectiveQuestionCount === preset
+                              ? 'bg-emerald-600 text-white border-emerald-600'
+                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+                    {questionCountText.trim() !== '' && parsedQuestionCount === 0 ? (
+                      <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                        الحد المسموح من 1 إلى 100 سؤال
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+                <label className="space-y-1 block">
+                  <span className="text-xs font-bold">تعليمات إضافية (اختياري)</span>
+                  <MobileSafeTextarea
+                    rows={3}
+                    value={extraInstructions}
+                    onValueChange={setExtraInstructions}
+                    placeholder="مثلاً: اتبع ترتيب المحاضرة المرفقة، وركّز على نقاط الامتحان..."
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-3 text-sm focus:outline-none focus:border-emerald-500"
+                    dir="auto"
+                  />
+                </label>
               </div>
             </div>
           ) : (
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-3 sm:p-4 space-y-3">
               <h3 className="text-sm font-extrabold">قاموس المصطلحات العام</h3>
               <p className="text-xs text-slate-500">هذا المسار مستقل عن أي بلوك أو مادة أو موضوع. ستُستورد المصطلحات إلى القاموس المحلي، ويمكن ربطها تلقائياً بنصوص المواضيع.</p>
-              <label className="space-y-1 block"><span className="text-xs font-bold">مجال المصطلحات (وصف حر وليس ارتباطاً هرمياً)</span><input value={termDomain} onChange={(event) => setTermDomain(event.target.value)} className="w-full min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm" /></label>
+              <label className="space-y-1 block">
+                <span className="text-xs font-bold">مجال المصطلحات (وصف حر وليس ارتباطاً هرمياً)</span>
+                <MobileSafeInput
+                  value={termDomain}
+                  onValueChange={setTermDomain}
+                  className="w-full min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm focus:outline-none focus:border-emerald-500"
+                  dir="auto"
+                />
+              </label>
               <label className="space-y-1 block">
                 <span className="text-xs font-bold">عدد المصطلحات</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  dir="ltr"
+                <MobileSafeNumericInput
                   value={termCount}
-                  onChange={(event) => {
-                    const normalized = normalizeDigits(event.target.value).replace(/[^\d]/g, '');
-                    setTermCount(normalized);
-                  }}
+                  onRawChange={setTermCount}
+                  min={1}
                   placeholder="أدخل العدد المطلوب"
-                  className="w-44 min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm text-left"
+                  className="w-44 min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm font-mono text-left focus:outline-none focus:border-emerald-500"
                 />
               </label>
 

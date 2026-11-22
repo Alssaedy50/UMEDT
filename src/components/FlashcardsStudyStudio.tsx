@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { DictionaryTerm, SpacedRepetitionData } from '../types/lexicon';
 import { normalizeMedicalTermKey } from '../utils/termIdentity';
+import { MobileSafeInput } from './MobileSafeInput';
 
 export type MemorizationMode = 'flashcards' | 'mcq' | 'spelling';
 export type MemorizationScope = 'due' | 'favorites' | 'all';
@@ -1094,17 +1095,13 @@ export const FlashcardsStudyStudio: React.FC<FlashcardsStudyStudioProps> = ({
             </div>
 
             <div className="space-y-2.5">
-              <input
+              <MobileSafeInput
                 ref={spellingInputRef}
                 type="text"
                 dir="ltr"
                 value={spellingInput}
                 disabled={spellingResult !== 'idle'}
-                onChange={(e) => setSpellingInput(e.target.value)}
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="none"
-                spellCheck={false}
+                onValueChange={setSpellingInput}
                 placeholder="Type medical term in English..."
                 className="w-full min-h-[50px] px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 text-base font-mono font-bold text-slate-900 dark:text-white outline-none text-left [user-select:text]"
               />

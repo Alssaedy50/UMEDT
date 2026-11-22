@@ -52,6 +52,7 @@ import {
   openSavedDownloadFile,
   shareSavedDownloadFile
 } from '../utils/downloadHelper';
+import { MobileSafeInput, MobileSafeNumericInput } from './MobileSafeInput';
 
 interface SettingsViewProps {
   isDark: boolean;
@@ -303,6 +304,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   );
   const [draftChatId, setDraftChatId] = useState<string>(
     () => telegramConfig?.chatId || loadTelegramBackupConfig().chatId || ''
+  );
+  const [customIntervalText, setCustomIntervalText] = useState<string>(
+    () => String(telegramConfig?.customIntervalHours ?? 4)
   );
   const [showBotTokenPlain, setShowBotTokenPlain] = useState<boolean>(false);
   const [localVerifyFeedback, setLocalVerifyFeedback] = useState<string | null>(null);
@@ -1066,15 +1070,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <input
+                      <MobileSafeInput
                         ref={botTokenInputRef}
                         type={showBotTokenPlain ? 'text' : 'password'}
                         dir="ltr"
-                        autoComplete="off"
-                        spellCheck={false}
                         value={draftBotToken}
-                        onChange={(e) => {
-                          const val = e.target.value;
+                        onValueChange={(val) => {
                           setDraftBotToken(val);
                           syncAndPersistTelegramDraft({ botToken: val });
                         }}
@@ -1100,15 +1101,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
                       معرف المحادثة أو القناة (Chat ID) *
                     </label>
-                    <input
+                    <MobileSafeInput
                       ref={chatIdInputRef}
                       type="text"
                       dir="ltr"
-                      autoComplete="off"
-                      spellCheck={false}
                       value={draftChatId}
-                      onChange={(e) => {
-                        const val = e.target.value;
+                      onValueChange={(val) => {
                         setDraftChatId(val);
                         syncAndPersistTelegramDraft({ chatId: val });
                       }}
@@ -1231,22 +1229,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         <span className="font-bold text-slate-700 dark:text-slate-300 shrink-0">
                           الفاصل الزمني (بالساعات):
                         </span>
-                        <input
-                          type="number"
-                          min={0.5}
+                        <MobileSafeNumericInput
+                          allowDecimal
+                          min={0.25}
                           max={720}
-                          step={0.5}
-                          dir="ltr"
-                          value={telegramConfig.customIntervalHours ?? 4}
-                          onChange={(e) => {
-                            const v = parseFloat(e.target.value);
-                            if (!Number.isNaN(v)) {
+                          fallbackOnBlur={4}
+                          value={customIntervalText}
+                          onRawChange={setCustomIntervalText}
+                          onNumberChange={(v) => {
+                            if (v !== null && v >= 0.25) {
                               syncAndPersistTelegramDraft({
                                 customIntervalHours: Math.max(0.25, Math.min(720, v))
                               });
                             }
                           }}
-                          className="w-24 min-h-[38px] px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-center font-bold"
+                          placeholder="4"
+                          className="w-24 min-h-[38px] px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-center font-bold focus:outline-none focus:border-emerald-500"
                         />
                         <span className="text-[11px] text-slate-500">ساعة</span>
                       </div>
