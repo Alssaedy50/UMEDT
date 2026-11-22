@@ -76,6 +76,8 @@ public class MainActivity extends BridgeActivity {
 
     private TextToSpeech nativeTts;
     private volatile boolean nativeTtsReady = false;
+    private volatile boolean nativeTtsTriedGoogleFallback = false;
+    private volatile boolean nativeBridgeAttached = false;
     private volatile String pendingTtsText = null;
     private volatile String pendingTtsLang = null;
     private volatile String pendingTtsKey = null;
@@ -84,6 +86,22 @@ public class MainActivity extends BridgeActivity {
     private SpeechRecognizer nativeSpeechRecognizer;
     private volatile String pendingVoiceLang = null;
     private volatile boolean voiceRecognizerActive = false;
+
+    @Override
+    protected void load() {
+        // CRITICAL: Register JS interfaces BEFORE super.load() invokes webView.loadUrl()
+        // so Android WebView injects window.UMEDAndroidBridge and window.UMEDNativeDownloader
+        // into the initial JavaScript context on first launch (without needing a reload).
+        try {
+            View rawView = findViewById(com.getcapacitor.android.R.id.webview);
+            if (rawView instanceof WebView) {
+                attachNativeBridgeToWebView((WebView) rawView);
+            }
+        } catch (Exception ignored) {
+        }
+        super.load();
+        attachNativeDownloadBridge();
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -110,7 +128,7 @@ public class MainActivity extends BridgeActivity {
         );
         applySafeSystemBarInsets();
         attachNativeDownloadBridge();
-        initNativeTts();
+        initNativeTts(false);
     }
 
     @Override
@@ -137,12 +155,21 @@ public class MainActivity extends BridgeActivity {
         super.onDestroy();
     }
 
-    private void initNativeTts() {
-        if (nativeTts != null) {
+    private void initNativeTts(final boolean forceGoogleEngine) {
+        if (nativeTts != null && nativeTtsReady && !forceGoogleEngine) {
             return;
         }
         try {
-            nativeTts = new TextToSpeech(getApplicationContext(), status -> {
+            if (nativeTts != null) {
+                try {
+                    nativeTts.stop();
+                    nativeTts.shutdown();
+                } catch (Exception ignored) {
+                }
+                nativeTts = null;
+                nativeTtsReady = false;
+            }
+            TextToSpeech.OnInitListener listener = status -> {
                 if (status == TextToSpeech.SUCCESS && nativeTts != null) {
                     nativeTtsReady = true;
                     try {
@@ -177,9 +204,9 @@ public class MainActivity extends BridgeActivity {
                         });
                     } catch (Exception ignored) {
                     }
-                    String queuedText = pendingTtsText;
-                    String queuedLang = pendingTtsLang;
-                    String queuedKey = pendingTtsKey;
+                    final String queuedText = pendingTtsText;
+                    final String queuedLang = pendingTtsLang;
+                    final String queuedKey = pendingTtsKey;
                     pendingTtsText = null;
                     pendingTtsLang = null;
                     pendingTtsKey = null;
@@ -188,10 +215,31 @@ public class MainActivity extends BridgeActivity {
                     }
                 } else {
                     nativeTtsReady = false;
+                    if (nativeTts != null) {
+                        try {
+                            nativeTts.shutdown();
+                        } catch (Exception ignored) {
+                        }
+                        nativeTts = null;
+                    }
+                    if (!forceGoogleEngine && !nativeTtsTriedGoogleFallback) {
+                        nativeTtsTriedGoogleFallback = true;
+                        runOnUiThread(() -> initNativeTts(true));
+                    }
                 }
-            });
+            };
+            if (forceGoogleEngine) {
+                nativeTts = new TextToSpeech(getApplicationContext(), listener, "com.google.android.tts");
+            } else {
+                nativeTts = new TextToSpeech(getApplicationContext(), listener);
+            }
         } catch (Exception ignored) {
             nativeTtsReady = false;
+            nativeTts = null;
+            if (!forceGoogleEngine && !nativeTtsTriedGoogleFallback) {
+                nativeTtsTriedGoogleFallback = true;
+                runOnUiThread(() -> initNativeTts(true));
+            }
         }
     }
 
@@ -203,10 +251,11 @@ public class MainActivity extends BridgeActivity {
             Locale targetLocale = resolveLocale(lang);
             int langRes = nativeTts.setLanguage(targetLocale);
             if (langRes == TextToSpeech.LANG_MISSING_DATA || langRes == TextToSpeech.LANG_NOT_SUPPORTED) {
-                if (targetLocale.getLanguage().equalsIgnoreCase("ar")) {
-                    nativeTts.setLanguage(new Locale("ar"));
-                } else {
-                    nativeTts.setLanguage(Locale.US);
+                int fallbackRes = targetLocale.getLanguage().equalsIgnoreCase("ar")
+                        ? nativeTts.setLanguage(new Locale("ar"))
+                        : nativeTts.setLanguage(Locale.ENGLISH);
+                if (fallbackRes == TextToSpeech.LANG_MISSING_DATA || fallbackRes == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    nativeTts.setLanguage(Locale.getDefault());
                 }
             }
             nativeTts.setSpeechRate(0.92f);
@@ -217,6 +266,14 @@ public class MainActivity extends BridgeActivity {
             Bundle params = new Bundle();
             params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f);
             int speakStatus = nativeTts.speak(text.trim(), TextToSpeech.QUEUE_FLUSH, params, utteranceId);
+            if (speakStatus != TextToSpeech.SUCCESS && !nativeTtsTriedGoogleFallback) {
+                nativeTtsTriedGoogleFallback = true;
+                pendingTtsText = text.trim();
+                pendingTtsLang = lang;
+                pendingTtsKey = key;
+                runOnUiThread(() -> initNativeTts(true));
+                return true;
+            }
             return speakStatus == TextToSpeech.SUCCESS;
         } catch (Exception ignored) {
             return false;
@@ -497,12 +554,11 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    private void attachNativeDownloadBridge() {
+    private void attachNativeBridgeToWebView(WebView webView) {
+        if (webView == null) {
+            return;
+        }
         try {
-            if (this.bridge == null || this.bridge.getWebView() == null) {
-                return;
-            }
-            WebView webView = this.bridge.getWebView();
             webView.getSettings().setJavaScriptEnabled(true);
             webView.getSettings().setAllowFileAccess(true);
             webView.getSettings().setDomStorageEnabled(true);
@@ -510,14 +566,23 @@ public class MainActivity extends BridgeActivity {
             webView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
             webView.getSettings().setMediaPlaybackRequiresUserGesture(false);
 
-            UMEDNativeDownloader bridgeInstance = new UMEDNativeDownloader();
-            try {
-                webView.removeJavascriptInterface("UMEDNativeDownloader");
-                webView.removeJavascriptInterface("UMEDAndroidBridge");
-            } catch (Exception ignored) {
+            if (!nativeBridgeAttached) {
+                UMEDNativeDownloader bridgeInstance = new UMEDNativeDownloader();
+                webView.addJavascriptInterface(bridgeInstance, "UMEDNativeDownloader");
+                webView.addJavascriptInterface(bridgeInstance, "UMEDAndroidBridge");
+                nativeBridgeAttached = true;
             }
-            webView.addJavascriptInterface(bridgeInstance, "UMEDNativeDownloader");
-            webView.addJavascriptInterface(bridgeInstance, "UMEDAndroidBridge");
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void attachNativeDownloadBridge() {
+        try {
+            if (this.bridge == null || this.bridge.getWebView() == null) {
+                return;
+            }
+            WebView webView = this.bridge.getWebView();
+            attachNativeBridgeToWebView(webView);
 
             webView.setDownloadListener(new DownloadListener() {
                 @Override
@@ -634,13 +699,13 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public boolean isTtsAvailable() {
             if (nativeTts == null) {
-                MainActivity.this.runOnUiThread(MainActivity.this::initNativeTts);
+                MainActivity.this.runOnUiThread(() -> initNativeTts(false));
             }
             return true;
         }
 
         @JavascriptInterface
-        public String speakText(String text, String lang, String key) {
+        public String speakText(final String text, final String lang, final String key) {
             JSONObject res = new JSONObject();
             try {
                 if (text == null || text.trim().isEmpty()) {
@@ -648,28 +713,28 @@ public class MainActivity extends BridgeActivity {
                     res.put("error", "النص فارغ");
                     return res.toString();
                 }
-                if (nativeTts == null) {
-                    pendingTtsText = text.trim();
+                final String trimmedText = text.trim();
+                if (nativeTts == null || !nativeTtsReady) {
+                    pendingTtsText = trimmedText;
                     pendingTtsLang = lang;
                     pendingTtsKey = key;
-                    MainActivity.this.runOnUiThread(MainActivity.this::initNativeTts);
+                    if (nativeTts == null) {
+                        MainActivity.this.runOnUiThread(() -> initNativeTts(false));
+                    }
                     res.put("ok", true);
                     res.put("queued", true);
                     return res.toString();
                 }
-                if (!nativeTtsReady) {
-                    pendingTtsText = text.trim();
-                    pendingTtsLang = lang;
-                    pendingTtsKey = key;
-                    res.put("ok", true);
-                    res.put("queued", true);
-                    return res.toString();
-                }
-                boolean started = speakInternal(text, lang, key);
-                res.put("ok", started);
-                if (!started) {
-                    res.put("error", "تعذر تشغيل النطق الصوتي عبر Android TTS");
-                }
+                MainActivity.this.runOnUiThread(() -> {
+                    boolean started = speakInternal(trimmedText, lang, key);
+                    if (!started) {
+                        dispatchJsEvent(
+                                "umed-native-tts-end",
+                                "{\"key\":" + JSONObject.quote(key != null ? key : "") + ",\"error\":true}"
+                        );
+                    }
+                });
+                res.put("ok", true);
             } catch (Exception e) {
                 try {
                     res.put("ok", false);

@@ -36,7 +36,7 @@ import {
   VersionMetadata
 } from './types/lexicon';
 import {
-  syncBidirectionalLinks,
+  computeTermConcordanceAndRelations,
   autoEnrichTermRelations,
   autoEnrichAllTermsRelations,
   isLinkableSpecializedTerm
@@ -380,32 +380,78 @@ export default function App() {
   const [lastImportedOrCopiedSummary, setLastImportedOrCopiedSummary] =
     useState<ConciseDataSummary | null>(null);
 
-  // Automatic Hybrid Persistence Hooks (localStorage)
+  // Automatic Hybrid Persistence Hooks (localStorage) — skip redundant initial-mount writes
+  const persistenceMountedRef = useRef({
+    terms: false,
+    sentences: false,
+    topics: false,
+    affixes: false,
+    abbrs: false,
+    stats: false,
+    settings: false,
+    idbTerms: false,
+    idbSentences: false
+  });
+
   useEffect(() => {
-    saveTerms(terms);
+    if (!persistenceMountedRef.current.terms) {
+      persistenceMountedRef.current.terms = true;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      saveTerms(terms);
+    }, 350);
+    return () => window.clearTimeout(timer);
   }, [terms]);
 
   useEffect(() => {
-    saveSentences(sentences);
+    if (!persistenceMountedRef.current.sentences) {
+      persistenceMountedRef.current.sentences = true;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      saveSentences(sentences);
+    }, 350);
+    return () => window.clearTimeout(timer);
   }, [sentences]);
 
   useEffect(() => {
+    if (!persistenceMountedRef.current.topics) {
+      persistenceMountedRef.current.topics = true;
+      return;
+    }
     saveTopics(topics);
   }, [topics]);
 
   useEffect(() => {
+    if (!persistenceMountedRef.current.affixes) {
+      persistenceMountedRef.current.affixes = true;
+      return;
+    }
     saveCustomAffixes(customAffixes);
   }, [customAffixes]);
 
   useEffect(() => {
+    if (!persistenceMountedRef.current.abbrs) {
+      persistenceMountedRef.current.abbrs = true;
+      return;
+    }
     saveCustomAbbreviations(customAbbreviations);
   }, [customAbbreviations]);
 
   useEffect(() => {
+    if (!persistenceMountedRef.current.stats) {
+      persistenceMountedRef.current.stats = true;
+      return;
+    }
     saveStudyStats(studyStats);
   }, [studyStats]);
 
   useEffect(() => {
+    if (!persistenceMountedRef.current.settings) {
+      persistenceMountedRef.current.settings = true;
+      return;
+    }
     saveSettings({
       isDark,
       conflictPolicy,
@@ -759,13 +805,27 @@ export default function App() {
     });
   }, []);
 
-  // Sync terms and sentences into IndexedDB stores in background
+  // Sync terms and sentences into IndexedDB stores in background (skip initial mount + debounced)
   useEffect(() => {
-    void putAllInStore(IDB_STORES.TERMS, terms);
+    if (!persistenceMountedRef.current.idbTerms) {
+      persistenceMountedRef.current.idbTerms = true;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void putAllInStore(IDB_STORES.TERMS, terms);
+    }, 800);
+    return () => window.clearTimeout(timer);
   }, [terms]);
 
   useEffect(() => {
-    void putAllInStore(IDB_STORES.SENTENCES, sentences);
+    if (!persistenceMountedRef.current.idbSentences) {
+      persistenceMountedRef.current.idbSentences = true;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void putAllInStore(IDB_STORES.SENTENCES, sentences);
+    }, 800);
+    return () => window.clearTimeout(timer);
   }, [sentences]);
 
   // Sync simulatedOffline flag with Unified Cloud Library Sync Engine (NEVER auto-download remote data)
@@ -1077,19 +1137,19 @@ export default function App() {
     const maxDurationMs = Math.max(8000, Math.min(60000, cleanText.length * 180));
 
     // 1. Native Android TTS bridge (guaranteed reliable audio on Android APK WebView)
-    try {
-      const win = window as unknown as {
-        UMEDAndroidBridge?: {
-          speakText?: (t: string, l: string, k: string) => string;
-          stopSpeaking?: () => void;
-        };
-        UMEDNativeDownloader?: {
-          speakText?: (t: string, l: string, k: string) => string;
-          stopSpeaking?: () => void;
-        };
+    const win = window as unknown as {
+      UMEDAndroidBridge?: {
+        speakText?: (t: string, l: string, k: string) => string;
+        stopSpeaking?: () => void;
       };
-      const nativeBridge = win.UMEDAndroidBridge || win.UMEDNativeDownloader;
-      if (nativeBridge && typeof nativeBridge.speakText === 'function') {
+      UMEDNativeDownloader?: {
+        speakText?: (t: string, l: string, k: string) => string;
+        stopSpeaking?: () => void;
+      };
+    };
+    const nativeBridge = win.UMEDAndroidBridge || win.UMEDNativeDownloader;
+    if (nativeBridge && typeof nativeBridge.speakText === 'function') {
+      try {
         const rawRes = nativeBridge.speakText(cleanText, resolvedLang, key);
         const parsed = rawRes ? JSON.parse(rawRes) : { ok: false };
         if (parsed?.ok) {
@@ -1100,9 +1160,17 @@ export default function App() {
           }, maxDurationMs);
           return;
         }
+        setSpeakingKey(null);
+        showToast(
+          parsed?.error ||
+            'تعذر تشغيل محرك النطق الصوتي على الجهاز. تأكد من تفعيل Google Text-to-Speech في إعدادات الهاتف.'
+        );
+        return;
+      } catch {
+        setSpeakingKey(null);
+        showToast('تعذر الاتصال بمحرك النطق الصوتي في الجهاز. حاول مرة أخرى.');
+        return;
       }
-    } catch {
-      // Fall through to Web Speech API
     }
 
     // 2. Web Speech API (Chrome / Edge / Safari / Firefox / Mobile Browsers)
@@ -1466,84 +1534,164 @@ export default function App() {
     }
   };
 
-  const termLookupMap = useMemo(() => {
-    const map: Record<string, DictionaryTerm & { aliasName?: string }> = {};
-    terms.forEach((t) => {
-      if (!isLinkableSpecializedTerm(t)) return;
-      map[t.term.toLowerCase()] = t;
-    });
+  const termLookupIndex = useMemo(() => {
+    const exactMap = new Map<string, DictionaryTerm & { aliasName?: string }>();
+    const multiWordFirstWords = new Set<string>();
+    const byId = new Map<string, DictionaryTerm>();
+
+    for (let i = 0; i < terms.length; i += 1) {
+      const t = terms[i];
+      byId.set(t.id, t);
+      if (!isLinkableSpecializedTerm(t)) continue;
+      const lower = (t.term || '').trim().toLowerCase();
+      if (lower.length < 4) continue;
+      exactMap.set(lower, t);
+      const firstSpace = lower.indexOf(' ');
+      if (firstSpace > 0) {
+        multiWordFirstWords.add(lower.slice(0, firstSpace));
+      }
+    }
+
     Object.entries(EXTRA_LINKABLE_ALIASES).forEach(([alias, targetId]) => {
-      const found = terms.find((t) => t.id === targetId);
+      const found = byId.get(targetId);
       if (found && isLinkableSpecializedTerm(found)) {
-        map[alias.toLowerCase()] = {
+        const lower = alias.trim().toLowerCase();
+        if (lower.length < 4) return;
+        exactMap.set(lower, {
           ...found,
           aliasName: alias
-        };
+        });
+        const firstSpace = lower.indexOf(' ');
+        if (firstSpace > 0) {
+          multiWordFirstWords.add(lower.slice(0, firstSpace));
+        }
       }
     });
-    return map;
+
+    return { exactMap, multiWordFirstWords };
   }, [terms]);
 
-  const autoLinkRegex = useMemo(() => {
-    const keys = Object.keys(termLookupMap)
-      .filter((k) => k.length >= 4)
-      .sort((a, b) => b.length - a.length);
-    if (keys.length === 0) return null;
-    return new RegExp(
-      `(?<![a-zA-Z])(${keys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?![a-zA-Z])`,
-      'gi'
-    );
-  }, [termLookupMap]);
-
   const renderAutoLinkedText = (text: string, currentTermId?: string) => {
-    if (!autoLinkRegex) return text;
-    const segments = text.split(autoLinkRegex);
+    const { exactMap, multiWordFirstWords } = termLookupIndex;
+    if (!text || exactMap.size === 0) return text;
 
-    return segments.map((seg, index) => {
-      const matched = termLookupMap[seg.toLowerCase()];
-      if (matched && matched.id !== currentTermId) {
-        return (
-          <span
-            key={`${seg}-${index}`}
-            role="button"
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation();
-              setPreviewTerm(matched);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.stopPropagation();
-                setPreviewTerm(matched);
-              }
-            }}
-            className="inline text-emerald-600 dark:text-emerald-400 underline decoration-dotted decoration-emerald-500/70 underline-offset-4 hover:text-emerald-500 transition-colors cursor-pointer"
-          >
-            {seg}
-          </span>
-        );
+    const tokens = text.match(/[A-Za-z][A-Za-z0-9'-]*|\s+|[^A-Za-z\s]+/g);
+    if (!tokens || tokens.length === 0) return text;
+
+    const nodes: React.ReactNode[] = [];
+    let plainBuffer = '';
+    let keyCounter = 0;
+
+    const flushPlain = () => {
+      if (plainBuffer) {
+        nodes.push(<span key={`p-${keyCounter++}`}>{plainBuffer}</span>);
+        plainBuffer = '';
       }
-      return <span key={index}>{seg}</span>;
-    });
+    };
+
+    for (let i = 0; i < tokens.length; i += 1) {
+      const tok = tokens[i];
+      const firstCode = tok.charCodeAt(0);
+      const isAsciiWord =
+        (firstCode >= 65 && firstCode <= 90) || (firstCode >= 97 && firstCode <= 122);
+
+      if (isAsciiWord) {
+        const lower = tok.toLowerCase();
+        let matched: (DictionaryTerm & { aliasName?: string }) | undefined;
+        let matchedText = tok;
+        let advance = 0;
+
+        if (multiWordFirstWords.has(lower)) {
+          if (
+            i + 4 < tokens.length &&
+            /^\s+$/.test(tokens[i + 1]) &&
+            /^[A-Za-z]/.test(tokens[i + 2]) &&
+            /^\s+$/.test(tokens[i + 3]) &&
+            /^[A-Za-z]/.test(tokens[i + 4])
+          ) {
+            const phrase3 = `${lower} ${tokens[i + 2].toLowerCase()} ${tokens[i + 4].toLowerCase()}`;
+            const hit3 = exactMap.get(phrase3);
+            if (hit3 && hit3.id !== currentTermId) {
+              matched = hit3;
+              matchedText = `${tok}${tokens[i + 1]}${tokens[i + 2]}${tokens[i + 3]}${tokens[i + 4]}`;
+              advance = 4;
+            }
+          }
+          if (
+            !matched &&
+            i + 2 < tokens.length &&
+            /^\s+$/.test(tokens[i + 1]) &&
+            /^[A-Za-z]/.test(tokens[i + 2])
+          ) {
+            const phrase2 = `${lower} ${tokens[i + 2].toLowerCase()}`;
+            const hit2 = exactMap.get(phrase2);
+            if (hit2 && hit2.id !== currentTermId) {
+              matched = hit2;
+              matchedText = `${tok}${tokens[i + 1]}${tokens[i + 2]}`;
+              advance = 2;
+            }
+          }
+        }
+
+        if (!matched && lower.length >= 4) {
+          const hit1 = exactMap.get(lower);
+          if (hit1 && hit1.id !== currentTermId) {
+            matched = hit1;
+          }
+        }
+
+        if (matched) {
+          flushPlain();
+          const targetMatch = matched;
+          nodes.push(
+            <span
+              key={`l-${keyCounter++}`}
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                setPreviewTerm(targetMatch);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.stopPropagation();
+                  setPreviewTerm(targetMatch);
+                }
+              }}
+              className="inline text-emerald-600 dark:text-emerald-400 underline decoration-dotted decoration-emerald-500/70 underline-offset-4 hover:text-emerald-500 transition-colors cursor-pointer"
+            >
+              {matchedText}
+            </span>
+          );
+          i += advance;
+          continue;
+        }
+      }
+
+      plainBuffer += tok;
+    }
+
+    flushPlain();
+    return nodes;
   };
 
-  // Bidirectional Knowledge Linker (Term <-> Sentence Graph + Co-occurrence Suggestions)
-  const bidirectionalGraph = useMemo(
-    () => syncBidirectionalLinks(terms, sentences),
-    [terms, sentences]
-  );
+  // On-demand single-term Concordance & Co-occurrence lookup (0ms startup cost!)
+  const activeTermConcordanceData = useMemo(() => {
+    if (!detailTermId || !activeDetailTerm) {
+      return { occurrences: [], suggestedRelations: [] };
+    }
+    return computeTermConcordanceAndRelations(activeDetailTerm, terms, sentences);
+  }, [detailTermId, activeDetailTerm, terms, sentences]);
 
   const concordanceMatches = useMemo(() => {
-    if (!activeDetailTerm) return [];
+    if (!detailTermId || !activeDetailTerm) return [];
     const directExampleSet = new Set(
       (Array.isArray(activeDetailTerm.examples) ? activeDetailTerm.examples : []).map((e) =>
         e.en.trim().toLowerCase()
       )
     );
-    const occurrences =
-      bidirectionalGraph.termToSentencesMap[activeDetailTerm.id] || [];
 
-    return occurrences
+    return activeTermConcordanceData.occurrences
       .filter((occ) => !directExampleSet.has(occ.en.trim().toLowerCase()))
       .map((occ) => ({
         sourceTermId: occ.sourceTermId || activeDetailTerm.id,
@@ -1552,10 +1700,10 @@ export default function App() {
         en: occ.en,
         ar: occ.ar
       }));
-  }, [bidirectionalGraph, activeDetailTerm]);
+  }, [detailTermId, activeTermConcordanceData, activeDetailTerm]);
 
   const activeTermSuggestedRelations = useMemo(() => {
-    if (!activeDetailTerm) return [];
+    if (!detailTermId || !activeDetailTerm) return [];
     const existingSet = new Set(
       [
         ...(activeDetailTerm.relations.synonyms || []),
@@ -1563,12 +1711,10 @@ export default function App() {
         ...(activeDetailTerm.relations.related || [])
       ].map((r) => r.toLowerCase())
     );
-    const suggestions =
-      bidirectionalGraph.suggestedRelationsMap[activeDetailTerm.id] || [];
-    return suggestions.filter(
+    return activeTermConcordanceData.suggestedRelations.filter(
       (s) => !existingSet.has(s.relatedTerm.toLowerCase())
     );
-  }, [bidirectionalGraph, activeDetailTerm]);
+  }, [detailTermId, activeTermConcordanceData, activeDetailTerm]);
 
   const handleGraphChipClick = (label: string) => {
     const direct = terms.find((t) => t.term.toLowerCase() === label.toLowerCase());
@@ -2505,13 +2651,19 @@ export default function App() {
       (acc, s) => acc + (s.linkedTermIds?.length || 0),
       0
     );
-    const actualSizeKb = calculateActualDatabaseSizeKb(
-      terms,
-      sentences,
-      [],
-      customAbbreviations,
-      topics
-    );
+    const actualSizeKb =
+      activeTab === 'settings'
+        ? calculateActualDatabaseSizeKb(
+            terms,
+            sentences,
+            [],
+            customAbbreviations,
+            topics
+          )
+        : Math.max(
+            1,
+            Math.round(terms.length * 0.42 + sentences.length * 0.22 + topics.length * 4)
+          );
 
     return {
       totalTerms: terms.length,
@@ -2521,7 +2673,7 @@ export default function App() {
       totalGraphEdges: termGraphEdges + sentenceTermLinks,
       actualSizeKb
     };
-  }, [terms, sentences, customAbbreviations, topics]);
+  }, [activeTab, terms, sentences, customAbbreviations, topics]);
 
   const currentDataSummary = useMemo(
     () =>

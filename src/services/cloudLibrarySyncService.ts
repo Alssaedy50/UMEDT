@@ -226,6 +226,11 @@ export interface CloudLibraryStateSummary {
   cloudDictionaryTotalCount?: number;
   cloudDictionaryDownloadedCount?: number;
   cloudDictionaryUpdateCount?: number;
+  cloudTermsTotalCount?: number;
+  cloudTermsDownloadedCount?: number;
+  cloudTermsUpdateCount?: number;
+  localTermsTotalCount?: number;
+  cloudSentencesTotalCount?: number;
   catalogVersion?: string;
   books?: CloudCatalogBookEntry[];
   exams?: AcademicExamPackage[];
@@ -2919,6 +2924,12 @@ export function buildCloudLibraryCatalogView(params: {
     cloudDictionaryTotalCount,
     cloudDictionaryDownloadedCount,
     cloudDictionaryUpdateCount,
+    cloudTermsTotalCount: cloudDictTerms.length,
+    cloudTermsDownloadedCount: downloadedDictTermsCount,
+    cloudTermsUpdateCount:
+      Math.max(0, cloudDictTerms.length - downloadedDictTermsCount) + updatedDictTermsCount,
+    localTermsTotalCount: params.localTerms.length,
+    cloudSentencesTotalCount: cloudDictSentences.length,
     catalogVersion: mirror.catalogVersion,
     books: bookEntries,
     exams: visibleExams,

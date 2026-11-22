@@ -1207,6 +1207,40 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       });
   }, [cloudSummary.blocks, cloudFilterTab, cloudSearchQuery]);
 
+  // Unified accurate counts across Topics, Standalone Blocks, Books, Exams & Cloud Dictionary
+  const cloudCatalogCounts = useMemo(() => {
+    const standaloneBlocks = cloudSummary.blocks.filter(
+      (b) => b.totalTopicsCount === 0
+    );
+    const hasDictPack = (cloudSummary.cloudDictionaryTotalCount || 0) > 0 ? 1 : 0;
+    const isDictDownloaded =
+      hasDictPack === 1 &&
+      (cloudSummary.cloudTermsDownloadedCount ?? cloudSummary.cloudDictionaryDownloadedCount ?? 0) >=
+        (cloudSummary.cloudTermsTotalCount ?? cloudSummary.cloudDictionaryTotalCount ?? 0);
+
+    const allTotal =
+      cloudSummary.totalCloudTopicsCount +
+      standaloneBlocks.length +
+      (cloudSummary.totalCloudBooksCount || 0) +
+      (cloudSummary.totalCloudExamsCount || 0) +
+      hasDictPack;
+
+    const localTotal =
+      cloudSummary.downloadedTopicsCount +
+      standaloneBlocks.filter((b) => b.isDownloaded).length +
+      (cloudSummary.downloadedBooksCount || 0) +
+      (cloudSummary.downloadedExamsCount || 0) +
+      (isDictDownloaded ? 1 : 0);
+
+    const cloudOnlyTotal = Math.max(0, allTotal - localTotal);
+    return { allTotal, localTotal, cloudOnlyTotal };
+  }, [cloudSummary]);
+
+  const hasFavoriteFlashcards = useMemo(
+    () => terms.some((t) => t.favorite),
+    [terms]
+  );
+
   return (
     <div className="space-y-4 pb-8">
       {/* ====================================================================
@@ -1225,7 +1259,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <Cloud className="w-5 h-5" />
               </div>
               <span className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[11px] font-extrabold font-mono tabular-nums">
-                {cloudSummary.downloadedTopicsCount}/{cloudSummary.totalCloudTopicsCount}
+                {cloudSummary.totalCloudTopicsCount > 0
+                  ? `${cloudSummary.downloadedTopicsCount}/${cloudSummary.totalCloudTopicsCount}`
+                  : `${cloudCatalogCounts.localTotal}/${cloudCatalogCounts.allTotal}`}
               </span>
             </div>
 
@@ -1277,7 +1313,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <PlusCircle className="w-5 h-5" />
               </div>
               <span className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[11px] font-extrabold font-mono tabular-nums">
-                {customAddedTerms.length}
+                {terms.length.toLocaleString()}
               </span>
             </div>
 
@@ -1286,7 +1322,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 استيراد وإضافة
               </h3>
               <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                <span>ملفات · يدوي</span>
+                <span>{customAddedTerms.length > 0 ? `${customAddedTerms.length.toLocaleString()} مضاف` : 'ملفات · يدوي'}</span>
                 <ChevronLeft className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               </div>
             </div>
@@ -1422,7 +1458,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 >
                   <span className="truncate">الكل</span>
                   <span className="font-mono text-[10px] opacity-80">
-                    ({cloudSummary.totalCloudTopicsCount})
+                    ({cloudCatalogCounts.allTotal})
                   </span>
                 </button>
                 <button
@@ -1436,7 +1472,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 >
                   <span className="truncate">المكتبة المحلية</span>
                   <span className="font-mono text-[10px] opacity-85">
-                    ({cloudSummary.downloadedTopicsCount})
+                    ({cloudCatalogCounts.localTotal})
                   </span>
                 </button>
                 <button
@@ -1450,7 +1486,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 >
                   <span className="truncate">المكتبة السحابية</span>
                   <span className="font-mono text-[10px] opacity-85">
-                    ({Math.max(0, cloudSummary.totalCloudTopicsCount - cloudSummary.downloadedTopicsCount)})
+                    ({cloudCatalogCounts.cloudOnlyTotal})
                   </span>
                 </button>
               </div>
@@ -1842,15 +1878,45 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 cloudSummary.cloudDictionaryUpdateCount ?? Math.max(0, totalDict - downloadedDict);
               const isFullyUpToDate = downloadedDict >= totalDict && pendingUpdates === 0;
               const isUpdateOnly = downloadedDict >= totalDict && pendingUpdates > 0;
+              const cloudTermsTotal = cloudSummary.cloudTermsTotalCount ?? 0;
+              const cloudTermsDownloaded = cloudSummary.cloudTermsDownloadedCount ?? 0;
+              const cloudSentencesTotal = cloudSummary.cloudSentencesTotalCount ?? 0;
+              const localOnlyExtraTerms = Math.max(0, terms.length - cloudTermsDownloaded);
+
+              if (cloudFilterTab === 'local' && downloadedDict === 0) return null;
+              if (cloudFilterTab === 'cloud' && isFullyUpToDate) return null;
+
               return (
                 <div className="pt-2 space-y-2 border-t border-slate-100 dark:border-slate-800">
                   <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 flex items-center justify-between gap-2.5 text-xs">
-                    <div className="min-w-0 flex-1 space-y-0.5">
+                    <div className="min-w-0 flex-1 space-y-1">
                       <div className="font-extrabold text-slate-900 dark:text-white leading-snug">
                         قاموس المصطلحات السحابي
                       </div>
-                      <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-                        {downloadedDict}/{totalDict} عنصر ·{' '}
+                      <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300 leading-relaxed">
+                        إجمالي قاموسك المحلي:{' '}
+                        <strong className="font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
+                          {terms.length.toLocaleString()}
+                        </strong>{' '}
+                        مصطلح
+                        {localOnlyExtraTerms > 0 && (
+                          <span className="text-slate-500 dark:text-slate-400">
+                            {' '}
+                            (منها {localOnlyExtraTerms.toLocaleString()} مستورد محلياً)
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 font-mono tabular-nums flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                        <span>
+                          السحابي: {cloudTermsDownloaded.toLocaleString()}/{cloudTermsTotal.toLocaleString()} مصطلح
+                        </span>
+                        {cloudSentencesTotal > 0 && (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span>{cloudSentencesTotal.toLocaleString()} جملة</span>
+                          </>
+                        )}
+                        <span aria-hidden="true">·</span>
                         <span
                           className={
                             isFullyUpToDate
@@ -2586,7 +2652,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 بطاقات الاستذكار (SM-2)
               </span>
               <span className="text-[11px] font-mono text-slate-500">
-                {(currentCardIdx % Math.max(1, flashcardPool.length)) + 1} / {flashcardPool.length}
+                {(currentCardIdx % Math.max(1, flashcardPool.length)) + 1} / {flashcardPool.length}{' '}
+                <span className="font-sans text-[10px]">
+                  {hasFavoriteFlashcards
+                    ? '(المفضلة)'
+                    : `(جلسة من ${terms.length.toLocaleString()} مصطلح)`}
+                </span>
               </span>
             </div>
           </div>
@@ -2599,7 +2670,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               >
                 <div className="absolute top-4 left-4 right-4 flex items-center justify-between text-xs text-slate-400">
                   <span className="font-mono">{currentFlashcard.category}</span>
-                  <span>{isFlipped ? 'الإجابة' : 'انقر للقلب'}</span>
+                  <span>{isFlipped ? 'الإجابة' : 'المصطلح'}</span>
                 </div>
 
                 {!isFlipped ? (

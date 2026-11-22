@@ -90,76 +90,92 @@ const CONTENT_BLOCK_TYPE_META: Record<
   }
 > = {
   heading: {
-    labelEn: 'Heading / Subheading',
-    labelAr: 'عنوان فرعي أكاديمي',
+    labelEn: 'Heading',
+    labelAr: 'عنوان فرعي',
     icon: Type
   },
   paragraph: {
-    labelEn: 'Paragraph Explanation',
+    labelEn: 'Paragraph',
     labelAr: 'فقرة شرح علمي',
     icon: AlignLeft
   },
+  clinical_note: {
+    labelEn: 'Clinical Note',
+    labelAr: 'ملاحظة سريرية',
+    icon: AlertCircle
+  },
   table: {
     labelEn: 'Comparison Table',
-    labelAr: 'جدول مقارنة طبي',
+    labelAr: 'جدول مقارنة',
     icon: TableIcon
   },
   image: {
-    labelEn: 'Image / Diagram',
-    labelAr: 'صورة أو مخطط توضيحي',
+    labelEn: 'Image',
+    labelAr: 'صورة توضيحية',
     icon: ImageIcon
   },
+  diagram: {
+    labelEn: 'SVG Diagram',
+    labelAr: 'مخطط تفاعلي',
+    icon: GitBranch
+  },
+  audio: {
+    labelEn: 'Audio / Voice',
+    labelAr: 'صوت أو تسجيل',
+    icon: Mic
+  },
   video: {
-    labelEn: 'Video File / Player',
-    labelAr: 'ملف فيديو أو مشغل مرئي',
+    labelEn: 'Video / Link',
+    labelAr: 'فيديو أو رابط مرئي',
     icon: Video
   },
   video_link: {
-    labelEn: 'Video / Reference Link',
-    labelAr: 'فيديو أو رابط مرجعي',
+    labelEn: 'Video Link',
+    labelAr: 'رابط فيديو مرجعي',
     icon: Video
   },
-  audio: {
-    labelEn: 'Audio / Voice Recording',
-    labelAr: 'صوت أو تسجيل ميكروفون',
-    icon: Mic
-  },
   attachment: {
-    labelEn: 'File / PDF Attachment',
-    labelAr: 'ملف PDF أو مستند مرفق',
+    labelEn: 'PDF / File',
+    labelAr: 'ملف PDF أو مستند',
     icon: Paperclip
   },
-  question: {
-    labelEn: 'Inline Interactive Question',
-    labelAr: 'سؤال تفاعلي مدمج بالشرح',
-    icon: HelpCircle
-  },
-  clinical_note: {
-    labelEn: 'Clinical Correlation / High-Yield Note',
-    labelAr: 'ملاحظة سريرية أو تنبيه امتحاني',
-    icon: AlertCircle
-  },
-  diagram: {
-    labelEn: 'SVG Diagram / Flowchart',
-    labelAr: 'مخطط أو رسم تفاعلي',
-    icon: GitBranch
-  },
   pdf_viewer: {
-    labelEn: 'Interactive PDF Reader',
-    labelAr: 'عارض PDF تفاعلي',
+    labelEn: 'PDF Reader',
+    labelAr: 'عارض PDF',
     icon: FileText
   },
+  question: {
+    labelEn: 'Quiz Question',
+    labelAr: 'سؤال تفاعلي',
+    icon: HelpCircle
+  },
   book_reference: {
-    labelEn: 'Academic Book Reference',
+    labelEn: 'Book Reference',
     labelAr: 'مرجع كتاب أكاديمي',
     icon: BookOpen
   },
   exam_link: {
-    labelEn: 'Exam / Quiz Link',
-    labelAr: 'رابط اختبار تفاعلي',
+    labelEn: 'Exam Link',
+    labelAr: 'رابط اختبار',
     icon: GraduationCap
   }
 };
+
+// Deduplicated picker order (video supports both file & URL; attachment supports both PDF & documents)
+const PICKER_CONTENT_BLOCK_TYPES: ContentBlockType[] = [
+  'heading',
+  'paragraph',
+  'clinical_note',
+  'table',
+  'image',
+  'diagram',
+  'audio',
+  'video',
+  'attachment',
+  'question',
+  'book_reference',
+  'exam_link'
+];
 
 // ============================================================================
 // 1. INLINE READER COMPONENT (Renders ContentBlocks in exact pedagogical order)
@@ -2559,30 +2575,28 @@ export const SectionContentBlocksEditor: React.FC<
               </button>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {(Object.keys(CONTENT_BLOCK_TYPE_META) as ContentBlockType[]).map(
-                (bType) => {
-                  const meta = CONTENT_BLOCK_TYPE_META[bType];
-                  const IconComp = meta.icon;
-                  return (
-                    <button
-                      key={bType}
-                      type="button"
-                      onClick={() => addNewContentBlock(bType)}
-                      className="min-h-[48px] p-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 text-right flex items-center gap-2 transition-colors"
-                    >
-                      <IconComp className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-xs font-extrabold truncate">
-                          {meta.labelAr}
-                        </p>
-                        <p dir="ltr" className="text-[10px] text-slate-500 truncate">
-                          {meta.labelEn}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                }
-              )}
+              {PICKER_CONTENT_BLOCK_TYPES.map((bType) => {
+                const meta = CONTENT_BLOCK_TYPE_META[bType];
+                const IconComp = meta.icon;
+                return (
+                  <button
+                    key={bType}
+                    type="button"
+                    onClick={() => addNewContentBlock(bType)}
+                    className="min-h-[52px] p-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 text-right flex items-center gap-2 transition-colors"
+                  >
+                    <IconComp className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-extrabold leading-snug whitespace-normal break-words">
+                        {meta.labelAr}
+                      </p>
+                      <p dir="ltr" className="text-[10px] text-slate-500 leading-tight truncate">
+                        {meta.labelEn}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

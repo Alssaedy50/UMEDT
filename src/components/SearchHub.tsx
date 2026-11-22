@@ -104,8 +104,9 @@ export const SearchHub: React.FC<SearchHubProps> = ({
   onAddNewTermFromQuery,
   showToast
 }) => {
-  const [visibleLimit, setVisibleLimit] = React.useState<number>(250);
+  const [visibleLimit, setVisibleLimit] = React.useState<number>(60);
   const [draftQuery, setDraftQuery] = React.useState(searchQuery);
+  const deferredDraftQuery = React.useDeferredValue(draftQuery);
   const [isSearchFocused, setIsSearchFocused] = React.useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = React.useState(-1);
   const [isVoiceListening, setIsVoiceListening] = React.useState(false);
@@ -377,36 +378,71 @@ export const SearchHub: React.FC<SearchHubProps> = ({
   };
 
   React.useEffect(() => {
-    setVisibleLimit(250);
+    setVisibleLimit(60);
   }, [searchQuery, searchScope, selectedCategory]);
+
+  const indexedTerms = useMemo(
+    () =>
+      terms.map((item) => {
+        const termLower = (item.term || '').toLowerCase();
+        const transLower = (item.translation || '').toLowerCase();
+        const metaLower = `${item.umdCode || ''} ${item.specialty || ''}`.toLowerCase();
+        const defLower = `${item.definitionAr || ''} ${item.definitionEn || ''} ${item.clinicalNote || ''}`.toLowerCase();
+        const exLower = (Array.isArray(item.examples) ? item.examples : [])
+          .map((ex) => `${ex.en || ''} ${ex.ar || ''}`)
+          .join(' ')
+          .toLowerCase();
+        const synLowers = (item.relations?.synonyms || []).map((v) => v.toLowerCase());
+        return {
+          item,
+          termLower,
+          transLower,
+          metaLower,
+          defLower,
+          exLower,
+          synLowers
+        };
+      }),
+    [terms]
+  );
 
   const filteredTerms = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return terms.filter((item) => {
-      if (selectedCategory !== 'All' && item.category !== selectedCategory) {
-        return false;
+    const results: DictionaryTerm[] = [];
+    for (let i = 0; i < indexedTerms.length; i += 1) {
+      const entry = indexedTerms[i];
+      if (selectedCategory !== 'All' && entry.item.category !== selectedCategory) {
+        continue;
       }
-      if (!q) return true;
+      if (!q) {
+        results.push(entry.item);
+        continue;
+      }
 
       const inTerm =
-        (item.term || '').toLowerCase().includes(q) ||
-        (item.translation || '').toLowerCase().includes(q) ||
-        (item.umdCode && item.umdCode.toLowerCase().includes(q)) ||
-        (item.specialty && item.specialty.toLowerCase().includes(q));
-      const inDef =
-        (item.definitionAr || '').toLowerCase().includes(q) ||
-        (item.definitionEn || '').toLowerCase().includes(q) ||
-        (item.clinicalNote && item.clinicalNote.toLowerCase().includes(q));
-      const inExamples = (Array.isArray(item.examples) ? item.examples : []).some(
-        (ex) => (ex.en || '').toLowerCase().includes(q) || (ex.ar || '').toLowerCase().includes(q)
-      );
-
-      if (searchScope === 'terms') return inTerm;
-      if (searchScope === 'definitions') return inDef;
-      if (searchScope === 'examples') return inExamples;
-      return inTerm || inDef || inExamples;
-    });
-  }, [terms, searchQuery, searchScope, selectedCategory]);
+        entry.termLower.includes(q) ||
+        entry.transLower.includes(q) ||
+        entry.metaLower.includes(q);
+      if (searchScope === 'terms') {
+        if (inTerm) results.push(entry.item);
+        continue;
+      }
+      const inDef = entry.defLower.includes(q);
+      if (searchScope === 'definitions') {
+        if (inDef) results.push(entry.item);
+        continue;
+      }
+      const inExamples = entry.exLower.includes(q);
+      if (searchScope === 'examples') {
+        if (inExamples) results.push(entry.item);
+        continue;
+      }
+      if (inTerm || inDef || inExamples) {
+        results.push(entry.item);
+      }
+    }
+    return results;
+  }, [indexedTerms, searchQuery, searchScope, selectedCategory]);
 
   const recentTerms = useMemo(() => {
     const termMap = new Map(terms.map((t) => [t.id, t]));
@@ -441,30 +477,31 @@ export const SearchHub: React.FC<SearchHubProps> = ({
   };
 
   const suggestedTerms = useMemo(() => {
-    const query = draftQuery.trim().toLocaleLowerCase();
+    const query = deferredDraftQuery.trim().toLowerCase();
     if (!query) return [];
 
-    return terms
-      .filter((item) => selectedCategory === 'All' || item.category === selectedCategory)
-      .map((item) => {
-        const term = item.term.toLocaleLowerCase();
-        const translation = item.translation.toLocaleLowerCase();
-        const synonyms = (item.relations?.synonyms || []).map((value) =>
-          value.toLocaleLowerCase()
-        );
-        let score = Number.POSITIVE_INFINITY;
+    const scored: { item: DictionaryTerm; score: number }[] = [];
+    for (let i = 0; i < indexedTerms.length; i += 1) {
+      const entry = indexedTerms[i];
+      if (selectedCategory !== 'All' && entry.item.category !== selectedCategory) {
+        continue;
+      }
+      let score = Number.POSITIVE_INFINITY;
 
-        if (term === query) score = 0;
-        else if (term.startsWith(query)) score = 1;
-        else if (synonyms.some((value) => value === query)) score = 2;
-        else if (synonyms.some((value) => value.startsWith(query))) score = 3;
-        else if (translation.startsWith(query)) score = 4;
-        else if (term.includes(query) || synonyms.some((value) => value.includes(query))) score = 5;
-        else if (translation.includes(query)) score = 6;
+      if (entry.termLower === query) score = 0;
+      else if (entry.termLower.startsWith(query)) score = 1;
+      else if (entry.synLowers.some((value) => value === query)) score = 2;
+      else if (entry.synLowers.some((value) => value.startsWith(query))) score = 3;
+      else if (entry.transLower.startsWith(query)) score = 4;
+      else if (entry.termLower.includes(query) || entry.synLowers.some((value) => value.includes(query))) score = 5;
+      else if (entry.transLower.includes(query)) score = 6;
 
-        return { item, score };
-      })
-      .filter((entry) => Number.isFinite(entry.score))
+      if (Number.isFinite(score)) {
+        scored.push({ item: entry.item, score });
+      }
+    }
+
+    return scored
       .sort(
         (a, b) =>
           a.score - b.score ||
@@ -472,7 +509,7 @@ export const SearchHub: React.FC<SearchHubProps> = ({
       )
       .slice(0, 6)
       .map((entry) => entry.item);
-  }, [terms, draftQuery, selectedCategory]);
+  }, [indexedTerms, deferredDraftQuery, selectedCategory]);
 
   const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -542,13 +579,15 @@ export const SearchHub: React.FC<SearchHubProps> = ({
 
   const highlightMatch = (text: string, query: string) => {
     if (!query || !query.trim()) return text;
-    const escaped = query.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const trimmed = query.trim();
+    const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
+    const lowerTarget = trimmed.toLowerCase();
     return parts.map((part, idx) =>
-      part.toLowerCase() === query.trim().toLowerCase() ? (
+      part.toLowerCase() === lowerTarget ? (
         <mark
           key={idx}
-          className="bg-emerald-500/25 text-emerald-900 dark:text-emerald-200 px-1 rounded font-semibold"
+          className="bg-emerald-500/25 text-emerald-900 dark:text-emerald-200 px-0 rounded-[2px] font-semibold"
         >
           {part}
         </mark>
@@ -1072,18 +1111,22 @@ export const SearchHub: React.FC<SearchHubProps> = ({
                 <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
                   <button
                     type="button"
-                    onClick={() => setVisibleLimit((prev) => prev + 250)}
+                    onClick={() => setVisibleLimit((prev) => prev + 80)}
                     className="min-h-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold transition-colors"
                   >
-                    عرض 250 نتيجة إضافية (المتبقي {(filteredTerms.length - visibleLimit).toLocaleString()})
+                    عرض {Math.min(80, filteredTerms.length - visibleLimit).toLocaleString()} نتيجة إضافية (المتبقي {(filteredTerms.length - visibleLimit).toLocaleString()})
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setVisibleLimit(filteredTerms.length)}
-                    className="min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold transition-colors"
-                  >
-                    عرض الكل ({filteredTerms.length.toLocaleString()})
-                  </button>
+                  {filteredTerms.length - visibleLimit > 80 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVisibleLimit((prev) => Math.min(filteredTerms.length, prev + 250))
+                      }
+                      className="min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold transition-colors"
+                    >
+                      +{Math.min(250, filteredTerms.length - visibleLimit).toLocaleString()} نتيجة
+                    </button>
+                  )}
                 </div>
               )}
             </>
