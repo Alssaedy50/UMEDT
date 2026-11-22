@@ -42,6 +42,14 @@ import {
   isLinkableSpecializedTerm
 } from './engine/knowledgeLinker';
 import {
+  normalizeMedicalTermKey,
+  getCanonicalTermKey,
+  createTermLookupIndex,
+  registerTermInIndex,
+  resolveIncomingTermMatch,
+  mergeMatchedTermRecord
+} from './utils/termIdentity';
+import {
   loadAppState,
   saveTerms,
   saveSentences,
@@ -1807,37 +1815,23 @@ export default function App() {
   ) => {
     let savedTargetTerm: DictionaryTerm = newTerm;
     setTerms((prevTerms) => {
-      const existingIdx = prevTerms.findIndex(
-        (t) => t.term.toLowerCase() === newTerm.term.toLowerCase()
-      );
-      let targetTerm = newTerm;
-      let rawNextTerms: DictionaryTerm[];
-      if (existingIdx !== -1) {
-        const existing = prevTerms[existingIdx];
-        rawNextTerms = [...prevTerms];
-        targetTerm = {
-          ...existing,
-          ...newTerm,
-          id: existing.id,
-          collections: Array.from(
-            new Set([...(existing.collections || []), ...(newTerm.collections || [])])
-          ),
-          linkedTopicIds: Array.from(
-            new Set([...(existing.linkedTopicIds || []), ...(newTerm.linkedTopicIds || [])])
-          ),
-          linkedSubjectIds: Array.from(
-            new Set([
-              ...(existing.linkedSubjectIds || []),
-              ...(newTerm.linkedSubjectIds || [])
-            ])
-          ),
-          linkedBlockIds: Array.from(
-            new Set([...(existing.linkedBlockIds || []), ...(newTerm.linkedBlockIds || [])])
-          )
-        };
-        rawNextTerms[existingIdx] = targetTerm;
+      const rawNextTerms = [...prevTerms];
+      const termIndex = createTermLookupIndex(rawNextTerms);
+      const resolution = resolveIncomingTermMatch(termIndex, rawNextTerms, newTerm);
+      let targetTerm: DictionaryTerm;
+      if (resolution.matchIndex !== -1) {
+        const existing = rawNextTerms[resolution.matchIndex];
+        targetTerm = mergeMatchedTermRecord(existing, newTerm, 'merge', {
+          preferIncomingContent: true
+        });
+        rawNextTerms[resolution.matchIndex] = targetTerm;
       } else {
-        rawNextTerms = [newTerm, ...prevTerms];
+        targetTerm = {
+          ...newTerm,
+          id: resolution.safeId,
+          termNormalized: resolution.normKey || normalizeMedicalTermKey(newTerm.term)
+        };
+        rawNextTerms.unshift(targetTerm);
       }
       savedTargetTerm = targetTerm;
       const nextTerms = autoEnrichTermRelations(targetTerm, rawNextTerms);
@@ -2137,15 +2131,31 @@ export default function App() {
         if (Array.isArray(inner.terms) && inner.terms.length > 0) {
           setTerms((prev) => {
             if (mode === 'replace') return inner.terms;
-            const map = new Map(prev.map((t) => [t.term.toLowerCase(), t]));
+            const nextTerms = [...prev];
+            const termIndex = createTermLookupIndex(nextTerms);
             for (const t of inner.terms) {
-              if (t && t.term) {
-                const key = t.term.toLowerCase();
-                if (mode === 'ignore' && map.has(key)) continue;
-                map.set(key, t);
+              if (!t || !t.term) continue;
+              const resolution = resolveIncomingTermMatch(termIndex, nextTerms, t);
+              if (resolution.matchIndex !== -1) {
+                if (mode === 'ignore') continue;
+                nextTerms[resolution.matchIndex] = mergeMatchedTermRecord(
+                  nextTerms[resolution.matchIndex],
+                  t,
+                  'merge',
+                  { preferIncomingContent: true }
+                );
+              } else {
+                const newRecord: DictionaryTerm = {
+                  ...t,
+                  id: resolution.safeId,
+                  termNormalized: resolution.normKey || normalizeMedicalTermKey(t.term)
+                };
+                const nextIdx = nextTerms.length;
+                nextTerms.push(newRecord);
+                registerTermInIndex(termIndex, newRecord, nextIdx);
               }
             }
-            return Array.from(map.values());
+            return nextTerms;
           });
         }
         if (Array.isArray(inner.sentences) && inner.sentences.length > 0) {
@@ -2416,10 +2426,11 @@ export default function App() {
     incomingAbbreviations?: ClinicalAbbreviation[];
     stayOnCurrentTab?: boolean;
   }) => {
+    const existingCanonicalKeys = new Set(terms.map((existing) => getCanonicalTermKey(existing)).filter(Boolean));
     const createdTermsByKey = new Map<string, DictionaryTerm>();
     for (const staged of stagedTerms) {
-      const key = staged.term.trim().toLowerCase();
-      if (!key || terms.some(existing => existing.term.toLowerCase() === key) || createdTermsByKey.has(key)) continue;
+      const key = normalizeMedicalTermKey(staged.term);
+      if (!key || existingCanonicalKeys.has(key) || createdTermsByKey.has(key)) continue;
       createdTermsByKey.set(key, {
         id: `u-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         term: staged.term,
@@ -2443,7 +2454,7 @@ export default function App() {
     const incomingNewAffixes = incomingAffixes.filter(item => !customAffixes.some(existing => existing.cleanKey.toLowerCase() === item.cleanKey.toLowerCase()));
     const incomingNewAbbreviations = incomingAbbreviations.filter(item => !customAbbreviations.some(existing => existing.abbr.toLowerCase() === item.abbr.toLowerCase()));
     const hasExistingChanges = termExampleEnhancements.length > 0 ||
-      (conflictPolicy !== 'ignore' && stagedTerms.some(staged => terms.some(existing => existing.term.toLowerCase() === staged.term.toLowerCase())));
+      (conflictPolicy !== 'ignore' && stagedTerms.some(staged => existingCanonicalKeys.has(normalizeMedicalTermKey(staged.term))));
 
     let addedCount = 0;
     let updatedCount = 0;
@@ -2494,53 +2505,52 @@ export default function App() {
         }
       });
 
+      const termIndex = createTermLookupIndex(nextTerms);
       stagedTerms.forEach((staged) => {
         const stagedExamples = Array.isArray(staged.examples) ? staged.examples : [];
-        const existingIndex = nextTerms.findIndex(
-          (t) => t.term.toLowerCase() === staged.term.toLowerCase()
-        );
+        const normKey = normalizeMedicalTermKey(staged.term);
+        if (!normKey) return;
+        const incomingCandidate: DictionaryTerm = {
+          id: `u-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          term: staged.term,
+          termNormalized: normKey,
+          translation: staged.translation,
+          phonetic: staged.phonetic,
+          pos: staged.pos,
+          category: staged.category,
+          umdCode: staged.umdCode,
+          keepEnglish: true,
+          favorite: false,
+          collections: ['مستورد حديثاً'],
+          ingestedAt: 'الآن · تحديث مباشر',
+          definitionAr: staged.definitionAr,
+          definitionEn: staged.definitionEn,
+          examples: stagedExamples,
+          relations: staged.relations
+        };
+        const resolution = resolveIncomingTermMatch(termIndex, nextTerms, incomingCandidate);
 
-        if (existingIndex !== -1) {
+        if (resolution.matchIndex !== -1) {
           if (conflictPolicy === 'ignore') return;
-          if (conflictPolicy === 'overwrite') {
-            nextTerms[existingIndex] = {
-              ...nextTerms[existingIndex],
-              term: staged.term,
-              termNormalized: staged.term.toLowerCase(),
-              translation: staged.translation,
-              phonetic: staged.phonetic,
-              pos: staged.pos,
-              category: staged.category,
-              umdCode: staged.umdCode || nextTerms[existingIndex].umdCode,
-              definitionAr: staged.definitionAr,
-              definitionEn: staged.definitionEn,
-              examples: stagedExamples,
-              relations: staged.relations,
-              ingestedAt: 'الآن · تحديث مباشر'
-            };
-            updatedCount += 1;
-          } else if (conflictPolicy === 'merge') {
-            const current = nextTerms[existingIndex];
-            const mergedExamples = [
-              ...(Array.isArray(current.examples) ? current.examples : [])
-            ];
-            stagedExamples.forEach((ex) => {
-              if (!mergedExamples.some((e) => e.en === ex.en)) {
-                mergedExamples.push(ex);
-              }
-            });
-            nextTerms[existingIndex] = {
-              ...current,
-              translation: staged.translation || current.translation,
-              definitionAr: staged.definitionAr || current.definitionAr,
-              examples: mergedExamples,
-              ingestedAt: 'الآن · دمج ذكي'
-            };
-            updatedCount += 1;
-          }
+          const existing = nextTerms[resolution.matchIndex];
+          nextTerms[resolution.matchIndex] = mergeMatchedTermRecord(
+            existing,
+            incomingCandidate,
+            conflictPolicy,
+            {
+              preferIncomingContent: conflictPolicy === 'overwrite' || conflictPolicy === 'merge',
+              ingestedAtLabel: conflictPolicy === 'overwrite' ? 'الآن · تحديث مباشر' : 'الآن · دمج ذكي'
+            }
+          );
+          updatedCount += 1;
         } else {
-          const created = createdTermsByKey.get(staged.term.trim().toLowerCase());
-          if (created) nextTerms.unshift(created);
+          const created = createdTermsByKey.get(normKey) || {
+            ...incomingCandidate,
+            id: resolution.safeId
+          };
+          const nextIdx = nextTerms.length;
+          nextTerms.push(created);
+          registerTermInIndex(termIndex, created, nextIdx);
           addedCount += 1;
         }
       });

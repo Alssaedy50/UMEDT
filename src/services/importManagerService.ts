@@ -32,6 +32,12 @@ import {
   createDataBackupSnapshot,
   restoreDataBackupById
 } from './storageService';
+import {
+  createTermLookupIndex,
+  registerTermInIndex,
+  resolveIncomingTermMatch,
+  mergeMatchedTermRecord
+} from '../utils/termIdentity';
 
 export const IMPORT_HISTORY_STORAGE_KEY = 'umed2_import_history_v1';
 
@@ -162,52 +168,46 @@ export async function executeAtomicMedicalImport(params: {
   };
 
   try {
-    // 2. Merge Terms
-    const termMap = new Map<string, DictionaryTerm>();
-    for (const t of existingTerms) {
-      termMap.set(t.termNormalized || t.term.toLowerCase().trim(), t);
-    }
-
+    // 2. Merge Terms (unified normalized-term-first deduplication + strict ID & user-state preservation)
     const nextTerms = [...existingTerms];
+    const termIndex = createTermLookupIndex(nextTerms);
     for (const incoming of params.terms || []) {
       if (!incoming.term || !incoming.term.trim()) continue;
-      const key = incoming.termNormalized || incoming.term.toLowerCase().trim();
-      const existing = termMap.get(key);
+      const resolution = resolveIncomingTermMatch(termIndex, nextTerms, incoming);
+      const existing =
+        resolution.matchIndex !== -1 ? nextTerms[resolution.matchIndex] : undefined;
 
       if (!existing) {
-        nextTerms.push(incoming);
-        termMap.set(key, incoming);
+        const newRecord: DictionaryTerm = {
+          ...incoming,
+          id: resolution.safeId,
+          termNormalized: resolution.normKey || incoming.termNormalized
+        };
+        const nextIdx = nextTerms.length;
+        nextTerms.push(newRecord);
+        registerTermInIndex(termIndex, newRecord, nextIdx);
         summary.termsAdded++;
-        addGroupId('terms', incoming.id, incoming);
+        addGroupId('terms', newRecord.id, newRecord);
       } else {
         if (params.conflictPolicy === 'overwrite') {
           requiresReview = true;
-          reviewReasons.push('توجد مصطلحات سابقة تم استبدالها.');
-          const idx = nextTerms.findIndex((t) => t.id === existing.id);
-          if (idx !== -1) {
-            nextTerms[idx] = { ...incoming, id: existing.id };
-          }
+          reviewReasons.push('توجد مصطلحات سابقة تم استبدالها مع الحفاظ على المعرفات وتقدم المراجعة.');
+          nextTerms[resolution.matchIndex] = mergeMatchedTermRecord(
+            existing,
+            incoming,
+            'overwrite',
+            { preferIncomingContent: true }
+          );
           summary.termsUpdated++;
         } else if (params.conflictPolicy === 'merge') {
           requiresReview = true;
           reviewReasons.push('دُمجت بيانات جديدة داخل مصطلحات موجودة مسبقاً.');
-          // Merge examples and relations
-          const idx = nextTerms.findIndex((t) => t.id === existing.id);
-          if (idx !== -1) {
-            const mergedExamples = [...existing.examples];
-            for (const eg of incoming.examples || []) {
-              if (!mergedExamples.some((e) => e.en === eg.en)) {
-                mergedExamples.push(eg);
-              }
-            }
-            nextTerms[idx] = {
-              ...existing,
-              translation: incoming.translation || existing.translation,
-              definitionAr: incoming.definitionAr || existing.definitionAr,
-              definitionEn: incoming.definitionEn || existing.definitionEn,
-              examples: mergedExamples
-            };
-          }
+          nextTerms[resolution.matchIndex] = mergeMatchedTermRecord(
+            existing,
+            incoming,
+            'merge',
+            { preferIncomingContent: true }
+          );
           summary.termsUpdated++;
         } else {
           // ignore

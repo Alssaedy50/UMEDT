@@ -50,6 +50,10 @@ import {
   normalizeMediaAssetRecord,
   normalizeQuizQuestionRecord
 } from './learningHierarchyService';
+import {
+  getCanonicalTermKey,
+  mergeMatchedTermRecord
+} from '../utils/termIdentity';
 
 /**
  * UMED-2 Separated Version Architecture
@@ -4595,7 +4599,7 @@ export async function buildSecurityTestZipArchive(
  */
 
 export function normalizeTermNaturalKey(term: Pick<DictionaryTerm, 'term' | 'termNormalized'>): string {
-  return (term.termNormalized || term.term || '').trim().toLowerCase();
+  return getCanonicalTermKey(term);
 }
 
 export function normalizeSentenceNaturalKey(sentence: Pick<LinkedSentence, 'en'>): string {
@@ -5146,79 +5150,44 @@ export function resolveTermConflictRecord(
   if (strategy === 'keep-existing') {
     return {
       ...existing,
-      favorite: Boolean(existing.favorite || incoming.favorite),
-      collections: Array.from(
-        new Set([...(existing.collections || []), ...(incoming.collections || [])])
-      ),
-      srsData: existing.srsData || incoming.srsData
-    };
-  }
-
-  const mergedExamples = [...(existing.examples || [])];
-  const seenEx = new Set(mergedExamples.map((e) => e.en.trim().toLowerCase()));
-  for (const ex of incoming.examples || []) {
-    const k = ex.en.trim().toLowerCase();
-    if (k && !seenEx.has(k)) {
-      seenEx.add(k);
-      mergedExamples.push(ex);
-    }
-  }
-
-  const mergedRelations = {
-    synonyms: Array.from(
-      new Set([...(existing.relations?.synonyms || []), ...(incoming.relations?.synonyms || [])])
-    ),
-    broader: Array.from(
-      new Set([...(existing.relations?.broader || []), ...(incoming.relations?.broader || [])])
-    ),
-    related: Array.from(
-      new Set([...(existing.relations?.related || []), ...(incoming.relations?.related || [])])
-    )
-  };
-
-  if (strategy === 'overwrite-existing') {
-    return {
-      ...existing,
-      ...incoming,
       id: existing.id,
-      termNormalized: normalizeTermNaturalKey(incoming),
+      termNormalized: getCanonicalTermKey(existing) || existing.termNormalized,
       favorite: Boolean(existing.favorite || incoming.favorite),
       collections: Array.from(
         new Set([...(existing.collections || []), ...(incoming.collections || [])])
       ),
       srsData: existing.srsData || incoming.srsData,
-      examples: mergedExamples,
-      relations: mergedRelations
+      lastStudiedAt: existing.lastStudiedAt || incoming.lastStudiedAt,
+      studyCount:
+        existing.studyCount !== undefined || incoming.studyCount !== undefined
+          ? Math.max(existing.studyCount ?? 0, incoming.studyCount ?? 0)
+          : undefined
     };
   }
 
-  // 'smart-merge': keep non-empty incoming fields while enriching definitions, examples, and relations
+  if (strategy === 'overwrite-existing') {
+    return mergeMatchedTermRecord(existing, incoming, 'overwrite', {
+      preferIncomingContent: true
+    });
+  }
+
+  // 'smart-merge': enrich with longer/non-empty definitions, merged examples & relations,
+  // while strictly preserving existing.id and all user study state.
+  const baseMerged = mergeMatchedTermRecord(existing, incoming, 'merge', {
+    preferIncomingContent: true
+  });
   return {
-    ...existing,
-    term: incoming.term || existing.term,
-    termNormalized: normalizeTermNaturalKey(existing),
-    translation: incoming.translation?.trim() || existing.translation,
-    phonetic: incoming.phonetic?.trim() || existing.phonetic,
-    pos: incoming.pos?.trim() || existing.pos,
-    category: incoming.category || existing.category,
-    specialty: incoming.specialty || existing.specialty,
-    umdCode: incoming.umdCode || existing.umdCode,
+    ...baseMerged,
     definitionAr:
-      incoming.definitionAr && incoming.definitionAr.length >= (existing.definitionAr?.length || 0)
+      incoming.definitionAr &&
+      incoming.definitionAr.trim().length >= (existing.definitionAr?.trim().length || 0)
         ? incoming.definitionAr
         : existing.definitionAr || incoming.definitionAr,
     definitionEn:
-      incoming.definitionEn && incoming.definitionEn.length >= (existing.definitionEn?.length || 0)
+      incoming.definitionEn &&
+      incoming.definitionEn.trim().length >= (existing.definitionEn?.trim().length || 0)
         ? incoming.definitionEn
-        : existing.definitionEn || incoming.definitionEn,
-    favorite: Boolean(existing.favorite || incoming.favorite),
-    collections: Array.from(
-      new Set([...(existing.collections || []), ...(incoming.collections || [])])
-    ),
-    srsData: existing.srsData || incoming.srsData,
-    examples: mergedExamples,
-    morphology: incoming.morphology || existing.morphology,
-    relations: mergedRelations
+        : existing.definitionEn || incoming.definitionEn
   };
 }
 

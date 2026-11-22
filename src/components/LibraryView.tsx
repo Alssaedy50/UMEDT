@@ -2,7 +2,6 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Bookmark,
   Layers,
-  RotateCcw,
   Check,
   X,
   Volume2,
@@ -47,6 +46,11 @@ import {
   lookupQuickWordOrPhraseAr
 } from '../engine/hybridTranslator';
 import { parseUploadedFile } from '../services/fileParserService';
+import {
+  normalizeMedicalTermKey,
+  getCanonicalTermKey
+} from '../utils/termIdentity';
+import { FlashcardsStudyStudio } from './FlashcardsStudyStudio';
 import {
   ConciseDataSummary,
   buildConciseDataSummary
@@ -171,36 +175,6 @@ interface LibraryViewProps {
   showToast?: (message: string, type?: string) => void;
 }
 
-function computeNextSm2(
-  current: SpacedRepetitionData | undefined,
-  knewIt: boolean
-): SpacedRepetitionData {
-  const prevInterval = current?.interval ?? 1;
-  const prevEase = current?.easeFactor ?? 2.5;
-  const prevReps = current?.repetitions ?? 0;
-
-  if (!knewIt) {
-    return {
-      interval: 1,
-      easeFactor: Math.max(1.3, prevEase - 0.2),
-      repetitions: 0,
-      nextReviewAt: Date.now() + 10 * 60 * 1000
-    };
-  }
-
-  const nextReps = prevReps + 1;
-  const nextInterval =
-    nextReps === 1 ? 1 : nextReps === 2 ? 3 : Math.round(prevInterval * prevEase);
-  const nextEase = Math.min(3.0, prevEase + 0.1);
-
-  return {
-    interval: nextInterval,
-    easeFactor: Number(nextEase.toFixed(2)),
-    repetitions: nextReps,
-    nextReviewAt: Date.now() + nextInterval * 24 * 60 * 60 * 1000
-  };
-}
-
 export const LibraryView: React.FC<LibraryViewProps> = ({
   terms,
   sentences,
@@ -231,10 +205,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [libraryMode, setLibraryMode] = useState<LibrarySubMode>(initialMode || 'hub');
   const [favoritesTab, setFavoritesTab] = useState<'terms' | 'sentences' | 'topics' | 'custom'>('terms');
   const [favSearchQuery, setFavSearchQuery] = useState('');
-
-  // Flashcards state
-  const [currentCardIdx, setCurrentCardIdx] = useState(0);
-  const [isFlipped, setIsFlipped] = useState(false);
 
   // Unified Cloud Library & Selective Download state
   const [cloudFilterTab, setCloudFilterTab] = useState<'all' | 'local' | 'cloud'>('all');
@@ -372,7 +342,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   }, [initialMode, initialDraftTerm, onInitialModeConsumed]);
 
   const existingTermSet = useMemo(
-    () => new Set(terms.map((t) => t.term.normalize('NFKC').toLowerCase().replace(/[’‘]/g, "'").replace(/[‐‑‒–—]/g, '-').replace(/[^a-z0-9'-]+/g, ' ').replace(/\s+/g, ' ').trim())),
+    () => new Set(terms.map((t) => getCanonicalTermKey(t)).filter(Boolean)),
     [terms]
   );
 
@@ -437,33 +407,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     sentences.filter((s) => s.favorite).length +
     topics.filter((t) => t.favorite).length;
 
-  // Flashcards pool
-  const flashcardPool = useMemo(() => {
-    const favPool = terms.filter((t) => t.favorite);
-    const base = favPool.length > 0 ? [...favPool] : terms.slice(0, 35);
+  // Study due count for Hub Card 4 badge
+  const dueFlashcardsCount = useMemo(() => {
     const now = Date.now();
-    return base.sort((a, b) => {
-      const dueA = a.srsData?.nextReviewAt ?? 0;
-      const dueB = b.srsData?.nextReviewAt ?? 0;
-      const isDueA = dueA <= now ? 0 : 1;
-      const isDueB = dueB <= now ? 0 : 1;
-      if (isDueA !== isDueB) return isDueA - isDueB;
-      return dueA - dueB;
-    });
+    const dueCount = terms.filter(
+      (t) => t.term?.trim() && t.translation?.trim() && (!t.srsData || t.srsData.nextReviewAt <= now)
+    ).length;
+    return dueCount > 0 ? dueCount : terms.length;
   }, [terms]);
-
-  const currentFlashcard =
-    flashcardPool.length > 0 ? flashcardPool[currentCardIdx % flashcardPool.length] : null;
-
-  const handleFlashcardDecision = (knewIt: boolean) => {
-    if (!currentFlashcard) return;
-    const nextSrs = computeNextSm2(currentFlashcard.srsData, knewIt);
-    onRecordSm2Review('term', currentFlashcard.id, nextSrs, knewIt);
-    setIsFlipped(false);
-    setTimeout(() => {
-      setCurrentCardIdx((prev) => (prev + 1) % Math.max(1, flashcardPool.length));
-    }, 140);
-  };
 
   // Offline auto-assist using local morphology + GC-NMT engine + common vocabulary fallback
   const handleAutoAssistOffline = () => {
@@ -610,7 +561,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     const newTermObj: DictionaryTerm = {
       id: newId,
       term: cleanEn,
-      termNormalized: cleanEn.toLowerCase(),
+      termNormalized: normalizeMedicalTermKey(cleanEn),
       translation: cleanAr,
       phonetic: manualPhonetic.trim(),
       pos: 'term',
@@ -773,7 +724,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           related: []
         },
         selected: true,
-        isDuplicate: existingTermSet.has(tEn.normalize('NFKC').toLowerCase().replace(/[’‘]/g, "'").replace(/[‐‑‒–—]/g, '-').replace(/[^a-z0-9'-]+/g, ' ').replace(/\s+/g, ' ').trim())
+        isDuplicate: existingTermSet.has(normalizeMedicalTermKey(tEn))
       });
     });
 
@@ -1236,11 +1187,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     return { allTotal, localTotal, cloudOnlyTotal };
   }, [cloudSummary]);
 
-  const hasFavoriteFlashcards = useMemo(
-    () => terms.some((t) => t.favorite),
-    [terms]
-  );
-
   return (
     <div className="space-y-4 pb-8">
       {/* ====================================================================
@@ -1339,16 +1285,16 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <Layers className="w-5 h-5" />
               </div>
               <span className="px-2 py-0.5 rounded-lg bg-sky-500/10 text-sky-700 dark:text-sky-300 text-[11px] font-extrabold font-mono tabular-nums">
-                {flashcardPool.length}
+                {dueFlashcardsCount.toLocaleString()}
               </span>
             </div>
 
             <div className="space-y-0.5 min-w-0">
               <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
-                المراجعة
+                الاستذكار والاختبار
               </h3>
               <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                <span>بطاقات ذكية</span>
+                <span>بطاقات · اختيار · كتابة</span>
                 <ChevronLeft className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               </div>
             </div>
@@ -2634,106 +2580,17 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       )}
 
       {/* ====================================================================
-          MODE 4: SM-2 SPACED REPETITION FLASHCARDS
+          MODE 4: SMART STUDY STUDIO (SM-2 FLASHCARDS + MCQ + SPELLING QUIZ)
          ==================================================================== */}
       {libraryMode === 'flashcards' && (
-        <div className="max-w-xl mx-auto space-y-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => setLibraryMode('hub')}
-              className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5"
-            >
-              <ArrowRight className="w-4 h-4" />
-              <span>رجوع</span>
-            </button>
-            <div className="text-left">
-              <span className="text-xs font-extrabold text-slate-900 dark:text-white block">
-                بطاقات الاستذكار (SM-2)
-              </span>
-              <span className="text-[11px] font-mono text-slate-500">
-                {(currentCardIdx % Math.max(1, flashcardPool.length)) + 1} / {flashcardPool.length}{' '}
-                <span className="font-sans text-[10px]">
-                  {hasFavoriteFlashcards
-                    ? '(المفضلة)'
-                    : `(جلسة من ${terms.length.toLocaleString()} مصطلح)`}
-                </span>
-              </span>
-            </div>
-          </div>
-
-          {currentFlashcard ? (
-            <>
-              <div
-                onClick={() => setIsFlipped(!isFlipped)}
-                className="bg-white dark:bg-slate-900 rounded-3xl p-7 sm:p-10 border-2 border-slate-200/90 dark:border-slate-800 shadow-lg min-h-[260px] flex flex-col items-center justify-center text-center cursor-pointer select-none transition-all hover:border-emerald-500/40 relative overflow-hidden"
-              >
-                <div className="absolute top-4 left-4 right-4 flex items-center justify-between text-xs text-slate-400">
-                  <span className="font-mono">{currentFlashcard.category}</span>
-                  <span>{isFlipped ? 'الإجابة' : 'المصطلح'}</span>
-                </div>
-
-                {!isFlipped ? (
-                  <div className="space-y-3 my-4">
-                    <h3
-                      dir="ltr"
-                      className="text-2xl sm:text-3xl font-mono font-extrabold text-slate-900 dark:text-white tracking-tight break-words"
-                    >
-                      {currentFlashcard.term}
-                    </h3>
-                    <p className="text-sm font-mono text-slate-400">
-                      {currentFlashcard.phonetic}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onTriggerTTS(currentFlashcard.term, `fc-tts-${currentFlashcard.id}`);
-                      }}
-                      className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:text-emerald-600"
-                    >
-                      <Volume2 className="w-3.5 h-3.5" />
-                      <span>نطق</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3 my-4 max-w-md">
-                    <span className="inline-block px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-lg font-extrabold">
-                      {currentFlashcard.translation}
-                    </span>
-                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                      {currentFlashcard.definitionAr}
-                    </p>
-                  </div>
-                )}
-
-                <div className="absolute bottom-4 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-bold">
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>قلب البطاقة</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleFlashcardDecision(false)}
-                  className="min-h-[46px] py-2.5 px-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 hover:bg-rose-100 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                  <span>أحتاج لمراجعتها</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleFlashcardDecision(true)}
-                  className="min-h-[46px] py-2.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition-colors"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>أتقنتها</span>
-                </button>
-              </div>
-            </>
-          ) : null}
-        </div>
+        <FlashcardsStudyStudio
+          terms={terms}
+          onBack={() => setLibraryMode('hub')}
+          onTriggerTTS={onTriggerTTS}
+          onRecordSm2Review={onRecordSm2Review}
+          onToggleFavoriteTerm={onToggleFavoriteTerm}
+          onOpenTermDetail={onOpenTermDetail}
+        />
       )}
 
       {/* ====================================================================

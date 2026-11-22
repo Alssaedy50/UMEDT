@@ -103,6 +103,13 @@ import {
   autoEnrichAllTermsRelations
 } from '../engine/knowledgeLinker';
 import {
+  getCanonicalTermKey,
+  createTermLookupIndex,
+  registerTermInIndex,
+  resolveIncomingTermMatch,
+  mergeMatchedTermRecord
+} from '../utils/termIdentity';
+import {
   runHybridGcNmtPipeline,
   decomposeMedicalWord,
   resolveAbbreviationInContext
@@ -1468,47 +1475,30 @@ function mergeValidatedCollections(
     };
   }
 
-  // Merge or Ignore mode for Terms
+  // Merge or Ignore mode for Terms (O(N) unified normalized-term-first deduplication + ID preservation)
   const nextTerms = [...current.terms];
+  const termIndex = createTermLookupIndex(nextTerms);
   for (const inc of incoming.terms) {
-    const existingIdx = nextTerms.findIndex(
-      (t) =>
-        t.id === inc.id ||
-        t.termNormalized === inc.termNormalized ||
-        t.term.toLowerCase() === inc.term.toLowerCase()
-    );
+    if (!inc || !inc.term?.trim()) continue;
+    const resolution = resolveIncomingTermMatch(termIndex, nextTerms, inc);
 
-    if (existingIdx !== -1) {
+    if (resolution.matchIndex !== -1) {
       if (mode === 'ignore') continue;
-      const prev = nextTerms[existingIdx];
-      const mergedExamples = [...(prev.examples || [])];
-      for (const ex of inc.examples || []) {
-        if (!mergedExamples.some((e) => e.en.toLowerCase() === ex.en.toLowerCase())) {
-          mergedExamples.push(ex);
-        }
-      }
-      nextTerms[existingIdx] = {
-        ...prev,
-        ...inc,
-        id: prev.id,
-        favorite: prev.favorite || inc.favorite,
-        collections: Array.from(new Set([...(prev.collections || []), ...(inc.collections || [])])),
-        srsData: prev.srsData || inc.srsData,
-        examples: mergedExamples,
-        relations: {
-          synonyms: Array.from(
-            new Set([...(prev.relations?.synonyms || []), ...(inc.relations?.synonyms || [])])
-          ),
-          broader: Array.from(
-            new Set([...(prev.relations?.broader || []), ...(inc.relations?.broader || [])])
-          ),
-          related: Array.from(
-            new Set([...(prev.relations?.related || []), ...(inc.relations?.related || [])])
-          )
-        }
-      };
+      nextTerms[resolution.matchIndex] = mergeMatchedTermRecord(
+        nextTerms[resolution.matchIndex],
+        inc,
+        'merge',
+        { preferIncomingContent: true }
+      );
     } else {
-      nextTerms.unshift(inc);
+      const newRecord: DictionaryTerm = {
+        ...inc,
+        id: resolution.safeId,
+        termNormalized: resolution.normKey || inc.termNormalized
+      };
+      const nextIdx = nextTerms.length;
+      nextTerms.push(newRecord);
+      registerTermInIndex(termIndex, newRecord, nextIdx);
     }
   }
 
@@ -4085,8 +4075,9 @@ function mergePersonalDataIntoRestoredPayload(
     const currentTermById = new Map<string, DictionaryTerm>();
     const currentTermByNorm = new Map<string, DictionaryTerm>();
     for (const ct of currentState.terms) {
-      currentTermById.set(ct.id, ct);
-      currentTermByNorm.set(ct.termNormalized || ct.term.toLowerCase(), ct);
+      if (ct.id && !currentTermById.has(ct.id)) currentTermById.set(ct.id, ct);
+      const normKey = getCanonicalTermKey(ct);
+      if (normKey && !currentTermByNorm.has(normKey)) currentTermByNorm.set(normKey, ct);
     }
 
     const restoredTermIds = new Set<string>();
@@ -4094,11 +4085,20 @@ function mergePersonalDataIntoRestoredPayload(
 
     for (let i = 0; i < restoredTerms.length; i++) {
       const rt = restoredTerms[i];
-      const norm = rt.termNormalized || rt.term.toLowerCase();
+      const norm = getCanonicalTermKey(rt);
       restoredTermIds.add(rt.id);
-      restoredTermNorms.add(norm);
+      if (norm) restoredTermNorms.add(norm);
 
-      const match = currentTermById.get(rt.id) || currentTermByNorm.get(norm);
+      let match = norm ? currentTermByNorm.get(norm) : undefined;
+      if (!match) {
+        const idCand = currentTermById.get(rt.id);
+        if (idCand) {
+          const candNorm = getCanonicalTermKey(idCand);
+          if (!norm || !candNorm || candNorm === norm) {
+            match = idCand;
+          }
+        }
+      }
       if (match) {
         const nextFav = Boolean(rt.favorite || match.favorite);
         const nextSrs = match.srsData || rt.srsData;
@@ -4112,15 +4112,20 @@ function mergePersonalDataIntoRestoredPayload(
           ...rt,
           favorite: nextFav,
           collections: nextCols,
-          srsData: nextSrs
+          srsData: nextSrs,
+          lastStudiedAt: match.lastStudiedAt || rt.lastStudiedAt,
+          studyCount:
+            match.studyCount !== undefined || rt.studyCount !== undefined
+              ? Math.max(match.studyCount ?? 0, rt.studyCount ?? 0)
+              : undefined
         };
       }
     }
 
     // Preserve personal manually added terms that were not part of the older dictionary package
     for (const ct of currentState.terms) {
-      const norm = ct.termNormalized || ct.term.toLowerCase();
-      if (!restoredTermIds.has(ct.id) && !restoredTermNorms.has(norm)) {
+      const norm = getCanonicalTermKey(ct);
+      if (!restoredTermIds.has(ct.id) && (!norm || !restoredTermNorms.has(norm))) {
         if (
           isPersonalManualTerm(ct) ||
           ct.favorite ||
@@ -4129,7 +4134,7 @@ function mergePersonalDataIntoRestoredPayload(
         ) {
           restoredTerms.unshift(JSON.parse(JSON.stringify(ct)));
           restoredTermIds.add(ct.id);
-          restoredTermNorms.add(norm);
+          if (norm) restoredTermNorms.add(norm);
           preservedPersonalTermsCount += 1;
           if (ct.favorite) preservedFavoritesCount += 1;
           if (ct.srsData) preservedSrsCount += 1;
@@ -5455,50 +5460,55 @@ export function applyPartialDatabaseUpdate(
         return true;
       });
 
-      const byKey = new Map<string, number>();
-      const byId = new Map<string, number>();
       const working = [...filtered];
-      working.forEach((t, idx) => {
-        byKey.set(normalizeTermNaturalKey(t), idx);
-        byId.set(t.id, idx);
-      });
+      const termIndex = createTermLookupIndex(working);
 
       for (const inc of patch.terms || []) {
         if (!inc || !inc.term?.trim() || !inc.translation?.trim()) {
           m.skipped += 1;
           continue;
         }
-        const normKey = normalizeTermNaturalKey(inc);
-        const existingIdx = byKey.get(normKey) ?? byId.get(inc.id);
+        const resolution = resolveIncomingTermMatch(termIndex, working, inc);
 
-        if (existingIdx !== undefined) {
-          const existing = working[existingIdx];
+        if (resolution.matchIndex !== -1) {
+          const existing = working[resolution.matchIndex];
           const diffs = compareTermRecordConflicts(existing, inc);
           if (diffs.length > 0) {
             m.conflictsResolved += 1;
           }
           if (strategy === 'keep-existing') {
             m.skipped += 1;
-            working[existingIdx] = resolveTermConflictRecord(existing, inc, 'keep-existing');
+            working[resolution.matchIndex] = resolveTermConflictRecord(
+              existing,
+              inc,
+              'keep-existing'
+            );
           } else if (strategy === 'overwrite-existing') {
             m.updated += 1;
-            working[existingIdx] = resolveTermConflictRecord(existing, inc, 'overwrite-existing');
+            working[resolution.matchIndex] = resolveTermConflictRecord(
+              existing,
+              inc,
+              'overwrite-existing'
+            );
           } else {
             m.merged += 1;
-            working[existingIdx] = resolveTermConflictRecord(existing, inc, 'smart-merge');
+            working[resolution.matchIndex] = resolveTermConflictRecord(
+              existing,
+              inc,
+              'smart-merge'
+            );
           }
         } else {
           const newRecord: DictionaryTerm = {
             ...inc,
-            id: inc.id || `term-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            termNormalized: normKey,
+            id: resolution.safeId,
+            termNormalized: resolution.normKey || normalizeTermNaturalKey(inc),
             examples: inc.examples || [],
             relations: inc.relations || { synonyms: [], broader: [], related: [] }
           };
           const newIdx = working.length;
           working.push(newRecord);
-          byKey.set(normKey, newIdx);
-          byId.set(newRecord.id, newIdx);
+          registerTermInIndex(termIndex, newRecord, newIdx);
           m.inserted += 1;
         }
       }

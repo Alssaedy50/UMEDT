@@ -21,6 +21,12 @@ import {
   computeSha256Hex
 } from '../src/services/dataPlatformService';
 import {
+  normalizeMedicalTermKey,
+  createTermLookupIndex,
+  resolveIncomingTermMatch,
+  mergeMatchedTermRecord
+} from '../src/utils/termIdentity';
+import {
   DEFAULT_ONLINE_UPDATE_CONFIG,
   STORAGE_KEYS,
   executeAtomicPackageImport,
@@ -2515,11 +2521,11 @@ async function main() {
     assertCondition(
       resilientDownload.success &&
         lipoMatches.length === 1 &&
-        lipoMatches[0].id === 'term-lipoprotein-a' &&
+        lipoMatches[0].id === 'ai-local-lipoprotein-a' &&
         lipoMatches[0].favorite === true &&
         lipoMatches[0].collections.includes('Lipids-Local') &&
         lipoMatches[0].phonetic === '/ˌlɪp.oʊˈproʊ.tiːn eɪ/',
-      'Cloud dictionary download must merge cleanly with locally imported terms (zero duplicates, full user-state preservation)'
+      'Cloud dictionary download must merge cleanly with locally imported terms (zero duplicates, strict existing ID & user-state preservation)'
     );
     // Restore original mock mirror for subsequent tests
     await syncWithRemoteCloudLibrary({
@@ -5620,8 +5626,131 @@ QUESTION || single_choice || Which vessels unite to form the basilar artery? || 
     }
   }
 
+  // 27. Unified Medical Term Duplicate Detection (Normalized Term Primary, Auxiliary ID Collision Guard & User-State Preservation)
+  {
+    assertCondition(
+      normalizeMedicalTermKey('Anti-Inflammatory') === normalizeMedicalTermKey('anti–inflammatory') &&
+        normalizeMedicalTermKey('Anti-Inflammatory') === normalizeMedicalTermKey('anti   inflammatory') &&
+        normalizeMedicalTermKey("Crohn's Disease") === normalizeMedicalTermKey('Crohn’s disease') &&
+        normalizeMedicalTermKey("Crohn's Disease") === normalizeMedicalTermKey('Crohns disease') &&
+        normalizeMedicalTermKey('C. difficile') === normalizeMedicalTermKey('C difficile') &&
+        normalizeMedicalTermKey('α-Blocker') === normalizeMedicalTermKey('α blocker'),
+      'Unified term normalization must treat hyphens, dashes, punctuation, apostrophes, case, and whitespace equivalently while keeping Greek letters'
+    );
+
+    const baseTerm = {
+      id: 'local-stable-id-anti-inf',
+      term: 'Anti-inflammatory',
+      termNormalized: 'anti-inflammatory', // legacy format stored on disk
+      translation: 'مضاد للالتهاب',
+      phonetic: '/ˌæn.ti.ɪnˈflæm.ə.tɔːr.i/',
+      pos: 'adjective',
+      category: 'Medical' as const,
+      specialty: 'Pharmacology',
+      keepEnglish: true,
+      favorite: true,
+      collections: ['Core-Pharm'],
+      ingestedAt: '2026-10-01',
+      definitionAr: 'دواء يقلل الالتهاب والتورم',
+      definitionEn: 'A substance that reduces inflammation.',
+      clinicalNote: 'Monitor GI bleeding risk with NSAIDs',
+      examples: [{ en: 'Ibuprofen is an anti-inflammatory agent.', ar: 'الإيبوبروفين عامل مضاد للالتهاب.' }],
+      relations: { synonyms: ['antiphlogistic'], broader: [], related: ['NSAID'] },
+      srsData: { interval: 6, easeFactor: 2.6, repetitions: 3, nextReviewAt: Date.now() + 86400000 },
+      studyCount: 4,
+      linkedTopicIds: ['topic-inflammation']
+    };
+
+    const idx = createTermLookupIndex([baseTerm]);
+
+    // 27a. Same medical term with different punctuation/spaces & different incoming ID must match by normalized name and preserve local ID
+    const variantIncoming = {
+      ...baseTerm,
+      id: 'cloud-different-id-999',
+      term: '  anti  inflammatory ',
+      termNormalized: '',
+      translation: '',
+      definitionAr: '',
+      definitionEn: 'Updated definition from cloud.',
+      favorite: false,
+      collections: ['Cloud-Pack'],
+      examples: [{ en: 'Corticosteroids have potent anti-inflammatory effects.', ar: 'للكورتيكوستيرويدات تأثيرات قوية مضادة للالتهاب.' }],
+      srsData: undefined,
+      clinicalNote: ''
+    };
+    const matchRes = resolveIncomingTermMatch(idx, [baseTerm], variantIncoming);
+    assertCondition(
+      matchRes.matchIndex === 0 && matchRes.matchReason === 'normalized-term' && matchRes.safeId === 'local-stable-id-anti-inf',
+      'Variant term name with different incoming ID must match existing local term primarily via normalized name'
+    );
+    const mergedVariant = mergeMatchedTermRecord(baseTerm, variantIncoming, 'merge', {
+      preferIncomingContent: true
+    });
+    assertCondition(
+      mergedVariant.id === 'local-stable-id-anti-inf' &&
+        mergedVariant.favorite === true &&
+        mergedVariant.collections.includes('Core-Pharm') &&
+        mergedVariant.collections.includes('Cloud-Pack') &&
+        mergedVariant.translation === 'مضاد للالتهاب' &&
+        mergedVariant.definitionAr === 'دواء يقلل الالتهاب والتورم' &&
+        mergedVariant.clinicalNote === 'Monitor GI bleeding risk with NSAIDs' &&
+        mergedVariant.srsData?.repetitions === 3 &&
+        mergedVariant.studyCount === 4 &&
+        mergedVariant.examples.length === 2,
+      'Non-destructive merge must preserve existing ID, user study state, clinicalNote, and non-empty fields while merging new examples'
+    );
+
+    // 27b. Different medical term accidentally colliding with an existing ID must NOT overwrite the existing term
+    const idCollisionIncoming = {
+      ...baseTerm,
+      id: 'local-stable-id-anti-inf',
+      term: 'Antipyretic',
+      termNormalized: 'antipyretic',
+      translation: 'خافض للحرارة'
+    };
+    const collisionRes = resolveIncomingTermMatch(idx, [baseTerm], idCollisionIncoming);
+    assertCondition(
+      collisionRes.matchIndex === -1 &&
+        collisionRes.matchReason === 'id-collision-new' &&
+        collisionRes.safeId !== 'local-stable-id-anti-inf',
+      'Unrelated ID collision must protect existing local term and assign a safe non-colliding ID'
+    );
+
+    // 27c. End-to-end atomic import deduplication across hyphen/space variants & ID preservation
+    const beforeTerms = loadAppState().terms;
+    saveTerms([baseTerm, ...beforeTerms.filter((t) => t.id !== baseTerm.id)]);
+    const atomicDedupRes = await executeAtomicMedicalImport({
+      sourceName: 'dedup-verification.json',
+      sourceType: 'json',
+      conflictPolicy: 'merge',
+      terms: [variantIncoming, idCollisionIncoming]
+    });
+    const afterDedupTerms = loadAppState().terms;
+    const antiMatches = afterDedupTerms.filter(
+      (t) => normalizeMedicalTermKey(t.term) === 'anti inflammatory'
+    );
+    const antipyreticMatches = afterDedupTerms.filter(
+      (t) => normalizeMedicalTermKey(t.term) === 'antipyretic'
+    );
+    assertCondition(
+      atomicDedupRes.success &&
+        antiMatches.length === 1 &&
+        antiMatches[0].id === 'local-stable-id-anti-inf' &&
+        antiMatches[0].favorite === true &&
+        antiMatches[0].srsData?.repetitions === 3 &&
+        antipyreticMatches.length === 1 &&
+        antipyreticMatches[0].id !== 'local-stable-id-anti-inf',
+      'Atomic medical import must deduplicate by normalized term name, preserve existing local IDs & user state, and guard against unrelated ID collisions'
+    );
+    saveTerms(beforeTerms);
+
+    console.log(
+      '[PASS] 27. Unified Medical Term Duplicate Detection Verified (Normalized-Term Primary Match, Punctuation/Hyphen Equivalence, Strict Local ID & User-State Preservation, Unrelated ID-Collision Guard)'
+    );
+  }
+
   console.log('================================================================');
-  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (26/26 — 100%)');
+  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (27/27 — 100%)');
   console.log('================================================================');
 }
 

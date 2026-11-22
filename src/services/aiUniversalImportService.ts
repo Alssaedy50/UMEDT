@@ -37,6 +37,13 @@ import {
   syncTermExamplesToSentences
 } from './storageService';
 import {
+  normalizeMedicalTermKey,
+  createTermLookupIndex,
+  registerTermInIndex,
+  resolveIncomingTermMatch,
+  mergeMatchedTermRecord
+} from '../utils/termIdentity';
+import {
   LEARNING_STORAGE_KEYS,
   enrichAllTopicsWithHierarchy,
   loadAcademicBooks,
@@ -689,14 +696,7 @@ function normalizeTopicArticle(
 }
 
 function normalizeTermIdentity(value: string): string {
-  return String(value || '')
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/[’‘]/g, "'")
-    .replace(/[‐‑‒–—]/g, '-')
-    .replace(/[^a-z0-9'-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return normalizeMedicalTermKey(value);
 }
 
 function normalizeDictionaryTerm(
@@ -2231,55 +2231,40 @@ export function importUniversalAiOrLocalContent(params: {
     }
     const nextTopics = enrichAllTopicsWithHierarchy(Array.from(topicsMap.values()));
 
-    // 4. Merge Terms (strict user-state preservation: favorite, collections, srsData)
-    const termsMap = new Map(currentState.terms.map((t) => [t.id, t]));
-    const termNormToId = new Map(
-      currentState.terms.map((t) => [normalizeTermIdentity(t.termNormalized || t.term), t.id])
-    );
+    // 4. Merge Terms (unified normalized-term-first deduplication + strict ID & user-state preservation)
+    const workingTerms = [...currentState.terms];
+    const termIndex = createTermLookupIndex(workingTerms);
     const mergedTermsBatch: DictionaryTerm[] = [];
     for (const tm of buckets.terms) {
       permDeleted.terms = permDeleted.terms.filter((id) => id !== tm.id);
-      const normKey = normalizeTermIdentity(tm.term);
-      const matchedId = termsMap.has(tm.id) ? tm.id : termNormToId.get(normKey);
-      const existing = matchedId ? termsMap.get(matchedId) : undefined;
+      const resolution = resolveIncomingTermMatch(termIndex, workingTerms, tm);
+      const existing =
+        resolution.matchIndex !== -1 ? workingTerms[resolution.matchIndex] : undefined;
       if (existing && mode === 'ignore') {
         skippedDuplicates++;
         continue;
       }
-      const preservedCollections = existing
-        ? Array.from(new Set([...(existing.collections || []), ...(tm.collections || [])]))
-        : tm.collections;
-      const mergedExamples = existing && mode === 'merge'
-        ? [
-            ...existing.examples,
-            ...tm.examples.filter(
-              (nex) =>
-                !existing.examples.some(
-                  (eex) => eex.en.trim().toLowerCase() === nex.en.trim().toLowerCase()
-                )
-            )
-          ]
-        : tm.examples;
-      const nextTerm: DictionaryTerm = existing
-        ? {
-            ...existing,
-            ...tm,
-            id: existing.id,
-            termNormalized: normKey,
-            favorite: Boolean(existing.favorite || tm.favorite),
-            collections: preservedCollections,
-            srsData: existing.srsData || tm.srsData,
-            lastStudiedAt: existing.lastStudiedAt || tm.lastStudiedAt,
-            studyCount: existing.studyCount ?? tm.studyCount,
-            examples: mergedExamples
-          }
-        : tm;
-      termsMap.set(nextTerm.id, nextTerm);
-      termNormToId.set(normKey, nextTerm.id);
-      mergedTermsBatch.push(nextTerm);
-      counts.terms++;
+      if (existing) {
+        const nextTerm = mergeMatchedTermRecord(existing, tm, mode, {
+          preferIncomingContent: mode === 'overwrite' || mode === 'merge'
+        });
+        workingTerms[resolution.matchIndex] = nextTerm;
+        mergedTermsBatch.push(nextTerm);
+        counts.terms++;
+      } else {
+        const nextTerm: DictionaryTerm = {
+          ...tm,
+          id: resolution.safeId,
+          termNormalized: resolution.normKey || tm.termNormalized
+        };
+        const nextIdx = workingTerms.length;
+        workingTerms.push(nextTerm);
+        registerTermInIndex(termIndex, nextTerm, nextIdx);
+        mergedTermsBatch.push(nextTerm);
+        counts.terms++;
+      }
     }
-    const nextTerms = autoEnrichAllTermsRelations(Array.from(termsMap.values()));
+    const nextTerms = autoEnrichAllTermsRelations(workingTerms);
 
     // 5. Merge Sentences (preserve favorite & srsData)
     const sentencesMap = new Map(currentState.sentences.map((s) => [s.id, s]));

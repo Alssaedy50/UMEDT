@@ -56,6 +56,14 @@ import {
   isDownloadableMediaUrl,
   formatBytesLabel
 } from './mediaStorageService';
+import {
+  normalizeMedicalTermKey,
+  getCanonicalTermKey,
+  createTermLookupIndex,
+  registerTermInIndex,
+  resolveIncomingTermMatch,
+  mergeMatchedTermRecord
+} from '../utils/termIdentity';
 
 export const UMEDT_DATA_CATALOG_URL =
   'https://raw.githubusercontent.com/Alssaedy50/UMEDT-DATA/main/data/catalog.json';
@@ -873,17 +881,13 @@ export function mergeRecordsIntoCloudSnapshot(
     appliedCount += 1;
   }
 
-  const termsMap = new Map(current.terms.map((t) => [t.id, t]));
-  const termByNormName = new Map(
-    current.terms.map((t) => [normalizeDictionaryTermKey(t.termNormalized || t.term), t.id])
-  );
+  const nextTermsList = [...current.terms];
+  const termIndex = createTermLookupIndex(nextTermsList);
   for (const term of incoming.terms || []) {
     if (!term || !term.term) continue;
-    const norm = normalizeDictionaryTermKey(term.termNormalized || term.term);
-    const resolvedId = termsMap.has(term.id)
-      ? term.id
-      : termByNormName.get(norm) || term.id;
-    const existingTerm = termsMap.get(resolvedId);
+    const resolution = resolveIncomingTermMatch(termIndex, nextTermsList, term);
+    const existingTerm =
+      resolution.matchIndex !== -1 ? nextTermsList[resolution.matchIndex] : undefined;
     const rawAny = term as unknown as Record<string, unknown>;
     const normalizedExamples = Array.isArray(term.examples)
       ? term.examples
@@ -895,10 +899,10 @@ export function mergeRecordsIntoCloudSnapshot(
       broader: Array.isArray(term.relations?.broader) ? term.relations.broader : [],
       related: Array.isArray(term.relations?.related) ? term.relations.related : []
     };
-    const normalizedTerm: DictionaryTerm = {
+    const sanitizedIncoming: DictionaryTerm = {
       ...term,
-      id: resolvedId,
-      termNormalized: norm,
+      id: resolution.safeId,
+      termNormalized: resolution.normKey,
       translation:
         typeof term.translation === 'string'
           ? term.translation
@@ -906,18 +910,18 @@ export function mergeRecordsIntoCloudSnapshot(
             ? rawAny.arabicTranslation
             : typeof rawAny.ar === 'string'
               ? rawAny.ar
-              : existingTerm?.translation || '',
-      phonetic: typeof term.phonetic === 'string' ? term.phonetic : existingTerm?.phonetic || '',
-      pos: typeof term.pos === 'string' ? term.pos : existingTerm?.pos || 'noun',
-      category: term.category || existingTerm?.category || 'Medical',
-      keepEnglish: term.keepEnglish ?? existingTerm?.keepEnglish ?? true,
-      ingestedAt: term.ingestedAt || existingTerm?.ingestedAt || new Date().toISOString().slice(0, 10),
+              : '',
+      phonetic: typeof term.phonetic === 'string' ? term.phonetic : '',
+      pos: typeof term.pos === 'string' ? term.pos : 'noun',
+      category: term.category || 'Medical',
+      keepEnglish: term.keepEnglish ?? true,
+      ingestedAt: term.ingestedAt || new Date().toISOString().slice(0, 10),
       definitionAr:
         typeof term.definitionAr === 'string'
           ? term.definitionAr
           : typeof rawAny.arabicDefinition === 'string'
             ? rawAny.arabicDefinition
-            : existingTerm?.definitionAr || '',
+            : '',
       definitionEn:
         typeof term.definitionEn === 'string'
           ? term.definitionEn
@@ -925,30 +929,35 @@ export function mergeRecordsIntoCloudSnapshot(
             ? rawAny.englishDefinition
             : typeof rawAny.definition === 'string'
               ? rawAny.definition
-              : existingTerm?.definitionEn || '',
+              : '',
       examples: normalizedExamples,
       relations: normalizedRelations,
-      favorite: existingTerm ? Boolean(existingTerm.favorite || term.favorite) : Boolean(term.favorite),
-      collections: existingTerm
-        ? Array.from(new Set([...(existingTerm.collections || []), ...(Array.isArray(term.collections) ? term.collections : [])]))
-        : Array.isArray(term.collections)
-          ? term.collections
-          : [],
-      srsData: existingTerm?.srsData || term.srsData,
-      lastStudiedAt: existingTerm?.lastStudiedAt || term.lastStudiedAt,
-      studyCount: existingTerm?.studyCount ?? term.studyCount
+      favorite: Boolean(term.favorite),
+      collections: Array.isArray(term.collections) ? term.collections : []
     };
-    const key = `term:${resolvedId}`;
+
+    const normalizedTerm = existingTerm
+      ? mergeMatchedTermRecord(existingTerm, sanitizedIncoming, 'merge', {
+          preferIncomingContent: true
+        })
+      : sanitizedIncoming;
+    const key = `term:${normalizedTerm.id}`;
     const hash = computeDeterministicFastHashHex(canonicalizeForHash('term', normalizedTerm));
     if (nextHashes[key] === hash && existingTerm) {
       skippedIdenticalCount += 1;
       continue;
     }
-    termsMap.set(resolvedId, normalizedTerm);
-    termByNormName.set(norm, resolvedId);
+    if (resolution.matchIndex !== -1) {
+      nextTermsList[resolution.matchIndex] = normalizedTerm;
+    } else {
+      const nextIdx = nextTermsList.length;
+      nextTermsList.push(normalizedTerm);
+      registerTermInIndex(termIndex, normalizedTerm, nextIdx);
+    }
     nextHashes[key] = hash;
     appliedCount += 1;
   }
+  const termsMap = new Map(nextTermsList.map((t) => [t.id, t]));
 
   const sentencesMap = new Map(current.sentences.map((s) => [s.id, s]));
   const sentenceByEn = new Map(
@@ -1510,14 +1519,7 @@ async function fetchUmedtDataJsonWithFallback(
 }
 
 function normalizeDictionaryTermKey(value: string): string {
-  return String(value || '')
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/[’‘]/g, "'")
-    .replace(/[‐‑‒–—]/g, '-')
-    .replace(/[^a-z0-9\u0370-\u03ff'-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return normalizeMedicalTermKey(value);
 }
 
 function computeDictionaryTermContentFingerprint(term: DictionaryTerm): string {
@@ -2832,11 +2834,14 @@ export function buildCloudLibraryCatalogView(params: {
     .map((ex) => ex.id);
 
   // Cloud Dictionary Pack counts (Terms, Sentences, Affixes, Abbreviations in mirror vs local)
-  // Match terms by BOTH canonical ID and normalized term key so locally imported terms never double-count.
-  const localTermById = new Map(params.localTerms.map((t) => [t.id, t]));
-  const localTermByNorm = new Map(
-    params.localTerms.map((t) => [normalizeDictionaryTermKey(t.termNormalized || t.term), t])
-  );
+  // Match terms PRIMARILY by normalized medical term key, with ID strictly as a non-conflicting auxiliary check.
+  const localTermByNorm = new Map<string, DictionaryTerm>();
+  const localTermById = new Map<string, DictionaryTerm>();
+  for (const t of params.localTerms) {
+    const k = getCanonicalTermKey(t);
+    if (k && !localTermByNorm.has(k)) localTermByNorm.set(k, t);
+    if (t.id && !localTermById.has(t.id)) localTermById.set(t.id, t);
+  }
   const localSentenceIdsSet = new Set(params.localSentences.map((s) => s.id));
   const cloudDictTerms = (mirror.terms || []).filter(
     (tm) => !(permDeleted.terms || []).includes(tm.id)
@@ -2871,9 +2876,17 @@ export function buildCloudLibraryCatalogView(params: {
   let downloadedDictTermsCount = 0;
   let updatedDictTermsCount = 0;
   for (const ctm of cloudDictTerms) {
-    const localMatch =
-      localTermById.get(ctm.id) ||
-      localTermByNorm.get(normalizeDictionaryTermKey(ctm.termNormalized || ctm.term));
+    const ctmNorm = getCanonicalTermKey(ctm);
+    let localMatch = ctmNorm ? localTermByNorm.get(ctmNorm) : undefined;
+    if (!localMatch) {
+      const byIdCandidate = localTermById.get(ctm.id);
+      if (byIdCandidate) {
+        const candNorm = getCanonicalTermKey(byIdCandidate);
+        if (!ctmNorm || !candNorm || candNorm === ctmNorm) {
+          localMatch = byIdCandidate;
+        }
+      }
+    }
     if (localMatch) {
       downloadedDictTermsCount += 1;
       if (
@@ -3117,27 +3130,17 @@ export async function downloadCloudLibraryTarget(params: {
     let skippedIdenticalCount = 0;
     let bytesDownloaded = 0;
 
-    // Index existing local terms by BOTH ID and normalized term key so cloud sync merges
-    // cleanly with locally created or locally imported terms (zero duplicates, zero lost progress).
-    const nextTermsMap = new Map(params.currentTerms.map((t) => [t.id, t]));
-    const localIdByNormKey = new Map<string, string>();
-    for (const lt of params.currentTerms) {
-      const k = normalizeDictionaryTermKey(lt.termNormalized || lt.term);
-      if (k && !localIdByNormKey.has(k)) {
-        localIdByNormKey.set(k, lt.id);
-      }
-    }
+    // Index existing local terms PRIMARILY by normalized medical term name, with ID strictly as
+    // a non-conflicting auxiliary check. Never delete/alter existing local term IDs or lose user progress.
+    const updatedTerms = [...params.currentTerms];
+    const termIndex = createTermLookupIndex(updatedTerms);
 
     for (const ctm of mirror.terms || []) {
       if (permTermIds.has(ctm.id)) continue;
       removed.terms = removed.terms.filter((id) => id !== ctm.id);
-      const normKey = normalizeDictionaryTermKey(ctm.termNormalized || ctm.term);
-      const matchedLocalId = nextTermsMap.has(ctm.id)
-        ? ctm.id
-        : normKey
-          ? localIdByNormKey.get(normKey)
-          : undefined;
-      const existing = matchedLocalId ? nextTermsMap.get(matchedLocalId) : undefined;
+      const resolution = resolveIncomingTermMatch(termIndex, updatedTerms, ctm);
+      const existing =
+        resolution.matchIndex !== -1 ? updatedTerms[resolution.matchIndex] : undefined;
       const isIdenticalContent =
         existing !== undefined &&
         computeDictionaryTermContentFingerprint(existing) ===
@@ -3145,43 +3148,25 @@ export async function downloadCloudLibraryTarget(params: {
 
       if (existing && isIdenticalContent) {
         skippedIdenticalCount += 1;
+      } else if (existing) {
+        updatedTerms[resolution.matchIndex] = mergeMatchedTermRecord(existing, ctm, 'merge', {
+          preferIncomingContent: true
+        });
+        downloadedTermsCount += 1;
+        bytesDownloaded += computeEntitySizeBytes(ctm);
       } else {
-        const mergedTerm: DictionaryTerm = existing
-          ? {
-              ...ctm,
-              id: ctm.id,
-              favorite: existing.favorite,
-              collections: Array.from(
-                new Set([...(existing.collections || []), ...(ctm.collections || [])])
-              ),
-              clinicalNote: existing.clinicalNote || ctm.clinicalNote,
-              morphology: ctm.morphology || existing.morphology,
-              linkedTopicIds: Array.from(
-                new Set([...(existing.linkedTopicIds || []), ...(ctm.linkedTopicIds || [])])
-              ),
-              linkedSubjectIds: Array.from(
-                new Set([...(existing.linkedSubjectIds || []), ...(ctm.linkedSubjectIds || [])])
-              ),
-              linkedBlockIds: Array.from(
-                new Set([...(existing.linkedBlockIds || []), ...(ctm.linkedBlockIds || [])])
-              ),
-              srsData: existing.srsData || ctm.srsData,
-              lastStudiedAt: existing.lastStudiedAt || ctm.lastStudiedAt,
-              studyCount: existing.studyCount ?? ctm.studyCount
-            }
-          : ctm;
-        if (matchedLocalId && matchedLocalId !== ctm.id) {
-          nextTermsMap.delete(matchedLocalId);
-        }
-        nextTermsMap.set(ctm.id, mergedTerm);
-        if (normKey) {
-          localIdByNormKey.set(normKey, ctm.id);
-        }
+        const newTermRecord: DictionaryTerm = {
+          ...ctm,
+          id: resolution.safeId,
+          termNormalized: resolution.normKey || ctm.termNormalized
+        };
+        const nextIdx = updatedTerms.length;
+        updatedTerms.push(newTermRecord);
+        registerTermInIndex(termIndex, newTermRecord, nextIdx);
         downloadedTermsCount += 1;
         bytesDownloaded += computeEntitySizeBytes(ctm);
       }
     }
-    const updatedTerms = Array.from(nextTermsMap.values());
 
     const nextSentenceMap = new Map(params.currentSentences.map((s) => [s.id, s]));
     for (const csn of mirror.sentences || []) {
@@ -3804,24 +3789,38 @@ export async function downloadCloudLibraryTarget(params: {
       (tm.linkedBlockIds || []).some((id) => targetBlockIds.has(id))
   );
 
-  const nextTermsMap = new Map(params.currentTerms.map((t) => [t.id, t]));
+  const updatedTerms = [...params.currentTerms];
+  const targetTermIndex = createTermLookupIndex(updatedTerms);
   for (const ctm of cloudTermsForTarget) {
     removed.terms = removed.terms.filter((id) => id !== ctm.id);
-    const existing = nextTermsMap.get(ctm.id);
-    const incomingHash = await computeEntitySha256('term', ctm);
-    const existingHash = existing ? await computeEntitySha256('term', existing) : '';
-    if (existing && existingHash === incomingHash) {
+    const resolution = resolveIncomingTermMatch(targetTermIndex, updatedTerms, ctm);
+    const existing =
+      resolution.matchIndex !== -1 ? updatedTerms[resolution.matchIndex] : undefined;
+    const isIdenticalContent =
+      existing !== undefined &&
+      computeDictionaryTermContentFingerprint(existing) ===
+        computeDictionaryTermContentFingerprint(ctm);
+    if (existing && isIdenticalContent) {
       skippedIdenticalCount += 1;
+    } else if (existing) {
+      updatedTerms[resolution.matchIndex] = mergeMatchedTermRecord(existing, ctm, 'merge', {
+        preferIncomingContent: true
+      });
+      downloadedTermsCount += 1;
+      bytesDownloaded += computeEntitySizeBytes(ctm);
     } else {
-      nextTermsMap.set(
-        ctm.id,
-        existing ? { ...ctm, favorite: existing.favorite, srsData: existing.srsData } : ctm
-      );
+      const newTermRecord: DictionaryTerm = {
+        ...ctm,
+        id: resolution.safeId,
+        termNormalized: resolution.normKey || ctm.termNormalized
+      };
+      const nextIdx = updatedTerms.length;
+      updatedTerms.push(newTermRecord);
+      registerTermInIndex(targetTermIndex, newTermRecord, nextIdx);
       downloadedTermsCount += 1;
       bytesDownloaded += computeEntitySizeBytes(ctm);
     }
   }
-  const updatedTerms = Array.from(nextTermsMap.values());
 
   // 4b. Sync linked Questions, Exams & Books associated with this Block/Subject/Topic + prefetch offline media
   const matchingCloudQuestions = (mirror.quizQuestions || []).filter(
