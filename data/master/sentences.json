@@ -1,0 +1,1715 @@
+[
+  {
+    "id": "ph-1",
+    "en": "The patient presented to the emergency department with acute chest pain and Tachycardia secondary to Myocardial Infarction.",
+    "ar": "حضر المريض إلى قسم الطوارئ وهو يشكو من ألم صدري حاد وتسرّع القلب ثانوي لاحتشاء عضلة القلب.",
+    "category": "Medical",
+    "specialty": "Emergency Medicine · طب الطوارئ",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m1",
+      "m3"
+    ],
+    "tags": [
+      "Clinical Phrasebook",
+      "Emergency",
+      "Cardiology"
+    ],
+    "favorite": true,
+    "createdAt": "موسوعة العبارات السريرية (UMD Phrasebook)"
+  },
+  {
+    "id": "ph-2",
+    "en": "Past medical history is significant for Chronic Kidney Disease, Diabetic Ketoacidosis, and iron-deficiency Anemia.",
+    "ar": "التاريخ المرضي السابق حافل بالإصابة بمرض الكلى المزمن والحماض الكيتوني السكري وفقر الدم بنقص الحديد.",
+    "category": "Medical",
+    "specialty": "Internal Medicine · الطب الباطني",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m9",
+      "m16",
+      "m17"
+    ],
+    "tags": [
+      "Clinical Phrasebook",
+      "History"
+    ],
+    "favorite": true,
+    "createdAt": "موسوعة العبارات السريرية (UMD Phrasebook)"
+  },
+  {
+    "id": "ph-3",
+    "en": "Physical examination on admission revealed bilateral basal crackles consistent with Acute Decompensated Congestive Heart Failure and Pulmonary Edema.",
+    "ar": "أظهر الفحص السريري عند القبول وجود خراخر قاعدية ثنائية الجانب متوافقة مع فشل القلب الاحتقاني اللاتعاوضي الحاد والوذمة الرئوية.",
+    "category": "Medical",
+    "specialty": "Cardiopulmonary · القلب والصدرية",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m10",
+      "m24"
+    ],
+    "tags": [
+      "Clinical Phrasebook",
+      "Physical Exam"
+    ],
+    "favorite": true,
+    "createdAt": "موسوعة العبارات السريرية (UMD Phrasebook)"
+  },
+  {
+    "id": "ph-4",
+    "en": "Vital signs were stable and within normal limits following treatment of paroxysmal Atrial Fibrillation.",
+    "ar": "كانت العلامات الحيوية مستقرة وضمن الحدود الطبيعية عقب معالجة الرجفان الأذيني الانتيابي.",
+    "category": "Medical",
+    "specialty": "General Ward · الأجنحة السريرية",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m12"
+    ],
+    "tags": [
+      "Clinical Phrasebook",
+      "Vitals"
+    ],
+    "favorite": true,
+    "createdAt": "موسوعة العبارات السريرية (UMD Phrasebook)"
+  },
+  {
+    "id": "ph-5",
+    "en": "Electrocardiogram showed sinus Tachycardia with ST-segment elevation indicative of acute Myocardial Infarction and coronary Ischemia.",
+    "ar": "أظهر تخطيط كهربية القلب تسرعاً جيبياً مع ارتفاع في القطعة ST مما يدل على احتشاء عضلة القلب الحاد ونقص التروية التاجي.",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m1",
+      "m2",
+      "m3"
+    ],
+    "tags": [
+      "Clinical Phrasebook",
+      "ECG"
+    ],
+    "favorite": true,
+    "createdAt": "موسوعة العبارات السريرية (UMD Phrasebook)"
+  },
+  {
+    "id": "ph-6",
+    "en": "Computed tomography of the brain without contrast excluded Subarachnoid Hemorrhage prior to thrombolysis for Ischemic Stroke.",
+    "ar": "نفى التصوير المقطعي المحوسب للدماغ بدون حقن وجود النزف تحت العنكبوتية قبل إعطاء حالّات الخثرة للسكتة الدماغية الإقفارية.",
+    "category": "Medical",
+    "specialty": "Neurology & Radiology · الأعصاب والأشعة",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m20",
+      "m21"
+    ],
+    "tags": [
+      "Clinical Phrasebook",
+      "Neuroimaging"
+    ],
+    "favorite": true,
+    "createdAt": "موسوعة العبارات السريرية (UMD Phrasebook)"
+  },
+  {
+    "id": "ph-7",
+    "en": "Laboratory evaluation revealed conjugated Hyperbilirubinemia and Thrombocytopenia in a patient with decompensated Hepatic Cirrhosis.",
+    "ar": "أظهرت الفحوص المخبرية وجود فرط بيليروبين الدم المقترن وقلة الصفيحات الدموية لدى مريض مصاب بتشمّع الكبد اللاتعاوضي.",
+    "category": "Medical",
+    "specialty": "Hepatology & Labs · الكبد والمختبر",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m5",
+      "m15",
+      "m27"
+    ],
+    "tags": [
+      "Clinical Phrasebook",
+      "Labs"
+    ],
+    "favorite": true,
+    "createdAt": "موسوعة العبارات السريرية (UMD Phrasebook)"
+  },
+  {
+    "id": "ph-8",
+    "en": "The patient was started on empirical intravenous broad-spectrum antibiotics with dose adjustment according to renal Pharmacokinetics.",
+    "ar": "تم البدء بإعطاء المريض مضادات حيوية وريدية واسعة الطيف بصورة تجريبية مع تعديل الجرعة وفق الحرائك الدوائية الكلوية.",
+    "category": "Medical",
+    "specialty": "Pharmacology & Infectious Disease · الأدوية والأمراض الإنتانية",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m28"
+    ],
+    "tags": [
+      "Clinical Phrasebook",
+      "Pharmacology"
+    ],
+    "favorite": true,
+    "createdAt": "موسوعة العبارات السريرية (UMD Phrasebook)"
+  },
+  {
+    "id": "ph-9",
+    "en": "Informed consent was obtained prior to laparoscopic Cholecystectomy for symptomatic Cholecystolithiasis and biliary Acute Pancreatitis.",
+    "ar": "تم الحصول على الموافقة المستنيرة قبل إجراء استئصال المرارة التنظيري لعلاج تحصّي المرارة العرضي والتهاب البنكرياس الحاد الصفراوي.",
+    "category": "Medical",
+    "specialty": "General Surgery · الجراحة العامة",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m6",
+      "m18"
+    ],
+    "tags": [
+      "Clinical Phrasebook",
+      "Surgery"
+    ],
+    "favorite": true,
+    "createdAt": "موسوعة العبارات السريرية (UMD Phrasebook)"
+  },
+  {
+    "id": "ph-10",
+    "en": "Differential Diagnosis in acute chest pain and dyspnea includes Pulmonary Embolism, Myocardial Infarction, and Cardiac Tamponade.",
+    "ar": "يشمل التشخيص التفريقي في ألم الصدر الحاد والزلة التنفسية كلاً من الانصمام الرئوي واحتشاء عضلة القلب والاندحاس القلبي.",
+    "category": "Medical",
+    "specialty": "Emergency & Triage · الطوارئ والفرز",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m1",
+      "m14",
+      "m23"
+    ],
+    "tags": [
+      "Clinical Phrasebook",
+      "Differential Diagnosis"
+    ],
+    "favorite": true,
+    "createdAt": "موسوعة العبارات السريرية (UMD Phrasebook)"
+  },
+  {
+    "id": "ph-11",
+    "en": "Immediate intramuscular epinephrine and airway protection resolved Anaphylactic Shock and prevented progression to Hypovolemic Shock.",
+    "ar": "أدى حقن الإبينفرين العضلي الفوري وحماية الطريق الهوائي إلى معالجة الصدمة التأقية ومنع التدهور نحو صدمة نقص حجم الدم.",
+    "category": "Medical",
+    "specialty": "Critical Care · العناية المركزة",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m25",
+      "m26"
+    ],
+    "tags": [
+      "Clinical Phrasebook",
+      "Shock"
+    ],
+    "favorite": true,
+    "createdAt": "موسوعة العبارات السريرية (UMD Phrasebook)"
+  },
+  {
+    "id": "ph-12",
+    "en": "Discharged in stable condition with outpatient Neurology follow-up instructions for relapsing-remitting Multiple Sclerosis and prior Status Epilepticus.",
+    "ar": "تخرّج المريض بحالة مستقرة مع تعليمات المتابعة في العيادة العصبية الخارجية للتصلب اللويحي المتعدد الناكس الهاجع والحالة الصرعية المستمرة السابقة.",
+    "category": "Medical",
+    "specialty": "Discharge Summary · تقارير الخروج",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m19",
+      "m22"
+    ],
+    "tags": [
+      "Clinical Phrasebook",
+      "Discharge"
+    ],
+    "favorite": true,
+    "createdAt": "موسوعة العبارات السريرية (UMD Phrasebook)"
+  },
+  {
+    "id": "sent-ex-m1-1",
+    "en": "Prolonged coronary Ischemia rapidly progresses into an acute Myocardial Infarction if blood flow is not restored.",
+    "ar": "يتطور نقص التروية التاجي المطول سريعاً إلى احتشاء عضلة القلب الحاد إذا لم تتم استعادة تدفق الدم.",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m1",
+      "m2"
+    ],
+    "tags": [
+      "Myocardial Infarction",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Myocardial Infarction"
+  },
+  {
+    "id": "sent-ex-m1-2",
+    "en": "Emergency physicians perform a rapid Differential Diagnosis to distinguish Myocardial Infarction from Pulmonary Embolism.",
+    "ar": "يجري أطباء الطوارئ تشخيصاً تفريقياً سريعاً للتمييز بين احتشاء عضلة القلب والانصمام الرئوي.",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m1",
+      "m23"
+    ],
+    "tags": [
+      "Myocardial Infarction",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Myocardial Infarction"
+  },
+  {
+    "id": "sent-ex-m2-1",
+    "en": "Silent cerebral Ischemia can occur without immediate neurological deficits.",
+    "ar": "يمكن أن يحدث نقص التروية الدموية الدماغي الصامت دون عجز عصبي فوري.",
+    "category": "Medical",
+    "specialty": "Pathology & Vascular · الأمراض الوعائية",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m2"
+    ],
+    "tags": [
+      "Ischemia",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Ischemia"
+  },
+  {
+    "id": "sent-ex-m2-2",
+    "en": "Understanding the cellular Pathophysiology of Ischemia helps prevent irreversible Myocardial Infarction.",
+    "ar": "يساعد فهم الفيزيولوجيا المرضية الخلوية لحالة نقص التروية الدموية في منع احتشاء عضلة القلب غير العكوس.",
+    "category": "Medical",
+    "specialty": "Pathology & Vascular · الأمراض الوعائية",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m1",
+      "m2"
+    ],
+    "tags": [
+      "Ischemia",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Ischemia"
+  },
+  {
+    "id": "sent-ex-m3-1",
+    "en": "Ventricular Tachycardia is a life-threatening Arrhythmia that requires immediate intervention.",
+    "ar": "يُعد تسرّع القلب البطيني اضطراب نظم مهدداً للحياة يتطلب تدخلاً فورياً.",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m3",
+      "m4"
+    ],
+    "tags": [
+      "Tachycardia",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Tachycardia"
+  },
+  {
+    "id": "sent-ex-m3-2",
+    "en": "Patients presenting with chest pain and Tachycardia must be evaluated for Myocardial Infarction and Pulmonary Embolism.",
+    "ar": "يجب تقييم المرضى الذين يحضرون بألم صدري مع تسرّع القلب لاستبعاد احتشاء عضلة القلب والانصمام الرئوي.",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m1",
+      "m3",
+      "m23"
+    ],
+    "tags": [
+      "Tachycardia",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Tachycardia"
+  },
+  {
+    "id": "sent-ex-m4-1",
+    "en": "Continuous ECG telemetry detects subtle Arrhythmia episodes following Myocardial Infarction.",
+    "ar": "يكتشف رصد تخطيط القلب المستمر نوبات اضطراب النظم القلبي الدقيقة عقب احتشاء عضلة القلب.",
+    "category": "Medical",
+    "specialty": "Electrophysiology · فسلجة القلب الكهربائية",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m1",
+      "m4"
+    ],
+    "tags": [
+      "Arrhythmia",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Arrhythmia"
+  },
+  {
+    "id": "sent-ex-m4-2",
+    "en": "Electrolyte imbalance and myocardial Ischemia frequently precipitate supraventricular Arrhythmia such as Atrial Fibrillation.",
+    "ar": "يؤدي اختلال الشوارد ونقص تروية عضلة القلب غالباً إلى تحريض اضطراب النظم القلبي فوق البطيني مثل الرجفان الأذيني.",
+    "category": "Medical",
+    "specialty": "Electrophysiology · فسلجة القلب الكهربائية",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m2",
+      "m4",
+      "m12"
+    ],
+    "tags": [
+      "Arrhythmia",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Arrhythmia"
+  },
+  {
+    "id": "sent-ex-m5-1",
+    "en": "Conjugated Hyperbilirubinemia often points to biliary tract obstruction or Cholecystolithiasis.",
+    "ar": "يشير فرط بيليروبين الدم المقترن غالباً إلى انسداد المسالك الصفراوية أو تحصّي المرارة.",
+    "category": "Medical",
+    "specialty": "Hepatology · أمراض الكبد والجهاز الهضمي",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m5",
+      "m6"
+    ],
+    "tags": [
+      "Hyperbilirubinemia",
+      "الطب الباطني والكبد"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Hyperbilirubinemia"
+  },
+  {
+    "id": "sent-ex-m5-2",
+    "en": "Accelerated Erythrocyte hemolysis releases excess Hemoglobin, leading to unconjugated Hyperbilirubinemia and Anemia.",
+    "ar": "يؤدي انحلال كريات الدم الحمراء المتسارع إلى تحرير فائض الهيموغلوبين، مما يسبب فرط بيليروبين الدم غير المقترن وفقر الدم.",
+    "category": "Medical",
+    "specialty": "Hepatology · أمراض الكبد والجهاز الهضمي",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m5",
+      "m7",
+      "m8",
+      "m9"
+    ],
+    "tags": [
+      "Hyperbilirubinemia",
+      "الطب الباطني والكبد"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Hyperbilirubinemia"
+  },
+  {
+    "id": "sent-ex-m6-1",
+    "en": "Ultrasound confirmed Cholecystolithiasis in the patient presenting with right upper quadrant pain and Hyperbilirubinemia.",
+    "ar": "أكد التصوير بالأمواج فوق الصوتية وجود تحصّي المرارة لدى المريض الذي حضر بألم في المراق الأيمن وفرط بيليروبين الدم.",
+    "category": "Medical",
+    "specialty": "General Surgery · الجراحة العامة والهضمية",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m5",
+      "m6"
+    ],
+    "tags": [
+      "Cholecystolithiasis",
+      "الطب الباطني والكبد"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Cholecystolithiasis"
+  },
+  {
+    "id": "sent-ex-m6-2",
+    "en": "Impacted gallstones from Cholecystolithiasis frequently trigger biliary Acute Pancreatitis.",
+    "ar": "تؤدي الحصيات المرارية المنحشرة الناجمة عن تحصّي المرارة غالباً إلى تحريض التهاب البنكرياس الحاد الصفراوي.",
+    "category": "Medical",
+    "specialty": "General Surgery · الجراحة العامة والهضمية",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m6",
+      "m18"
+    ],
+    "tags": [
+      "Cholecystolithiasis",
+      "الطب الباطني والكبد"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Cholecystolithiasis"
+  },
+  {
+    "id": "sent-ex-m7-1",
+    "en": "Hemoglobin carries oxygen inside each Erythrocyte to prevent tissue Ischemia.",
+    "ar": "ينقل الهيموغلوبين الأكسجين داخل كل كرية دم حمراء لمنع نقص تروية الأنسجة.",
+    "category": "Medical",
+    "specialty": "Hematology · أمراض الدم",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m2",
+      "m7",
+      "m8"
+    ],
+    "tags": [
+      "Hemoglobin",
+      "أمراض الدم والمختبر"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Hemoglobin"
+  },
+  {
+    "id": "sent-ex-m7-2",
+    "en": "A drop in serum Hemoglobin concentration below 7 g/dL indicates severe Anemia requiring transfusion.",
+    "ar": "يدل انخفاض تركيز الهيموغلوبين في المصل دون 7 غ/دل على فقر الدم الشديد الذي يستدعي نقل الدم.",
+    "category": "Medical",
+    "specialty": "Hematology · أمراض الدم",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m7",
+      "m9"
+    ],
+    "tags": [
+      "Hemoglobin",
+      "أمراض الدم والمختبر"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Hemoglobin"
+  },
+  {
+    "id": "sent-ex-m8-1",
+    "en": "The biconcave geometry of an Erythrocyte maximizes surface area for Hemoglobin gas exchange.",
+    "ar": "تعمل الهندسة ثنائية التقعر لكرية الدم الحمراء على تعظيم مساحة السطح لتبادل الغازات عبر الهيموغلوبين.",
+    "category": "Medical",
+    "specialty": "Hematology · أمراض الدم",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m7",
+      "m8"
+    ],
+    "tags": [
+      "Erythrocyte",
+      "أمراض الدم والمختبر"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Erythrocyte"
+  },
+  {
+    "id": "sent-ex-m8-2",
+    "en": "Premature Erythrocyte destruction in hemolytic Anemia elevates serum bilirubin and causes Hyperbilirubinemia.",
+    "ar": "يؤدي تحطم كرية الدم الحمراء المبكر في فقر الدم الانحلالي إلى رفع بيليروبين المصل وإحداث فرط بيليروبين الدم.",
+    "category": "Medical",
+    "specialty": "Hematology · أمراض الدم",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m5",
+      "m8",
+      "m9"
+    ],
+    "tags": [
+      "Erythrocyte",
+      "أمراض الدم والمختبر"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Erythrocyte"
+  },
+  {
+    "id": "sent-ex-m9-1",
+    "en": "Severe iron-deficiency Anemia frequently causes exertional dyspnea and compensatory Tachycardia.",
+    "ar": "يسبب فقر الدم الشديد بنقص الحديد غالباً زلة تنفسية جهدية وتسرّع قلب معاوض.",
+    "category": "Medical",
+    "specialty": "Hematology · أمراض الدم",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m3",
+      "m9"
+    ],
+    "tags": [
+      "Anemia",
+      "أمراض الدم والمختبر"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Anemia"
+  },
+  {
+    "id": "sent-ex-m9-2",
+    "en": "Patients with advanced Chronic Kidney Disease develop normocytic Anemia due to low Hemoglobin and Erythrocyte production.",
+    "ar": "يُصاب مرضى مرض الكلى المزمن المتقدم بحالة فقر الدم سوي الكريات نتيجة انخفاض إنتاج الهيموغلوبين وكريات الدم الحمراء.",
+    "category": "Medical",
+    "specialty": "Hematology · أمراض الدم",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m7",
+      "m8",
+      "m9",
+      "m17"
+    ],
+    "tags": [
+      "Anemia",
+      "أمراض الدم والمختبر"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Anemia"
+  },
+  {
+    "id": "sent-ex-m10-1",
+    "en": "The patient was admitted to the ICU with Acute Decompensated Congestive Heart Failure and Pulmonary Edema.",
+    "ar": "أُدخل المريض إلى وحدة العناية المركزة بسبب فشل القلب الاحتقاني اللاتعاوضي الحاد والوذمة الرئوية.",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m10",
+      "m24"
+    ],
+    "tags": [
+      "Acute Decompensated Congestive Heart Failure",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Acute Decompensated Congestive Heart Failure"
+  },
+  {
+    "id": "sent-ex-m10-2",
+    "en": "Intravenous loop diuretics rapidly relieve vascular congestion in Acute Decompensated Congestive Heart Failure triggered by Atrial Fibrillation.",
+    "ar": "تعمل مدرات العروة الوريدية سريعاً على تخفيف الاحتقان الوعائي في فشل القلب الاحتقاني اللاتعاوضي الحاد المحرّض بالرجفان الأذيني.",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m10",
+      "m12"
+    ],
+    "tags": [
+      "Acute Decompensated Congestive Heart Failure",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Acute Decompensated Congestive Heart Failure"
+  },
+  {
+    "id": "sent-ex-m11-1",
+    "en": "Sublingual nitroglycerin relieves stable Angina Pectoris within minutes.",
+    "ar": "يخفف النتروغليسرين تحت اللسان من نوبة الذبحة الصدرية المستقرة خلال دقائق.",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m11"
+    ],
+    "tags": [
+      "Angina Pectoris",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Angina Pectoris"
+  },
+  {
+    "id": "sent-ex-m11-2",
+    "en": "Coronary Atherosclerosis causes exertional Ischemia presenting clinically as Angina Pectoris before progressing to Myocardial Infarction.",
+    "ar": "يسبب تصلّب الشرايين العصيدي التاجي نقص تروية جهدي يتظاهر سريرياً بالذبحة الصدرية قبل أن يتطور إلى احتشاء عضلة القلب.",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m1",
+      "m2",
+      "m11",
+      "m29"
+    ],
+    "tags": [
+      "Angina Pectoris",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Angina Pectoris"
+  },
+  {
+    "id": "sent-ex-m12-1",
+    "en": "Anticoagulation is indicated in Atrial Fibrillation to prevent thromboembolic Ischemic Stroke.",
+    "ar": "يستطب العلاج المضاد للتخثر في الرجفان الأذيني للوقاية من السكتة الدماغية الإقفارية الخثارية.",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m12",
+      "m20"
+    ],
+    "tags": [
+      "Atrial Fibrillation",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Atrial Fibrillation"
+  },
+  {
+    "id": "sent-ex-m12-2",
+    "en": "Left atrial dilation secondary to rheumatic Mitral Stenosis frequently triggers chronic Atrial Fibrillation and rapid Tachycardia.",
+    "ar": "يؤدي توسع الأذين الأيسر الثانوي لتضيّق الصمام التاجي الرثوي غالباً إلى تحريض الرجفان الأذيني المزمن وتسرّع القلب السريع.",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m3",
+      "m12",
+      "m13"
+    ],
+    "tags": [
+      "Atrial Fibrillation",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Atrial Fibrillation"
+  },
+  {
+    "id": "sent-ex-m13-1",
+    "en": "Auscultation at the cardiac apex revealed a rumbling diastolic murmur classic for Mitral Stenosis.",
+    "ar": "أظهر الإصغاء عند قمة القلب نفخة انبساطية مدمدمة نموذجية لتضيّق الصمام التاجي.",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m13"
+    ],
+    "tags": [
+      "Mitral Stenosis",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Mitral Stenosis"
+  },
+  {
+    "id": "sent-ex-m13-2",
+    "en": "Severe Mitral Stenosis elevates left atrial pressure, predisposing the patient to Atrial Fibrillation and Pulmonary Edema.",
+    "ar": "يرفع تضيّق الصمام التاجي الشديد ضغط الأذين الأيسر، مما يؤهب المريض للرجفان الأذيني والوذمة الرئوية.",
+    "category": "Medical",
+    "specialty": "Cardiology · أمراض القلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m12",
+      "m13",
+      "m24"
+    ],
+    "tags": [
+      "Mitral Stenosis",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Mitral Stenosis"
+  },
+  {
+    "id": "sent-ex-m14-1",
+    "en": "Beck triad of hypotension, jugular venous distension, and muffled heart sounds indicates Cardiac Tamponade.",
+    "ar": "يشير ثلاثي بيك المكون من هبوط الضغط وتمدد أوردة العنق وخفوت أصوات القلب إلى الاندحاس القلبي.",
+    "category": "Medical",
+    "specialty": "Cardiology & Emergency · طب الطوارئ والقلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m14"
+    ],
+    "tags": [
+      "Cardiac Tamponade",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Cardiac Tamponade"
+  },
+  {
+    "id": "sent-ex-m14-2",
+    "en": "Emergency bedside echocardiography differentiates obstructive Cardiac Tamponade from Pulmonary Embolism and Hypovolemic Shock.",
+    "ar": "يميز تخطيط صدى القلب السريري الإسعافي بين الاندحاس القلبي الانسدادي وكل من الانصمام الرئوي وصدمة نقص حجم الدم.",
+    "category": "Medical",
+    "specialty": "Cardiology & Emergency · طب الطوارئ والقلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m14",
+      "m23",
+      "m26"
+    ],
+    "tags": [
+      "Cardiac Tamponade",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Cardiac Tamponade"
+  },
+  {
+    "id": "sent-ex-m15-1",
+    "en": "Decompensated Hepatic Cirrhosis presents with ascites, variceal hemorrhage, and hepatic encephalopathy.",
+    "ar": "يتظاهر تشمّع الكبد اللاتعاوضي بالحبن ونزف الدوالي والاعتلال الدماغي الكبدي.",
+    "category": "Medical",
+    "specialty": "Hepatology · أمراض الكبد",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m15"
+    ],
+    "tags": [
+      "Hepatic Cirrhosis",
+      "الطب الباطني والكبد"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Hepatic Cirrhosis"
+  },
+  {
+    "id": "sent-ex-m15-2",
+    "en": "Portal hypertension in Hepatic Cirrhosis causes hypersplenism, Thrombocytopenia, and progressive Hyperbilirubinemia.",
+    "ar": "يسبب فرط ضغط وريد الباب في تشمّع الكبد فرط نشاط الطحال وقلة الصفيحات الدموية وفرط بيليروبين الدم المترقي.",
+    "category": "Medical",
+    "specialty": "Hepatology · أمراض الكبد",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m5",
+      "m15",
+      "m27"
+    ],
+    "tags": [
+      "Hepatic Cirrhosis",
+      "الطب الباطني والكبد"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Hepatic Cirrhosis"
+  },
+  {
+    "id": "sent-ex-m16-1",
+    "en": "Initial management of Diabetic Ketoacidosis prioritizes aggressive isotonic intravenous fluid resuscitation.",
+    "ar": "تعطي المعالجة الأولية للحماض الكيتوني السكري الأولوية للإنعاش المكثف بالسوائل الوريدية متساوية التوتر.",
+    "category": "Medical",
+    "specialty": "Endocrinology & Emergency · الغدد الصم والطوارئ",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m16"
+    ],
+    "tags": [
+      "Diabetic Ketoacidosis",
+      "الطب الباطني والكبد"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Diabetic Ketoacidosis"
+  },
+  {
+    "id": "sent-ex-m16-2",
+    "en": "Severe osmotic diuresis in untreated Diabetic Ketoacidosis can precipitate Hypovolemic Shock and acute renal injury.",
+    "ar": "يمكن أن يؤدي الإدرار التناضحي الشديد في الحماض الكيتوني السكري غير المعالج إلى تحريض صدمة نقص حجم الدم وأذية كلوية حادة.",
+    "category": "Medical",
+    "specialty": "Endocrinology & Emergency · الغدد الصم والطوارئ",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m16",
+      "m26"
+    ],
+    "tags": [
+      "Diabetic Ketoacidosis",
+      "الطب الباطني والكبد"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Diabetic Ketoacidosis"
+  },
+  {
+    "id": "sent-ex-m17-1",
+    "en": "Anemia in Chronic Kidney Disease is primarily driven by reduced renal erythropoietin synthesis.",
+    "ar": "ينجم فقر الدم في مرض الكلى المزمن بصورة رئيسية عن نقص تصنيع الإريثروبويتين الكلوي.",
+    "category": "Medical",
+    "specialty": "Nephrology · أمراض الكلى",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m9",
+      "m17"
+    ],
+    "tags": [
+      "Chronic Kidney Disease",
+      "الطب الباطني والكبد"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Chronic Kidney Disease"
+  },
+  {
+    "id": "sent-ex-m17-2",
+    "en": "Reduced glomerular filtration in Chronic Kidney Disease alters drug Pharmacokinetics and increases the risk of Pulmonary Edema.",
+    "ar": "يغيّر انخفاض الرشح الكبيبي في مرض الكلى المزمن من الحرائك الدوائية للأدوية ويرفع خطر الوذمة الرئوية.",
+    "category": "Medical",
+    "specialty": "Nephrology · أمراض الكلى",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m17",
+      "m24",
+      "m28"
+    ],
+    "tags": [
+      "Chronic Kidney Disease",
+      "الطب الباطني والكبد"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Chronic Kidney Disease"
+  },
+  {
+    "id": "sent-ex-m18-1",
+    "en": "Severe epigastric pain radiating to the back with elevated serum lipase confirms Acute Pancreatitis.",
+    "ar": "يؤكد الألم الشرسوفي الشديد المنتشر إلى الظهر مع ارتفاع ليباز المصل تشخيص التهاب البنكرياس الحاد.",
+    "category": "Medical",
+    "specialty": "Gastroenterology · أمراض الجهاز الهضمي",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m18"
+    ],
+    "tags": [
+      "Acute Pancreatitis",
+      "الطب الباطني والكبد"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Acute Pancreatitis"
+  },
+  {
+    "id": "sent-ex-m18-2",
+    "en": "Biliary Acute Pancreatitis is commonly precipitated by Cholecystolithiasis and third-space fluid loss leading to Hypovolemic Shock.",
+    "ar": "يُحرّض التهاب البنكرياس الحاد الصفراوي غالباً بتحصّي المرارة وفقدان السوائل إلى الحيز الثالث مما يؤدي إلى صدمة نقص حجم الدم.",
+    "category": "Medical",
+    "specialty": "Gastroenterology · أمراض الجهاز الهضمي",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m6",
+      "m18",
+      "m26"
+    ],
+    "tags": [
+      "Acute Pancreatitis",
+      "الطب الباطني والكبد"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Acute Pancreatitis"
+  },
+  {
+    "id": "sent-ex-m19-1",
+    "en": "Periventricular white matter plaques on brain MRI are characteristic of relapsing-remitting Multiple Sclerosis.",
+    "ar": "تُعد لويحات المادة البيضاء حول البطينات في رنين الدماغ المغناطيسي سمة مميزة للتصلب اللويحي المتعدد الناكس الهاجع.",
+    "category": "Medical",
+    "specialty": "Neurology · طب الأعصاب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m19"
+    ],
+    "tags": [
+      "Multiple Sclerosis",
+      "طب وجراحة الأعصاب"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Multiple Sclerosis"
+  },
+  {
+    "id": "sent-ex-m19-2",
+    "en": "Acute optic neuritis and focal demyelination help distinguish Multiple Sclerosis from acute Ischemic Stroke.",
+    "ar": "يساعد التهاب العصب البصري الحاد وزوال الميالين البؤري في تمييز التصلب اللويحي المتعدد عن السكتة الدماغية الإقفارية الحادة.",
+    "category": "Medical",
+    "specialty": "Neurology · طب الأعصاب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m19",
+      "m20"
+    ],
+    "tags": [
+      "Multiple Sclerosis",
+      "طب وجراحة الأعصاب"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Multiple Sclerosis"
+  },
+  {
+    "id": "sent-ex-m20-1",
+    "en": "Non-contrast head CT is performed immediately to exclude hemorrhage prior to thrombolysis in Ischemic Stroke.",
+    "ar": "يُجرى التصوير المقطعي للرأس بدون حقن فوراً لاستبعاد النزف قبل إعطاء حالّات الخثرة في السكتة الدماغية الإقفارية.",
+    "category": "Medical",
+    "specialty": "Neurology · طب الأعصاب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m20"
+    ],
+    "tags": [
+      "Ischemic Stroke",
+      "طب وجراحة الأعصاب"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Ischemic Stroke"
+  },
+  {
+    "id": "sent-ex-m20-2",
+    "en": "Cardioembolic Ischemic Stroke is a major complication of untreated Atrial Fibrillation and carotid Atherosclerosis.",
+    "ar": "تُعد السكتة الدماغية الإقفارية الصمّية القلبية مضاعفة رئيسية للرجفان الأذيني غير المعالج وتصلّب الشرايين العصيدي السباتي.",
+    "category": "Medical",
+    "specialty": "Neurology · طب الأعصاب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m12",
+      "m20",
+      "m29"
+    ],
+    "tags": [
+      "Ischemic Stroke",
+      "طب وجراحة الأعصاب"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Ischemic Stroke"
+  },
+  {
+    "id": "sent-ex-m21-1",
+    "en": "A sudden thunderclap headache with nuchal rigidity strongly suggests Subarachnoid Hemorrhage.",
+    "ar": "يوحي صداع قصف الرعد المفاجئ المترافق مع صلابة النقرة بشدة بحدوث النزف تحت العنكبوتية.",
+    "category": "Medical",
+    "specialty": "Neurology & Neurosurgery · طب وجراحة الأعصاب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m21"
+    ],
+    "tags": [
+      "Subarachnoid Hemorrhage",
+      "طب وجراحة الأعصاب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Subarachnoid Hemorrhage"
+  },
+  {
+    "id": "sent-ex-m21-2",
+    "en": "Delayed cerebral vasospasm following Subarachnoid Hemorrhage can induce secondary cerebral Ischemia and Ischemic Stroke.",
+    "ar": "يمكن أن يؤدي التشنج الوعائي الدماغي المتأخر عقب النزف تحت العنكبوتية إلى إحداث نقص تروية دماغي ثانوي وسكتة دماغية إقفارية.",
+    "category": "Medical",
+    "specialty": "Neurology & Neurosurgery · طب وجراحة الأعصاب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m2",
+      "m20",
+      "m21"
+    ],
+    "tags": [
+      "Subarachnoid Hemorrhage",
+      "طب وجراحة الأعصاب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Subarachnoid Hemorrhage"
+  },
+  {
+    "id": "sent-ex-m22-1",
+    "en": "Intravenous lorazepam is the first-line pharmacotherapy for convulsive Status Epilepticus.",
+    "ar": "يُعد اللورازيبام الوريدي خط العلاج الدوائي الأول في الحالة الصرعية المستمرة الاختلاجية.",
+    "category": "Medical",
+    "specialty": "Neurology & Emergency · الأعصاب والطوارئ",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m22"
+    ],
+    "tags": [
+      "Status Epilepticus",
+      "طب وجراحة الأعصاب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Status Epilepticus"
+  },
+  {
+    "id": "sent-ex-m22-2",
+    "en": "Refractory Status Epilepticus may occur as an acute neurological complication of Ischemic Stroke or Subarachnoid Hemorrhage.",
+    "ar": "قد تحدث الحالة الصرعية المستمرة المعندة كمضاعفة عصبية حادة للسكتة الدماغية الإقفارية أو النزف تحت العنكبوتية.",
+    "category": "Medical",
+    "specialty": "Neurology & Emergency · الأعصاب والطوارئ",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m20",
+      "m21",
+      "m22"
+    ],
+    "tags": [
+      "Status Epilepticus",
+      "طب وجراحة الأعصاب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Status Epilepticus"
+  },
+  {
+    "id": "sent-ex-m23-1",
+    "en": "CT pulmonary angiography confirmed a saddle Pulmonary Embolism secondary to lower extremity DVT.",
+    "ar": "أكد تصوير الأوعية الرئوية المقطعي وجود انصمام رئوي سرجي ثانوي لخثار الأوردة العميقة في الطرف السفلي.",
+    "category": "Medical",
+    "specialty": "Pulmonology & Emergency · الصدرية والطوارئ",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m23"
+    ],
+    "tags": [
+      "Pulmonary Embolism",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Pulmonary Embolism"
+  },
+  {
+    "id": "sent-ex-m23-2",
+    "en": "Massive Pulmonary Embolism presents with sudden hypoxia, sinus Tachycardia, and right ventricular strain mimicking Myocardial Infarction.",
+    "ar": "يتظاهر الانصمام الرئوي الجسيم بنقص أكسجة مفاجئ وتسرّع قلب جيبي وإجهاد بطيني أيمن يحاكي احتشاء عضلة القلب.",
+    "category": "Medical",
+    "specialty": "Pulmonology & Emergency · الصدرية والطوارئ",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m1",
+      "m3",
+      "m23"
+    ],
+    "tags": [
+      "Pulmonary Embolism",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Pulmonary Embolism"
+  },
+  {
+    "id": "sent-ex-m24-1",
+    "en": "Crackles on lung auscultation and bilateral alveolar infiltrates indicate acute Pulmonary Edema.",
+    "ar": "تدل الخراخر عند إصغاء الرئتين والارتشاحات السنخية ثنائية الجانب على الوذمة الرئوية الحادة.",
+    "category": "Medical",
+    "specialty": "Pulmonology & Cardiology · الصدرية والقلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m24"
+    ],
+    "tags": [
+      "Pulmonary Edema",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Pulmonary Edema"
+  },
+  {
+    "id": "sent-ex-m24-2",
+    "en": "Cardiogenic Pulmonary Edema is a hallmark presentation of Acute Decompensated Congestive Heart Failure and severe Mitral Stenosis.",
+    "ar": "تُعد الوذمة الرئوية قلبية المنشأ تظاهرة سريرية مميزة لفشل القلب الاحتقاني اللاتعاوضي الحاد وتضيّق الصمام التاجي الشديد.",
+    "category": "Medical",
+    "specialty": "Pulmonology & Cardiology · الصدرية والقلب",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m10",
+      "m13",
+      "m24"
+    ],
+    "tags": [
+      "Pulmonary Edema",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Pulmonary Edema"
+  },
+  {
+    "id": "sent-ex-m25-1",
+    "en": "Intramuscular epinephrine into the anterolateral thigh is the immediate treatment for Anaphylactic Shock.",
+    "ar": "يُعد حقن الإبينفرين عضلياً في الوجه الأمامي الوحشي للفخذ العلاج الفوري للصدمة التأقية.",
+    "category": "Medical",
+    "specialty": "Emergency Medicine & Immunology · طب الطوارئ والمناعة",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m25"
+    ],
+    "tags": [
+      "Anaphylactic Shock",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Anaphylactic Shock"
+  },
+  {
+    "id": "sent-ex-m25-2",
+    "en": "Systemic vasodilation in Anaphylactic Shock causes severe hypotension and reflex Tachycardia similar to Hypovolemic Shock.",
+    "ar": "يسبب التوسع الوعائي الجهازي في الصدمة التأقية هبوط ضغط شديد وتسرّع قلب انعكاسي يشبه صدمة نقص حجم الدم.",
+    "category": "Medical",
+    "specialty": "Emergency Medicine & Immunology · طب الطوارئ والمناعة",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m3",
+      "m25",
+      "m26"
+    ],
+    "tags": [
+      "Anaphylactic Shock",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Anaphylactic Shock"
+  },
+  {
+    "id": "sent-ex-m26-1",
+    "en": "Massive gastrointestinal hemorrhage rapidly leads to Hypovolemic Shock and compensatory Tachycardia.",
+    "ar": "يؤدي النزف الهضمي الغزير سريعاً إلى صدمة نقص حجم الدم وتسرّع القلب المعاوض.",
+    "category": "Medical",
+    "specialty": "Emergency & Trauma Surgery · الطوارئ وجراحة الإصابات",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m3",
+      "m26"
+    ],
+    "tags": [
+      "Hypovolemic Shock",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Hypovolemic Shock"
+  },
+  {
+    "id": "sent-ex-m26-2",
+    "en": "Uncorrected Hypovolemic Shock results in systemic organ Ischemia, acute Anemia, and metabolic acidosis.",
+    "ar": "تؤدي صدمة نقص حجم الدم غير المصححة إلى نقص تروية الأعضاء الجهازي وفقر الدم الحاد والحماض الاستقلابي.",
+    "category": "Medical",
+    "specialty": "Emergency & Trauma Surgery · الطوارئ وجراحة الإصابات",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m2",
+      "m9",
+      "m26"
+    ],
+    "tags": [
+      "Hypovolemic Shock",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Hypovolemic Shock"
+  },
+  {
+    "id": "sent-ex-m27-1",
+    "en": "Heparin-induced Thrombocytopenia requires immediate discontinuation of all heparin products.",
+    "ar": "تتطلب قلة الصفيحات الدموية المحرّضة بالهيبارين الإيقاف الفوري لجميع مستحضرات الهيبارين.",
+    "category": "Medical",
+    "specialty": "Hematology · أمراض الدم",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m27"
+    ],
+    "tags": [
+      "Thrombocytopenia",
+      "أمراض الدم والمختبر"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Thrombocytopenia"
+  },
+  {
+    "id": "sent-ex-m27-2",
+    "en": "Splenic sequestration in advanced Hepatic Cirrhosis frequently causes concurrent Thrombocytopenia and Anemia.",
+    "ar": "يسبب الاحتجاز الطحالي في تشمّع الكبد المتقدم غالباً حدوث قلة الصفيحات الدموية وفقر الدم بصورة متزامنة.",
+    "category": "Medical",
+    "specialty": "Hematology · أمراض الدم",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m9",
+      "m15",
+      "m27"
+    ],
+    "tags": [
+      "Thrombocytopenia",
+      "أمراض الدم والمختبر"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Thrombocytopenia"
+  },
+  {
+    "id": "sent-ex-m28-1",
+    "en": "Renal impairment in Chronic Kidney Disease alters the Pharmacokinetics of water-soluble antibiotics, necessitating dose adjustment.",
+    "ar": "يغيّر القصور الكلوي في مرض الكلى المزمن من الحرائك الدوائية للمضادات الحيوية المنحلة بالماء، مما يستلزم تعديل الجرعة.",
+    "category": "Medical",
+    "specialty": "Pharmacology · علم الأدوية السريري",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m17",
+      "m28"
+    ],
+    "tags": [
+      "Pharmacokinetics",
+      "الطب الباطني والكبد"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Pharmacokinetics"
+  },
+  {
+    "id": "sent-ex-m28-2",
+    "en": "Impaired hepatic metabolism in Hepatic Cirrhosis significantly prolongs drug half-life and alters clinical Pharmacokinetics.",
+    "ar": "يؤدي ضعف الاستقلاب الكبدي في تشمّع الكبد إلى إطالة عمر النصف الدوائي وتغيير الحرائك الدوائية السريرية بشكل جوهري.",
+    "category": "Medical",
+    "specialty": "Pharmacology · علم الأدوية السريري",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m15",
+      "m28"
+    ],
+    "tags": [
+      "Pharmacokinetics",
+      "الطب الباطني والكبد"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Pharmacokinetics"
+  },
+  {
+    "id": "sent-ex-m29-1",
+    "en": "Rupture of an unstable coronary plaque in Atherosclerosis triggers acute thrombosis and Myocardial Infarction.",
+    "ar": "يؤدي تمزق اللويحة التاجية غير المستقرة في تصلّب الشرايين العصيدي إلى خثار حاد واحتشاء عضلة القلب.",
+    "category": "Medical",
+    "specialty": "Pathology & Vascular · علم الأمراض والأوعية",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m1",
+      "m29"
+    ],
+    "tags": [
+      "Atherosclerosis",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Atherosclerosis"
+  },
+  {
+    "id": "sent-ex-m29-2",
+    "en": "Progressive carotid Atherosclerosis narrows the arterial lumen, causing cerebral Ischemia and Ischemic Stroke.",
+    "ar": "يؤدي تصلّب الشرايين العصيدي السباتي المترقي إلى تضيق لمعة الشريان، مما يسبب نقص التروية الدموية الدماغي والسكتة الدماغية الإقفارية.",
+    "category": "Medical",
+    "specialty": "Pathology & Vascular · علم الأمراض والأوعية",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m2",
+      "m20",
+      "m29"
+    ],
+    "tags": [
+      "Atherosclerosis",
+      "طب الطوارئ والقلب"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Atherosclerosis"
+  },
+  {
+    "id": "sent-ex-t1-1",
+    "en": "Training a deep Neural Network requires massive parallel compute and careful Backpropagation tuning.",
+    "ar": "يتطلب تدريب شبكة عصبية اصطناعية عميقة قدرة حوسبة متوازية هائلة وضبطاً دقيقاً لخوارزمية الانتشار العكسي.",
+    "category": "AI",
+    "specialty": "Deep Learning & Medical NLP",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "t1",
+      "t2"
+    ],
+    "tags": [
+      "Neural Network",
+      "معمارية الذكاء الاصطناعي"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Neural Network"
+  },
+  {
+    "id": "sent-ex-t1-2",
+    "en": "Clinical researchers applied a Neural Network to detect Myocardial Infarction patterns in ECG signals.",
+    "ar": "طبّق الباحثون السريريون شبكة عصبية اصطناعية لاكتشاف أنماط احتشاء عضلة القلب في إشارات تخطيط القلب.",
+    "category": "AI",
+    "specialty": "Deep Learning & Medical NLP",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "m1",
+      "t1"
+    ],
+    "tags": [
+      "Neural Network",
+      "معمارية الذكاء الاصطناعي"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Neural Network"
+  },
+  {
+    "id": "sent-ex-t2-1",
+    "en": "Without efficient Backpropagation, updating millions of weights in a Transformer would be computationally infeasible.",
+    "ar": "بدون خوارزمية الانتشار العكسي للخطأ الفعالة، سيكون تحديث ملايين الأوزان في نموذج المحول مستحيلاً حسابياً.",
+    "category": "AI",
+    "specialty": "Optimization & Neural Training",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "t2",
+      "t3"
+    ],
+    "tags": [
+      "Backpropagation",
+      "معمارية الذكاء الاصطناعي"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Backpropagation"
+  },
+  {
+    "id": "sent-ex-t2-2",
+    "en": "During each training epoch, Backpropagation computes layer gradients that guide Gradient Descent across the Neural Network.",
+    "ar": "خلال كل دورة تدريبية، يحسب الانتشار العكسي للخطأ تدرجات الطبقات التي توجه الانحدار التدريجي عبر الشبكة العصبية الاصطناعية.",
+    "category": "AI",
+    "specialty": "Optimization & Neural Training",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "t1",
+      "t2",
+      "t4"
+    ],
+    "tags": [
+      "Backpropagation",
+      "معمارية الذكاء الاصطناعي"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Backpropagation"
+  },
+  {
+    "id": "sent-ex-t3-1",
+    "en": "Combining a quantized Transformer with Retrieval-Augmented Generation and glossary constraints eliminates clinical translation errors.",
+    "ar": "إن دمج نموذج المحوّل الانتباهي المكمّم مع التوليد المعزز بالاسترجاع والقيود المعجمية يقضي على أخطاء الترجمة السريرية.",
+    "category": "AI",
+    "specialty": "Natural Language Processing (NMT)",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "t3",
+      "t5"
+    ],
+    "tags": [
+      "Transformer",
+      "معمارية الذكاء الاصطناعي"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Transformer"
+  },
+  {
+    "id": "sent-ex-t3-2",
+    "en": "The self-attention mechanism in a Transformer Neural Network triggered a Paradigm Shift in clinical natural language processing.",
+    "ar": "أحدثت آلية الانتباه الذاتي في الشبكة العصبية الاصطناعية لنموذج المحوّل الانتباهي تحولاً جذرياً في النموذج المعرفي لمعالجة اللغات الطبيعية السريرية.",
+    "category": "AI",
+    "specialty": "Natural Language Processing (NMT)",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "t1",
+      "t3",
+      "g1"
+    ],
+    "tags": [
+      "Transformer",
+      "معمارية الذكاء الاصطناعي"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Transformer"
+  },
+  {
+    "id": "sent-ex-t4-1",
+    "en": "Stochastic Gradient Descent updates Neural Network parameters iteratively using mini-batches.",
+    "ar": "يقوم الانحدار التدريجي العشوائي بتحديث معاملات الشبكة العصبية تكرارياً باستخدام دفعات مصغرة.",
+    "category": "AI",
+    "specialty": "Mathematical Optimization",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "t1",
+      "t4"
+    ],
+    "tags": [
+      "Gradient Descent",
+      "معمارية الذكاء الاصطناعي"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Gradient Descent"
+  },
+  {
+    "id": "sent-ex-t4-2",
+    "en": "Adaptive learning rates accelerate Gradient Descent convergence when training a large Transformer via Backpropagation.",
+    "ar": "تعمل معدلات التعلم التكيفية على تسريع تقارب الانحدار التدريجي عند تدريب نموذج المحوّل الانتباهي الكبير عبر الانتشار العكسي للخطأ.",
+    "category": "AI",
+    "specialty": "Mathematical Optimization",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "t2",
+      "t3",
+      "t4"
+    ],
+    "tags": [
+      "Gradient Descent",
+      "معمارية الذكاء الاصطناعي"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Gradient Descent"
+  },
+  {
+    "id": "sent-ex-t5-1",
+    "en": "Our offline architecture pairs SQLite FTS5 with Retrieval-Augmented Generation for deterministic medical lookup.",
+    "ar": "تجمع المعمارية المحلية لدينا بين محرك SQLite FTS5 وتقنية التوليد المعزّز بالاسترجاع المعرفي للبحث الطبي الحتمي.",
+    "category": "AI",
+    "specialty": "Knowledge-Grounded AI",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "t5"
+    ],
+    "tags": [
+      "Retrieval-Augmented Generation",
+      "النماذج اللغوية الكبيرة"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Retrieval-Augmented Generation"
+  },
+  {
+    "id": "sent-ex-t5-2",
+    "en": "Grounding a Transformer with Retrieval-Augmented Generation strengthens clinical Epistemology when reviewing Differential Diagnosis cases.",
+    "ar": "يعزز ربط نموذج المحوّل الانتباهي بالتوليد المعزّز بالاسترجاع المعرفي نظرية المعرفة السريرية عند مراجعة حالات التشخيص التفريقي.",
+    "category": "AI",
+    "specialty": "Knowledge-Grounded AI",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "t3",
+      "t5",
+      "g2",
+      "m1"
+    ],
+    "tags": [
+      "Retrieval-Augmented Generation",
+      "النماذج اللغوية الكبيرة"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Retrieval-Augmented Generation"
+  },
+  {
+    "id": "sent-ex-p1-1",
+    "en": "Our Termux ingestion pipeline uses SQLite UPSERT statements to guarantee Idempotency during batch syncs.",
+    "ar": "يستخدم خط أنابيب الاستيعاب في Termux عبارات التحديث والإدراج في SQLite لضمان خاصية التكرار الآمن أثناء مزامنة الدفعات.",
+    "category": "Programming",
+    "specialty": "Distributed Systems & Database Pipelines",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "p1"
+    ],
+    "tags": [
+      "Idempotency",
+      "هندسة الأنظمة والـ APIs"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Idempotency"
+  },
+  {
+    "id": "sent-ex-p1-2",
+    "en": "Enforcing Idempotency across pure functions allows safe Memoization even under heavy multi-threaded Concurrency.",
+    "ar": "يتيح فرض خاصية التكرار الآمن عبر الدوال النقية تطبيق الاستذكار الحوسبي بأمان حتى في ظل التزامن التنفيذي الكثيف متعدد الخيوط.",
+    "category": "Programming",
+    "specialty": "Distributed Systems & Database Pipelines",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "p1",
+      "p2",
+      "p3"
+    ],
+    "tags": [
+      "Idempotency",
+      "هندسة الأنظمة والـ APIs"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Idempotency"
+  },
+  {
+    "id": "sent-ex-p2-1",
+    "en": "Bounded Memoization caches accelerate repeated morphological lookups while keeping Garbage Collection efficient.",
+    "ar": "تعمل ذاكرات الاستذكار الحوسبي المحدودة على تسريع عمليات البحث الصرفي المتكررة مع الحفاظ على كفاءة تحرير الذاكرة التلقائي.",
+    "category": "Programming",
+    "specialty": "Algorithmic Optimization & Memory",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "p2",
+      "p4"
+    ],
+    "tags": [
+      "Memoization",
+      "هندسة الأنظمة والـ APIs"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Memoization"
+  },
+  {
+    "id": "sent-ex-p2-2",
+    "en": "Deterministic morphological decomposition leverages Idempotency and Memoization to avoid redundant regex scans during high Concurrency.",
+    "ar": "يستفيد التفكيك الصرفي الحتمي من خاصية التكرار الآمن والاستذكار الحوسبي لتجنب عمليات المسح المتكررة أثناء التزامن التنفيذي العالي.",
+    "category": "Programming",
+    "specialty": "Algorithmic Optimization & Memory",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "p1",
+      "p2",
+      "p3"
+    ],
+    "tags": [
+      "Memoization",
+      "هندسة الأنظمة والـ APIs"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Memoization"
+  },
+  {
+    "id": "sent-ex-p3-1",
+    "en": "SQLite WAL mode enables high read Concurrency while a background Termux script writes new dictionary batches.",
+    "ar": "يتيح وضع WAL في SQLite مستوى عالياً من التزامن التنفيذي للقراءة بينما يقوم سكربت Termux في الخلفية بكتابة دفعات القاموس الجديدة.",
+    "category": "Programming",
+    "specialty": "Systems Architecture",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "p3"
+    ],
+    "tags": [
+      "Concurrency",
+      "هندسة الأنظمة والـ APIs"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Concurrency"
+  },
+  {
+    "id": "sent-ex-p3-2",
+    "en": "Combining non-blocking Concurrency with transactional Idempotency prevents database lock contention and reduces Garbage Collection pauses.",
+    "ar": "إن الجمع بين التزامن التنفيذي غير الحاجب وخاصية التكرار الآمن للمعاملات يمنع تنازع أقفال قاعدة البيانات ويقلل توقفات تحرير الذاكرة التلقائي.",
+    "category": "Programming",
+    "specialty": "Systems Architecture",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "p1",
+      "p3",
+      "p4"
+    ],
+    "tags": [
+      "Concurrency",
+      "هندسة الأنظمة والـ APIs"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Concurrency"
+  },
+  {
+    "id": "sent-ex-p4-1",
+    "en": "Closing database cursors and releasing unused buffers promptly allows Garbage Collection to maintain smooth application performance.",
+    "ar": "يتيح إغلاق مؤشرات قاعدة البيانات وتحرير المخازن المؤقتة غير المستخدمة فوراً لآلية تحرير الذاكرة التلقائي الحفاظ على سلاسة أداء التطبيق.",
+    "category": "Programming",
+    "specialty": "Runtime Memory Management",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "p4"
+    ],
+    "tags": [
+      "Garbage Collection",
+      "هندسة الأنظمة والـ APIs"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Garbage Collection"
+  },
+  {
+    "id": "sent-ex-p4-2",
+    "en": "Unbounded Memoization tables under heavy Concurrency can increase heap pressure and trigger frequent Garbage Collection cycles.",
+    "ar": "يمكن أن تؤدي جداول الاستذكار الحوسبي غير المحدودة تحت التزامن التنفيذي الكثيف إلى زيادة ضغط الذاكرة وتحفيز دورات تحرير الذاكرة التلقائي المتكررة.",
+    "category": "Programming",
+    "specialty": "Runtime Memory Management",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "p2",
+      "p3",
+      "p4"
+    ],
+    "tags": [
+      "Garbage Collection",
+      "هندسة الأنظمة والـ APIs"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Garbage Collection"
+  },
+  {
+    "id": "sent-ex-g1-1",
+    "en": "The transition from unconstrained neural translation to Glossary-Constrained Transformer pipelines represents a clinical Paradigm Shift.",
+    "ar": "يمثل الانتقال من الترجمة العصبية غير المقيدة إلى خطوط أنابيب المحوّل المقيدة بالمعجم تحولاً جذرياً في النموذج المعرفي السريري.",
+    "category": "General",
+    "specialty": "Philosophy of Science",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "t3",
+      "g1"
+    ],
+    "tags": [
+      "Paradigm Shift",
+      "المفاهيم الفكرية والمنهجية"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Paradigm Shift"
+  },
+  {
+    "id": "sent-ex-g1-2",
+    "en": "In scientific Epistemology, a Paradigm Shift occurs when accumulated anomalies replace an older Heuristic model.",
+    "ar": "في نظرية المعرفة العلمية، يحدث التحوّل الجذري في النموذج المعرفي عندما تحل الشواذ المتراكمة محل نموذج القاعدة الاستدلالية الأقدم.",
+    "category": "General",
+    "specialty": "Philosophy of Science",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "g1",
+      "g2",
+      "g3"
+    ],
+    "tags": [
+      "Paradigm Shift",
+      "المفاهيم الفكرية والمنهجية"
+    ],
+    "favorite": true,
+    "createdAt": "مثال سياقي · Paradigm Shift"
+  },
+  {
+    "id": "sent-ex-g2-1",
+    "en": "Medical Differential Diagnosis applies clinical Epistemology and Heuristic rules to rule out rare pathologies.",
+    "ar": "يطبق التشخيص التفريقي الطبي نظرية المعرفة السريرية والقواعد الاستدلالية لاستبعاد الأمراض النادرة.",
+    "category": "General",
+    "specialty": "Knowledge Engineering",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "g2",
+      "g3",
+      "m1"
+    ],
+    "tags": [
+      "Epistemology",
+      "المفاهيم الفكرية والمنهجية"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Epistemology"
+  },
+  {
+    "id": "sent-ex-g2-2",
+    "en": "Combining Retrieval-Augmented Generation with verified lexicons establishes a rigorous Epistemology that drives a Paradigm Shift in medical AI.",
+    "ar": "يرسي دمج التوليد المعزّز بالاسترجاع المعرفي مع المعاجم الموثقة نظرية معرفة صارمة تقود تحولاً جذرياً في النموذج المعرفي للذكاء الاصطناعي الطبي.",
+    "category": "General",
+    "specialty": "Knowledge Engineering",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "t5",
+      "g1",
+      "g2"
+    ],
+    "tags": [
+      "Epistemology",
+      "المفاهيم الفكرية والمنهجية"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Epistemology"
+  },
+  {
+    "id": "sent-ex-g3-1",
+    "en": "Experienced clinicians rely on a rapid Heuristic during emergency triage before completing a full Differential Diagnosis.",
+    "ar": "يعتمد الأطباء ذوو الخبرة على قاعدة استدلالية عملية سريعة أثناء فرز الطوارئ قبل استكمال التشخيص التفريقي الكامل.",
+    "category": "General",
+    "specialty": "Decision Theory & Triage",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "g3",
+      "m1"
+    ],
+    "tags": [
+      "Heuristic",
+      "المفاهيم الفكرية والمنهجية"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Heuristic"
+  },
+  {
+    "id": "sent-ex-g3-2",
+    "en": "Morphological affix decomposition acts as a deterministic Heuristic rooted in linguistic Epistemology for out-of-vocabulary medical terms.",
+    "ar": "يعمل تفكيك اللواحق الصرفية كقاعدة استدلالية عملية حتمية متجذرة في نظرية المعرفة اللغوية للمصطلحات الطبية خارج المعجم.",
+    "category": "General",
+    "specialty": "Decision Theory & Triage",
+    "sourceType": "seed",
+    "linkedTermIds": [
+      "g2",
+      "g3"
+    ],
+    "tags": [
+      "Heuristic",
+      "المفاهيم الفكرية والمنهجية"
+    ],
+    "favorite": false,
+    "createdAt": "مثال سياقي · Heuristic"
+  }
+]
