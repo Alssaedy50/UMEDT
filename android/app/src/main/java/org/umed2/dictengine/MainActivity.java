@@ -6,6 +6,7 @@ import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.media.AudioAttributes;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
@@ -13,6 +14,9 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
+import android.speech.RecognizerIntent;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import android.util.Base64;
 import android.view.View;
 import android.webkit.DownloadListener;
@@ -44,6 +48,8 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 import javax.crypto.Cipher;
@@ -57,21 +63,181 @@ import android.security.keystore.KeyProperties;
 public class MainActivity extends BridgeActivity {
 
     private static final int REQ_RECORD_AUDIO_CODE = 7101;
+    private static final int REQ_VOICE_SEARCH_CODE = 7102;
     private static final String KEYSTORE_ALIAS = "UMEDT_BOT_TOKEN_KEY_V1";
     private static final String ANDROID_KEYSTORE = "AndroidKeyStore";
     private static final String AES_GCM_TRANSFORMATION = "AES/GCM/NoPadding";
+
+    private TextToSpeech nativeTts;
+    private volatile boolean nativeTtsReady = false;
+    private volatile String pendingTtsText = null;
+    private volatile String pendingTtsLang = null;
+    private volatile String pendingTtsKey = null;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         applySafeSystemBarInsets();
         attachNativeDownloadBridge();
+        initNativeTts();
     }
 
     @Override
     public void onStart() {
         super.onStart();
         attachNativeDownloadBridge();
+    }
+
+    @Override
+    public void onDestroy() {
+        try {
+            if (nativeTts != null) {
+                nativeTts.stop();
+                nativeTts.shutdown();
+                nativeTts = null;
+                nativeTtsReady = false;
+            }
+        } catch (Exception ignored) {
+        }
+        super.onDestroy();
+    }
+
+    private void initNativeTts() {
+        if (nativeTts != null) {
+            return;
+        }
+        try {
+            nativeTts = new TextToSpeech(getApplicationContext(), status -> {
+                if (status == TextToSpeech.SUCCESS && nativeTts != null) {
+                    nativeTtsReady = true;
+                    try {
+                        nativeTts.setAudioAttributes(
+                                new AudioAttributes.Builder()
+                                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                                        .build()
+                        );
+                        nativeTts.setSpeechRate(0.92f);
+                        nativeTts.setPitch(1.0f);
+                        nativeTts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                            @Override
+                            public void onStart(String utteranceId) {
+                                dispatchJsEvent("umed-native-tts-start", "{\"key\":" + JSONObject.quote(utteranceId != null ? utteranceId : "") + "}");
+                            }
+
+                            @Override
+                            public void onDone(String utteranceId) {
+                                dispatchJsEvent("umed-native-tts-end", "{\"key\":" + JSONObject.quote(utteranceId != null ? utteranceId : "") + "}");
+                            }
+
+                            @Override
+                            public void onError(String utteranceId) {
+                                dispatchJsEvent("umed-native-tts-end", "{\"key\":" + JSONObject.quote(utteranceId != null ? utteranceId : "") + ",\"error\":true}");
+                            }
+
+                            @Override
+                            public void onError(String utteranceId, int errorCode) {
+                                dispatchJsEvent("umed-native-tts-end", "{\"key\":" + JSONObject.quote(utteranceId != null ? utteranceId : "") + ",\"error\":true}");
+                            }
+                        });
+                    } catch (Exception ignored) {
+                    }
+                    String queuedText = pendingTtsText;
+                    String queuedLang = pendingTtsLang;
+                    String queuedKey = pendingTtsKey;
+                    pendingTtsText = null;
+                    pendingTtsLang = null;
+                    pendingTtsKey = null;
+                    if (queuedText != null && !queuedText.trim().isEmpty()) {
+                        speakInternal(queuedText, queuedLang, queuedKey);
+                    }
+                } else {
+                    nativeTtsReady = false;
+                }
+            });
+        } catch (Exception ignored) {
+            nativeTtsReady = false;
+        }
+    }
+
+    private boolean speakInternal(String text, String lang, String key) {
+        if (nativeTts == null || !nativeTtsReady || text == null || text.trim().isEmpty()) {
+            return false;
+        }
+        try {
+            Locale targetLocale = resolveLocale(lang);
+            int langRes = nativeTts.setLanguage(targetLocale);
+            if (langRes == TextToSpeech.LANG_MISSING_DATA || langRes == TextToSpeech.LANG_NOT_SUPPORTED) {
+                if (targetLocale.getLanguage().equalsIgnoreCase("ar")) {
+                    nativeTts.setLanguage(new Locale("ar"));
+                } else {
+                    nativeTts.setLanguage(Locale.US);
+                }
+            }
+            nativeTts.setSpeechRate(0.92f);
+            nativeTts.setPitch(1.0f);
+            String utteranceId = (key != null && !key.trim().isEmpty())
+                    ? key.trim()
+                    : ("umedt-tts-" + System.currentTimeMillis());
+            Bundle params = new Bundle();
+            params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f);
+            int speakStatus = nativeTts.speak(text.trim(), TextToSpeech.QUEUE_FLUSH, params, utteranceId);
+            return speakStatus == TextToSpeech.SUCCESS;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private Locale resolveLocale(String lang) {
+        if (lang == null || lang.trim().isEmpty()) {
+            return Locale.US;
+        }
+        String normalized = lang.trim().replace('_', '-');
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                Locale parsed = Locale.forLanguageTag(normalized);
+                if (parsed != null && parsed.getLanguage() != null && !parsed.getLanguage().isEmpty()) {
+                    return parsed;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        if (normalized.toLowerCase(Locale.ROOT).startsWith("ar")) {
+            return new Locale("ar", "SA");
+        }
+        return Locale.US;
+    }
+
+    private void dispatchJsEvent(final String eventName, final String detailJson) {
+        runOnUiThread(() -> {
+            try {
+                if (this.bridge != null && this.bridge.getWebView() != null) {
+                    String script = "window.dispatchEvent(new CustomEvent(" + JSONObject.quote(eventName) + ", { detail: " + detailJson + " }));";
+                    this.bridge.getWebView().evaluateJavascript(script, null);
+                }
+            } catch (Exception ignored) {
+            }
+        });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_VOICE_SEARCH_CODE) {
+            try {
+                if (resultCode == RESULT_OK && data != null) {
+                    ArrayList<String> matches = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+                    if (matches != null && !matches.isEmpty() && matches.get(0) != null && !matches.get(0).trim().isEmpty()) {
+                        String spokenText = matches.get(0).trim();
+                        dispatchJsEvent("umed-voice-search-result", "{\"text\":" + JSONObject.quote(spokenText) + "}");
+                        return;
+                    }
+                }
+                dispatchJsEvent("umed-voice-search-error", "{\"code\":\"cancelled\"}");
+            } catch (Exception e) {
+                dispatchJsEvent("umed-voice-search-error", "{\"code\":\"error\"}");
+            }
+        }
     }
 
     private void applySafeSystemBarInsets() {
@@ -234,6 +400,121 @@ public class MainActivity extends BridgeActivity {
                     REQ_RECORD_AUDIO_CODE
             );
             return false;
+        }
+
+        @JavascriptInterface
+        public boolean isTtsAvailable() {
+            if (nativeTts == null) {
+                MainActivity.this.runOnUiThread(MainActivity.this::initNativeTts);
+            }
+            return true;
+        }
+
+        @JavascriptInterface
+        public String speakText(String text, String lang, String key) {
+            JSONObject res = new JSONObject();
+            try {
+                if (text == null || text.trim().isEmpty()) {
+                    res.put("ok", false);
+                    res.put("error", "النص فارغ");
+                    return res.toString();
+                }
+                if (nativeTts == null) {
+                    pendingTtsText = text.trim();
+                    pendingTtsLang = lang;
+                    pendingTtsKey = key;
+                    MainActivity.this.runOnUiThread(MainActivity.this::initNativeTts);
+                    res.put("ok", true);
+                    res.put("queued", true);
+                    return res.toString();
+                }
+                if (!nativeTtsReady) {
+                    pendingTtsText = text.trim();
+                    pendingTtsLang = lang;
+                    pendingTtsKey = key;
+                    res.put("ok", true);
+                    res.put("queued", true);
+                    return res.toString();
+                }
+                boolean started = speakInternal(text, lang, key);
+                res.put("ok", started);
+                if (!started) {
+                    res.put("error", "تعذر تشغيل النطق الصوتي عبر Android TTS");
+                }
+            } catch (Exception e) {
+                try {
+                    res.put("ok", false);
+                    res.put("error", e.getMessage() != null ? e.getMessage() : "خطأ في محرك النطق");
+                } catch (Exception ignored) {
+                }
+            }
+            return res.toString();
+        }
+
+        @JavascriptInterface
+        public void stopSpeaking() {
+            try {
+                pendingTtsText = null;
+                pendingTtsLang = null;
+                pendingTtsKey = null;
+                if (nativeTts != null) {
+                    nativeTts.stop();
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        @JavascriptInterface
+        public boolean isVoiceSearchAvailable() {
+            try {
+                Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                List<?> activities = getPackageManager().queryIntentActivities(intent, 0);
+                return activities != null && !activities.isEmpty();
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+
+        @JavascriptInterface
+        public String startVoiceSearch(final String lang) {
+            JSONObject res = new JSONObject();
+            try {
+                final String resolvedLang = (lang != null && !lang.trim().isEmpty()) ? lang.trim() : "en-US";
+                Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, resolvedLang);
+                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, resolvedLang);
+                intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+                intent.putExtra(
+                        RecognizerIntent.EXTRA_PROMPT,
+                        resolvedLang.toLowerCase(Locale.ROOT).startsWith("ar")
+                                ? "انطق الكلمة أو المصطلح بالعربية..."
+                                : "Speak the English word or medical term..."
+                );
+
+                List<?> activities = getPackageManager().queryIntentActivities(intent, 0);
+                if (activities == null || activities.isEmpty()) {
+                    res.put("ok", false);
+                    res.put("error", "خدمة التعرف على الصوت غير مثبّتة على هذا الجهاز");
+                    return res.toString();
+                }
+
+                MainActivity.this.runOnUiThread(() -> {
+                    try {
+                        startActivityForResult(intent, REQ_VOICE_SEARCH_CODE);
+                    } catch (Exception e) {
+                        dispatchJsEvent("umed-voice-search-error", "{\"code\":\"launch_failed\"}");
+                    }
+                });
+                res.put("ok", true);
+            } catch (Exception e) {
+                try {
+                    res.put("ok", false);
+                    res.put("error", e.getMessage() != null ? e.getMessage() : "تعذر بدء الإدخال الصوتي");
+                } catch (Exception ignored) {
+                }
+            }
+            return res.toString();
         }
 
         @JavascriptInterface

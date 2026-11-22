@@ -570,7 +570,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".zip,.json,.umedpack,.csv,.txt"
+        accept=".json,.zip"
         onChange={handleFileChange}
         className="hidden"
       />

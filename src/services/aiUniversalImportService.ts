@@ -1946,14 +1946,18 @@ function collectFromStructuredTextFallback(rawText: string, buckets: ParsedBucke
  * - Markdown hierarchy (# Block:, ## Subject:, ### Topic:) & Markdown tables (| Term | Translation | ... |)
  * - Structured CSV / TSV / dash-delimited term lists
  */
+export type UniversalImportTargetType = 'all' | 'terms' | 'topics';
+
 export function importUniversalAiOrLocalContent(params: {
   rawText: string;
   conflictPolicy?: 'ignore' | 'merge' | 'overwrite';
   sourceLabel?: string;
   syncToCloud?: boolean;
   allowHierarchyCreation?: boolean;
+  importTargetType?: UniversalImportTargetType;
 }): UniversalImportReport {
   const mode = params.conflictPolicy || 'merge';
+  const targetType: UniversalImportTargetType = params.importTargetType || 'all';
   const currentState = loadAppState();
   const currentBlocks = loadMedicalBlocks();
   const currentSubjects = loadMedicalSubjects();
@@ -2012,6 +2016,48 @@ export function importUniversalAiOrLocalContent(params: {
     collectFromStructuredTextFallback(params.rawText, buckets);
   }
 
+  if (targetType === 'terms') {
+    const ignoredTopicsCount = buckets.topics.length;
+    buckets.blocks = [];
+    buckets.subjects = [];
+    buckets.topics = [];
+    buckets.sentences = [];
+    buckets.affixes = [];
+    buckets.abbreviations = [];
+    buckets.books = [];
+    buckets.exams = [];
+    buckets.questions = [];
+    buckets.mediaAssets = [];
+    buckets.userNotes = [];
+    buckets.quizAttempts = [];
+    buckets.studyStats = null;
+    buckets.dynamicCollections = [];
+    if (ignoredTopicsCount > 0 && buckets.terms.length > 0) {
+      warnings.push(`تم تجاهل ${ignoredTopicsCount} موضوع لأن نوع الاستيراد المحدد هو «مصطلحات».`);
+    }
+  } else if (targetType === 'topics') {
+    const ignoredTermsCount = buckets.terms.length;
+    buckets.blocks = [];
+    buckets.subjects = [];
+    buckets.terms = [];
+    buckets.sentences = [];
+    buckets.affixes = [];
+    buckets.abbreviations = [];
+    buckets.books = [];
+    buckets.exams = [];
+    buckets.userNotes = [];
+    buckets.quizAttempts = [];
+    buckets.studyStats = null;
+    buckets.dynamicCollections = [];
+    if (buckets.topics.length === 0) {
+      buckets.questions = [];
+      buckets.mediaAssets = [];
+    }
+    if (ignoredTermsCount > 0 && buckets.topics.length > 0) {
+      warnings.push(`تم تجاهل ${ignoredTermsCount} مصطلح لأن نوع الاستيراد المحدد هو «مواضيع».`);
+    }
+  }
+
   const totalParsed =
     buckets.blocks.length +
     buckets.subjects.length +
@@ -2029,6 +2075,12 @@ export function importUniversalAiOrLocalContent(params: {
     buckets.dynamicCollections.reduce((acc, dc) => acc + dc.items.length, 0);
 
   if (totalParsed === 0) {
+    const emptyMsg =
+      targetType === 'terms'
+        ? 'لم يتم العثور على أي مصطلحات صالحة في المحتوى. تأكد من اختيار «مصطلحات» أو «مواضيع» بشكل مطابق للبيانات.'
+        : targetType === 'topics'
+        ? 'لم يتم العثور على أي مواضيع صالحة في المحتوى. تأكد من اختيار «مواضيع» أو «مصطلحات» بشكل مطابق للبيانات.'
+        : 'لم يتم العثور على سجلات صالحة متوافقة مع UMEDT في النص أو الملف.';
     return {
       success: false,
       sourceFormat: buckets.sourceFormat,
@@ -2047,8 +2099,8 @@ export function importUniversalAiOrLocalContent(params: {
         skippedDuplicates: 0
       },
       warnings,
-      errors: errors.length > 0 ? errors : ['لم يتم العثور على بيانات متوافقة مع بنية UMEDT.'],
-      messageAr: 'لم يتم العثور على سجلات صالحة متوافقة مع UMEDT في النص أو الملف.',
+      errors: errors.length > 0 ? errors : [emptyMsg],
+      messageAr: emptyMsg,
       summaryText: 'لا توجد عناصر مستوردة',
       updatedTerms: emptyStateReturn.terms,
       updatedSentences: emptyStateReturn.sentences,
@@ -2739,6 +2791,7 @@ export function importUniversalZipArchiveBytes(
     conflictPolicy?: 'ignore' | 'merge' | 'overwrite';
     sourceLabel?: string;
     syncToCloud?: boolean;
+    importTargetType?: UniversalImportTargetType;
   }
 ): UniversalImportReport {
   const unzipped = extractStoreEntriesFromZipBytes(zipBytes);
@@ -2790,7 +2843,8 @@ export function importUniversalZipArchiveBytes(
       rawText: '',
       conflictPolicy: options?.conflictPolicy || 'merge',
       sourceLabel: options?.sourceLabel || 'استيراد أرشيف ZIP شامل',
-      syncToCloud: options?.syncToCloud
+      syncToCloud: options?.syncToCloud,
+      importTargetType: options?.importTargetType
     });
   }
 
@@ -2841,6 +2895,7 @@ export function importUniversalZipArchiveBytes(
     rawText: JSON.stringify(mergedWrapper),
     conflictPolicy: options?.conflictPolicy || 'merge',
     sourceLabel: options?.sourceLabel || 'استيراد أرشيف ZIP شامل',
-    syncToCloud: options?.syncToCloud
+    syncToCloud: options?.syncToCloud,
+    importTargetType: options?.importTargetType
   });
 }

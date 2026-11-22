@@ -931,63 +931,292 @@ export default function App() {
     });
   };
 
-  const triggerTTS = (text: string, key: string, lang = 'en-US') => {
-    const cleanText = text?.trim();
-    if (!cleanText || typeof window === 'undefined' ||
-        !('speechSynthesis' in window) ||
-        typeof SpeechSynthesisUtterance === 'undefined') {
+  const ttsUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const ttsTimeoutRef = useRef<number | null>(null);
+  const ttsSpeakDelayRef = useRef<number | null>(null);
+  const ttsKeepAliveRef = useRef<number | null>(null);
+  const ttsVoicesRef = useRef<SpeechSynthesisVoice[]>([]);
+  const speakingKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    speakingKeyRef.current = speakingKey;
+  }, [speakingKey]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const loadVoices = () => {
+      try {
+        if ('speechSynthesis' in window) {
+          const available = window.speechSynthesis.getVoices();
+          if (available && available.length > 0) {
+            ttsVoicesRef.current = available;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    loadVoices();
+    const synth = 'speechSynthesis' in window ? window.speechSynthesis : null;
+    if (synth) {
+      if (typeof synth.addEventListener === 'function') {
+        synth.addEventListener('voiceschanged', loadVoices);
+      } else {
+        synth.onvoiceschanged = loadVoices;
+      }
+    }
+
+    const handleNativeTtsEnd = (event: Event) => {
+      const custom = event as CustomEvent<{ key?: string }>;
+      const endedKey = custom?.detail?.key;
+      if (ttsTimeoutRef.current !== null) {
+        window.clearTimeout(ttsTimeoutRef.current);
+        ttsTimeoutRef.current = null;
+      }
+      setSpeakingKey((current) => {
+        if (!endedKey || current === endedKey) return null;
+        return current;
+      });
+    };
+
+    window.addEventListener('umed-native-tts-end', handleNativeTtsEnd);
+
+    return () => {
+      window.removeEventListener('umed-native-tts-end', handleNativeTtsEnd);
+      if (synth) {
+        if (typeof synth.removeEventListener === 'function') {
+          synth.removeEventListener('voiceschanged', loadVoices);
+        } else if (synth.onvoiceschanged === loadVoices) {
+          synth.onvoiceschanged = null;
+        }
+        try {
+          synth.cancel();
+        } catch {
+          // ignore
+        }
+      }
+      if (ttsTimeoutRef.current !== null) window.clearTimeout(ttsTimeoutRef.current);
+      if (ttsSpeakDelayRef.current !== null) window.clearTimeout(ttsSpeakDelayRef.current);
+      if (ttsKeepAliveRef.current !== null) window.clearInterval(ttsKeepAliveRef.current);
+    };
+  }, []);
+
+  const stopActiveTTS = () => {
+    if (ttsTimeoutRef.current !== null) {
+      window.clearTimeout(ttsTimeoutRef.current);
+      ttsTimeoutRef.current = null;
+    }
+    if (ttsSpeakDelayRef.current !== null) {
+      window.clearTimeout(ttsSpeakDelayRef.current);
+      ttsSpeakDelayRef.current = null;
+    }
+    if (ttsKeepAliveRef.current !== null) {
+      window.clearInterval(ttsKeepAliveRef.current);
+      ttsKeepAliveRef.current = null;
+    }
+    ttsUtteranceRef.current = null;
+    try {
+      const nativeBridge = (
+        window as unknown as {
+          UMEDAndroidBridge?: { stopSpeaking?: () => void };
+          UMEDNativeDownloader?: { stopSpeaking?: () => void };
+        }
+      ).UMEDAndroidBridge || (
+        window as unknown as {
+          UMEDNativeDownloader?: { stopSpeaking?: () => void };
+        }
+      ).UMEDNativeDownloader;
+      nativeBridge?.stopSpeaking?.();
+    } catch {
+      // ignore
+    }
+    try {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    } catch {
+      // ignore
+    }
+    setSpeakingKey(null);
+  };
+
+  const triggerTTS = (text: string, key: string, lang?: string) => {
+    const cleanText = (text || '').replace(/\s+/g, ' ').trim();
+    if (!cleanText || typeof window === 'undefined') {
       setSpeakingKey(null);
-      showToast('ميزة النطق غير متاحة في WebView. تحقق من تثبيت محرك تحويل النص إلى كلام في Android.');
+      return;
+    }
+
+    // Tap the currently speaking button again to stop playback
+    if (speakingKeyRef.current === key) {
+      stopActiveTTS();
+      return;
+    }
+
+    // Resolve language automatically when not explicitly specified
+    const arabicChars = (cleanText.match(/[\u0600-\u06FF]/g) || []).length;
+    const latinChars = (cleanText.match(/[A-Za-z]/g) || []).length;
+    const resolvedLang = lang || (arabicChars > latinChars ? 'ar-SA' : 'en-US');
+
+    // Clear pending timers from any prior utterance
+    if (ttsTimeoutRef.current !== null) {
+      window.clearTimeout(ttsTimeoutRef.current);
+      ttsTimeoutRef.current = null;
+    }
+    if (ttsSpeakDelayRef.current !== null) {
+      window.clearTimeout(ttsSpeakDelayRef.current);
+      ttsSpeakDelayRef.current = null;
+    }
+    if (ttsKeepAliveRef.current !== null) {
+      window.clearInterval(ttsKeepAliveRef.current);
+      ttsKeepAliveRef.current = null;
+    }
+
+    const maxDurationMs = Math.max(8000, Math.min(60000, cleanText.length * 180));
+
+    // 1. Native Android TTS bridge (guaranteed reliable audio on Android APK WebView)
+    try {
+      const win = window as unknown as {
+        UMEDAndroidBridge?: {
+          speakText?: (t: string, l: string, k: string) => string;
+          stopSpeaking?: () => void;
+        };
+        UMEDNativeDownloader?: {
+          speakText?: (t: string, l: string, k: string) => string;
+          stopSpeaking?: () => void;
+        };
+      };
+      const nativeBridge = win.UMEDAndroidBridge || win.UMEDNativeDownloader;
+      if (nativeBridge && typeof nativeBridge.speakText === 'function') {
+        const rawRes = nativeBridge.speakText(cleanText, resolvedLang, key);
+        const parsed = rawRes ? JSON.parse(rawRes) : { ok: false };
+        if (parsed?.ok) {
+          setSpeakingKey(key);
+          ttsTimeoutRef.current = window.setTimeout(() => {
+            setSpeakingKey((current) => (current === key ? null : current));
+            ttsTimeoutRef.current = null;
+          }, maxDurationMs);
+          return;
+        }
+      }
+    } catch {
+      // Fall through to Web Speech API
+    }
+
+    // 2. Web Speech API (Chrome / Edge / Safari / Firefox / Mobile Browsers)
+    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+      setSpeakingKey(null);
+      showToast('ميزة القراءة الصوتية غير مدعومة في هذا المتصفح.');
       return;
     }
 
     const synth = window.speechSynthesis;
     try {
-      // Keep speak() in the original tap/click call stack; delaying it can cause
-      // Android WebView to discard the speech request on some devices.
-      synth.cancel();
-      synth.resume();
+      const wasBusy = synth.speaking || synth.pending;
 
       const utterance = new SpeechSynthesisUtterance(cleanText);
-      utterance.lang = lang;
-      utterance.rate = 0.92;
+      utterance.lang = resolvedLang;
+      utterance.rate = 0.94;
       utterance.pitch = 1;
       utterance.volume = 1;
 
-      const voices = synth.getVoices();
-      const normalizedLanguage = lang.toLowerCase();
+      const loadedVoices = synth.getVoices();
+      const voices = loadedVoices.length > 0 ? loadedVoices : ttsVoicesRef.current;
+      if (loadedVoices.length > 0) {
+        ttsVoicesRef.current = loadedVoices;
+      }
+
+      const normalizedLang = resolvedLang.toLowerCase();
+      const baseLang = normalizedLang.split('-')[0];
       const preferredVoice =
-        voices.find((voice) => voice.lang.toLowerCase() === normalizedLanguage) ||
-        voices.find((voice) => voice.lang.toLowerCase().startsWith(normalizedLanguage.split('-')[0]));
-      if (preferredVoice) utterance.voice = preferredVoice;
+        voices.find((v) => v.lang.toLowerCase() === normalizedLang && v.localService) ||
+        voices.find((v) => v.lang.toLowerCase() === normalizedLang) ||
+        voices.find((v) => v.lang.toLowerCase().startsWith(baseLang) && v.localService) ||
+        voices.find((v) => v.lang.toLowerCase().startsWith(baseLang));
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
 
       let finished = false;
       const finish = () => {
         if (finished) return;
         finished = true;
-        setSpeakingKey((current) => current === key ? null : current);
+        if (ttsTimeoutRef.current !== null) {
+          window.clearTimeout(ttsTimeoutRef.current);
+          ttsTimeoutRef.current = null;
+        }
+        if (ttsKeepAliveRef.current !== null) {
+          window.clearInterval(ttsKeepAliveRef.current);
+          ttsKeepAliveRef.current = null;
+        }
+        if (ttsUtteranceRef.current === utterance) {
+          ttsUtteranceRef.current = null;
+        }
+        setSpeakingKey((current) => (current === key ? null : current));
       };
 
-      utterance.onstart = () => setSpeakingKey(key);
+      utterance.onstart = () => {
+        setSpeakingKey(key);
+      };
       utterance.onend = finish;
       utterance.onerror = (event) => {
         finish();
         if (event.error !== 'canceled' && event.error !== 'interrupted') {
-          showToast('تعذر تشغيل النطق. تحقق من محرك تحويل النص إلى كلام واللغة الإنجليزية في إعدادات Android.');
+          showToast('تعذر تشغيل النطق الصوتي. تأكد من عدم كتم الصوت وتوفر محرك النطق في جهازك.');
         }
       };
 
+      // Retain strong reference to prevent browser garbage collection mid-speech
+      ttsUtteranceRef.current = utterance;
       setSpeakingKey(key);
-      synth.speak(utterance);
 
-      // Defensive cleanup for WebViews that fail to dispatch onend/onerror.
-      window.setTimeout(finish, Math.max(7000, Math.min(45000, cleanText.length * 220)));
-      if (voices.length === 0) {
-        showToast('أُرسل طلب النطق. إذا لم تسمع صوتاً، ثبّت أو فعّل محرك تحويل النص إلى كلام في Android.');
+      const startSpeaking = () => {
+        try {
+          if (synth.paused) {
+            synth.resume();
+          }
+          synth.speak(utterance);
+          // Workaround for Chromium stalling long utterances after ~15s
+          if (cleanText.length > 90) {
+            ttsKeepAliveRef.current = window.setInterval(() => {
+              if (!synth.speaking) {
+                if (ttsKeepAliveRef.current !== null) {
+                  window.clearInterval(ttsKeepAliveRef.current);
+                  ttsKeepAliveRef.current = null;
+                }
+                return;
+              }
+              try {
+                synth.pause();
+                synth.resume();
+              } catch {
+                // ignore
+              }
+            }, 10000);
+          }
+        } catch {
+          finish();
+          showToast('تعذر تشغيل القراءة الصوتية.');
+        }
+      };
+
+      if (wasBusy) {
+        // Avoid Chromium bug where calling cancel() and speak() synchronously in the same tick silently drops the new utterance
+        synth.cancel();
+        ttsSpeakDelayRef.current = window.setTimeout(() => {
+          ttsSpeakDelayRef.current = null;
+          startSpeaking();
+        }, 60);
+      } else {
+        startSpeaking();
       }
+
+      ttsTimeoutRef.current = window.setTimeout(finish, maxDurationMs);
     } catch {
       setSpeakingKey(null);
-      showToast('تعذر الوصول إلى خدمة النطق الصوتي في بيئة التشغيل الحالية.');
+      showToast('تعذر الوصول إلى خدمة القراءة الصوتية في المتصفح الحالي.');
     }
   };
 
@@ -1879,19 +2108,20 @@ export default function App() {
     return false;
   };
 
-  const handleImportPackageFile = async (file: File) => {
+  const handleImportPackageFile = async (
+    file: File,
+    options?: { importTargetType?: 'all' | 'terms' | 'topics' }
+  ) => {
     const lowerName = file.name.toLowerCase();
+    const importTargetType = options?.importTargetType || 'all';
 
-    // If JSON / JSONL / CSV / TSV / TXT / MD, first try universal AI/UMEDT-DATA parser and legacy unified parsers
-    if (
-      lowerName.endsWith('.json') ||
-      lowerName.endsWith('.jsonl') ||
-      lowerName.endsWith('.csv') ||
-      lowerName.endsWith('.tsv') ||
-      lowerName.endsWith('.txt') ||
-      lowerName.endsWith('.md') ||
-      lowerName.endsWith('.umedpack')
-    ) {
+    if (!lowerName.endsWith('.json') && !lowerName.endsWith('.zip')) {
+      showToast('صيغة الملف غير مدعومة. الصيغ المقبولة فقط هي JSON (.json) و ZIP (.zip).', 'info');
+      return;
+    }
+
+    // If JSON, try universal AI/UMEDT-DATA parser (honoring importTargetType) and legacy unified parser when target is 'all'
+    if (lowerName.endsWith('.json')) {
       try {
         const parsedFile = await parseUploadedFile(file);
         const text = parsedFile.extractedText.trim();
@@ -1899,11 +2129,16 @@ export default function App() {
           const universalReport = importUniversalAiOrLocalContent({
             rawText: text,
             conflictPolicy,
-            sourceLabel: file.name
+            sourceLabel: file.name,
+            importTargetType
           });
           if (universalReport.success) {
             handleUniversalImportComplete(universalReport, file.name);
             showToast(`تم استيراد الملف (${file.name}): ${universalReport.summaryText}`);
+            return;
+          }
+          if (importTargetType !== 'all') {
+            showToast(universalReport.messageAr, 'info');
             return;
           }
           if (text.startsWith('{') || text.startsWith('[')) {
@@ -1912,7 +2147,33 @@ export default function App() {
           }
         }
       } catch {
-        // Fallback to executeAtomicPackageImport or universal ZIP reader below
+        // Fallback to executeAtomicPackageImport below when targetType is 'all'
+      }
+    }
+
+    // If user explicitly targeted 'terms' or 'topics' in a .zip file, import via universal ZIP importer with target filtering
+    if (lowerName.endsWith('.zip') && importTargetType !== 'all') {
+      try {
+        const zipBytes = new Uint8Array(await file.arrayBuffer());
+        const zipReport = importUniversalZipArchiveBytes(zipBytes, {
+          conflictPolicy,
+          sourceLabel: file.name,
+          syncToCloud: false,
+          importTargetType
+        });
+        if (zipReport.success) {
+          handleUniversalImportComplete(zipReport, file.name);
+          showToast(`تم استيراد الأرشيف (${file.name}): ${zipReport.summaryText}`);
+          return;
+        }
+        showToast(zipReport.messageAr, 'info');
+        return;
+      } catch (err) {
+        showToast(
+          err instanceof Error ? `تعذر قراءة ملف ZIP: ${err.message}` : 'تعذر قراءة ملف ZIP.',
+          'info'
+        );
+        return;
       }
     }
 
@@ -1936,15 +2197,13 @@ export default function App() {
         );
 
       // Fallback: if this is an AI-generated .zip without manifest.json (and NOT a security/rollback rejection), parse via importUniversalZipArchiveBytes
-      if (
-        !isSecurityOrRollbackFailure &&
-        (lowerName.endsWith('.zip') || lowerName.endsWith('.umedpack'))
-      ) {
+      if (!isSecurityOrRollbackFailure && lowerName.endsWith('.zip')) {
         try {
           const zipBytes = new Uint8Array(await file.arrayBuffer());
           const zipReport = importUniversalZipArchiveBytes(zipBytes, {
             conflictPolicy,
-            sourceLabel: file.name
+            sourceLabel: file.name,
+            importTargetType
           });
           if (zipReport.success) {
             handleUniversalImportComplete(zipReport, file.name);
@@ -2680,6 +2939,7 @@ export default function App() {
             onToggleFavoriteTerm={toggleFavoriteTerm}
             onToggleFavoriteSentence={toggleFavoriteSentence}
             onTriggerTTS={triggerTTS}
+            speakingKey={speakingKey}
             onCopyToClipboard={copyToClipboard}
             copiedId={copiedId}
             renderAutoLinkedText={renderAutoLinkedText}

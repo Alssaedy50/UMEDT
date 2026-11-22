@@ -747,21 +747,17 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
       .replace(/^(?:\d+|[\u0660-\u0669]+)[.)\-:]\s*/, '')
       .trim();
 
-  // Return complete, clean Arabic Block and Subject names without cutting words
+  // Return complete, exact Block and Subject names typed by the user without trimming punctuation or cutting words
   const getShortBlockNameAr = (block?: MedicalBlock): string => {
     if (!block) return '';
-    const rawAr = String(block.titleAr || '')
-      .replace(/^[.\-_,،؛:\s]+|[.\-_,،؛:\s]+$/g, '')
-      .trim();
+    const rawAr = String(block.titleAr || '').trim();
     const validAr = /[\p{L}\p{N}]/u.test(rawAr) ? rawAr : '';
     return validAr || String(block.titleEn || '').trim() || block.code;
   };
 
   const getShortSubjectNameAr = (subj?: MedicalSubject): string => {
     if (!subj) return '';
-    const rawAr = String(subj.titleAr || '')
-      .replace(/^[.\-_,،؛:\s]+|[.\-_,،؛:\s]+$/g, '')
-      .trim();
+    const rawAr = String(subj.titleAr || '').trim();
     const validAr = /[\p{L}\p{N}]/u.test(rawAr) ? rawAr : '';
     return validAr || String(subj.titleEn || '').trim() || subj.code;
   };
@@ -871,6 +867,9 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     const nowIso = new Date().toISOString();
 
     if (hierarchyModalMode === 'block') {
+      const existingBlock = editingHierarchyId
+        ? blocks.find((b) => b.id === editingHierarchyId)
+        : undefined;
       const nextBlock: MedicalBlock = {
         id: editingHierarchyId || `block-custom-${Date.now()}`,
         code: (hCode.trim() || 'BLK-MED').toUpperCase(),
@@ -878,9 +877,9 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         titleAr: cleanAr,
         descriptionEn: cleanEn,
         descriptionAr: hDescAr.trim() || cleanAr,
-        colorAccent: 'emerald',
-        order: blocks.length + 1,
-        createdAt: nowIso,
+        colorAccent: existingBlock?.colorAccent || 'emerald',
+        order: existingBlock?.order ?? blocks.length + 1,
+        createdAt: existingBlock?.createdAt || nowIso,
         updatedAt: nowIso
       };
       const nextBlocks = editingHierarchyId
@@ -906,6 +905,9 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           : `إضافة بلوك: ${cleanAr}`
       );
     } else if (hierarchyModalMode === 'subject') {
+      const existingSubject = editingHierarchyId
+        ? subjects.find((s) => s.id === editingHierarchyId)
+        : undefined;
       const nextSubj: MedicalSubject = {
         id: editingHierarchyId || `subj-custom-${Date.now()}`,
         blockId: hParentBlockId || undefined,
@@ -915,8 +917,8 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         titleAr: cleanAr,
         descriptionEn: cleanEn,
         descriptionAr: hDescAr.trim() || cleanAr,
-        order: subjects.length + 1,
-        createdAt: nowIso,
+        order: existingSubject?.order ?? subjects.length + 1,
+        createdAt: existingSubject?.createdAt || nowIso,
         updatedAt: nowIso
       };
       const nextSubjects = editingHierarchyId
@@ -1877,7 +1879,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   </label>
                   <input
                     type="text"
-                    dir="ltr"
+                    dir="auto"
                     required
                     value={hTitleEn}
                     onChange={(e) => setHTitleEn(e.target.value)}
@@ -1886,7 +1888,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                         ? 'Hematology'
                         : 'Parasitology'
                     }
-                    className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold text-left"
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm font-bold text-slate-900 dark:text-white text-left"
                   />
                 </div>
                 <div>
@@ -1901,7 +1903,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     placeholder={
                       hierarchyModalMode === 'block' ? 'BLK-HEME' : 'HEME-101'
                     }
-                    className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono text-left"
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm font-mono text-slate-900 dark:text-white text-left"
                   />
                 </div>
               </div>
@@ -1912,6 +1914,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 </label>
                 <input
                   type="text"
+                  dir="auto"
                   required
                   value={hTitleAr}
                   onChange={(e) => setHTitleAr(e.target.value)}
@@ -1920,7 +1923,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                       ? 'أمراض الدم'
                       : 'الطفيليات الطبية'
                   }
-                  className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                  className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm font-bold text-slate-900 dark:text-white text-right"
                 />
               </div>
 
@@ -1933,7 +1936,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     dir="auto"
                     value={hParentBlockId}
                     onChange={(e) => setHParentBlockId(e.target.value)}
-                    className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white"
                   >
                     <option value="">مادة مستقلة</option>
                     {blocks.map((b) => (
@@ -2013,18 +2016,26 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   onClick={() => setSetupPickerMode('block')}
                   className="w-full min-h-[46px] px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/60 flex items-center justify-between gap-2 text-right transition-colors"
                 >
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <div className="flex items-start gap-2 min-w-0 flex-1">
                     {selectedSetupBlock ? (
                       <>
                         <span
                           dir="ltr"
-                          className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
+                          className="px-2 py-0.5 mt-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
                         >
                           {selectedSetupBlock.code}
                         </span>
-                        <span className="text-xs font-extrabold text-slate-900 dark:text-white leading-snug break-words min-w-0">
-                          {getShortBlockNameAr(selectedSetupBlock)}
-                        </span>
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div dir="auto" className="text-xs font-extrabold text-slate-900 dark:text-white leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
+                            {getShortBlockNameAr(selectedSetupBlock)}
+                          </div>
+                          {selectedSetupBlock.titleEn &&
+                            selectedSetupBlock.titleEn !== getShortBlockNameAr(selectedSetupBlock) && (
+                              <div dir="auto" className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
+                                {selectedSetupBlock.titleEn}
+                              </div>
+                            )}
+                        </div>
                       </>
                     ) : (
                       <span className="text-xs font-bold text-slate-400">
@@ -2046,18 +2057,26 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                   onClick={() => setSetupPickerMode('subject')}
                   className="w-full min-h-[46px] px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/60 flex items-center justify-between gap-2 text-right transition-colors"
                 >
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <div className="flex items-start gap-2 min-w-0 flex-1">
                     {selectedSetupSubject ? (
                       <>
                         <span
                           dir="ltr"
-                          className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
+                          className="px-2 py-0.5 mt-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
                         >
                           {selectedSetupSubject.code}
                         </span>
-                        <span className="text-xs font-extrabold text-slate-900 dark:text-white leading-snug break-words min-w-0">
-                          {getShortSubjectNameAr(selectedSetupSubject)}
-                        </span>
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div dir="auto" className="text-xs font-extrabold text-slate-900 dark:text-white leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
+                            {getShortSubjectNameAr(selectedSetupSubject)}
+                          </div>
+                          {selectedSetupSubject.titleEn &&
+                            selectedSetupSubject.titleEn !== getShortSubjectNameAr(selectedSetupSubject) && (
+                              <div dir="auto" className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
+                                {selectedSetupSubject.titleEn}
+                              </div>
+                            )}
+                        </div>
                       </>
                     ) : (
                       <span className="text-xs font-bold text-slate-400">
@@ -2143,16 +2162,23 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                             : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
                         }`}
                       >
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div className="flex items-start gap-2 min-w-0 flex-1">
                           <span
                             dir="ltr"
-                            className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
+                            className="px-1.5 py-0.5 mt-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
                           >
                             {b.code}
                           </span>
-                          <span className="text-xs font-extrabold leading-snug break-words min-w-0">
-                            {getShortBlockNameAr(b)}
-                          </span>
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            <div dir="auto" className="text-xs font-extrabold leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
+                              {getShortBlockNameAr(b)}
+                            </div>
+                            {b.titleEn && b.titleEn !== getShortBlockNameAr(b) && (
+                              <div dir="auto" className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
+                                {b.titleEn}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         {isSelected && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
                       </button>
@@ -2176,16 +2202,23 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                               : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
                           }`}
                         >
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <div className="flex items-start gap-2 min-w-0 flex-1">
                             <span
                               dir="ltr"
-                              className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
+                              className="px-1.5 py-0.5 mt-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
                             >
                               {s.code}
                             </span>
-                            <span className="text-xs font-extrabold leading-snug break-words min-w-0">
-                              {getShortSubjectNameAr(s)}
-                            </span>
+                            <div className="min-w-0 flex-1 space-y-0.5">
+                              <div dir="auto" className="text-xs font-extrabold leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
+                                {getShortSubjectNameAr(s)}
+                              </div>
+                              {s.titleEn && s.titleEn !== getShortSubjectNameAr(s) && (
+                                <div dir="auto" className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
+                                  {s.titleEn}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           {isSelected && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
                         </button>
@@ -2295,16 +2328,23 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                         : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
                     }`}
                   >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div className="flex items-start gap-2 min-w-0 flex-1">
                       <span
                         dir="ltr"
-                        className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
+                        className="px-1.5 py-0.5 mt-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
                       >
                         {block.code} ({bCount})
                       </span>
-                      <span className="text-xs font-extrabold leading-snug break-words min-w-0">
-                        {getShortBlockNameAr(block)}
-                      </span>
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <div dir="auto" className="text-xs font-extrabold leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
+                          {getShortBlockNameAr(block)}
+                        </div>
+                        {block.titleEn && block.titleEn !== getShortBlockNameAr(block) && (
+                          <div dir="auto" className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
+                            {block.titleEn}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     {isSelected && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
                   </button>
@@ -2402,16 +2442,23 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                         : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
                     }`}
                   >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div className="flex items-start gap-2 min-w-0 flex-1">
                       <span
                         dir="ltr"
-                        className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
+                        className="px-1.5 py-0.5 mt-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-extrabold shrink-0"
                       >
                         {sub.code} ({sCount})
                       </span>
-                      <span className="text-xs font-extrabold leading-snug break-words min-w-0">
-                        {getShortSubjectNameAr(sub)}
-                      </span>
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <div dir="auto" className="text-xs font-extrabold leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
+                          {getShortSubjectNameAr(sub)}
+                        </div>
+                        {sub.titleEn && sub.titleEn !== getShortSubjectNameAr(sub) && (
+                          <div dir="auto" className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
+                            {sub.titleEn}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     {isSelected && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
                   </button>
@@ -2632,12 +2679,15 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                             {blockTopics.length} موضوع
                           </div>
                           <div
-                            dir="ltr"
-                            className="text-sm font-extrabold text-slate-900 dark:text-white text-left break-words"
+                            dir="auto"
+                            className="text-sm font-extrabold text-slate-900 dark:text-white leading-snug whitespace-normal break-words [overflow-wrap:anywhere]"
                           >
                             {block.titleEn}
                           </div>
-                          <div className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed whitespace-normal break-words [overflow-wrap:anywhere]">
+                          <div
+                            dir="auto"
+                            className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed whitespace-normal break-words [overflow-wrap:anywhere]"
+                          >
                             {block.titleAr}
                           </div>
                         </div>
@@ -2700,12 +2750,15 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                           · {subjTopics.length} موضوع
                         </div>
                         <div
-                          dir="ltr"
-                          className="text-sm font-extrabold text-slate-900 dark:text-white text-left break-words"
+                          dir="auto"
+                          className="text-sm font-extrabold text-slate-900 dark:text-white leading-snug whitespace-normal break-words [overflow-wrap:anywhere]"
                         >
                           {subj.titleEn}
                         </div>
-                        <div className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed break-words">
+                        <div
+                          dir="auto"
+                          className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed whitespace-normal break-words [overflow-wrap:anywhere]"
+                        >
                           {subj.titleAr}
                         </div>
                       </div>
@@ -3718,19 +3771,26 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
           {/* Clean Article Header */}
           <header className="space-y-2.5 border-b border-slate-200/80 dark:border-slate-800 pb-5">
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
-              <span className="leading-relaxed break-words">
+              <span className="leading-relaxed whitespace-normal break-words [overflow-wrap:anywhere] min-w-0">
                 {activeBlock ? (
                   <strong className="text-slate-700 dark:text-slate-300">
                     <span dir="ltr" className="font-mono">
                       {activeBlock.code}
                     </span>{' '}
-                    ({getShortBlockNameAr(activeBlock)}) ·{' '}
+                    (<span dir="auto">{getShortBlockNameAr(activeBlock)}</span>) ·{' '}
                   </strong>
                 ) : null}
                 <strong className="text-emerald-600 dark:text-emerald-400">
-                  {activeSubject
-                    ? `${activeSubject.code} · ${getShortSubjectNameAr(activeSubject)}`
-                    : TOPIC_CATEGORY_META[activeTopic.category].labelAr}
+                  {activeSubject ? (
+                    <>
+                      <span dir="ltr" className="font-mono">
+                        {activeSubject.code}
+                      </span>{' '}
+                      · <span dir="auto">{getShortSubjectNameAr(activeSubject)}</span>
+                    </>
+                  ) : (
+                    TOPIC_CATEGORY_META[activeTopic.category].labelAr
+                  )}
                 </strong>
                 {' · '}
                 {activeTopic.sections.length} أقسام ·{' '}
@@ -5122,14 +5182,21 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
             }`}
           >
-            <span className="leading-snug break-words">
+            <span className="min-w-0 flex-1 leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
               {activeBlockFilter === 'ALL'
                 ? `البلوك: الكل (${blocks.length})`
                 : (() => {
                     const blk = blockMap.get(activeBlockFilter);
-                    return blk
-                      ? `${blk.code} · ${getShortBlockNameAr(blk)}`
-                      : 'البلوك المحدد';
+                    return blk ? (
+                      <>
+                        <span dir="ltr" className="font-mono">
+                          {blk.code}
+                        </span>{' '}
+                        · <span dir="auto">{getShortBlockNameAr(blk)}</span>
+                      </>
+                    ) : (
+                      'البلوك المحدد'
+                    );
                   })()}
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
@@ -5144,14 +5211,21 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
             }`}
           >
-            <span className="leading-snug break-words">
+            <span className="min-w-0 flex-1 leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
               {activeSubjectFilter === 'ALL'
                 ? `المادة: الكل (${visibleSubjects.length})`
                 : (() => {
                     const sub = subjectMap.get(activeSubjectFilter);
-                    return sub
-                      ? `${sub.code} · ${getShortSubjectNameAr(sub)}`
-                      : 'المادة المحددة';
+                    return sub ? (
+                      <>
+                        <span dir="ltr" className="font-mono">
+                          {sub.code}
+                        </span>{' '}
+                        · <span dir="auto">{getShortSubjectNameAr(sub)}</span>
+                      </>
+                    ) : (
+                      'المادة المحددة'
+                    );
                   })()}
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
@@ -5186,13 +5260,16 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                       setActiveSubjectFilter('ALL');
                       setShowAllTopicsFlat(false);
                     }}
-                    className={`px-2 py-1 rounded-lg font-extrabold transition-colors ${
+                    className={`px-2 py-1 rounded-lg font-extrabold text-right whitespace-normal break-words [overflow-wrap:anywhere] transition-colors ${
                       activeSubjectFilter === 'ALL'
                         ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
                         : 'bg-slate-100 dark:bg-slate-800 hover:bg-emerald-500/15 text-slate-700 dark:text-slate-200'
                     }`}
                   >
-                    {blk.code} · {getShortBlockNameAr(blk)}
+                    <span dir="ltr" className="font-mono">
+                      {blk.code}
+                    </span>{' '}
+                    · <span dir="auto">{getShortBlockNameAr(blk)}</span>
                   </button>
                 </>
               );
@@ -5203,8 +5280,11 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
               return (
                 <>
                   <span className="text-slate-400">/</span>
-                  <span className="px-2 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold">
-                    {sub.code} · {getShortSubjectNameAr(sub)}
+                  <span className="px-2 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold whitespace-normal break-words [overflow-wrap:anywhere]">
+                    <span dir="ltr" className="font-mono">
+                      {sub.code}
+                    </span>{' '}
+                    · <span dir="auto">{getShortSubjectNameAr(sub)}</span>
                   </span>
                 </>
               );
@@ -5313,14 +5393,17 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                         </span>
                       </div>
 
-                      <div className="space-y-1 w-full">
+                      <div className="space-y-1 w-full min-w-0">
                         <div
-                          dir="ltr"
-                          className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors text-left break-words"
+                          dir="auto"
+                          className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-snug whitespace-normal break-words [overflow-wrap:anywhere]"
                         >
                           {blk.titleEn}
                         </div>
-                        <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 leading-relaxed break-words">
+                        <div
+                          dir="auto"
+                          className="text-xs font-bold text-emerald-700 dark:text-emerald-300 leading-relaxed whitespace-normal break-words [overflow-wrap:anywhere]"
+                        >
                           {getShortBlockNameAr(blk)}
                         </div>
                       </div>
@@ -5424,14 +5507,17 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                           </span>
                         </div>
 
-                        <div className="space-y-1 w-full">
+                        <div className="space-y-1 w-full min-w-0">
                           <div
-                            dir="ltr"
-                            className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors text-left break-words"
+                            dir="auto"
+                            className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-snug whitespace-normal break-words [overflow-wrap:anywhere]"
                           >
                             {sub.titleEn}
                           </div>
-                          <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 leading-relaxed break-words">
+                          <div
+                            dir="auto"
+                            className="text-xs font-bold text-emerald-700 dark:text-emerald-300 leading-relaxed whitespace-normal break-words [overflow-wrap:anywhere]"
+                          >
                             {getShortSubjectNameAr(sub)}
                           </div>
                         </div>
@@ -5468,13 +5554,19 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                             <div className="space-y-1.5">
                               <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
                                 {tBlock && (
-                                  <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-extrabold text-[10px]">
-                                    {tBlock.code} · {getShortBlockNameAr(tBlock)}
+                                  <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-extrabold text-[10px] leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
+                                    <span dir="ltr" className="font-mono">
+                                      {tBlock.code}
+                                    </span>{' '}
+                                    · <span dir="auto">{getShortBlockNameAr(tBlock)}</span>
                                   </span>
                                 )}
                                 {tSubject && (
-                                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px]">
-                                    {tSubject.code} · {getShortSubjectNameAr(tSubject)}
+                                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px] leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
+                                    <span dir="ltr" className="font-mono">
+                                      {tSubject.code}
+                                    </span>{' '}
+                                    · <span dir="auto">{getShortSubjectNameAr(tSubject)}</span>
                                   </span>
                                 )}
                               </div>
@@ -5536,19 +5628,19 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                     <div className="flex items-start justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
                       <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                         {tBlock && (
-                          <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-extrabold text-[10px] text-slate-700 dark:text-slate-300 leading-snug break-words">
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-extrabold text-[10px] text-slate-700 dark:text-slate-300 leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
                             <span dir="ltr" className="font-mono">
                               {tBlock.code}
                             </span>{' '}
-                            · {getShortBlockNameAr(tBlock)}
+                            · <span dir="auto">{getShortBlockNameAr(tBlock)}</span>
                           </span>
                         )}
                         {tSubject && (
-                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px] leading-snug break-words">
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px] leading-snug whitespace-normal break-words [overflow-wrap:anywhere]">
                             <span dir="ltr" className="font-mono">
                               {tSubject.code}
                             </span>{' '}
-                            · {getShortSubjectNameAr(tSubject)}
+                            · <span dir="auto">{getShortSubjectNameAr(tSubject)}</span>
                           </span>
                         )}
                         <span className="text-[10px] text-slate-400 shrink-0">

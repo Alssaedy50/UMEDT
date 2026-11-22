@@ -9,9 +9,43 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Clock,
-  Trash2
+  Trash2,
+  Mic,
+  MicOff,
+  Volume2
 } from 'lucide-react';
 import { DictionaryTerm, LinkedSentence } from '../types/lexicon';
+
+interface SpeechRecognitionAlternativeLike {
+  transcript?: string;
+}
+
+interface SpeechRecognitionResultLike {
+  isFinal?: boolean;
+  0?: SpeechRecognitionAlternativeLike;
+}
+
+interface SpeechRecognitionEventLike {
+  results: ArrayLike<SpeechRecognitionResultLike>;
+}
+
+interface SpeechRecognitionErrorEventLike {
+  error?: string;
+}
+
+interface SpeechRecognitionInstanceLike {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  maxAlternatives: number;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+}
 
 interface SearchHubProps {
   terms: DictionaryTerm[];
@@ -38,6 +72,7 @@ interface SearchHubProps {
   onToggleFavoriteTerm: (termId: string, e?: React.MouseEvent) => void;
   onToggleFavoriteSentence: (sentenceId: string, e?: React.MouseEvent) => void;
   onTriggerTTS: (text: string, key: string, lang?: string) => void;
+  speakingKey?: string | null;
   onCopyToClipboard: (text: string, key: string, label?: string) => void;
   copiedId: string | null;
   renderAutoLinkedText: (text: string, currentTermId?: string) => React.ReactNode;
@@ -63,6 +98,8 @@ export const SearchHub: React.FC<SearchHubProps> = ({
   onShuffleTermOfDay,
   onOpenTermDetail,
   onToggleFavoriteTerm,
+  onTriggerTTS,
+  speakingKey = null,
   onInspectMorphologyForQuery,
   onAddNewTermFromQuery,
   showToast
@@ -71,10 +108,33 @@ export const SearchHub: React.FC<SearchHubProps> = ({
   const [draftQuery, setDraftQuery] = React.useState(searchQuery);
   const [isSearchFocused, setIsSearchFocused] = React.useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = React.useState(-1);
+  const [isVoiceListening, setIsVoiceListening] = React.useState(false);
+  const [voiceLang, setVoiceLang] = React.useState<'en-US' | 'ar-SA'>('en-US');
+  const [voiceInterimText, setVoiceInterimText] = React.useState('');
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const isComposingRef = React.useRef(false);
   const lastPushedQueryRef = React.useRef(searchQuery);
   const blurTimeoutRef = React.useRef<number | null>(null);
+  const recognitionRef = React.useRef<SpeechRecognitionInstanceLike | null>(null);
+
+  const applySpokenQuery = React.useCallback(
+    (rawSpoken: string) => {
+      const cleaned = (rawSpoken || '')
+        .replace(/[\r\n]+/g, ' ')
+        .replace(/[.,،؟?!؛;:]+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!cleaned) return;
+      isComposingRef.current = false;
+      lastPushedQueryRef.current = cleaned;
+      setDraftQuery(cleaned);
+      onSearchQueryChange(cleaned);
+      setActiveSuggestionIndex(-1);
+      setIsSearchFocused(false);
+      showToast(`تم البحث صوتياً عن «${cleaned}»`);
+    },
+    [onSearchQueryChange, showToast]
+  );
 
   React.useEffect(() => {
     if (searchQuery !== lastPushedQueryRef.current) {
@@ -87,12 +147,175 @@ export const SearchHub: React.FC<SearchHubProps> = ({
   }, [searchQuery]);
 
   React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleNativeVoiceResult = (event: Event) => {
+      const custom = event as CustomEvent<{ text?: string }>;
+      setIsVoiceListening(false);
+      setVoiceInterimText('');
+      if (custom?.detail?.text) {
+        applySpokenQuery(custom.detail.text);
+      }
+    };
+
+    const handleNativeVoiceError = (event: Event) => {
+      const custom = event as CustomEvent<{ code?: string }>;
+      setIsVoiceListening(false);
+      setVoiceInterimText('');
+      if (custom?.detail?.code && custom.detail.code !== 'cancelled') {
+        showToast('تعذر التقاط الصوت. تأكد من صلاحية الميكروفون وحاول مرة أخرى.', 'info');
+      }
+    };
+
+    window.addEventListener('umed-voice-search-result', handleNativeVoiceResult);
+    window.addEventListener('umed-voice-search-error', handleNativeVoiceError);
+
     return () => {
+      window.removeEventListener('umed-voice-search-result', handleNativeVoiceResult);
+      window.removeEventListener('umed-voice-search-error', handleNativeVoiceError);
       if (blurTimeoutRef.current !== null) {
         window.clearTimeout(blurTimeoutRef.current);
       }
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {
+          // ignore
+        }
+        recognitionRef.current = null;
+      }
     };
-  }, []);
+  }, [applySpokenQuery, showToast]);
+
+  const stopVoiceSearch = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // ignore
+      }
+      recognitionRef.current = null;
+    }
+    setIsVoiceListening(false);
+    setVoiceInterimText('');
+  };
+
+  const handleToggleVoiceSearch = () => {
+    if (isVoiceListening) {
+      stopVoiceSearch();
+      return;
+    }
+    if (typeof window === 'undefined') return;
+
+    // 1. Prefer native Android RecognizerIntent bridge when running inside Android APK
+    try {
+      const win = window as unknown as {
+        UMEDAndroidBridge?: {
+          isVoiceSearchAvailable?: () => boolean;
+          startVoiceSearch?: (lang: string) => string;
+          hasMicrophonePermission?: () => boolean;
+          requestMicrophonePermission?: () => boolean;
+        };
+        UMEDNativeDownloader?: {
+          isVoiceSearchAvailable?: () => boolean;
+          startVoiceSearch?: (lang: string) => string;
+        };
+      };
+      const nativeBridge = win.UMEDAndroidBridge || win.UMEDNativeDownloader;
+      if (nativeBridge && typeof nativeBridge.startVoiceSearch === 'function') {
+        const raw = nativeBridge.startVoiceSearch(voiceLang);
+        const parsed = raw ? JSON.parse(raw) : { ok: false };
+        if (parsed?.ok) {
+          setIsVoiceListening(true);
+          setVoiceInterimText('');
+          return;
+        }
+      }
+    } catch {
+      // Fall back to Web SpeechRecognition below
+    }
+
+    // 2. Web Speech API (Chrome / Edge / Safari / Mobile Browsers)
+    const SpeechRecCtor = (
+      window as unknown as {
+        SpeechRecognition?: new () => SpeechRecognitionInstanceLike;
+        webkitSpeechRecognition?: new () => SpeechRecognitionInstanceLike;
+      }
+    ).SpeechRecognition || (
+      window as unknown as {
+        webkitSpeechRecognition?: new () => SpeechRecognitionInstanceLike;
+      }
+    ).webkitSpeechRecognition;
+
+    if (!SpeechRecCtor) {
+      showToast('الإدخال الصوتي غير مدعوم في هذا المتصفح. جرّب Chrome أو تطبيق Android.', 'info');
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecCtor();
+      recognition.lang = voiceLang;
+      recognition.interimResults = true;
+      recognition.continuous = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        setIsVoiceListening(true);
+        setVoiceInterimText('');
+      };
+
+      recognition.onresult = (event: SpeechRecognitionEventLike) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
+        for (let i = 0; i < event.results.length; i += 1) {
+          const res = event.results[i];
+          const text = res?.[0]?.transcript || '';
+          if (res?.isFinal) {
+            finalTranscript += text;
+          } else {
+            interimTranscript += text;
+          }
+        }
+        const live = (finalTranscript || interimTranscript).trim();
+        if (live) {
+          setVoiceInterimText(live);
+        }
+        if (finalTranscript.trim()) {
+          applySpokenQuery(finalTranscript);
+        }
+      };
+
+      recognition.onerror = (event: SpeechRecognitionErrorEventLike) => {
+        setIsVoiceListening(false);
+        setVoiceInterimText('');
+        recognitionRef.current = null;
+        const code = event?.error || '';
+        if (code === 'not-allowed' || code === 'service-not-allowed') {
+          showToast('تم رفض صلاحية الميكروفون. فعّل إذن الميكروفون من إعدادات المتصفح.', 'info');
+        } else if (code === 'no-speech') {
+          showToast('لم يتم التقاط أي صوت. اضغط الميكروفون وتحدث بوضوح.', 'info');
+        } else if (code === 'network') {
+          showToast('يتطلب الإدخال الصوتي في المتصفح اتصالاً بالإنترنت.', 'info');
+        } else if (code !== 'aborted') {
+          showToast('تعذر التعرف على الصوت. حاول مرة أخرى.', 'info');
+        }
+      };
+
+      recognition.onend = () => {
+        setIsVoiceListening(false);
+        setVoiceInterimText('');
+        recognitionRef.current = null;
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch {
+      setIsVoiceListening(false);
+      setVoiceInterimText('');
+      recognitionRef.current = null;
+      showToast('تعذر بدء الاستماع الصوتي. تحقق من صلاحية الميكروفون.', 'info');
+    }
+  };
 
   React.useEffect(() => {
     setVisibleLimit(250);
@@ -369,10 +592,24 @@ export const SearchHub: React.FC<SearchHubProps> = ({
               aria-autocomplete="list"
               aria-controls="dictionary-search-suggestions"
               aria-expanded={isSearchFocused && suggestedTerms.length > 0}
-              placeholder="ابحث بالإنجليزية أو العربية..."
-              className="w-full min-h-[50px] pr-10 pl-16 py-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none transition-colors shadow-sm [user-select:text] [-webkit-user-select:text]"
+              placeholder="ابحث بالإنجليزية أو العربية أو انطق الكلمة..."
+              className="w-full min-h-[50px] pr-10 pl-28 py-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none transition-colors shadow-sm [user-select:text] [-webkit-user-select:text]"
             />
             <div className="absolute left-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleToggleVoiceSearch}
+                className={`min-h-[36px] min-w-[36px] flex items-center justify-center rounded-xl transition-all ${
+                  isVoiceListening
+                    ? 'bg-rose-600 text-white animate-pulse shadow-sm'
+                    : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                }`}
+                title={isVoiceListening ? 'إيقاف الإدخال الصوتي' : 'بحث صوتي (نطق الكلمة)'}
+                aria-label={isVoiceListening ? 'إيقاف الإدخال الصوتي' : 'إدخال الكلمة صوتياً'}
+              >
+                {isVoiceListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              </button>
+
               {draftQuery ? (
                 <button
                   type="button"
@@ -394,7 +631,7 @@ export const SearchHub: React.FC<SearchHubProps> = ({
                 <button
                   type="button"
                   onClick={handlePasteFromClipboard}
-                  className="min-h-[34px] flex items-center gap-1 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors whitespace-nowrap"
+                  className="min-h-[34px] flex items-center gap-1 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors whitespace-nowrap"
                   title="لصق من الحافظة"
                 >
                   <ClipboardPaste className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -414,19 +651,35 @@ export const SearchHub: React.FC<SearchHubProps> = ({
                   اقتراحات مطابقة · اختر كلمة لعرض ترجمتها
                 </div>
                 {suggestedTerms.map((item, index) => (
-                  <button
+                  <div
                     key={item.id}
-                    type="button"
                     role="option"
                     aria-selected={activeSuggestionIndex === index}
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => handleSelectSuggestion(item)}
-                    className={`w-full min-h-[54px] px-3.5 py-2 flex items-center justify-between gap-3 text-right border-b last:border-b-0 border-slate-100 dark:border-slate-800 transition-colors ${
+                    className={`w-full min-h-[54px] px-3.5 py-2 flex items-center justify-between gap-2.5 text-right border-b last:border-b-0 border-slate-100 dark:border-slate-800 transition-colors cursor-pointer ${
                       activeSuggestionIndex === index
                         ? 'bg-emerald-500/10'
                         : 'hover:bg-slate-50 dark:hover:bg-slate-800/70'
                     }`}
                   >
+                    <button
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onTriggerTTS(item.term, `search-sugg-${item.id}`, 'en-US');
+                      }}
+                      className={`min-h-[34px] min-w-[34px] flex items-center justify-center rounded-xl shrink-0 transition-colors ${
+                        speakingKey === `search-sugg-${item.id}`
+                          ? 'bg-emerald-600 text-white'
+                          : 'text-slate-400 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400'
+                      }`}
+                      title="نطق المصطلح"
+                      aria-label={`نطق ${item.term}`}
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                    </button>
                     <span className="min-w-0 flex-1">
                       <span dir="ltr" className="block text-left text-sm font-bold text-slate-900 dark:text-white truncate">
                         {item.term}
@@ -438,7 +691,7 @@ export const SearchHub: React.FC<SearchHubProps> = ({
                     <span className="shrink-0 text-[10px] text-slate-400">
                       {item.category === 'General' ? 'عام' : item.category === 'Medical' ? 'طبي' : item.category}
                     </span>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -446,24 +699,62 @@ export const SearchHub: React.FC<SearchHubProps> = ({
 
         </form>
 
-        <div className="flex items-center justify-between gap-2 pt-0.5">
-          <button
-            type="button"
-            onClick={onOpenFilterMenu}
-            className={`min-h-[38px] px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors ${
-              selectedCategory !== 'All' || searchScope !== 'all'
-                ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950 dark:border-emerald-400'
-                : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-emerald-500/40'
-            }`}
-            aria-label="تصفية نطاق البحث"
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
-            <span className="whitespace-nowrap">{activeFilterSummary}</span>
-            <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-75" />
-          </button>
+        {isVoiceListening && (
+          <div className="rounded-2xl bg-rose-500/10 border border-rose-500/30 px-3.5 py-2.5 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />
+              <div className="min-w-0">
+                <div className="text-xs font-extrabold text-rose-700 dark:text-rose-300">
+                  جاري الاستماع ({voiceLang === 'en-US' ? 'إنجليزي' : 'عربي'})... انطق الكلمة أو المصطلح
+                </div>
+                {voiceInterimText ? (
+                  <div dir="auto" className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate mt-0.5">
+                    {voiceInterimText}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={stopVoiceSearch}
+              className="min-h-[34px] px-3 rounded-xl bg-rose-600 text-white text-xs font-extrabold shrink-0"
+            >
+              إيقاف
+            </button>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-2 pt-0.5 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={onOpenFilterMenu}
+              className={`min-h-[38px] px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors ${
+                selectedCategory !== 'All' || searchScope !== 'all'
+                  ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950 dark:border-emerald-400'
+                  : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-emerald-500/40'
+              }`}
+              aria-label="تصفية نطاق البحث"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+              <span className="whitespace-nowrap">{activeFilterSummary}</span>
+              <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-75" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setVoiceLang((prev) => (prev === 'en-US' ? 'ar-SA' : 'en-US'))}
+              className="min-h-[38px] px-2.5 py-1.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-emerald-500/40 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 shrink-0 transition-colors"
+              title="تبديل لغة الإدخال الصوتي بين الإنجليزية والعربية"
+              aria-label="لغة الإدخال الصوتي"
+            >
+              <Mic className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>صوت: {voiceLang === 'en-US' ? 'EN' : 'عربي'}</span>
+            </button>
+          </div>
 
           <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
-            اكتب أو الصق أي مصطلح طبي أو كلمة للبحث الفوري
+            اكتب أو الصق أو انطق أي مصطلح طبي لعرض ترجمته فوراً
           </p>
         </div>
       </div>
@@ -489,6 +780,19 @@ export const SearchHub: React.FC<SearchHubProps> = ({
               </div>
 
               <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => onTriggerTTS(termOfDay.term, `tod-tts-${termOfDay.id}`, 'en-US')}
+                  className={`min-h-[38px] min-w-[38px] flex items-center justify-center rounded-xl transition-colors ${
+                    speakingKey === `tod-tts-${termOfDay.id}`
+                      ? 'bg-emerald-600 text-white'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-emerald-600 dark:text-emerald-400'
+                  }`}
+                  title="نطق مصطلح اليوم"
+                  aria-label="نطق مصطلح اليوم"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                </button>
                 <button
                   type="button"
                   onClick={onShuffleTermOfDay}
@@ -545,6 +849,22 @@ export const SearchHub: React.FC<SearchHubProps> = ({
                     className="px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 active:bg-emerald-500/10 transition-colors cursor-pointer flex items-center justify-between gap-2.5 group"
                   >
                     <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onTriggerTTS(item.term, `recent-tts-${item.id}`, 'en-US');
+                        }}
+                        className={`min-h-[38px] min-w-[38px] flex items-center justify-center rounded-xl transition-colors ${
+                          speakingKey === `recent-tts-${item.id}`
+                            ? 'bg-emerald-600 text-white'
+                            : 'text-slate-400 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400'
+                        }`}
+                        title="نطق المصطلح"
+                        aria-label={`نطق ${item.term}`}
+                      >
+                        <Volume2 className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         type="button"
                         onClick={(e) => onToggleFavoriteTerm(item.id, e)}
@@ -643,18 +963,36 @@ export const SearchHub: React.FC<SearchHubProps> = ({
                     onClick={() => onOpenTermDetail(item.id)}
                     className="px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 active:bg-emerald-500/10 transition-colors cursor-pointer flex items-center justify-between gap-2.5 group"
                   >
-                    <button
-                      type="button"
-                      onClick={(e) => onToggleFavoriteTerm(item.id, e)}
-                      className="min-h-[38px] min-w-[38px] flex items-center justify-center rounded-xl text-slate-400 hover:text-amber-500 shrink-0"
-                      title="المفضلة"
-                    >
-                      <Star
-                        className={`w-3.5 h-3.5 ${
-                          item.favorite ? 'fill-amber-400 text-amber-400' : ''
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onTriggerTTS(item.term, `search-res-${item.id}`, 'en-US');
+                        }}
+                        className={`min-h-[38px] min-w-[38px] flex items-center justify-center rounded-xl transition-colors ${
+                          speakingKey === `search-res-${item.id}`
+                            ? 'bg-emerald-600 text-white'
+                            : 'text-slate-400 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400'
                         }`}
-                      />
-                    </button>
+                        title="نطق المصطلح"
+                        aria-label={`نطق ${item.term}`}
+                      >
+                        <Volume2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => onToggleFavoriteTerm(item.id, e)}
+                        className="min-h-[38px] min-w-[38px] flex items-center justify-center rounded-xl text-slate-400 hover:text-amber-500 shrink-0"
+                        title="المفضلة"
+                      >
+                        <Star
+                          className={`w-3.5 h-3.5 ${
+                            item.favorite ? 'fill-amber-400 text-amber-400' : ''
+                          }`}
+                        />
+                      </button>
+                    </div>
 
                     <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-left">
                       <span

@@ -154,7 +154,10 @@ interface LibraryViewProps {
     stayOnCurrentTab?: boolean;
   }) => void;
   onImportFullBackupJson: (rawJson: string) => boolean;
-  onImportPackageFile: (file: File) => Promise<void>;
+  onImportPackageFile: (
+    file: File,
+    options?: { importTargetType?: 'all' | 'terms' | 'topics' }
+  ) => Promise<void>;
   onImportTopicsBatch?: (incomingTopics: TopicArticle[]) => number;
   onSyncStateUpdated?: (payload: {
     topics: TopicArticle[];
@@ -313,6 +316,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [lastDataSummary, setLastDataSummary] = useState<ConciseDataSummary | null>(null);
 
   // File & Batch Import state
+  const [importDataType, setImportDataType] = useState<'terms' | 'topics'>('terms');
   const [rawBatchInput, setRawBatchInput] = useState('');
   const [stagedItems, setStagedItems] = useState<StagedTermItem[]>([]);
   const [isParsingFile, setIsParsingFile] = useState(false);
@@ -617,9 +621,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     setManualSentenceAr('');
   };
 
-  const parseRawTextToStaged = (text: string, sourceFileName = 'استيراد أوفلاين') => {
+  const parseRawTextToStaged = (
+    text: string,
+    sourceFileName = 'استيراد أوفلاين',
+    targetTypeOverride?: 'terms' | 'topics'
+  ) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    const effectiveTargetType = targetTypeOverride || importDataType;
 
     // 1. Universal JSON / Markdown ```json ... ``` / High-density || lines / Markdown Hierarchy & Tables / Backups
     const looksStructuredOrRich =
@@ -630,11 +639,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       /^#{1,4}\s*(?:block|subject|topic)\s*:/im.test(trimmed) ||
       /^\|.+\|.+\|$/m.test(trimmed);
 
-    if (looksStructuredOrRich) {
+    if (looksStructuredOrRich || effectiveTargetType === 'topics') {
       const report = importUniversalAiOrLocalContent({
         rawText: text,
         sourceLabel: sourceFileName,
-        syncToCloud: false
+        syncToCloud: false,
+        importTargetType: effectiveTargetType
       });
       if (report.success) {
         onUniversalImportComplete?.(report);
@@ -655,21 +665,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         return;
       }
 
-      // Fallback to legacy unified backup handler if needed
-      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-        try {
-          const ok = onImportFullBackupJson(trimmed);
-          if (ok) {
-            setOfflineFeedback({
-              type: 'success',
-              message: 'تم استيراد النسخة الاحتياطية بنجاح.'
-            });
-            setRawBatchInput('');
-            return;
-          }
-        } catch {
-          // Fallback to text line parsing below
-        }
+      if (effectiveTargetType === 'topics' || trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        setStagedItems([]);
+        setOfflineFeedback({
+          type: 'error',
+          message: report.messageAr
+        });
+        return;
       }
     }
 
@@ -747,10 +749,21 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     if (!file) return;
 
     const lower = file.name.toLowerCase();
-    if (lower.endsWith('.zip') || lower.endsWith('.umedpack')) {
+    const isZip = lower.endsWith('.zip');
+    const isJson = lower.endsWith('.json');
+
+    if (!isZip && !isJson) {
+      setOfflineFeedback({
+        type: 'error',
+        message: 'صيغة الملف غير مدعومة. يقبل التطبيق صيغتي ملفات فقط (.json و .zip) بجانب لصق النصوص.'
+      });
+      return;
+    }
+
+    if (isZip) {
       setIsParsingFile(true);
       try {
-        await onImportPackageFile(file);
+        await onImportPackageFile(file, { importTargetType: importDataType });
         const summary = buildConciseDataSummary({
           terms,
           sentences,
@@ -761,12 +774,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         setLastDataSummary(summary);
         setOfflineFeedback({
           type: 'success',
-          message: `تم استيراد حزمة البيانات (${file.name}) بنجاح.`
+          message: `تمت معالجة أرشيف ZIP (${file.name}) بنوع البيانات: ${
+            importDataType === 'terms' ? 'مصطلحات' : 'مواضيع'
+          }.`
         });
       } catch (err) {
         setOfflineFeedback({
           type: 'error',
-          message: err instanceof Error ? err.message : 'تعذر استيراد الحزمة المضغوطة.'
+          message: err instanceof Error ? err.message : 'تعذر استيراد ملف ZIP.'
         });
       } finally {
         setIsParsingFile(false);
@@ -778,11 +793,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     try {
       const parsed = await parseUploadedFile(file);
       setRawBatchInput(parsed.extractedText);
-      parseRawTextToStaged(parsed.extractedText, file.name);
+      parseRawTextToStaged(parsed.extractedText, file.name, importDataType);
     } catch (err) {
       setOfflineFeedback({
         type: 'error',
-        message: err instanceof Error ? err.message : 'تعذر قراءة الملف المرفوع.'
+        message: err instanceof Error ? err.message : 'تعذر قراءة ملف JSON المرفوع.'
       });
     } finally {
       setIsParsingFile(false);
@@ -2327,7 +2342,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".json,.jsonl,.csv,.tsv,.txt,.md,.zip,.umedpack"
+                accept=".json,.zip"
                 onChange={handleFileUpload}
                 className="hidden"
               />
@@ -2402,13 +2417,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               >
                 <div className="space-y-1 min-w-0">
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-500/15 text-sky-700 dark:text-sky-300 text-[10px] font-extrabold font-mono">
-                    JSON · ZIP · MD · CSV · TXT
+                    JSON · ZIP فقط
                   </span>
                   <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
                     رفع واستيراد ملف محلي أو نسخة سابقة
                   </h3>
                   <p className="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
-                    قراءة جميع أنواع ملفات البيانات والأرشيفات المضغوطة والنسخ الاحتياطية السابقة
+                    يدعم صيغتي الملفات فقط: JSON و ZIP مع تحديد نوع البيانات (مصطلحات أو مواضيع)
                   </p>
                 </div>
                 <div className="w-10 h-10 rounded-2xl bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
@@ -2802,7 +2817,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     رفع واستيراد ملف محلي أو نسخة سابقة
                   </h3>
                   <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                    يدعم ملفات JSON و JSONL و ZIP و UMEDPACK و Markdown و CSV و TXT
+                    يدعم صيغتي الملفات فقط: JSON (.json) و ZIP (.zip)
                   </p>
                 </div>
               </div>
@@ -2821,6 +2836,45 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               >
                 <X className="w-4 h-4" />
               </button>
+            </div>
+
+            <div className="space-y-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3">
+              <div className="text-xs font-extrabold text-slate-800 dark:text-slate-100">
+                نوع البيانات المطلوب استيرادها
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImportDataType('terms');
+                    setOfflineFeedback(null);
+                  }}
+                  className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-extrabold flex items-center justify-center gap-2 transition-all ${
+                    importDataType === 'terms'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                  }`}
+                >
+                  <FileText className="w-4 h-4 shrink-0" />
+                  <span>مصطلحات (القاموس)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImportDataType('topics');
+                    setStagedItems([]);
+                    setOfflineFeedback(null);
+                  }}
+                  className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-extrabold flex items-center justify-center gap-2 transition-all ${
+                    importDataType === 'topics'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                  }`}
+                >
+                  <Layers className="w-4 h-4 shrink-0" />
+                  <span>مواضيع (المحتوى)</span>
+                </button>
+              </div>
             </div>
 
             {offlineFeedback && (
@@ -2849,10 +2903,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               </div>
               <div className="space-y-1">
                 <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                  {isParsingFile ? 'جاري قراءة وتحليل الملف...' : 'اضغط لاختيار ملف من جهازك'}
+                  {isParsingFile
+                    ? 'جاري قراءة وتحليل الملف...'
+                    : `اضغط لاختيار ملف لاستيراد ${importDataType === 'terms' ? 'المصطلحات' : 'المواضيع'}`}
                 </h4>
                 <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                  ملفات الذكاء الاصطناعي (.json / .md / .csv / .txt) أو أرشيفات (.zip / .umedpack) أو النسخ الاحتياطية السابقة
+                  الصيغ المقبولة فقط: ملفات JSON (.json) أو أرشيفات ZIP (.zip)
                 </p>
               </div>
             </button>
@@ -2922,6 +2978,45 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               </button>
             </div>
 
+            <div className="space-y-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3">
+              <div className="text-xs font-extrabold text-slate-800 dark:text-slate-100">
+                نوع البيانات المطلوب استيرادها
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImportDataType('terms');
+                    setOfflineFeedback(null);
+                  }}
+                  className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-extrabold flex items-center justify-center gap-2 transition-all ${
+                    importDataType === 'terms'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                  }`}
+                >
+                  <FileText className="w-4 h-4 shrink-0" />
+                  <span>مصطلحات (القاموس)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImportDataType('topics');
+                    setStagedItems([]);
+                    setOfflineFeedback(null);
+                  }}
+                  className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-extrabold flex items-center justify-center gap-2 transition-all ${
+                    importDataType === 'topics'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                  }`}
+                >
+                  <Layers className="w-4 h-4 shrink-0" />
+                  <span>مواضيع (المحتوى)</span>
+                </button>
+              </div>
+            </div>
+
             {offlineFeedback && (
               <div
                 className={`p-3 rounded-2xl border flex items-center justify-between gap-3 text-xs font-bold ${
@@ -2943,7 +3038,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 dir="auto"
                 value={rawBatchInput}
                 onChange={(e) => setRawBatchInput(e.target.value)}
-                placeholder={`الصق هنا مخرجات ChatGPT أو Gemini:\n- كائن أو مصفوفة JSON لبلوكات ومواد ومواضيع ومصطلحات\n- أو أسطر عالية الكثافة: TERM || ... / TOPIC || ... / BLOCK || ...\n- أو جداول Markdown: | Term | Translation | Definition |`}
+                placeholder={
+                  importDataType === 'terms'
+                    ? `الصق هنا نصوص أو JSON المصطلحات:\n- أسطر نصية: TERM || Myocardial infarction || احتشاء عضلة القلب || ...\n- أو كائن JSON يحتوي على مصفوفة "terms"`
+                    : `الصق هنا كود JSON الخاص بالموضوع التعليمي:\n- كائن JSON يحتوي على مصفوفة "topics" (ويمكن أن يشمل "questions")`
+                }
                 className="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono leading-relaxed"
               />
 
@@ -2962,11 +3061,23 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => parseRawTextToStaged(rawBatchInput, 'نص ملصق من الذكاء الاصطناعي')}
+                  onClick={() =>
+                    parseRawTextToStaged(
+                      rawBatchInput,
+                      importDataType === 'terms'
+                        ? 'نص ملصق (مصطلحات)'
+                        : 'نص ملصق (مواضيع)',
+                      importDataType
+                    )
+                  }
                   className="min-h-[42px] px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-sm"
                 >
                   <Wand2 className="w-4 h-4" />
-                  <span>تحليل واستيراد البيانات الآن</span>
+                  <span>
+                    {importDataType === 'terms'
+                      ? 'تحليل واستيراد المصطلحات الآن'
+                      : 'تحليل واستيراد المواضيع الآن'}
+                  </span>
                 </button>
               </div>
             </div>
@@ -3253,20 +3364,15 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               <button type="button" onClick={() => setShowImportCapabilities(false)} className="min-h-[40px] min-w-[40px] rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0" aria-label="إغلاق"><X className="w-4 h-4" /></button>
             </div>
             <section className="space-y-2">
-              <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">1. صيغ الملفات المقروءة</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">1. الصيغ المعتمدة للاستيراد</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {[
-                  ['PDF','استخراج النص والصفحات والجداول النصية الممكنة. PDF المصور قد يحتاج OCR أو تحليلاً بصرياً خارجياً.'],
-                  ['DOCX','قراءة نص مستند Word والفقرات والجداول.'],
-                  ['XLSX','قراءة أوراق العمل والخلايا والجداول من Excel.'],
-                  ['CSV / TSV','قراءة الصفوف والأعمدة والبيانات المفصولة.'],
-                  ['TXT / MD','قراءة النصوص والعناوين والقوائم وجداول Markdown والبنية الهرمية.'],
-                  ['JSON / JSONL','قراءة كائنات ومصفوفات JSON وسجلات JSONL وقوالب UMEDT.'],
-                  ['ZIP / UMEDPACK','فحص الأرشيف واستخراج ملفات البيانات والوسائط المسموح بها ضمن حدود الأمان.'],
-                  ['JPG / PNG','قراءة ملف الصورة وحفظ بياناته؛ لا يعني ذلك إجراء OCR محلي تلقائياً.']
+                  ['النصوص المباشرة (لصق النص)','لصق أسطر المصطلحات (TERM || ...) أو كائن JSON مباشرة داخل نافذة اللصق.'],
+                  ['ملفات JSON (.json)','الصيغة الأولى للملفات: قراءة ملفات المصطلحات أو المواضيع أو النسخ الاحتياطية بصيغة JSON.'],
+                  ['ملفات ZIP (.zip)','الصيغة الثانية للملفات: فحص الأرشيف المضغوط واستخراج ملفات البيانات المعتمدة ضمن حدود الأمان.']
                 ].map(([format,description]) => <div key={format} className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3 space-y-1"><div className="text-xs font-extrabold text-sky-700 dark:text-sky-300">{format}</div><p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">{description}</p></div>)}
               </div>
-              <p className="text-[11px] font-bold rounded-xl bg-rose-500/10 text-rose-700 dark:text-rose-300 p-3">SQLite (.db / .sqlite) غير مدعوم كصيغة استيراد للمستخدم. كما تُرفض الملفات التنفيذية أو النشطة داخل الأرشيفات لأسباب أمنية.</p>
+              <p className="text-[11px] font-bold rounded-xl bg-rose-500/10 text-rose-700 dark:text-rose-300 p-3">يقبل التطبيق صيغتي ملفات فقط (.json و .zip) بجانب لصق النصوص. تُرفض الصيغ الأخرى وملفات SQLite والملفات التنفيذية لأسباب أمنية وتنظيمية.</p>
             </section>
             <section className="space-y-2">
               <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">2. سجلات البيانات التي يتعرف عليها المستورد</h4>
@@ -3299,8 +3405,16 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       <AiContentGuideModal
         isOpen={isAiGuideOpen}
         onClose={() => setIsAiGuideOpen(false)}
-        onOpenPasteModal={() => setActiveIngestModal('paste_text')}
-        onOpenUploadModal={() => setActiveIngestModal('file_upload')}
+        onOpenPasteModal={(targetType) => {
+          if (targetType) setImportDataType(targetType);
+          setOfflineFeedback(null);
+          setActiveIngestModal('paste_text');
+        }}
+        onOpenUploadModal={(targetType) => {
+          if (targetType) setImportDataType(targetType);
+          setOfflineFeedback(null);
+          setActiveIngestModal('file_upload');
+        }}
         showToast={showToast}
       />
 

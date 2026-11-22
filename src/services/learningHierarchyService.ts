@@ -611,38 +611,23 @@ function sanitizeEntityTitleAr(
   code: string | undefined,
   entityId?: string
 ): string {
-  const cleaned = (titleAr || '')
-    .replace(/^[.\-_\s،,;:]+|[.\-_\s،,;:]+$/g, '')
-    .trim();
+  const trimmed = String(titleAr || '').trim();
 
-  // Check if this matches a built-in block or subject whose titleAr was accidentally shortened
+  // Always preserve any valid title typed by the user verbatim (letters or digits)
+  if (trimmed && /[\p{L}\p{N}]/u.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Fallback only when titleAr is empty or contains punctuation-only placeholders (e.g. ".")
   if (entityId) {
     const builtInBlock = INITIAL_MEDICAL_BLOCKS.find((b) => b.id === entityId);
-    if (builtInBlock && (!cleaned || cleaned.length <= 10)) {
+    if (builtInBlock?.titleAr) {
       return builtInBlock.titleAr;
     }
     const builtInSubj = INITIAL_MEDICAL_SUBJECTS.find((s) => s.id === entityId);
-    if (builtInSubj && (!cleaned || cleaned.length <= 10)) {
+    if (builtInSubj?.titleAr) {
       return builtInSubj.titleAr;
     }
-  }
-
-  // Repair common incomplete Arabic titles that were previously cut off
-  if (cleaned === 'القلب والاوعيه' || cleaned === 'القلب والأوعية') {
-    return 'بلوك القلب والأوعية الدموية';
-  }
-  if (cleaned === 'وضائف الاعضاء' || cleaned === 'وظائف الاعضاء') {
-    return 'علم وظائف الأعضاء وأمراض الدم';
-  }
-  if (cleaned === 'طفيليات') {
-    return 'بلوك الأمراض المعدية والأحياء الدقيقة والطفيليات';
-  }
-  if (cleaned === 'الطفيليات') {
-    return 'علم الطفيليات الطبية التشخيصي والعملي';
-  }
-
-  if (cleaned && /[\p{L}\p{N}]/u.test(cleaned)) {
-    return cleaned;
   }
 
   const upperCode = (code || '').toUpperCase();
@@ -753,6 +738,7 @@ export function saveMedicalBlocks(blocks: MedicalBlock[]): void {
     ensurePostInstallLocalTopicsAndBlocksCleaned();
     const normalized = blocks.map((b) => ({
       ...b,
+      titleEn: String(b.titleEn || '').trim(),
       titleAr: sanitizeEntityTitleAr(b.titleAr, b.titleEn, b.code, b.id)
     }));
     getHierarchyStorage().setItem(
@@ -790,7 +776,16 @@ export function loadMedicalSubjects(): MedicalSubject[] {
 
 export function saveMedicalSubjects(subjects: MedicalSubject[]): void {
   try {
-    getHierarchyStorage().setItem(LEARNING_STORAGE_KEYS.SUBJECTS, JSON.stringify(subjects));
+    ensurePostInstallLocalTopicsAndBlocksCleaned();
+    const normalized = subjects.map((s) => ({
+      ...s,
+      titleEn: String(s.titleEn || '').trim(),
+      titleAr: sanitizeEntityTitleAr(s.titleAr, s.titleEn, s.code, s.id)
+    }));
+    getHierarchyStorage().setItem(
+      LEARNING_STORAGE_KEYS.SUBJECTS,
+      JSON.stringify(normalized)
+    );
   } catch {
     // ignore
   }

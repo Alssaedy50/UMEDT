@@ -1537,7 +1537,9 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                 >
                   {blocks.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.titleEn}
+                      {b.titleAr && b.titleAr !== b.titleEn
+                        ? `${b.titleAr} — ${b.titleEn}`
+                        : b.titleAr || b.titleEn}
                     </option>
                   ))}
                 </select>
@@ -1554,7 +1556,9 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                 >
                   {subjects.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.titleEn}
+                      {s.titleAr && s.titleAr !== s.titleEn
+                        ? `${s.titleAr} — ${s.titleEn}`
+                        : s.titleAr || s.titleEn}
                     </option>
                   ))}
                 </select>
