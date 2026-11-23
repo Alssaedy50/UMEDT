@@ -31,7 +31,8 @@ import {
   SlidersHorizontal,
   MoreHorizontal,
   ChevronDown,
-  Check
+  Check,
+  Network
 } from 'lucide-react';
 import {
   DictionaryTerm,
@@ -102,6 +103,14 @@ import {
 import { MobileSafeInput, MobileSafeTextarea } from './MobileSafeInput';
 import { QuizCenterModal } from './QuizCenterModal';
 import { GranularExportModal } from './GranularExportModal';
+import { MindMapStudioModal } from './MindMapStudioModal';
+import { InteractiveMindMapCanvas } from './InteractiveMindMapCanvas';
+import { MindMapDocument } from '../types/mindMap';
+import {
+  loadMindMaps,
+  getMindMapsForTopic,
+  MIND_MAPS_UPDATED_EVENT
+} from '../services/mindMapStorageService';
 import {
   subscribeToCloudLibraryChanges,
   computeDeterministicFastHashHex
@@ -261,6 +270,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   const [userNotes, setUserNotes] = useState<UserStudyNoteRecord[]>(() =>
     loadUserStudyNotes()
   );
+  const [mindMaps, setMindMaps] = useState<MindMapDocument[]>(() => loadMindMaps());
   const [topicOfflineMediaUrls, setTopicOfflineMediaUrls] = useState<
     Record<string, string>
   >({});
@@ -280,6 +290,7 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     setMediaAssets(loadMediaAssetsIndex());
     setAcademicExams(loadAcademicExams());
     setUserNotes(loadUserStudyNotes());
+    setMindMaps(loadMindMaps());
   }, [rawTopics, terms]);
 
   useEffect(() => {
@@ -289,12 +300,18 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
       setMediaAssets(loadMediaAssetsIndex());
       setAcademicExams(loadAcademicExams());
       setQuizQuestions(loadQuizQuestions(rawTopics, terms));
+      setMindMaps(loadMindMaps());
+    };
+    const refreshMindMapsOnly = () => {
+      setMindMaps(loadMindMaps());
     };
     const unsubscribeCloud = subscribeToCloudLibraryChanges(refreshHierarchyAndQuizzes);
     window.addEventListener('umed:data-mutated', refreshHierarchyAndQuizzes);
+    window.addEventListener(MIND_MAPS_UPDATED_EVENT, refreshMindMapsOnly);
     return () => {
       unsubscribeCloud();
       window.removeEventListener('umed:data-mutated', refreshHierarchyAndQuizzes);
+      window.removeEventListener(MIND_MAPS_UPDATED_EVENT, refreshMindMapsOnly);
     };
   }, [rawTopics, terms]);
 
@@ -348,6 +365,13 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   const [exportInitialTopicId, setExportInitialTopicId] = useState<string | null>(
     null
   );
+
+  // Mind Map Studio Modal State
+  const [isMindMapStudioOpen, setIsMindMapStudioOpen] = useState<boolean>(false);
+  const [mindMapInitialTopic, setMindMapInitialTopic] = useState<TopicArticle | null>(
+    null
+  );
+  const [mindMapInitialId, setMindMapInitialId] = useState<string | null>(null);
 
   // Create/Edit Block or Subject Popup Card
   const [hierarchyModalMode, setHierarchyModalMode] = useState<
@@ -891,6 +915,102 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
     setExportInitialSubjectId(opts?.subjectId || null);
     setExportInitialTopicId(opts?.topicId || null);
     setIsExportModalOpen(true);
+  };
+
+  // Launch Interactive Mind Map Studio
+  const openMindMapStudio = (opts?: {
+    topic?: TopicArticle | null;
+    mindMapId?: string | null;
+  }) => {
+    setActivePopup(null);
+    setActionMenuTopicId(null);
+    setIsReaderOptionsPopupOpen(false);
+    setMindMapInitialTopic(opts?.topic ?? null);
+    setMindMapInitialId(opts?.mindMapId ?? null);
+    setIsMindMapStudioOpen(true);
+  };
+
+  // Embed or update an interactive mind map directly inside a Topic's structured blocks
+  const handleEmbedMindMapInTopic = (
+    targetTopic: TopicArticle,
+    mindMap: MindMapDocument
+  ) => {
+    const existingEmbedded = targetTopic.sections.some((sec) =>
+      (sec.contentBlocks || []).some(
+        (cb) =>
+          cb.type === 'mind_map' &&
+          (cb.mindMapId === mindMap.id || cb.mindMapData?.id === mindMap.id)
+      )
+    );
+
+    const updatedSections = existingEmbedded
+      ? targetTopic.sections.map((sec) => ({
+          ...sec,
+          contentBlocks: (sec.contentBlocks || []).map((cb) =>
+            cb.type === 'mind_map' &&
+            (cb.mindMapId === mindMap.id || cb.mindMapData?.id === mindMap.id)
+              ? {
+                  ...cb,
+                  titleEn: mindMap.titleEn || mindMap.title,
+                  titleAr: mindMap.title,
+                  mindMapId: mindMap.id,
+                  mindMapData: mindMap
+                }
+              : cb
+          )
+        }))
+      : (() => {
+          const newBlock = {
+            id: `cb-mindmap-${Date.now()}`,
+            type: 'mind_map' as const,
+            order: (targetTopic.sections[0]?.contentBlocks?.length || 0) + 1,
+            titleEn: mindMap.titleEn || mindMap.title,
+            titleAr: mindMap.title,
+            mindMapId: mindMap.id,
+            mindMapData: mindMap
+          };
+          if (targetTopic.sections.length === 0) {
+            return [
+              {
+                id: `sec-mindmap-${Date.now()}`,
+                headingEn: 'Interactive Mind Map',
+                headingAr: 'الخريطة الذهنية التفاعلية',
+                heading: 'Interactive Mind Map — الخريطة الذهنية التفاعلية',
+                paragraphs: [],
+                contentBlocks: [newBlock]
+              }
+            ];
+          }
+          return targetTopic.sections.map((sec, idx) => {
+            if (idx !== 0) return sec;
+            const existingBlocks =
+              sec.contentBlocks ||
+              (sec.paragraphs || []).map((p, pIdx) => ({
+                id: `cb-${sec.id}-${pIdx}`,
+                type: 'paragraph' as const,
+                order: pIdx + 1,
+                text: p
+              }));
+            return {
+              ...sec,
+              contentBlocks: [...existingBlocks, newBlock]
+            };
+          });
+        })();
+
+    onSaveTopic(
+      {
+        ...targetTopic,
+        sections: updatedSections
+      },
+      true
+    );
+    showToast(
+      existingEmbedded
+        ? `تم تحديث الخريطة الذهنية داخل "${targetTopic.titleAr || targetTopic.titleEn}"`
+        : `تم إدراج الخريطة الذهنية داخل "${targetTopic.titleAr || targetTopic.titleEn}"`,
+      'success'
+    );
   };
 
   // Save/Create Medical Block or Subject
@@ -1942,6 +2062,16 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         showToast={showToast}
       />
 
+      <MindMapStudioModal
+        isOpen={isMindMapStudioOpen}
+        onClose={() => setIsMindMapStudioOpen(false)}
+        topics={topics}
+        initialTopic={mindMapInitialTopic}
+        initialMindMapId={mindMapInitialId}
+        onEmbedMapInTopic={handleEmbedMindMapInTopic}
+        showToast={showToast}
+      />
+
       {/* POPUP CARD: Create / Edit Medical Block or Subject (z-[70] always above other modals) */}
       {hierarchyModalMode && (
         <div
@@ -2644,6 +2774,26 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                 </div>
                 <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
                   {topicLinkedAndStudiedTerms.length} مصطلح
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  openMindMapStudio({
+                    topic: viewMode === 'reader' ? activeTopic : null
+                  })
+                }
+                className="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 flex items-center justify-between transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Network className="w-4 h-4 text-emerald-500" />
+                  <span className="text-xs font-extrabold text-slate-900 dark:text-white">
+                    الخرائط الذهنية التفاعلية
+                  </span>
+                </div>
+                <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                  {mindMaps.length} خريطة
                 </span>
               </button>
 
@@ -3361,6 +3511,18 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
 
               <button
                 type="button"
+                onClick={() => openMindMapStudio({ topic: popupTargetTopic })}
+                className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center justify-between"
+              >
+                <span>
+                  الخرائط الذهنية التفاعلية للموضوع (
+                  {getMindMapsForTopic(popupTargetTopic, mindMaps).length})
+                </span>
+                <Network className="w-4 h-4 text-emerald-500" />
+              </button>
+
+              <button
+                type="button"
                 onClick={() =>
                   openExportForScope({
                     blockId: popupTargetTopic.blockId,
@@ -3826,6 +3988,20 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
 
             <button
               type="button"
+              onClick={() => openMindMapStudio({ topic: activeTopic })}
+              className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center gap-1"
+            >
+              <Network className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span>
+                خريطة ذهنية
+                {getMindMapsForTopic(activeTopic, mindMaps).length > 0
+                  ? ` (${getMindMapsForTopic(activeTopic, mindMaps).length})`
+                  : ''}
+              </span>
+            </button>
+
+            <button
+              type="button"
               onClick={() =>
                 openQuizForScope({
                   blockId: activeTopic.blockId,
@@ -4016,6 +4192,12 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                         tab: 'runner'
                       });
                     }}
+                    onOpenMindMapStudio={(mapId) =>
+                      openMindMapStudio({
+                        topic: activeTopic,
+                        mindMapId: mapId || null
+                      })
+                    }
                     showToast={showToast}
                   />
                 </section>
@@ -4083,9 +4265,55 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
             const topicNotes = userNotes.filter(
               (n) => n.entityType === 'topic' && n.entityId === activeTopic.id
             );
+            const embeddedMapIds = new Set<string>();
+            for (const sec of activeTopic.sections) {
+              for (const cb of sec.contentBlocks || []) {
+                if (cb.type === 'mind_map') {
+                  if (cb.mindMapId) embeddedMapIds.add(cb.mindMapId);
+                  if (cb.mindMapData?.id) embeddedMapIds.add(cb.mindMapData.id);
+                }
+              }
+            }
+            const externalTopicMindMaps = getMindMapsForTopic(activeTopic, mindMaps).filter(
+              (mm) => !embeddedMapIds.has(mm.id)
+            );
 
             return (
               <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                {externalTopicMindMaps.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <Network className="w-4 h-4 text-emerald-500" />
+                        <span>الخرائط الذهنية المرتبطة بالموضوع ({externalTopicMindMaps.length})</span>
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => openMindMapStudio({ topic: activeTopic })}
+                        className="min-h-[34px] px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold inline-flex items-center gap-1"
+                      >
+                        <Network className="w-3.5 h-3.5" />
+                        <span>استوديو الخرائط</span>
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      {externalTopicMindMaps.map((mm) => (
+                        <InteractiveMindMapCanvas
+                          key={mm.id}
+                          document={mm}
+                          compact={true}
+                          editable={false}
+                          heightClassName="h-[340px]"
+                          onRequestFullscreen={() =>
+                            openMindMapStudio({ topic: activeTopic, mindMapId: mm.id })
+                          }
+                          showToast={showToast}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {extraMedia.length > 0 && (
                   <div className="space-y-2.5">
                     <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
@@ -4743,6 +4971,15 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
 
                 <button
                   type="button"
+                  onClick={() => openMindMapStudio({ topic: activeTopic })}
+                  className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center justify-between"
+                >
+                  <span>الخرائط الذهنية التفاعلية (عرض / توليد / استيراد)</span>
+                  <Network className="w-4 h-4 text-emerald-500" />
+                </button>
+
+                <button
+                  type="button"
                   onClick={() =>
                     openExportForScope({
                       blockId: activeTopic.blockId,
@@ -5204,7 +5441,17 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => openMindMapStudio()}
+              className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 hover:border-emerald-500/50 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-extrabold flex items-center gap-1.5 whitespace-nowrap transition-colors"
+              title="استوديو الخرائط الذهنية التفاعلية"
+            >
+              <Network className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span>الخرائط الذهنية ({mindMaps.length})</span>
+            </button>
+
             <button
               type="button"
               onClick={() =>
@@ -5551,8 +5798,18 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                               </div>
                             )}
                           </div>
-                          <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] font-bold text-slate-400">
-                            <span>{detected.length} مصطلح · {tQuestions.length} اختبار</span>
+                          <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 text-[11px] font-bold text-slate-400">
+                            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                              <span>{detected.length} مصطلح · {tQuestions.length} اختبار</span>
+                              <button
+                                type="button"
+                                onClick={() => openMindMapStudio({ topic })}
+                                className="min-h-[28px] px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-emerald-500/15 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300 font-bold inline-flex items-center gap-1"
+                              >
+                                <Network className="w-3 h-3 text-emerald-500" />
+                                <span>خريطة</span>
+                              </button>
+                            </div>
                             <span>{topic.sections.length} أقسام</span>
                           </div>
                         </article>
@@ -5686,8 +5943,18 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                                 </div>
                               )}
                             </div>
-                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] font-bold text-slate-400">
-                              <span>{detected.length} مصطلح · {tQuestions.length} اختبار</span>
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 text-[11px] font-bold text-slate-400">
+                              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                <span>{detected.length} مصطلح · {tQuestions.length} اختبار</span>
+                                <button
+                                  type="button"
+                                  onClick={() => openMindMapStudio({ topic })}
+                                  className="min-h-[28px] px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-emerald-500/15 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300 font-bold inline-flex items-center gap-1"
+                                >
+                                  <Network className="w-3 h-3 text-emerald-500" />
+                                  <span>خريطة</span>
+                                </button>
+                              </div>
                               <span>{topic.sections.length} أقسام</span>
                             </div>
                           </article>
@@ -5830,6 +6097,25 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
                           اختبار ({tQuestions.length})
                         </button>
                       )}
+
+                      {(() => {
+                        const topicMapsCount = getMindMapsForTopic(topic, mindMaps).length;
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => openMindMapStudio({ topic })}
+                            className={`min-h-[30px] px-2.5 py-1 rounded-xl font-bold whitespace-nowrap inline-flex items-center gap-1 transition-colors ${
+                              topicMapsCount > 0
+                                ? 'bg-sky-500/10 hover:bg-sky-500/20 text-sky-700 dark:text-sky-300'
+                                : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
+                            }`}
+                            title="الخريطة الذهنية التفاعلية للموضوع"
+                          >
+                            <Network className="w-3 h-3 shrink-0" />
+                            <span>خريطة{topicMapsCount > 0 ? ` (${topicMapsCount})` : ''}</span>
+                          </button>
+                        );
+                      })()}
                     </div>
 
                     <span className="text-slate-400 dark:text-slate-500 font-bold text-[11px] inline-flex items-center gap-1">

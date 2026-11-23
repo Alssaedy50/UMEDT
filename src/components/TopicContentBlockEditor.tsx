@@ -24,15 +24,25 @@ import {
   GraduationCap,
   Globe,
   Eye,
-  RefreshCw
+  RefreshCw,
+  Network,
+  Check
 } from 'lucide-react';
 import {
   TopicContentBlock,
   ContentBlockType,
   UnifiedQuizQuestion
 } from '../types/lexicon';
+import { MindMapDocument } from '../types/mindMap';
 import { VoiceRecorderBlock } from './VoiceRecorderBlock';
 import { PdfDocumentReader } from './PdfDocumentReader';
+import { InteractiveMindMapCanvas } from './InteractiveMindMapCanvas';
+import {
+  createBlankMindMap,
+  loadMindMaps,
+  upsertMindMap
+} from '../services/mindMapStorageService';
+import { parseMindMapInput } from '../services/mindMapImportService';
 import {
   saveLocalMediaRecord,
   getLocalMediaRecord,
@@ -122,6 +132,149 @@ const TableBlockEditorFields: React.FC<{
   );
 };
 
+const MindMapBlockEditorFields: React.FC<{
+  blk: TopicContentBlock;
+  topicId?: string;
+  onUpdate: (patch: Partial<TopicContentBlock>) => void;
+  showToast: (msg: string, type?: string) => void;
+}> = ({ blk, topicId, onUpdate, showToast }) => {
+  const [showImportBox, setShowImportBox] = useState<boolean>(false);
+  const [rawPaste, setRawPaste] = useState<string>('');
+  const savedMaps = loadMindMaps();
+
+  const currentDoc: MindMapDocument =
+    blk.mindMapData ||
+    (blk.mindMapId ? savedMaps.find((m) => m.id === blk.mindMapId) : undefined) ||
+    createBlankMindMap({ title: blk.titleEn || blk.titleAr || 'خريطة ذهنية' });
+
+  const handleApplyParsed = () => {
+    const res = parseMindMapInput(rawPaste, {
+      linkedTopicId: topicId && topicId !== 'draft-topic' ? topicId : undefined
+    });
+    if (!res.success || !res.document) {
+      showToast(res.error || 'تعذر تحليل النص المدخل', 'info');
+      return;
+    }
+    const saved = res.document;
+    upsertMindMap(saved);
+    onUpdate({
+      titleEn: saved.title,
+      titleAr: blk.titleAr || saved.subtitle || saved.title,
+      mindMapId: saved.id,
+      mindMapData: saved
+    });
+    setRawPaste('');
+    setShowImportBox(false);
+    showToast(`تم تحديث الخريطة (${saved.nodes.length} عقدة)`);
+  };
+
+  return (
+    <div className="space-y-2.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <MobileSafeInput
+          type="text"
+          dir="auto"
+          value={blk.titleEn || ''}
+          onValueChange={(val) => onUpdate({ titleEn: val })}
+          placeholder="Mind Map Title (EN)..."
+          className="w-full min-w-0 min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+        />
+        <MobileSafeInput
+          type="text"
+          dir="auto"
+          value={blk.titleAr || ''}
+          onValueChange={(val) => onUpdate({ titleAr: val })}
+          placeholder="عنوان الخريطة بالعربية..."
+          className="w-full min-w-0 min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {savedMaps.length > 0 && (
+          <select
+            dir="auto"
+            value={currentDoc.id}
+            onChange={(e) => {
+              const found = savedMaps.find((m) => m.id === e.target.value);
+              if (found) {
+                onUpdate({
+                  titleEn: found.title,
+                  titleAr: blk.titleAr || found.subtitle || found.title,
+                  mindMapId: found.id,
+                  mindMapData: found
+                });
+              }
+            }}
+            className="min-h-[36px] px-2.5 py-1 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold max-w-[230px]"
+          >
+            <option value={currentDoc.id}>الخريطة الحالية ({currentDoc.nodes.length} عقدة)</option>
+            {savedMaps
+              .filter((m) => m.id !== currentDoc.id)
+              .map((m) => (
+                <option key={m.id} value={m.id}>
+                  استخدام: {m.title} ({m.nodes.length})
+                </option>
+              ))}
+          </select>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setShowImportBox((v) => !v)}
+          className="min-h-[36px] px-3 py-1 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-1"
+        >
+          <Upload className="w-3.5 h-3.5" />
+          <span>{showImportBox ? 'إخفاء الاستيراد' : 'استيراد من Markdown / Flow / JSON'}</span>
+        </button>
+      </div>
+
+      {showImportBox && (
+        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+          <MobileSafeTextarea
+            rows={4}
+            dir="auto"
+            value={rawPaste}
+            onValueChange={setRawPaste}
+            placeholder="الصق نص Markdown (# / ## / -) أو مسار أسهم (A -> B -> C) أو JSON..."
+            className="w-full p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono"
+          />
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleApplyParsed}
+              className="min-h-[34px] px-3.5 py-1 rounded-xl bg-emerald-600 text-white text-xs font-extrabold flex items-center gap-1"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>تطبيق النص على الخريطة</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <InteractiveMindMapCanvas
+        document={currentDoc}
+        onChangeDocument={(nextDoc) => {
+          const syncedDoc: MindMapDocument = {
+            ...nextDoc,
+            linkedTopicId:
+              nextDoc.linkedTopicId ||
+              (topicId && topicId !== 'draft-topic' ? topicId : undefined)
+          };
+          upsertMindMap(syncedDoc);
+          onUpdate({
+            mindMapId: syncedDoc.id,
+            mindMapData: syncedDoc
+          });
+        }}
+        editable={true}
+        compact={true}
+        heightClassName="h-[320px]"
+        showToast={showToast}
+      />
+    </div>
+  );
+};
+
 export function sanitizeSvgMarkup(rawSvg: string): string {
   if (!rawSvg || typeof rawSvg !== 'string') return '';
   return rawSvg
@@ -191,6 +344,11 @@ const CONTENT_BLOCK_TYPE_META: Record<
     labelAr: 'مخطط تفاعلي',
     icon: GitBranch
   },
+  mind_map: {
+    labelEn: 'Interactive Mind Map',
+    labelAr: 'خريطة ذهنية تفاعلية',
+    icon: Network
+  },
   audio: {
     labelEn: 'Audio / Voice',
     labelAr: 'صوت أو تسجيل',
@@ -241,6 +399,7 @@ const PICKER_CONTENT_BLOCK_TYPES: ContentBlockType[] = [
   'table',
   'image',
   'diagram',
+  'mind_map',
   'audio',
   'video',
   'attachment',
@@ -259,11 +418,12 @@ interface SectionContentBlocksRendererProps {
   blocks: TopicContentBlock[];
   showToast: (msg: string, type?: string) => void;
   onOpenExamOrQuiz?: (examId?: string, topicId?: string) => void;
+  onOpenMindMapStudio?: (mindMapId?: string, mindMapDoc?: MindMapDocument) => void;
 }
 
 export const SectionContentBlocksRenderer: React.FC<
   SectionContentBlocksRendererProps
-> = ({ topicId, sectionId, blocks, showToast, onOpenExamOrQuiz }) => {
+> = ({ topicId, sectionId, blocks, showToast, onOpenExamOrQuiz, onOpenMindMapStudio }) => {
   const [inlineQuizAnswers, setInlineQuizAnswers] = useState<
     Record<string, string>
   >({});
@@ -1321,6 +1481,52 @@ export const SectionContentBlocksRenderer: React.FC<
           );
         }
 
+        if (blk.type === 'mind_map') {
+          const resolvedMindMap =
+            blk.mindMapData ||
+            (blk.mindMapId
+              ? loadMindMaps().find((m) => m.id === blk.mindMapId)
+              : undefined);
+
+          if (!resolvedMindMap) return null;
+
+          return (
+            <div
+              key={blk.id}
+              className="p-3 sm:p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-2.5 my-2"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Network className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <div className="min-w-0">
+                    <p
+                      dir="auto"
+                      className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white truncate"
+                    >
+                      {blk.titleAr || blk.titleEn || resolvedMindMap.title}
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                  {resolvedMindMap.nodes.length} عقدة · خريطة ذهنية تفاعلية
+                </span>
+              </div>
+
+              <InteractiveMindMapCanvas
+                document={resolvedMindMap}
+                editable={false}
+                compact={true}
+                onRequestFullscreen={
+                  onOpenMindMapStudio
+                    ? () => onOpenMindMapStudio(resolvedMindMap.id, resolvedMindMap)
+                    : undefined
+                }
+                showToast={showToast}
+              />
+            </div>
+          );
+        }
+
         if (blk.type === 'pdf_viewer') {
           const remoteUrl =
             blk.externalUrl ||
@@ -1841,6 +2047,21 @@ export const SectionContentBlocksEditor: React.FC<
         diagramSvg: '',
         captionAr: '',
         externalUrl: ''
+      };
+    } else if (type === 'mind_map') {
+      const starterMap = createBlankMindMap({
+        title: 'خريطة ذهنية للقسم',
+        style: 'radial'
+      });
+      if (topicId && topicId !== 'draft-topic') {
+        starterMap.linkedTopicId = topicId;
+      }
+      newBlock = {
+        ...newBlock,
+        titleEn: starterMap.title,
+        titleAr: 'خريطة ذهنية تفاعلية',
+        mindMapId: starterMap.id,
+        mindMapData: starterMap
       };
     } else if (type === 'pdf_viewer') {
       newBlock = {
@@ -2470,6 +2691,15 @@ export const SectionContentBlocksEditor: React.FC<
                   className="w-full min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs"
                 />
               </div>
+            )}
+
+            {blk.type === 'mind_map' && (
+              <MindMapBlockEditorFields
+                blk={blk}
+                topicId={topicId}
+                onUpdate={(patch) => updateBlockById(blk.id, patch)}
+                showToast={showToast}
+              />
             )}
 
             {blk.type === 'pdf_viewer' && (

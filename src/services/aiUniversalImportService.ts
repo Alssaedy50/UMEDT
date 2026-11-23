@@ -143,6 +143,7 @@ const VALID_BLOCK_TYPES = new Set<ContentBlockType>([
   'question',
   'clinical_note',
   'diagram',
+  'mind_map',
   'pdf_viewer',
   'book_reference',
   'exam_link'
@@ -591,6 +592,11 @@ function normalizeContentBlock(
     diagramData:
       raw.diagramData && typeof raw.diagramData === 'object'
         ? (raw.diagramData as Record<string, unknown>)
+        : undefined,
+    mindMapId: typeof raw.mindMapId === 'string' ? raw.mindMapId : undefined,
+    mindMapData:
+      raw.mindMapData && typeof raw.mindMapData === 'object'
+        ? (raw.mindMapData as unknown as import('../types/mindMap').MindMapDocument)
         : undefined,
     sha256: typeof raw.sha256 === 'string' ? raw.sha256 : undefined,
     inlineQuestion: inlineQ

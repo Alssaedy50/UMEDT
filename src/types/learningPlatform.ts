@@ -1,9 +1,12 @@
+import type { MindMapDocument } from './mindMap';
+
 export type ContentBlockType =
   | 'heading'
   | 'paragraph'
   | 'table'
   | 'image'
   | 'diagram'
+  | 'mind_map'
   | 'video'
   | 'video_link'
   | 'audio'
@@ -88,6 +91,8 @@ export interface TopicContentBlock {
   examId?: string;
   diagramSvg?: string;
   diagramData?: unknown;
+  mindMapId?: string;
+  mindMapData?: MindMapDocument;
   sha256?: string;
 }
 
