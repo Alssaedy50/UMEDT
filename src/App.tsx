@@ -387,6 +387,25 @@ export default function App() {
   );
   const [lastImportedOrCopiedSummary, setLastImportedOrCopiedSummary] =
     useState<ConciseDataSummary | null>(null);
+  const [dataRevision, setDataRevision] = useState<number>(0);
+
+  useEffect(() => {
+    const handleDataMutated = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ source?: string }>)?.detail;
+      if (detail?.source === 'import-group-delete') {
+        const refreshed = loadAppState();
+        setTerms(refreshed.terms);
+        setSentences(refreshed.sentences);
+        setTopics(refreshed.topics);
+        setCustomAffixes(refreshed.customAffixes);
+        setCustomAbbreviations(refreshed.customAbbreviations);
+        setLastImportedOrCopiedSummary(null);
+      }
+      setDataRevision((prev) => prev + 1);
+    };
+    window.addEventListener('umed:data-mutated', handleDataMutated);
+    return () => window.removeEventListener('umed:data-mutated', handleDataMutated);
+  }, []);
 
   // Automatic Hybrid Persistence Hooks (localStorage) — skip redundant initial-mount writes
   const persistenceMountedRef = useRef({
@@ -1932,23 +1951,71 @@ export default function App() {
     const topicsGroup = collect(report.updatedTopics, topics);
     const affixesGroup = collect(report.updatedAffixes, customAffixes);
     const abbreviationsGroup = collect(report.updatedAbbreviations, customAbbreviations);
+
+    const addedQuestionIdSet = new Set(report.addedIds?.questions || []);
+    const addedQuestions = (report.updatedState.questions || []).filter((q) =>
+      addedQuestionIdSet.has(q.id)
+    );
+    const questionsGroup = {
+      ids: addedQuestions.map((q) => q.id),
+      fingerprints: Object.fromEntries(
+        addedQuestions.map((q) => [q.id, JSON.stringify(q)])
+      ),
+      changedExisting: report.counts.questions > addedQuestions.length
+    };
+
     const hasExistingChanges = [
-      termsGroup, sentencesGroup, topicsGroup, affixesGroup, abbreviationsGroup
-    ].some(group => group.changedExisting);
+      termsGroup,
+      sentencesGroup,
+      topicsGroup,
+      affixesGroup,
+      abbreviationsGroup,
+      questionsGroup
+    ].some((group) => group.changedExisting);
+
     const ids: Partial<Record<ImportGroupDomain, string[]>> = {
-      terms: termsGroup.ids, sentences: sentencesGroup.ids, topics: topicsGroup.ids,
-      affixes: affixesGroup.ids, abbreviations: abbreviationsGroup.ids
+      terms: termsGroup.ids,
+      sentences: sentencesGroup.ids,
+      topics: topicsGroup.ids,
+      affixes: affixesGroup.ids,
+      abbreviations: abbreviationsGroup.ids,
+      questions: questionsGroup.ids
     };
     const fingerprints: Partial<Record<ImportGroupDomain, Record<string, string>>> = {
-      terms: termsGroup.fingerprints, sentences: sentencesGroup.fingerprints,
-      topics: topicsGroup.fingerprints, affixes: affixesGroup.fingerprints,
-      abbreviations: abbreviationsGroup.fingerprints
+      terms: termsGroup.fingerprints,
+      sentences: sentencesGroup.fingerprints,
+      topics: topicsGroup.fingerprints,
+      affixes: affixesGroup.fingerprints,
+      abbreviations: abbreviationsGroup.fingerprints,
+      questions: questionsGroup.fingerprints
     };
     const extendedCounts = report.counts;
-    const hasExtendedContent = Boolean(
-      extendedCounts.blocks || extendedCounts.subjects || extendedCounts.books ||
-      extendedCounts.exams || extendedCounts.questions || extendedCounts.mediaAssets
+    const hasUnsupportedExtendedContent = Boolean(
+      extendedCounts.blocks ||
+        extendedCounts.subjects ||
+        extendedCounts.books ||
+        extendedCounts.exams ||
+        extendedCounts.mediaAssets
     );
+
+    const totalAddedNew =
+      termsGroup.ids.length +
+      sentencesGroup.ids.length +
+      topicsGroup.ids.length +
+      affixesGroup.ids.length +
+      abbreviationsGroup.ids.length +
+      questionsGroup.ids.length +
+      extendedCounts.blocks +
+      extendedCounts.subjects +
+      extendedCounts.books +
+      extendedCounts.exams +
+      extendedCounts.mediaAssets;
+
+    // Do not pollute the import history with phantom 0-item duplicate groups
+    if (totalAddedNew === 0 && !hasExistingChanges) {
+      return;
+    }
+
     const groupId = `universal-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
     registerImportGroup({
       id: groupId,
@@ -1959,18 +2026,23 @@ export default function App() {
       ids,
       fingerprints,
       counts: {
-        terms: termsGroup.ids.length, sentences: sentencesGroup.ids.length,
-        topics: topicsGroup.ids.length, affixes: affixesGroup.ids.length,
+        terms: termsGroup.ids.length,
+        sentences: sentencesGroup.ids.length,
+        topics: topicsGroup.ids.length,
+        affixes: affixesGroup.ids.length,
         abbreviations: abbreviationsGroup.ids.length,
-        blocks: extendedCounts.blocks, subjects: extendedCounts.subjects,
-        books: extendedCounts.books, exams: extendedCounts.exams,
-        questions: extendedCounts.questions, mediaAssets: extendedCounts.mediaAssets
+        questions: questionsGroup.ids.length,
+        blocks: extendedCounts.blocks,
+        subjects: extendedCounts.subjects,
+        books: extendedCounts.books,
+        exams: extendedCounts.exams,
+        mediaAssets: extendedCounts.mediaAssets
       },
       ignoredDuplicates: extendedCounts.skippedDuplicates,
-      requiresReview: hasExistingChanges || hasExtendedContent,
+      requiresReview: hasExistingChanges || hasUnsupportedExtendedContent,
       reviewReason: hasExistingChanges
         ? 'تضمنت عملية الاستيراد دمجاً أو تحديثاً لسجلات سابقة؛ الحذف الانتقائي معطّل لحماية البيانات الأصلية.'
-        : hasExtendedContent
+        : hasUnsupportedExtendedContent
           ? 'تتضمن الدفعة بلوكات أو مواد أو كتباً أو اختبارات أو وسائط؛ يلزم دعم إزالة هذه العناصر واعتمادياتها قبل تفعيل الحذف.'
           : undefined
     });
@@ -1989,14 +2061,21 @@ export default function App() {
     setCustomAffixes(report.updatedAffixes);
     setCustomAbbreviations(report.updatedAbbreviations);
     setBackupHistory(loadBackupHistory());
+    setDataRevision((prev) => prev + 1);
     setLastImportedOrCopiedSummary(
       buildConciseDataSummary({
         terms: report.updatedTerms,
         sentences: report.updatedSentences,
         topics: report.updatedTopics,
+        questions: report.updatedState.questions,
         sourceLabel: report.summaryText
       })
     );
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('umed:data-mutated', { detail: { source: 'universal-import' } })
+      );
+    }
     triggerTelegramAutoSync(`استيراد شامل: ${report.summaryText}`, {
       terms: report.updatedTerms,
       sentences: report.updatedSentences,
@@ -2694,7 +2773,8 @@ export default function App() {
         sourceLabel: 'بيانات التطبيق الحالية',
         rawSizeBytes: dbMetrics.actualSizeKb * 1024
       }),
-    [terms, sentences, topics, dbMetrics.actualSizeKb]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [terms, sentences, topics, dbMetrics.actualSizeKb, dataRevision]
   );
 
   const handleUpdateTelegramConfig = (nextConfig: TelegramBackupConfig) => {

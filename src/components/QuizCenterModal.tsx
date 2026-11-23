@@ -39,7 +39,9 @@ import {
   parseAndValidateBulkQuestionsText,
   parseAndValidateQuestionsJsonOrCsv,
   evaluateQuizQuestionAnswer,
-  buildQuizAttemptRecord
+  buildQuizAttemptRecord,
+  mergeAndDeduplicateQuizQuestions,
+  saveQuizQuestions
 } from '../services/quizEngineService';
 import { extractLinkedTermsFromText } from '../engine/knowledgeLinker';
 import { getLocalMediaRecord } from '../services/mediaStorageService';
@@ -62,13 +64,14 @@ interface QuizCenterModalProps {
   terms: DictionaryTerm[];
   questions: UnifiedQuizQuestion[];
   attempts: QuizAttemptRecord[];
-  initialScopeType?: 'topic' | 'subject' | 'block' | 'multi-topic';
+  initialScopeType?: 'topic' | 'subject' | 'block' | 'multi-topic' | 'all';
   initialBlockId?: string | null;
   initialSubjectId?: string | null;
   initialTopicId?: string | null;
   initialExam?: AcademicExamPackage | null;
   initialTab?: 'runner' | 'builder' | 'history';
   onSaveQuestions: (newQuestions: UnifiedQuizQuestion[]) => void;
+  onReplaceAllQuestions?: (allQuestions: UnifiedQuizQuestion[]) => void;
   onDeleteQuestion: (questionId: string) => void;
   onSaveAttempt: (attempt: QuizAttemptRecord) => void;
   onOpenTermDetail: (termId: string) => void;
@@ -110,6 +113,7 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
   initialExam,
   initialTab = 'runner',
   onSaveQuestions,
+  onReplaceAllQuestions,
   onDeleteQuestion,
   onSaveAttempt,
   onOpenTermDetail,
@@ -121,12 +125,13 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
   const [activeExamPackage, setActiveExamPackage] = useState<AcademicExamPackage | null>(
     initialExam || null
   );
+  const [confirmDeleteUnlinked, setConfirmDeleteUnlinked] = useState<boolean>(false);
 
   // ============================================================================
   // 1. QUIZ CONFIGURATION & RUNNER STATE
   // ============================================================================
   const [scopeType, setScopeType] = useState<
-    'topic' | 'subject' | 'block' | 'multi-topic' | 'mistakes-retry'
+    'topic' | 'subject' | 'block' | 'multi-topic' | 'mistakes-retry' | 'all'
   >(initialScopeType);
   const [selectedBlockId, setSelectedBlockId] = useState<string>(
     initialBlockId || blocks[0]?.id || ''
@@ -183,6 +188,18 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
   }, [initialTopicId, initialSubjectId, initialBlockId, initialScopeType, initialTab]);
 
   useEffect(() => {
+    if (topics.length > 0 && !topics.some((t) => t.id === selectedTopicId)) {
+      setSelectedTopicId(topics[0].id);
+    }
+    if (subjects.length > 0 && !subjects.some((s) => s.id === selectedSubjectId)) {
+      setSelectedSubjectId(subjects[0].id);
+    }
+    if (blocks.length > 0 && !blocks.some((b) => b.id === selectedBlockId)) {
+      setSelectedBlockId(blocks[0].id);
+    }
+  }, [topics, subjects, blocks, selectedTopicId, selectedSubjectId, selectedBlockId]);
+
+  useEffect(() => {
     if (!isOpen || !initialExam) return;
     setActiveExamPackage(initialExam);
     setActiveTab('runner');
@@ -235,8 +252,60 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
     }
   }, [isOpen, initialExam, questions]);
 
+  const localTopicIdSet = useMemo(() => new Set(topics.map((t) => t.id)), [topics]);
+  const unlinkedQuestions = useMemo(
+    () => questions.filter((q) => !q.topicId || !localTopicIdSet.has(q.topicId)),
+    [questions, localTopicIdSet]
+  );
+
+  const commitReplacedQuestions = (nextAll: UnifiedQuizQuestion[]) => {
+    if (onReplaceAllQuestions) {
+      onReplaceAllQuestions(nextAll);
+    } else {
+      saveQuizQuestions(nextAll);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('umed:data-mutated', { detail: { source: 'quiz-relink' } })
+        );
+      }
+    }
+  };
+
+  const handleLinkUnlinkedToSelectedTopic = () => {
+    const targetTopic = topics.find((t) => t.id === selectedTopicId) || topics[0];
+    if (!targetTopic || unlinkedQuestions.length === 0) return;
+    const unlinkedIdSet = new Set(unlinkedQuestions.map((q) => q.id));
+    const updated = questions.map((q) =>
+      unlinkedIdSet.has(q.id)
+        ? {
+            ...q,
+            topicId: targetTopic.id,
+            subjectId: targetTopic.subjectId || q.subjectId,
+            blockId: targetTopic.blockId || q.blockId
+          }
+        : q
+    );
+    commitReplacedQuestions(updated);
+    setConfirmDeleteUnlinked(false);
+    showToast(
+      `تم ربط ${unlinkedQuestions.length} سؤال بموضوع «${targetTopic.titleAr || targetTopic.titleEn || targetTopic.title}» بنجاح.`
+    );
+  };
+
+  const handleDeleteAllUnlinkedQuestions = () => {
+    if (unlinkedQuestions.length === 0) return;
+    const unlinkedIdSet = new Set(unlinkedQuestions.map((q) => q.id));
+    const remaining = questions.filter((q) => !unlinkedIdSet.has(q.id));
+    commitReplacedQuestions(remaining);
+    setConfirmDeleteUnlinked(false);
+    showToast(`تم حذف ${unlinkedQuestions.length} سؤال غير مرتبط من بنك الأسئلة.`);
+  };
+
   // Pool of available questions for the chosen scope
   const availableScopeQuestions = useMemo(() => {
+    if (scopeType === 'all') {
+      return questions;
+    }
     if (scopeType === 'topic') {
       return questions.filter((q) => q.topicId === selectedTopicId);
     }
@@ -390,7 +459,9 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
     });
 
     const titleLabel =
-      scopeType === 'topic'
+      scopeType === 'all'
+        ? 'All Questions Bank'
+        : scopeType === 'topic'
         ? topics.find((t) => t.id === selectedTopicId)?.titleEn || 'Topic Quiz'
         : scopeType === 'subject'
           ? subjects.find((s) => s.id === selectedSubjectId)?.titleEn || 'Subject Quiz'
@@ -402,7 +473,7 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
 
     const record = buildQuizAttemptRecord({
       title: titleLabel,
-      scopeType,
+      scopeType: scopeType === 'all' ? 'multi-topic' : scopeType,
       blockId: selectedBlockId,
       subjectId: selectedSubjectId,
       topicIds:
@@ -591,6 +662,17 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
       return;
     }
 
+    const dedupCheck = mergeAndDeduplicateQuizQuestions(questions, [check.normalized], {
+      conflictPolicy: 'merge',
+      blocks,
+      subjects,
+      topics
+    });
+    if (dedupCheck.addedQuestions.length === 0 && dedupCheck.updatedQuestions.length === 0) {
+      showToast('هذا السؤال موجود مسبقاً في بنك الاختبارات.', 'info');
+      return;
+    }
+
     onSaveQuestions([check.normalized]);
     setManualQuestionEn('');
     setManualQuestionAr('');
@@ -651,8 +733,26 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
       showToast('لا توجد أسئلة صالحة للحفظ', 'info');
       return;
     }
+    const dedupPreview = mergeAndDeduplicateQuizQuestions(questions, stagedPreviewQuestions, {
+      conflictPolicy: 'merge',
+      blocks,
+      subjects,
+      topics
+    });
+    const addedCount = dedupPreview.addedQuestions.length;
+    const updatedCount = dedupPreview.updatedQuestions.length;
+    const skippedCount = dedupPreview.skippedDuplicates;
+
+    if (addedCount === 0 && updatedCount === 0) {
+      showToast(`جميع الأسئلة (${skippedCount}) موجودة مسبقاً دون تكرار.`, 'info');
+      setStagedPreviewQuestions([]);
+      setValidationReport(null);
+      return;
+    }
+
     onSaveQuestions(stagedPreviewQuestions);
-    showToast(`تم حفظ ${stagedPreviewQuestions.length} سؤال في قاعدة البيانات بنجاح`);
+    const dupSuffix = skippedCount > 0 ? ` (تم تجاهل ${skippedCount} مكرر)` : '';
+    showToast(`تم حفظ ${addedCount + updatedCount} سؤال في قاعدة البيانات بنجاح${dupSuffix}`);
     setStagedPreviewQuestions([]);
     setValidationReport(null);
     setActiveTab('runner');
@@ -760,14 +860,15 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
                     1. اختر نطاق الاختبار:
                   </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                     {(
                       [
                         { key: 'topic', label: 'موضوع واحد' },
                         { key: 'subject', label: 'مادة كاملة' },
                         { key: 'block', label: 'بلوك كامل' },
                         { key: 'multi-topic', label: 'عدة مواضيع' },
-                        { key: 'mistakes-retry', label: 'إعادة الأخطاء' }
+                        { key: 'mistakes-retry', label: 'إعادة الأخطاء' },
+                        { key: 'all', label: `كل الأسئلة (${questions.length})` }
                       ] as const
                     ).map((sc) => (
                       <button
@@ -785,6 +886,62 @@ export const QuizCenterModal: React.FC<QuizCenterModalProps> = ({
                     ))}
                   </div>
                 </div>
+
+                {unlinkedQuestions.length > 0 && topics.length > 0 && (
+                  <div className="rounded-2xl border border-amber-300/60 dark:border-amber-800/70 bg-amber-50/90 dark:bg-amber-950/30 p-3.5 space-y-2.5">
+                    <div className="flex items-start gap-2 text-xs text-amber-800 dark:text-amber-200">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+                      <div className="space-y-0.5">
+                        <div className="font-extrabold">
+                          يوجد {unlinkedQuestions.length} سؤال غير مرتبط بموضوع محلي محدد
+                        </div>
+                        <p className="text-[11px] opacity-90 leading-relaxed">
+                          تم استيراد هذه الأسئلة بدون معرّف موضوع مطابق لمواضيعك المحلية. يمكنك ربطها بالموضوع المحدد حالياً أو حذفها.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleLinkUnlinkedToSelectedTopic}
+                        className="min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold transition-colors"
+                      >
+                        ربط بالموضوع المحدد (
+                        {topics.find((t) => t.id === selectedTopicId)?.titleAr ||
+                          topics.find((t) => t.id === selectedTopicId)?.titleEn ||
+                          topics[0]?.titleAr ||
+                          topics[0]?.titleEn}
+                        )
+                      </button>
+                      {confirmDeleteUnlinked ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleDeleteAllUnlinkedQuestions}
+                            className="min-h-[38px] px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold"
+                          >
+                            تأكيد حذف {unlinkedQuestions.length} سؤال
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteUnlinked(false)}
+                            className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold"
+                          >
+                            إلغاء
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteUnlinked(true)}
+                          className="min-h-[38px] px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-700 dark:text-rose-300 text-xs font-extrabold transition-colors"
+                        >
+                          حذف غير المرتبطة
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Target Dropdown or Multi-Topic Checkboxes */}
                 {scopeType === 'topic' && (

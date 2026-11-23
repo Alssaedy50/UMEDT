@@ -6,6 +6,10 @@ import {
   loadStoredMcqQuestions, saveStoredMcqQuestions,
   loadStoredClinicalCases, saveStoredClinicalCases
 } from './umedPackageService';
+import {
+  loadQuizQuestions,
+  saveQuizQuestions
+} from './quizEngineService';
 
 export type ImportGroupDomain =
   | 'terms' | 'sentences' | 'topics' | 'questions'
@@ -62,6 +66,19 @@ function readGroups(): ImportGroupRecord[] {
 function writeGroups(groups: ImportGroupRecord[]): boolean {
   return setItem(STORAGE_KEY, JSON.stringify(groups));
 }
+
+function notifyImportDataMutated(source: string, groupId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.dispatchEvent(new Event('umed:import-groups-updated'));
+    window.dispatchEvent(
+      new CustomEvent('umed:data-mutated', { detail: { source, groupId } })
+    );
+  } catch {
+    // ignore
+  }
+}
+
 export function loadImportGroups(): ImportGroupView[] {
   const groups: ImportGroupView[] = readGroups().map(g => ({
     ...g,
@@ -74,8 +91,20 @@ export function loadImportGroups(): ImportGroupView[] {
     if (raw) legacy = JSON.parse(raw);
   } catch { /* preserve registry even if history is corrupt */ }
   for (const entry of legacy) {
-    if (!entry || !entry.id || known.has(entry.id) || entry.status !== 'success') continue;
+    if (
+      !entry ||
+      !entry.id ||
+      entry.id === 'import-seed-init' ||
+      known.has(entry.id) ||
+      entry.status !== 'success'
+    ) {
+      continue;
+    }
     const counts = entry.summary || {};
+    const legacyTotal = Object.entries(counts)
+      .filter(([k]) => k !== 'ignoredDuplicates')
+      .reduce((n, [, v]) => n + (typeof v === 'number' ? v : 0), 0);
+    if (legacyTotal === 0) continue;
     groups.push({
       id: entry.id, name: entry.sourceName || 'استيراد سابق',
       sourceName: entry.sourceName || '', sourceType: entry.sourceType || 'unknown',
@@ -84,17 +113,18 @@ export function loadImportGroups(): ImportGroupView[] {
       requiresReview: true,
       reviewReason: 'عملية قديمة لا تحتوي على معرّفات العناصر ومصدر كل تعديل؛ لا يمكن حذفها انتقائياً بأمان.',
       rollbackSnapshotId: entry.rollbackSnapshotId, legacy: true,
-      total: Object.entries(counts).filter(([k]) => k !== 'ignoredDuplicates')
-        .reduce((n, [,v]) => n + (typeof v === 'number' ? v : 0), 0)
+      total: legacyTotal
     });
   }
-  return groups.sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+  return groups.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
+
 export function registerImportGroup(group: ImportGroupRecord): void {
   const groups = readGroups().filter(g => g.id !== group.id);
   groups.unshift(group);
   writeGroups(groups.slice(0, 100));
 }
+
 export function renameImportGroup(id: string, name: string): boolean {
   const clean = name.trim().slice(0, 100);
   if (!clean) return false;
@@ -104,6 +134,40 @@ export function renameImportGroup(id: string, name: string): boolean {
   item.name = clean;
   return writeGroups(groups);
 }
+
+/**
+ * Removes ONLY the log card from the import groups list (without modifying local data).
+ * Useful for clearing stale/legacy/review-locked history entries.
+ */
+export function dismissImportGroupRecord(id: string): boolean {
+  let removedAny = false;
+  const groups = readGroups();
+  const nextGroups = groups.filter((g) => g.id !== id);
+  if (nextGroups.length !== groups.length) {
+    writeGroups(nextGroups);
+    removedAny = true;
+  }
+  try {
+    const raw = getItem(HISTORY_KEY);
+    if (raw) {
+      const legacy = JSON.parse(raw);
+      if (Array.isArray(legacy)) {
+        const nextLegacy = legacy.filter((entry: any) => entry?.id !== id);
+        if (nextLegacy.length !== legacy.length) {
+          setItem(HISTORY_KEY, JSON.stringify(nextLegacy));
+          removedAny = true;
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  if (removedAny && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('umed:import-groups-updated'));
+  }
+  return removedAny;
+}
+
 export async function deleteImportGroup(id: string): Promise<{success:boolean; message:string}> {
   const groups = readGroups();
   const group = groups.find(g => g.id === id);
@@ -114,13 +178,23 @@ export async function deleteImportGroup(id: string): Promise<{success:boolean; m
     const backup = await createDataBackupSnapshot({ trigger:'manual', label:`نسخة أمان قبل حذف مجموعة: ${group.name}` });
     backupId = backup.backupId;
     const state = loadAppState();
+    const currentQuizQuestions = loadQuizQuestions(state.topics, state.terms);
+    const currentStoredMcqQuestions = loadStoredMcqQuestions();
+    const combinedQuestionRows: Array<{ id: string }> = [
+      ...currentQuizQuestions,
+      ...currentStoredMcqQuestions.filter(
+        (mcq) => !currentQuizQuestions.some((q) => q.id === mcq.id)
+      )
+    ];
+
     const currentRows: Partial<Record<ImportGroupDomain, Array<{id:string}>>> = {
       terms: state.terms, sentences: state.sentences, topics: state.topics,
       affixes: state.customAffixes || [], abbreviations: state.customAbbreviations || [],
-      questions: loadStoredMcqQuestions(), clinicalCases: loadStoredClinicalCases()
+      questions: combinedQuestionRows, clinicalCases: loadStoredClinicalCases()
     };
     for (const domain of Object.keys(group.ids) as ImportGroupDomain[]) {
       const ids = group.ids[domain] || [];
+      if (ids.length === 0) continue;
       const fingerprints = group.fingerprints?.[domain];
       const rows = currentRows[domain] || [];
       const otherGroupOwns = groups.some(other => other.id !== id && (other.ids[domain] || []).some(recordId => ids.includes(recordId)));
@@ -142,14 +216,29 @@ export async function deleteImportGroup(id: string): Promise<{success:boolean; m
       (!group.ids.abbreviations?.length || saveCustomAbbreviations(remove('abbreviations', state.customAbbreviations || [])));
     if (!writesOk) throw new Error('فشل حفظ أحد أجزاء الحذف؛ ستتم استعادة نسخة الأمان.');
     if (group.ids.questions?.length) {
-      saveStoredMcqQuestions(remove('questions', loadStoredMcqQuestions()));
-      if (loadStoredMcqQuestions().some(item => group.ids.questions?.includes(item.id))) throw new Error('تعذر التحقق من حذف أسئلة المجموعة.');
+      const targetQuestionIds = new Set(group.ids.questions);
+      const hasInQuizStore = currentQuizQuestions.some((item) => targetQuestionIds.has(item.id));
+      const hasInMcqStore = currentStoredMcqQuestions.some((item) => targetQuestionIds.has(item.id));
+      if (hasInQuizStore) {
+        saveQuizQuestions(remove('questions', currentQuizQuestions));
+        const afterQuiz = loadQuizQuestions(state.topics, state.terms);
+        if (afterQuiz.some(item => targetQuestionIds.has(item.id))) {
+          throw new Error('تعذر التحقق من حذف أسئلة المجموعة.');
+        }
+      }
+      if (hasInMcqStore) {
+        saveStoredMcqQuestions(remove('questions', currentStoredMcqQuestions));
+        if (loadStoredMcqQuestions().some(item => targetQuestionIds.has(item.id))) {
+          throw new Error('تعذر التحقق من حذف أسئلة المجموعة.');
+        }
+      }
     }
     if (group.ids.clinicalCases?.length) {
       saveStoredClinicalCases(remove('clinicalCases', loadStoredClinicalCases()));
       if (loadStoredClinicalCases().some(item => group.ids.clinicalCases?.includes(item.id))) throw new Error('تعذر التحقق من حذف الحالات السريرية.');
     }
     if (!writeGroups(groups.filter(g => g.id !== id))) throw new Error('تعذر تحديث سجل المجموعات في التخزين المحلي؛ ستتم استعادة نسخة الأمان.');
+    notifyImportDataMutated('import-group-delete', id);
     return { success:true, message:`حُذفت مساهمات مجموعة «${group.name}» فقط، مع الاحتفاظ بنسخة أمان.` };
   } catch (error) {
     try {

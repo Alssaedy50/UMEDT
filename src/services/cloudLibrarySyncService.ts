@@ -42,7 +42,11 @@ import {
   normalizeMediaAssetRecord,
   normalizeQuizQuestionRecord
 } from './learningHierarchyService';
-import { loadQuizQuestions, saveQuizQuestions } from './quizEngineService';
+import {
+  loadQuizQuestions,
+  mergeAndDeduplicateQuizQuestions,
+  saveQuizQuestions
+} from './quizEngineService';
 import { computeSha256Hex } from './dataPlatformService';
 import { getConfiguredGitHubRawUrl } from './githubRepositoryService';
 import {
@@ -3308,9 +3312,14 @@ export async function downloadCloudLibraryTarget(params: {
 
     if (allLinkedQuestions.length > 0) {
       const existingQuestions = loadQuizQuestions(params.currentTopics, params.currentTerms);
-      const qMap = new Map(existingQuestions.map((q) => [q.id, q]));
-      for (const q of allLinkedQuestions) {
-        qMap.set(q.id, q);
+      const qMerge = mergeAndDeduplicateQuizQuestions(existingQuestions, allLinkedQuestions, {
+        conflictPolicy: 'merge',
+        blocks: loadMedicalBlocks(),
+        subjects: loadMedicalSubjects(),
+        topics: params.currentTopics,
+        clearUnknownIds: false
+      });
+      for (const q of [...qMerge.addedQuestions, ...qMerge.updatedQuestions]) {
         bytesDownloaded += computeEntitySizeBytes(q);
         if (q.imageUrl && /^https?:\/\//i.test(q.imageUrl)) {
           const qImgRes = await resolveAndCacheRemoteUrlForEntity({
@@ -3328,7 +3337,8 @@ export async function downloadCloudLibraryTarget(params: {
           }
         }
       }
-      saveQuizQuestions(Array.from(qMap.values()));
+      skippedIdenticalCount += qMerge.skippedDuplicates;
+      saveQuizQuestions(qMerge.mergedQuestions);
     }
 
     const existingExams = loadAcademicExams();
@@ -3831,9 +3841,14 @@ export async function downloadCloudLibraryTarget(params: {
   );
   if (matchingCloudQuestions.length > 0) {
     const existingQuestions = loadQuizQuestions(updatedTopics, updatedTerms);
-    const qMap = new Map(existingQuestions.map((q) => [q.id, q]));
-    for (const q of matchingCloudQuestions) {
-      qMap.set(q.id, q);
+    const qMerge = mergeAndDeduplicateQuizQuestions(existingQuestions, matchingCloudQuestions, {
+      conflictPolicy: 'merge',
+      blocks: loadMedicalBlocks(),
+      subjects: loadMedicalSubjects(),
+      topics: updatedTopics,
+      clearUnknownIds: false
+    });
+    for (const q of [...qMerge.addedQuestions, ...qMerge.updatedQuestions]) {
       if (q.imageUrl && /^https?:\/\//i.test(q.imageUrl)) {
         const qImgRes = await resolveAndCacheRemoteUrlForEntity({
           url: q.imageUrl,
@@ -3850,7 +3865,8 @@ export async function downloadCloudLibraryTarget(params: {
         }
       }
     }
-    saveQuizQuestions(Array.from(qMap.values()));
+    skippedIdenticalCount += qMerge.skippedDuplicates;
+    saveQuizQuestions(qMerge.mergedQuestions);
   }
 
   // Prefetch subject/block/question-level mediaAssets from media-index.json

@@ -565,9 +565,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const summaryToShow =
+    currentDataSummary ||
     lastImportedOrCopiedSummary ||
-    telegramConfig?.lastBackupSummary ||
-    currentDataSummary;
+    telegramConfig?.lastBackupSummary;
 
   return (
     <div className="max-w-lg mx-auto w-full pb-6 space-y-3">

@@ -65,6 +65,7 @@ import {
 import {
   loadQuizAttempts,
   loadQuizQuestions,
+  mergeAndDeduplicateQuizQuestions,
   saveQuizQuestions,
   validateSingleQuizQuestion
 } from './quizEngineService';
@@ -107,6 +108,14 @@ export interface UniversalImportReport {
   updatedTopics: TopicArticle[];
   updatedAffixes: MorphologicalAffix[];
   updatedAbbreviations: ClinicalAbbreviation[];
+  addedIds?: {
+    terms: string[];
+    sentences: string[];
+    topics: string[];
+    affixes: string[];
+    abbreviations: string[];
+    questions: string[];
+  };
   updatedState: {
     terms: DictionaryTerm[];
     sentences: LinkedSentence[];
@@ -398,6 +407,14 @@ function normalizeQuestionItem(
   }
 
   let correctKeys: string[] = [];
+  const rawSingleAnswer =
+    typeof raw.correctAnswer === 'string' && raw.correctAnswer.trim()
+      ? raw.correctAnswer.trim()
+      : typeof raw.correctAnswerKey === 'string' && raw.correctAnswerKey.trim()
+        ? raw.correctAnswerKey.trim()
+        : typeof raw.answer === 'string' && raw.answer.trim()
+          ? raw.answer.trim()
+          : '';
   if (Array.isArray(raw.correctOptionKeys)) {
     correctKeys = raw.correctOptionKeys
       .map((k) => String(k).trim().toUpperCase())
@@ -408,10 +425,10 @@ function normalizeQuestionItem(
       .filter(Boolean);
   } else if (inferredCorrectFromFlags.length > 0) {
     correctKeys = inferredCorrectFromFlags;
-  } else if (typeof raw.correctAnswer === 'string' && raw.correctAnswer.trim()) {
-    const rawAns = raw.correctAnswer.trim().toUpperCase();
+  } else if (rawSingleAnswer) {
+    const rawAns = rawSingleAnswer.toUpperCase();
     if (qType === 'true_false') {
-      correctKeys = [rawAns.startsWith('F') || rawAns === 'خطأ' ? 'F' : 'T'];
+      correctKeys = [rawAns.startsWith('F') || rawSingleAnswer === 'خطأ' ? 'F' : 'T'];
     } else {
       correctKeys = rawAns
         .split(/[,;|]+/)
@@ -420,8 +437,6 @@ function normalizeQuestionItem(
     }
   } else if (typeof raw.correctOptionIndex === 'number' && options[raw.correctOptionIndex]) {
     correctKeys = [options[raw.correctOptionIndex].key];
-  } else if (options.length > 0) {
-    correctKeys = [options[0].key];
   }
 
   const matchingPairs: UnifiedMatchingPair[] | undefined = Array.isArray(raw.matchingPairs)
@@ -468,9 +483,7 @@ function normalizeQuestionItem(
     correctOptionKeys: correctKeys,
     matchingPairs,
     acceptableAnswers,
-    explanationEn: String(
-      raw.explanationEn || raw.explanation || 'Refer to core clinical pathophysiology.'
-    ),
+    explanationEn: String(raw.explanationEn || raw.explanation || '').trim(),
     explanationAr: typeof raw.explanationAr === 'string' ? raw.explanationAr : undefined,
     difficulty:
       raw.difficulty === 'easy' ||
@@ -2185,12 +2198,14 @@ export function importUniversalAiOrLocalContent(params: {
       }
     }
 
-    // 3. Merge Topics (preserve existing favorite state)
+    // 3. Merge Topics (preserve existing favorite state & record topicIdRemap for questions)
     const topicsMap = new Map(currentState.topics.map((t) => [t.id, t]));
     const topicTitleToId = new Map(
       currentState.topics.map((t) => [(t.titleEn || t.title).toLowerCase(), t.id])
     );
+    const topicIdRemap = new Map<string, string>();
     const mergedTopicsBatch: TopicArticle[] = [];
+    const addedTopicIds: string[] = [];
     const localBlockIds = new Set(nextBlocks.map((block) => block.id));
     const localSubjectsById = new Map(nextSubjects.map((subject) => [subject.id, subject]));
     for (const tp of buckets.topics) {
@@ -2213,6 +2228,9 @@ export function importUniversalAiOrLocalContent(params: {
         ? tp.id
         : topicTitleToId.get((tp.titleEn || tp.title).toLowerCase());
       const existing = matchedId ? topicsMap.get(matchedId) : undefined;
+      if (existing) {
+        topicIdRemap.set(tp.id, existing.id);
+      }
       if (existing && mode === 'ignore') {
         skippedDuplicates++;
         continue;
@@ -2224,9 +2242,14 @@ export function importUniversalAiOrLocalContent(params: {
             favorite: existing.favorite || tp.favorite
           }
         : tp;
+      if (existing && mode === 'merge' && JSON.stringify(nextTp) === JSON.stringify(existing)) {
+        skippedDuplicates++;
+        continue;
+      }
       topicsMap.set(nextTp.id, nextTp);
       topicTitleToId.set((nextTp.titleEn || nextTp.title).toLowerCase(), nextTp.id);
       mergedTopicsBatch.push(nextTp);
+      if (!existing) addedTopicIds.push(nextTp.id);
       counts.topics++;
     }
     const nextTopics = enrichAllTopicsWithHierarchy(Array.from(topicsMap.values()));
@@ -2235,6 +2258,7 @@ export function importUniversalAiOrLocalContent(params: {
     const workingTerms = [...currentState.terms];
     const termIndex = createTermLookupIndex(workingTerms);
     const mergedTermsBatch: DictionaryTerm[] = [];
+    const addedTermIds: string[] = [];
     for (const tm of buckets.terms) {
       permDeleted.terms = permDeleted.terms.filter((id) => id !== tm.id);
       const resolution = resolveIncomingTermMatch(termIndex, workingTerms, tm);
@@ -2248,6 +2272,10 @@ export function importUniversalAiOrLocalContent(params: {
         const nextTerm = mergeMatchedTermRecord(existing, tm, mode, {
           preferIncomingContent: mode === 'overwrite' || mode === 'merge'
         });
+        if (mode === 'merge' && JSON.stringify(nextTerm) === JSON.stringify(existing)) {
+          skippedDuplicates++;
+          continue;
+        }
         workingTerms[resolution.matchIndex] = nextTerm;
         mergedTermsBatch.push(nextTerm);
         counts.terms++;
@@ -2261,6 +2289,7 @@ export function importUniversalAiOrLocalContent(params: {
         workingTerms.push(nextTerm);
         registerTermInIndex(termIndex, nextTerm, nextIdx);
         mergedTermsBatch.push(nextTerm);
+        addedTermIds.push(nextTerm.id);
         counts.terms++;
       }
     }
@@ -2271,6 +2300,7 @@ export function importUniversalAiOrLocalContent(params: {
     const sentEnToId = new Map(
       currentState.sentences.map((s) => [s.en.trim().toLowerCase(), s.id])
     );
+    const addedSentenceIds: string[] = [];
     for (const sn of buckets.sentences) {
       permDeleted.sentences = permDeleted.sentences.filter((id) => id !== sn.id);
       const normEn = sn.en.trim().toLowerCase();
@@ -2289,8 +2319,13 @@ export function importUniversalAiOrLocalContent(params: {
             srsData: existing.srsData || sn.srsData
           }
         : sn;
+      if (existing && mode === 'merge' && JSON.stringify(nextSn) === JSON.stringify(existing)) {
+        skippedDuplicates++;
+        continue;
+      }
       sentencesMap.set(nextSn.id, nextSn);
       sentEnToId.set(normEn, nextSn.id);
+      if (!existing) addedSentenceIds.push(nextSn.id);
       counts.sentences++;
     }
     const nextSentences = syncTermExamplesToSentences(
@@ -2302,13 +2337,20 @@ export function importUniversalAiOrLocalContent(params: {
     const affixMap = new Map(
       currentState.customAffixes.map((a) => [`${a.cleanKey.toLowerCase()}_${a.type}`, a])
     );
+    const addedAffixIds: string[] = [];
     for (const af of buckets.affixes) {
       const key = `${af.cleanKey.toLowerCase()}_${af.type}`;
-      if (affixMap.has(key) && mode === 'ignore') {
+      const existingAf = affixMap.get(key);
+      if (existingAf && mode === 'ignore') {
+        skippedDuplicates++;
+        continue;
+      }
+      if (existingAf && mode === 'merge' && JSON.stringify(existingAf) === JSON.stringify(af)) {
         skippedDuplicates++;
         continue;
       }
       affixMap.set(key, af);
+      if (!existingAf) addedAffixIds.push(af.id);
       counts.affixes++;
     }
     const nextAffixes = Array.from(affixMap.values());
@@ -2316,13 +2358,20 @@ export function importUniversalAiOrLocalContent(params: {
     const abbrMap = new Map(
       currentState.customAbbreviations.map((a) => [a.abbr.toLowerCase(), a])
     );
+    const addedAbbrIds: string[] = [];
     for (const ab of buckets.abbreviations) {
       const key = ab.abbr.toLowerCase();
-      if (abbrMap.has(key) && mode === 'ignore') {
+      const existingAb = abbrMap.get(key);
+      if (existingAb && mode === 'ignore') {
+        skippedDuplicates++;
+        continue;
+      }
+      if (existingAb && mode === 'merge' && JSON.stringify(existingAb) === JSON.stringify(ab)) {
         skippedDuplicates++;
         continue;
       }
       abbrMap.set(key, ab);
+      if (!existingAb) addedAbbrIds.push(ab.id);
       counts.abbreviations++;
     }
     const nextAbbrs = Array.from(abbrMap.values());
@@ -2337,24 +2386,26 @@ export function importUniversalAiOrLocalContent(params: {
         skippedDuplicates++;
         continue;
       }
-      booksMap.set(
-        bk.id,
-        existingBook
-          ? {
-              ...bk,
-              favorite: existingBook.favorite ?? bk.favorite,
-              bookmarks: existingBook.bookmarks?.length
-                ? existingBook.bookmarks
-                : bk.bookmarks,
-              lastReadPage: existingBook.lastReadPage ?? bk.lastReadPage,
-              readingProgressPercent:
-                existingBook.readingProgressPercent ?? bk.readingProgressPercent,
-              notes: existingBook.notes ?? bk.notes,
-              mediaIdbKey: existingBook.mediaIdbKey || bk.mediaIdbKey,
-              coverIdbKey: existingBook.coverIdbKey || bk.coverIdbKey
-            }
-          : bk
-      );
+      const nextBk = existingBook
+        ? {
+            ...bk,
+            favorite: existingBook.favorite ?? bk.favorite,
+            bookmarks: existingBook.bookmarks?.length
+              ? existingBook.bookmarks
+              : bk.bookmarks,
+            lastReadPage: existingBook.lastReadPage ?? bk.lastReadPage,
+            readingProgressPercent:
+              existingBook.readingProgressPercent ?? bk.readingProgressPercent,
+            notes: existingBook.notes ?? bk.notes,
+            mediaIdbKey: existingBook.mediaIdbKey || bk.mediaIdbKey,
+            coverIdbKey: existingBook.coverIdbKey || bk.coverIdbKey
+          }
+        : bk;
+      if (existingBook && mode === 'merge' && JSON.stringify(nextBk) === JSON.stringify(existingBook)) {
+        skippedDuplicates++;
+        continue;
+      }
+      booksMap.set(bk.id, nextBk);
       counts.books++;
     }
     const nextBooks = Array.from(booksMap.values());
@@ -2363,7 +2414,12 @@ export function importUniversalAiOrLocalContent(params: {
     for (const ex of buckets.exams) {
       removed.exams = (removed.exams || []).filter((id) => id !== ex.id);
       permDeleted.exams = permDeleted.exams.filter((id) => id !== ex.id);
-      if (examsMap.has(ex.id) && mode === 'ignore') {
+      const existingEx = examsMap.get(ex.id);
+      if (existingEx && mode === 'ignore') {
+        skippedDuplicates++;
+        continue;
+      }
+      if (existingEx && mode === 'merge' && JSON.stringify(existingEx) === JSON.stringify(ex)) {
         skippedDuplicates++;
         continue;
       }
@@ -2372,26 +2428,43 @@ export function importUniversalAiOrLocalContent(params: {
     }
     const nextExams = Array.from(examsMap.values());
 
-    const qMap = new Map(currentQuestions.map((q) => [q.id, q]));
+    const validatedIncomingQuestions: UnifiedQuizQuestion[] = [];
     for (const q of buckets.questions) {
       const v = validateSingleQuizQuestion(q);
-      if (!v.valid) {
+      if (!v.valid || !v.normalized) {
         const errIssue = v.issues.find((iss) => iss.severity === 'error');
         warnings.push(`تم تجاوز سؤال (${q.id}): ${errIssue?.messageAr || v.issues[0]?.messageAr || 'غير مكتمل'}`);
         continue;
       }
-      if (qMap.has(q.id) && mode === 'ignore') {
-        skippedDuplicates++;
-        continue;
-      }
-      qMap.set(q.id, q);
-      counts.questions++;
+      validatedIncomingQuestions.push(v.normalized);
     }
-    const nextQuestions = Array.from(qMap.values());
+    const qMerge = mergeAndDeduplicateQuizQuestions(
+      currentQuestions,
+      validatedIncomingQuestions,
+      {
+        conflictPolicy: mode,
+        blocks: nextBlocks,
+        subjects: nextSubjects,
+        topics: nextTopics,
+        topicIdRemap,
+        fallbackSourceLabel: params.sourceLabel,
+        clearUnknownIds: true
+      }
+    );
+    const nextQuestions = qMerge.mergedQuestions;
+    const addedQuestionIds = qMerge.addedQuestions.map((q) => q.id);
+    const changedQuestionsBatch = [...qMerge.addedQuestions, ...qMerge.updatedQuestions];
+    counts.questions = changedQuestionsBatch.length;
+    skippedDuplicates += qMerge.skippedDuplicates;
 
     const maMap = new Map(currentMediaAssets.map((m) => [m.id, m]));
     for (const ma of buckets.mediaAssets) {
-      if (maMap.has(ma.id) && mode === 'ignore') {
+      const existingMa = maMap.get(ma.id);
+      if (existingMa && mode === 'ignore') {
+        skippedDuplicates++;
+        continue;
+      }
+      if (existingMa && mode === 'merge' && JSON.stringify(existingMa) === JSON.stringify(ma)) {
         skippedDuplicates++;
         continue;
       }
@@ -2472,7 +2545,7 @@ export function importUniversalAiOrLocalContent(params: {
       sentences: buckets.sentences,
       books: buckets.books,
       exams: buckets.exams,
-      quizQuestions: buckets.questions,
+      quizQuestions: changedQuestionsBatch,
       mediaAssets: buckets.mediaAssets,
       customAffixes: buckets.affixes,
       customAbbreviations: buckets.abbreviations,
@@ -2503,7 +2576,11 @@ export function importUniversalAiOrLocalContent(params: {
     if (counts.abbreviations > 0) summaryParts.push(`${counts.abbreviations} اختصار`);
 
     const summaryLabel =
-      summaryParts.length > 0 ? summaryParts.join(' · ') : 'محتوى مطابق مسبقاً';
+      summaryParts.length > 0
+        ? summaryParts.join(' · ')
+        : skippedDuplicates > 0
+          ? `تم تجاهل ${skippedDuplicates} مكرر (لا عناصر جديدة)`
+          : 'محتوى مطابق مسبقاً';
 
     return {
       success: true,
@@ -2513,14 +2590,24 @@ export function importUniversalAiOrLocalContent(params: {
       errors,
       messageAr:
         summaryParts.length > 0
-          ? `تم الاستيراد بنجاح (${summaryLabel})`
-          : 'جميع العناصر المستوردة مطابقة للمحتوى المحلي مسبقاً.',
+          ? `تم الاستيراد بنجاح (${summaryLabel})${skippedDuplicates > 0 ? ` · تم تجاهل ${skippedDuplicates} مكرر` : ''}`
+          : skippedDuplicates > 0
+            ? `جميع العناصر (${skippedDuplicates}) موجودة مسبقاً دون الحاجة لإعادة الإضافة.`
+            : 'جميع العناصر المستوردة مطابقة للمحتوى المحلي مسبقاً.',
       summaryText: summaryLabel,
       updatedTerms: nextTerms,
       updatedSentences: nextSentences,
       updatedTopics: nextTopics,
       updatedAffixes: nextAffixes,
       updatedAbbreviations: nextAbbrs,
+      addedIds: {
+        terms: addedTermIds,
+        sentences: addedSentenceIds,
+        topics: addedTopicIds,
+        affixes: addedAffixIds,
+        abbreviations: addedAbbrIds,
+        questions: addedQuestionIds
+      },
       updatedState: {
         terms: nextTerms,
         sentences: nextSentences,

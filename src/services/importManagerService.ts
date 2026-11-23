@@ -65,34 +65,15 @@ export function loadImportHistory(): ImportHistoryEntry[] {
   try {
     const stored = getStorageItem(IMPORT_HISTORY_STORAGE_KEY);
     if (stored) {
-      return JSON.parse(stored) as ImportHistoryEntry[];
+      const parsed = JSON.parse(stored) as ImportHistoryEntry[];
+      if (Array.isArray(parsed)) {
+        return parsed.filter((entry) => entry && entry.id !== 'import-seed-init');
+      }
     }
   } catch {
     // ignore
   }
-  return [
-    {
-      id: 'import-seed-init',
-      timestamp: '2026-10-31T00:00:00.000Z',
-      sourceName: 'UMED-2 Initial Offline Seed Lexicon',
-      sourceType: 'umedpack',
-      packageId: 'umed-core-seed',
-      summary: {
-        termsAdded: 50,
-        termsUpdated: 0,
-        questionsAdded: 2,
-        sentencesAdded: 30,
-        topicsAdded: 5,
-        clinicalCasesAdded: 1,
-        affixesAdded: 20,
-        abbreviationsAdded: 15,
-        ignoredDuplicates: 0
-      },
-      conflictPolicyUsed: 'merge',
-      status: 'success',
-      notes: 'تثبيت الحزمة الأساسية الأولى لنظام UMED-2 الطبي.'
-    }
-  ];
+  return [];
 }
 
 export function saveImportHistory(history: ImportHistoryEntry[]): void {

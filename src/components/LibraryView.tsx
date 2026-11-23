@@ -78,6 +78,7 @@ import {
 } from '../services/learningHierarchyService';
 import {
   loadQuizQuestions,
+  mergeAndDeduplicateQuizQuestions,
   saveQuizQuestions,
   loadQuizAttempts,
   saveQuizAttempt
@@ -643,13 +644,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           terms: report.updatedTerms,
           sentences: report.updatedSentences,
           topics: report.updatedTopics,
+          questions: report.updatedState.questions,
           sourceLabel: sourceFileName,
           rawSizeBytes: new Blob([trimmed]).size
         });
         setLastDataSummary(summary);
         setOfflineFeedback({
           type: 'success',
-          message: `تم الاستيراد بنجاح (${report.summaryText}).`
+          message: report.messageAr || `تم الاستيراد بنجاح (${report.summaryText}).`
         });
         setRawBatchInput('');
         return;
@@ -3428,10 +3430,40 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           initialSubjectId={activeExamModal.subjectId || null}
           initialTopicId={activeExamModal.topicIds?.[0] || null}
           initialExam={activeExamModal}
-          onSaveQuestions={(nextQ) => saveQuizQuestions(nextQ)}
+          onSaveQuestions={(incomingQ) => {
+            const current = loadQuizQuestions(topics, terms);
+            const merged = mergeAndDeduplicateQuizQuestions(current, incomingQ, {
+              conflictPolicy: 'merge',
+              blocks: loadMedicalBlocks(),
+              subjects: loadMedicalSubjects(),
+              topics
+            });
+            saveQuizQuestions(merged.mergedQuestions);
+            setSyncRevision((prev) => prev + 1);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('umed:data-mutated', { detail: { source: 'quiz-save' } })
+              );
+            }
+          }}
+          onReplaceAllQuestions={(nextAll) => {
+            saveQuizQuestions(nextAll);
+            setSyncRevision((prev) => prev + 1);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('umed:data-mutated', { detail: { source: 'quiz-update' } })
+              );
+            }
+          }}
           onDeleteQuestion={(qId) => {
             const current = loadQuizQuestions(topics, terms);
             saveQuizQuestions(current.filter((item) => item.id !== qId));
+            setSyncRevision((prev) => prev + 1);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('umed:data-mutated', { detail: { source: 'quiz-delete' } })
+              );
+            }
           }}
           onSaveAttempt={(attempt) => saveQuizAttempt(attempt)}
           onOpenTermDetail={(termId) => {

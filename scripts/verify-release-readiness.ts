@@ -158,8 +158,15 @@ import {
 import {
   saveQuizAttempt,
   loadQuizAttempts,
-  loadQuizQuestions
+  loadQuizQuestions,
+  saveQuizQuestions,
+  sanitizeAndReconcileStoredQuizQuestions
 } from '../src/services/quizEngineService';
+import {
+  registerImportGroup,
+  deleteImportGroup,
+  loadImportGroups
+} from '../src/services/importGroupService';
 import type { TopicArticle } from '../src/types/lexicon';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -5811,8 +5818,207 @@ QUESTION || single_choice || Which vessels unite to form the basilar artery? || 
     );
   }
 
+  // 29. [Import Integrity: Question Deduplication, Hierarchy Linking, Selective Group Deletion & Zero Phantom Seed Data]
+  {
+    // 29a. Verify zero phantom hardcoded seed history entry in loadImportHistory()
+    const historyNow = loadImportHistory();
+    assertCondition(
+      !historyNow.some((h) => h.id === 'import-seed-init'),
+      'loadImportHistory must never inject a phantom hardcoded import-seed-init record'
+    );
+
+    // 29b. Prepare isolated local hierarchy (1 block, 1 subject, 1 topic) and snapshot existing state
+    const snapshotState = loadAppState();
+    const snapshotBlocks = loadMedicalBlocks();
+    const snapshotSubjects = loadMedicalSubjects();
+    const snapshotQuestions = loadQuizQuestions(snapshotState.topics, snapshotState.terms);
+
+    const testBlockId = 'blk-imp29-cvs';
+    const testSubjectId = 'subj-imp29-phys';
+    const testTopicId = 'topic-imp29-athero-real';
+
+    const nowIso29 = new Date().toISOString();
+    saveMedicalBlocks([
+      ...snapshotBlocks.filter((b) => b.id !== testBlockId),
+      {
+        id: testBlockId,
+        code: 'CVS',
+        titleEn: 'Cardiovascular System',
+        titleAr: 'القلب والأوعية الدموية',
+        descriptionEn: 'CVS Block',
+        descriptionAr: 'بلوك القلب والأوعية',
+        colorAccent: 'emerald',
+        order: 99,
+        createdAt: nowIso29,
+        updatedAt: nowIso29
+      }
+    ]);
+    saveMedicalSubjects([
+      ...snapshotSubjects.filter((s) => s.id !== testSubjectId),
+      {
+        id: testSubjectId,
+        blockId: testBlockId,
+        code: 'PHYS',
+        titleEn: 'Cardiovascular Physiology',
+        titleAr: 'وظائف القلب والأوعية',
+        descriptionEn: 'CVS Physiology',
+        descriptionAr: 'فيزيولوجيا القلب',
+        order: 99,
+        createdAt: nowIso29,
+        updatedAt: nowIso29
+      }
+    ]);
+    saveTopics([
+      ...snapshotState.topics.filter((t) => t.id !== testTopicId),
+      {
+        id: testTopicId,
+        blockId: testBlockId,
+        subjectId: testSubjectId,
+        title: 'تصلب الشرايين العصيدي (Atherosclerosis)',
+        titleEn: 'Atherosclerosis',
+        titleAr: 'تصلب الشرايين العصيدي',
+        subtitle: 'Atherosclerosis pathophysiology',
+        category: 'Medical',
+        author: 'UMEDT Verification',
+        publishedAt: nowIso29,
+        readingTimeMinutes: 10,
+        favorite: false,
+        sections: [{ id: 'sec-athero-1', heading: 'Overview', paragraphs: ['Endothelial injury initiates plaque formation.'] }],
+        images: [],
+        links: [],
+        attachments: []
+      }
+    ]);
+
+    const questionPayloadWithoutIds = JSON.stringify({
+      questions: [
+        {
+          type: 'single_choice',
+          questionEn: 'Which initial event triggers fatty streak formation in atherosclerosis?',
+          options: [
+            { key: 'A', textEn: 'Endothelial dysfunction and LDL retention' },
+            { key: 'B', textEn: 'Hypercalcemia of osteocytes' }
+          ],
+          correctOptionKeys: ['A'],
+          explanationEn: 'Endothelial injury allows LDL oxidation and macrophage foam cell formation.',
+          topicId: 'tp-phys-atherosclerosis'
+        },
+        {
+          type: 'true_false',
+          questionEn: 'Foam cells in atherosclerotic plaques are primarily lipid-laden macrophages.',
+          correctAnswer: 'True',
+          explanationEn: 'Macrophages engulf oxidized LDL via scavenger receptors.',
+          topicId: 'atherosclerosis'
+        }
+      ]
+    });
+
+    // Import 1 (merge): should add 2 questions and auto-link broken slug topicIds to testTopicId
+    const imp1 = importUniversalAiOrLocalContent({
+      rawText: questionPayloadWithoutIds,
+      conflictPolicy: 'merge',
+      sourceLabel: '100 سؤال'
+    });
+    const addedQIds1 = imp1.addedIds?.questions || [];
+    const addedQ1 = imp1.updatedState.questions.filter((q) => addedQIds1.includes(q.id));
+    assertCondition(
+      imp1.success &&
+        imp1.counts.questions === 2 &&
+        imp1.counts.skippedDuplicates === 0 &&
+        addedQIds1.length === 2 &&
+        addedQ1.every(
+          (q) =>
+            q.topicId === testTopicId &&
+            q.subjectId === testSubjectId &&
+            q.blockId === testBlockId
+        ),
+      'First question import must add 2 questions and reconcile slug/title topicId to real local topicId/subjectId/blockId'
+    );
+
+    // Import 2 & 3 (merge, identical content with brand new auto-generated IDs): must add 0 and skip 2!
+    const imp2 = importUniversalAiOrLocalContent({
+      rawText: questionPayloadWithoutIds,
+      conflictPolicy: 'merge',
+      sourceLabel: '100 سؤال'
+    });
+    const imp3 = importUniversalAiOrLocalContent({
+      rawText: questionPayloadWithoutIds,
+      conflictPolicy: 'merge',
+      sourceLabel: '100 سؤال'
+    });
+    assertCondition(
+      imp2.success &&
+        imp2.counts.questions === 0 &&
+        imp2.counts.skippedDuplicates === 2 &&
+        imp3.counts.questions === 0 &&
+        imp3.counts.skippedDuplicates === 2 &&
+        imp3.updatedState.questions.length === imp1.updatedState.questions.length,
+      'Re-importing identical questions without IDs under merge policy must skip all duplicates and never inflate stored question count'
+    );
+
+    // 29c. Verify sanitizeAndReconcileStoredQuizQuestions cleans pre-existing duplicates and keeps linked copy
+    const dirtyCopy = [
+      ...addedQ1,
+      {
+        ...addedQ1[0],
+        id: 'orphan-dup-q-copy',
+        topicId: undefined,
+        subjectId: undefined,
+        blockId: undefined
+      }
+    ];
+    const sanitized = sanitizeAndReconcileStoredQuizQuestions(
+      dirtyCopy,
+      loadAppState().topics,
+      loadMedicalBlocks(),
+      loadMedicalSubjects()
+    );
+    assertCondition(
+      sanitized.changed &&
+        sanitized.removedDuplicates === 1 &&
+        sanitized.questions.length === 2 &&
+        sanitized.questions[0].topicId === testTopicId,
+      'sanitizeAndReconcileStoredQuizQuestions must remove duplicate copies while preserving the properly linked copy'
+    );
+
+    // 29d. Verify selective deletion of a quizQuestions import group actually removes them from quizEngineService store
+    const groupId29 = 'universal-test-29-q';
+    registerImportGroup({
+      id: groupId29,
+      name: 'أسئلة تصلب الشرايين',
+      sourceName: '100 سؤال',
+      sourceType: 'umedt-json-object',
+      createdAt: new Date().toISOString(),
+      ids: { questions: addedQIds1 },
+      fingerprints: {
+        questions: Object.fromEntries(addedQ1.map((q) => [q.id, JSON.stringify(q)]))
+      },
+      counts: { questions: addedQIds1.length },
+      ignoredDuplicates: 0,
+      requiresReview: false
+    });
+    const delRes29 = await deleteImportGroup(groupId29);
+    const afterDeleteQuestions = loadQuizQuestions(loadAppState().topics, loadAppState().terms);
+    assertCondition(
+      delRes29.success &&
+        addedQIds1.every((qid) => !afterDeleteQuestions.some((q) => q.id === qid)) &&
+        !loadImportGroups().some((g) => g.id === groupId29),
+      'Selective deletion of a quizQuestions import group must remove its questions from quizEngineService storage cleanly'
+    );
+
+    // Restore original state cleanly
+    saveMedicalBlocks(snapshotBlocks);
+    saveMedicalSubjects(snapshotSubjects);
+    saveTopics(snapshotState.topics);
+    saveQuizQuestions(snapshotQuestions);
+
+    console.log(
+      '[PASS] 29. Import Integrity Verified (Fingerprint Question Deduplication, Slug-to-Local Hierarchy Reconciliation, Selective Quiz Group Deletion, Zero Phantom Seed History)'
+    );
+  }
+
   console.log('================================================================');
-  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (28/28 — 100%)');
+  console.log('ALL AUTOMATED RELEASE VERIFICATION CHECKS PASSED (29/29 — 100%)');
   console.log('================================================================');
 }
 

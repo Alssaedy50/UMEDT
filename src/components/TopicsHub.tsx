@@ -90,6 +90,7 @@ import {
 } from '../services/learningHierarchyService';
 import {
   loadQuizQuestions,
+  mergeAndDeduplicateQuizQuestions,
   saveQuizQuestions,
   loadQuizAttempts,
   saveQuizAttempt
@@ -282,13 +283,19 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
   }, [rawTopics, terms]);
 
   useEffect(() => {
-    return subscribeToCloudLibraryChanges(() => {
+    const refreshHierarchyAndQuizzes = () => {
       setBlocks(loadMedicalBlocks());
       setSubjects(loadMedicalSubjects());
       setMediaAssets(loadMediaAssetsIndex());
       setAcademicExams(loadAcademicExams());
       setQuizQuestions(loadQuizQuestions(rawTopics, terms));
-    });
+    };
+    const unsubscribeCloud = subscribeToCloudLibraryChanges(refreshHierarchyAndQuizzes);
+    window.addEventListener('umed:data-mutated', refreshHierarchyAndQuizzes);
+    return () => {
+      unsubscribeCloud();
+      window.removeEventListener('umed:data-mutated', refreshHierarchyAndQuizzes);
+    };
   }, [rawTopics, terms]);
 
   // 2. Navigation & Clean Popup Card States
@@ -1847,15 +1854,41 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         isOpen={isQuizModalOpen}
         onClose={() => setIsQuizModalOpen(false)}
         questions={quizQuestions}
-        onSaveQuestions={(next) => {
-          setQuizQuestions(next);
-          saveQuizQuestions(next);
-          onHierarchyChanged?.(`تحديث بنك الأسئلة (${next.length} سؤال)`);
+        onSaveQuestions={(incomingNew) => {
+          const merged = mergeAndDeduplicateQuizQuestions(quizQuestions, incomingNew, {
+            conflictPolicy: 'merge',
+            blocks,
+            subjects,
+            topics: rawTopics
+          });
+          setQuizQuestions(merged.mergedQuestions);
+          saveQuizQuestions(merged.mergedQuestions);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('umed:data-mutated', { detail: { source: 'quiz-save' } })
+            );
+          }
+          onHierarchyChanged?.(`تحديث بنك الأسئلة (${merged.mergedQuestions.length} سؤال)`);
+        }}
+        onReplaceAllQuestions={(nextAll) => {
+          setQuizQuestions(nextAll);
+          saveQuizQuestions(nextAll);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('umed:data-mutated', { detail: { source: 'quiz-relink' } })
+            );
+          }
+          onHierarchyChanged?.(`تحديث روابط بنك الأسئلة (${nextAll.length} سؤال)`);
         }}
         onDeleteQuestion={(qId) => {
           const next = quizQuestions.filter((q) => q.id !== qId);
           setQuizQuestions(next);
           saveQuizQuestions(next);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('umed:data-mutated', { detail: { source: 'quiz-delete' } })
+            );
+          }
           onHierarchyChanged?.('حذف سؤال من بنك الاختبارات');
         }}
         attempts={quizAttempts}

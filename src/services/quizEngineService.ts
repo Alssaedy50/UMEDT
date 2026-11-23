@@ -1,6 +1,8 @@
 import {
   DictionaryTerm,
   TopicArticle,
+  MedicalBlock,
+  MedicalSubject,
   UnifiedQuizQuestion,
   UnifiedQuestionType,
   UnifiedQuizOption,
@@ -11,7 +13,11 @@ import {
   QuizAttemptRecord
 } from '../types/lexicon';
 import { extractLinkedTermsFromText } from '../engine/knowledgeLinker';
-import { LEARNING_STORAGE_KEYS } from './learningHierarchyService';
+import {
+  LEARNING_STORAGE_KEYS,
+  loadMedicalBlocks,
+  loadMedicalSubjects
+} from './learningHierarchyService';
 
 export const BULK_QUIZ_TEXT_TEMPLATE = `Q1: What is the primary site of dietary iron absorption in humans?
 A) Stomach
@@ -1004,6 +1010,505 @@ function getSafeQuizStorage(): {
   };
 }
 
+// ============================================================================
+// UNIFIED QUESTION IDENTITY, DEDUPLICATION & HIERARCHY INTEGRITY HELPERS
+// ============================================================================
+
+function normalizeTextToken(raw?: string): string {
+  return String(raw || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f\u064B-\u065F\u0670]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\u0600-\u06FF]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function normalizeQuestionStemKey(raw?: string): string {
+  const withoutPrefix = String(raw || '')
+    .trim()
+    .replace(/^(?:q\s*\d+|\d+)\s*[.):\-–—]+\s*/i, '')
+    .trim();
+  return normalizeTextToken(withoutPrefix);
+}
+
+/**
+ * Computes a deterministic content identity fingerprint for any quiz question so
+ * repeated imports with different or timestamped IDs are always detected as duplicates.
+ */
+export function computeQuestionIdentityFingerprint(
+  q: Pick<
+    UnifiedQuizQuestion,
+    'type' | 'questionEn' | 'options' | 'acceptableAnswers' | 'matchingPairs'
+  >
+): string {
+  const stemKey = normalizeQuestionStemKey(q.questionEn);
+  const typeKey = String(q.type || 'single_choice').toLowerCase();
+  if (!stemKey) return '';
+
+  if (typeKey === 'matching') {
+    const pairsKey = (q.matchingPairs || [])
+      .map((p) => `${normalizeTextToken(p.leftEn)}=${normalizeTextToken(p.rightEn)}`)
+      .filter(Boolean)
+      .sort()
+      .join('|');
+    return `${typeKey}::${stemKey}::${pairsKey}`;
+  }
+
+  if (typeKey === 'fill_blank' || typeKey === 'short_answer') {
+    const ansKey = (q.acceptableAnswers || [])
+      .map((a) => normalizeTextToken(a))
+      .filter(Boolean)
+      .sort()
+      .join('|');
+    return `${typeKey}::${stemKey}::${ansKey}`;
+  }
+
+  if (typeKey === 'true_false') {
+    return `${typeKey}::${stemKey}`;
+  }
+
+  const optsKey = (q.options || [])
+    .map((o) => normalizeTextToken(o.textEn))
+    .filter(Boolean)
+    .sort()
+    .join('|');
+  return `${typeKey}::${stemKey}::${optsKey}`;
+}
+
+export function isQuestionContentEquivalent(
+  existing: UnifiedQuizQuestion,
+  incoming: UnifiedQuizQuestion
+): boolean {
+  if (existing.type !== incoming.type) return false;
+  if (normalizeQuestionStemKey(existing.questionEn) !== normalizeQuestionStemKey(incoming.questionEn)) {
+    return false;
+  }
+  if (incoming.questionAr && incoming.questionAr.trim() && !existing.questionAr?.trim()) {
+    return false;
+  }
+  if (incoming.explanationAr && incoming.explanationAr.trim() && !existing.explanationAr?.trim()) {
+    return false;
+  }
+  if (
+    incoming.explanationEn &&
+    incoming.explanationEn.trim() &&
+    incoming.explanationEn.trim() !== 'Correct answer verified.' &&
+    (!existing.explanationEn?.trim() || existing.explanationEn.trim() === 'Correct answer verified.')
+  ) {
+    return false;
+  }
+  if (incoming.imageUrl && incoming.imageUrl.trim() && !existing.imageUrl?.trim()) {
+    return false;
+  }
+  if (incoming.topicId && !existing.topicId) {
+    return false;
+  }
+  if (incoming.subjectId && !existing.subjectId) {
+    return false;
+  }
+  if (incoming.blockId && !existing.blockId) {
+    return false;
+  }
+  const existingCorrect = [...(existing.correctOptionKeys || [])].map((k) => k.toUpperCase()).sort().join(',');
+  const incomingCorrect = [...(incoming.correctOptionKeys || [])].map((k) => k.toUpperCase()).sort().join(',');
+  if (existingCorrect !== incomingCorrect) return false;
+  return true;
+}
+
+function buildTopicMatchTokens(topic: TopicArticle): string[] {
+  const candidates = [topic.id, topic.titleEn, topic.titleAr, topic.title, topic.subtitle];
+  const tokens = new Set<string>();
+  for (const c of candidates) {
+    const norm = normalizeTextToken(c);
+    if (norm.length >= 3) {
+      tokens.add(norm);
+    }
+  }
+  return Array.from(tokens);
+}
+
+/**
+ * Resolves a question's topicId, subjectId, and blockId against the actual local hierarchy.
+ * - Remaps incoming topic IDs when a topic matched an existing local topic.
+ * - Matches slug/title aliases (e.g. "tp-phys-atherosclerosis" -> local Atherosclerosis topic).
+ * - Backfills valid subjectId & blockId from the matched topic.
+ * - Clears broken/phantom IDs that do not exist in the local hierarchy when local hierarchy is present.
+ */
+export function resolveQuestionHierarchyLink(
+  q: UnifiedQuizQuestion,
+  context: {
+    blocks: MedicalBlock[];
+    subjects: MedicalSubject[];
+    topics: TopicArticle[];
+    topicIdRemap?: Map<string, string>;
+    fallbackSourceLabel?: string;
+    clearUnknownIds?: boolean;
+  }
+): UnifiedQuizQuestion {
+  const { blocks, subjects, topics, topicIdRemap, fallbackSourceLabel, clearUnknownIds = true } =
+    context;
+
+  const blockById = new Map(blocks.map((b) => [b.id, b]));
+  const subjectById = new Map(subjects.map((s) => [s.id, s]));
+  const topicById = new Map(topics.map((t) => [t.id, t]));
+
+  let resolvedTopic: TopicArticle | undefined;
+  const rawTopicId = String(q.topicId || '').trim();
+
+  if (rawTopicId && topicIdRemap?.has(rawTopicId)) {
+    resolvedTopic = topicById.get(topicIdRemap.get(rawTopicId)!);
+  }
+  if (!resolvedTopic && rawTopicId && topicById.has(rawTopicId)) {
+    resolvedTopic = topicById.get(rawTopicId);
+  }
+
+  // Try matching broken/slugified topicId or sourceLabel against local topic titles
+  if (!resolvedTopic && topics.length > 0) {
+    const hints = [rawTopicId, q.sourceLabel, fallbackSourceLabel]
+      .map((h) => normalizeTextToken(h))
+      .filter((h) => h.length >= 3);
+
+    if (hints.length > 0) {
+      let bestTopic: TopicArticle | undefined;
+      let bestScore = 0;
+      for (const topic of topics) {
+        const topicTokens = buildTopicMatchTokens(topic);
+        for (const hint of hints) {
+          for (const tt of topicTokens) {
+            if (hint === tt) {
+              bestTopic = topic;
+              bestScore = 100;
+              break;
+            }
+            if (tt.length >= 5 && (hint.includes(tt) || tt.includes(hint))) {
+              const score = Math.min(hint.length, tt.length);
+              if (score > bestScore) {
+                bestScore = score;
+                bestTopic = topic;
+              }
+            }
+          }
+          if (bestScore === 100) break;
+        }
+        if (bestScore === 100) break;
+      }
+      if (bestTopic && bestScore >= 5) {
+        resolvedTopic = bestTopic;
+      }
+    }
+  }
+
+  if (resolvedTopic) {
+    const validSubject = resolvedTopic.subjectId ? subjectById.get(resolvedTopic.subjectId) : undefined;
+    const resolvedBlockId =
+      (resolvedTopic.blockId && blockById.has(resolvedTopic.blockId) ? resolvedTopic.blockId : undefined) ||
+      (validSubject?.blockId && blockById.has(validSubject.blockId) ? validSubject.blockId : undefined) ||
+      (q.blockId && blockById.has(q.blockId) ? q.blockId : undefined);
+    const resolvedSubjectId =
+      (validSubject ? validSubject.id : undefined) ||
+      (q.subjectId && subjectById.has(q.subjectId) ? q.subjectId : undefined);
+
+    return {
+      ...q,
+      topicId: resolvedTopic.id,
+      subjectId: resolvedSubjectId,
+      blockId: resolvedBlockId
+    };
+  }
+
+  // No local topic matched — still validate subjectId and blockId against local hierarchy
+  const rawSubjectId = String(q.subjectId || '').trim();
+  const rawBlockId = String(q.blockId || '').trim();
+
+  let resolvedSubject = rawSubjectId ? subjectById.get(rawSubjectId) : undefined;
+  if (!resolvedSubject && rawSubjectId && subjects.length > 0) {
+    const normSubj = normalizeTextToken(rawSubjectId);
+    resolvedSubject = subjects.find((s) => {
+      const code = normalizeTextToken(s.code);
+      const en = normalizeTextToken(s.titleEn);
+      const ar = normalizeTextToken(s.titleAr);
+      return (code && normSubj === code) || (en && normSubj.includes(en)) || (ar && normSubj.includes(ar));
+    });
+  }
+
+  let resolvedBlock = rawBlockId ? blockById.get(rawBlockId) : undefined;
+  if (!resolvedBlock && resolvedSubject?.blockId) {
+    resolvedBlock = blockById.get(resolvedSubject.blockId);
+  }
+  if (!resolvedBlock && rawBlockId && blocks.length > 0) {
+    const normBlk = normalizeTextToken(rawBlockId);
+    resolvedBlock = blocks.find((b) => {
+      const code = normalizeTextToken(b.code);
+      const en = normalizeTextToken(b.titleEn);
+      const ar = normalizeTextToken(b.titleAr);
+      return (code && normBlk === code) || (en && normBlk.includes(en)) || (ar && normBlk.includes(ar));
+    });
+  }
+
+  if (!clearUnknownIds) {
+    return {
+      ...q,
+      topicId: rawTopicId || undefined,
+      subjectId: resolvedSubject?.id || rawSubjectId || undefined,
+      blockId: resolvedBlock?.id || rawBlockId || undefined
+    };
+  }
+
+  return {
+    ...q,
+    topicId: topics.length > 0 ? undefined : rawTopicId || undefined,
+    subjectId:
+      resolvedSubject?.id || (subjects.length > 0 ? undefined : rawSubjectId || undefined),
+    blockId: resolvedBlock?.id || (blocks.length > 0 ? undefined : rawBlockId || undefined)
+  };
+}
+
+function mergeSingleQuestionRecord(
+  existing: UnifiedQuizQuestion,
+  incoming: UnifiedQuizQuestion,
+  mode: 'ignore' | 'merge' | 'overwrite'
+): UnifiedQuizQuestion {
+  if (mode === 'overwrite') {
+    return {
+      ...existing,
+      ...incoming,
+      id: existing.id,
+      blockId: incoming.blockId || existing.blockId,
+      subjectId: incoming.subjectId || existing.subjectId,
+      topicId: incoming.topicId || existing.topicId,
+      linkedTermIds:
+        incoming.linkedTermIds && incoming.linkedTermIds.length > 0
+          ? Array.from(new Set([...(existing.linkedTermIds || []), ...incoming.linkedTermIds]))
+          : existing.linkedTermIds || []
+    };
+  }
+  // Smart non-destructive merge: preserve existing ID and valid hierarchy links, fill missing fields
+  return {
+    ...existing,
+    questionAr: existing.questionAr?.trim() ? existing.questionAr : incoming.questionAr,
+    imageUrl: existing.imageUrl?.trim() ? existing.imageUrl : incoming.imageUrl,
+    imageCaption: existing.imageCaption?.trim() ? existing.imageCaption : incoming.imageCaption,
+    explanationEn:
+      existing.explanationEn?.trim() && existing.explanationEn !== 'Correct answer verified.'
+        ? existing.explanationEn
+        : incoming.explanationEn || existing.explanationEn,
+    explanationAr: existing.explanationAr?.trim() ? existing.explanationAr : incoming.explanationAr,
+    blockId: existing.blockId || incoming.blockId,
+    subjectId: existing.subjectId || incoming.subjectId,
+    topicId: existing.topicId || incoming.topicId,
+    sectionId: existing.sectionId || incoming.sectionId,
+    linkedTermIds: Array.from(
+      new Set([...(existing.linkedTermIds || []), ...(incoming.linkedTermIds || [])])
+    )
+  };
+}
+
+export function mergeAndDeduplicateQuizQuestions(
+  existing: UnifiedQuizQuestion[],
+  incoming: UnifiedQuizQuestion[],
+  options?: {
+    conflictPolicy?: 'ignore' | 'merge' | 'overwrite';
+    blocks?: MedicalBlock[];
+    subjects?: MedicalSubject[];
+    topics?: TopicArticle[];
+    topicIdRemap?: Map<string, string>;
+    fallbackSourceLabel?: string;
+    clearUnknownIds?: boolean;
+  }
+): {
+  mergedQuestions: UnifiedQuizQuestion[];
+  addedQuestions: UnifiedQuizQuestion[];
+  updatedQuestions: UnifiedQuizQuestion[];
+  skippedDuplicates: number;
+} {
+  const mode = options?.conflictPolicy || 'merge';
+  const blocks = options?.blocks;
+  const subjects = options?.subjects;
+  const topics = options?.topics;
+  const shouldResolveHierarchy = Boolean(blocks || subjects || topics);
+
+  const result: UnifiedQuizQuestion[] = [...existing];
+  const byId = new Map<string, number>();
+  const byFingerprint = new Map<string, number>();
+
+  result.forEach((q, idx) => {
+    byId.set(q.id, idx);
+    const fp = computeQuestionIdentityFingerprint(q);
+    if (fp && !byFingerprint.has(fp)) {
+      byFingerprint.set(fp, idx);
+    }
+  });
+
+  const addedQuestions: UnifiedQuizQuestion[] = [];
+  const updatedQuestions: UnifiedQuizQuestion[] = [];
+  let skippedDuplicates = 0;
+
+  for (const rawQ of incoming) {
+    const resolvedQ = shouldResolveHierarchy
+      ? resolveQuestionHierarchyLink(rawQ, {
+          blocks: blocks || [],
+          subjects: subjects || [],
+          topics: topics || [],
+          topicIdRemap: options?.topicIdRemap,
+          fallbackSourceLabel: options?.fallbackSourceLabel,
+          clearUnknownIds: options?.clearUnknownIds ?? true
+        })
+      : rawQ;
+
+    const fp = computeQuestionIdentityFingerprint(resolvedQ);
+    let matchIdx = byId.has(resolvedQ.id) ? byId.get(resolvedQ.id)! : -1;
+    if (matchIdx === -1 && fp && byFingerprint.has(fp)) {
+      matchIdx = byFingerprint.get(fp)!;
+    }
+
+    if (matchIdx !== -1) {
+      if (mode === 'ignore') {
+        skippedDuplicates++;
+        continue;
+      }
+      const prev = result[matchIdx];
+      if (mode === 'merge' && isQuestionContentEquivalent(prev, resolvedQ)) {
+        skippedDuplicates++;
+        continue;
+      }
+      const merged = mergeSingleQuestionRecord(prev, resolvedQ, mode);
+      if (JSON.stringify(merged) === JSON.stringify(prev)) {
+        skippedDuplicates++;
+        continue;
+      }
+      result[matchIdx] = merged;
+      updatedQuestions.push(merged);
+      const mergedFp = computeQuestionIdentityFingerprint(merged);
+      if (mergedFp) byFingerprint.set(mergedFp, matchIdx);
+    } else {
+      // Ensure unique ID (avoid collision with any existing ID)
+      let safeId = resolvedQ.id;
+      if (byId.has(safeId)) {
+        safeId = `${safeId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      }
+      const finalQ: UnifiedQuizQuestion = safeId === resolvedQ.id ? resolvedQ : { ...resolvedQ, id: safeId };
+      const nextIdx = result.length;
+      result.push(finalQ);
+      byId.set(finalQ.id, nextIdx);
+      if (fp) byFingerprint.set(fp, nextIdx);
+      addedQuestions.push(finalQ);
+    }
+  }
+
+  return {
+    mergedQuestions: result,
+    addedQuestions,
+    updatedQuestions,
+    skippedDuplicates
+  };
+}
+
+function scoreQuestionQuality(
+  q: UnifiedQuizQuestion,
+  validTopicIds: Set<string>,
+  referencedInAttempts: Set<string>
+): number {
+  let score = 0;
+  if (referencedInAttempts.has(q.id)) score += 100;
+  if (q.topicId && validTopicIds.has(q.topicId)) score += 50;
+  if (q.subjectId) score += 10;
+  if (q.blockId) score += 10;
+  if (q.questionAr?.trim()) score += 5;
+  if (q.explanationAr?.trim()) score += 5;
+  if (q.explanationEn?.trim() && q.explanationEn !== 'Correct answer verified.') score += 4;
+  if (q.imageUrl?.trim()) score += 3;
+  return score;
+}
+
+/**
+ * Safely deduplicates stored questions (by normalized identity fingerprint) and repairs
+ * broken slug/title topic links against the local hierarchy without losing valid user data.
+ */
+export function sanitizeAndReconcileStoredQuizQuestions(
+  stored: UnifiedQuizQuestion[],
+  topics: TopicArticle[],
+  blocks?: MedicalBlock[],
+  subjects?: MedicalSubject[]
+): { questions: UnifiedQuizQuestion[]; changed: boolean; removedDuplicates: number } {
+  if (!Array.isArray(stored) || stored.length === 0) {
+    return { questions: [], changed: false, removedDuplicates: 0 };
+  }
+
+  const localBlocks = blocks ?? loadMedicalBlocks();
+  const localSubjects = subjects ?? loadMedicalSubjects();
+  const validTopicIds = new Set(topics.map((t) => t.id));
+  const referencedIds = new Set<string>();
+  try {
+    for (const att of loadQuizAttempts()) {
+      for (const qid of att.questionIds || []) referencedIds.add(qid);
+      for (const ans of att.answers || []) referencedIds.add(ans.questionId);
+    }
+  } catch {
+    // non-fatal
+  }
+
+  let changed = false;
+  let removedDuplicates = 0;
+
+  // Step 1: Repair hierarchy links ONLY when local topics are available (never strip when topics is empty!)
+  const repaired = stored.map((q) => {
+    if (topics.length === 0) return q;
+    const next = resolveQuestionHierarchyLink(q, {
+      blocks: localBlocks,
+      subjects: localSubjects,
+      topics,
+      clearUnknownIds: true
+    });
+    if (
+      next.topicId !== q.topicId ||
+      next.subjectId !== q.subjectId ||
+      next.blockId !== q.blockId
+    ) {
+      changed = true;
+    }
+    return next;
+  });
+
+  // Step 2: Deduplicate exact duplicate questions by fingerprint (keeping highest quality/referenced copy)
+  const deduped: UnifiedQuizQuestion[] = [];
+  const fpToIndex = new Map<string, number>();
+  const idSeen = new Set<string>();
+
+  for (const q of repaired) {
+    if (!q || typeof q.questionEn !== 'string' || !q.questionEn.trim()) {
+      changed = true;
+      removedDuplicates++;
+      continue;
+    }
+    if (idSeen.has(q.id)) {
+      changed = true;
+      removedDuplicates++;
+      continue;
+    }
+    const fp = computeQuestionIdentityFingerprint(q);
+    if (fp && fpToIndex.has(fp)) {
+      const existingIdx = fpToIndex.get(fp)!;
+      const existingQ = deduped[existingIdx];
+      const existingScore = scoreQuestionQuality(existingQ, validTopicIds, referencedIds);
+      const candidateScore = scoreQuestionQuality(q, validTopicIds, referencedIds);
+      if (candidateScore > existingScore) {
+        deduped[existingIdx] = mergeSingleQuestionRecord(q, existingQ, 'merge');
+      } else {
+        deduped[existingIdx] = mergeSingleQuestionRecord(existingQ, q, 'merge');
+      }
+      changed = true;
+      removedDuplicates++;
+      continue;
+    }
+    idSeen.add(q.id);
+    if (fp) fpToIndex.set(fp, deduped.length);
+    deduped.push(q);
+  }
+
+  return { questions: deduped, changed, removedDuplicates };
+}
+
 export function loadQuizQuestions(
   topics: TopicArticle[],
   terms: DictionaryTerm[]
@@ -1018,7 +1523,11 @@ export function loadQuizQuestions(
       return seedBank;
     }
     if (isBrowserRuntime) {
-      return parsed;
+      const reconciled = sanitizeAndReconcileStoredQuizQuestions(parsed, topics);
+      if (reconciled.changed) {
+        saveQuizQuestions(reconciled.questions);
+      }
+      return reconciled.questions;
     }
     const existingIds = new Set(parsed.map((q) => q.id));
     const missingSeeds = seedBank.filter((sq) => !existingIds.has(sq.id));
