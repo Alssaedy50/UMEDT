@@ -14,6 +14,13 @@ import android.view.inputmethod.InputConnection;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.content.SharedPreferences;
+import android.graphics.PixelFormat;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.Settings;
+import android.net.Uri;
+import android.content.Intent;
+import android.view.WindowManager;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.Locale;
@@ -27,15 +34,20 @@ public class UMEDTKeyboardService extends InputMethodService {
     private boolean arabic = false;
     private boolean shifted = true;
     private String matchedTerm = "";
+    private WindowManager windowManager;
+    private View floatingCard;
+    private final Handler overlayHandler = new Handler(Looper.getMainLooper());
 
     @Override public void onCreate() {
         super.onCreate();
         clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         if (clipboard != null) clipboard.addPrimaryClipChangedListener(clipListener);
     }
 
     @Override public void onDestroy() {
         if (clipboard != null) clipboard.removePrimaryClipChangedListener(clipListener);
+        removeFloatingCard();
         super.onDestroy();
     }
 
@@ -166,6 +178,7 @@ public class UMEDTKeyboardService extends InputMethodService {
             if (!match.isEmpty() && !match.equals(matchedTerm)) {
                 matchedTerm = match;
                 showDictionaryCard(match);
+                showFloatingCard(match);
             }
         } catch (SecurityException ignored) {
         } catch (Exception ignored) {
@@ -189,6 +202,64 @@ public class UMEDTKeyboardService extends InputMethodService {
             }
         } catch (Exception ignored) {}
         return "";
+    }
+
+
+    private void showFloatingCard(String payload) {
+        if (Build.VERSION.SDK_INT < 23 || !Settings.canDrawOverlays(this) || windowManager == null) return;
+        overlayHandler.post(() -> {
+            try {
+                removeFloatingCard();
+                String[] parts = payload.split("\\|", 3);
+                LinearLayout card = new LinearLayout(this);
+                card.setOrientation(LinearLayout.HORIZONTAL);
+                card.setGravity(Gravity.CENTER_VERTICAL);
+                card.setPadding(dp(16), dp(12), dp(12), dp(12));
+                GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                        new int[]{Color.rgb(10, 37, 48), Color.rgb(15, 23, 42)});
+                bg.setCornerRadius(dp(18));
+                bg.setStroke(dp(1), Color.rgb(16, 185, 129));
+                card.setBackground(bg);
+                card.setElevation(dp(12));
+                LinearLayout info = new LinearLayout(this);
+                info.setOrientation(LinearLayout.VERTICAL);
+                TextView title = text(parts[0], 15, Color.rgb(110, 231, 183), true);
+                TextView translation = text(parts.length > 1 ? parts[1] : "مصطلح في قاموس UMEDT", 12, Color.WHITE, false);
+                info.addView(title); info.addView(translation);
+                card.addView(info, new LinearLayout.LayoutParams(0, -2, 1));
+                TextView close = text("×", 24, Color.WHITE, true);
+                close.setGravity(Gravity.CENTER);
+                card.addView(close, new LinearLayout.LayoutParams(dp(36), dp(36)));
+                close.setOnClickListener(v -> removeFloatingCard());
+                card.setOnClickListener(v -> removeFloatingCard());
+                WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                        WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                        PixelFormat.TRANSLUCENT);
+                params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+                params.y = dp(54);
+                params.width = getResources().getDisplayMetrics().widthPixels - dp(24);
+                floatingCard = card;
+                windowManager.addView(floatingCard, params);
+                overlayHandler.postDelayed(this::removeFloatingCard, 9000);
+            } catch (Exception ignored) {
+                removeFloatingCard();
+            }
+        });
+    }
+
+    private void removeFloatingCard() {
+        try {
+            if (floatingCard != null && windowManager != null) {
+                windowManager.removeView(floatingCard);
+                floatingCard = null;
+            }
+        } catch (Exception ignored) {
+            floatingCard = null;
+        }
     }
 
     private void showDictionaryCard(String payload) {
