@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronUp, Copy, FileUp, Network, Palette, Share2, Shapes, X } from 'lucide-react';
 import { MindMapDocument, MindMapNode } from '../types/mindMap';
+import { TopicArticle } from '../types/lexicon';
 import { parseMindMapInput, MIND_MAP_AI_PROMPTS } from '../services/mindMapImportService';
 import { loadMindMaps, upsertMindMap, deleteMindMap, MIND_MAPS_UPDATED_EVENT } from '../services/mindMapStorageService';
 import { buildStandaloneMindMapHtmlV2 } from '../services/mindMapStandaloneExportServiceV2';
@@ -11,6 +12,7 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   showToast: (message: string, type?: string) => void;
+  topics?: TopicArticle[];
 }
 const PALETTE = [
   { value: '#0f766e', label: 'فيروزي' }, { value: '#2563eb', label: 'أزرق' },
@@ -38,12 +40,13 @@ const PROMPT = `أنشئ خريطة تعليمية تفاعلية متوافقة
 6) حافظ على أسماء المصطلحات الطبية باللغة الإنجليزية، وأضف الترجمة العربية والشرح عند الحاجة.
 7) لا تضع نصاً خارج JSON. لا تستخدم صوراً أو روابط خارجية.`;
 
-export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showToast }) => {
+export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showToast, topics = [] }) => {
   const [maps, setMaps] = useState<MindMapDocument[]>(() => loadMindMaps());
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showImporter, setShowImporter] = useState(false);
   const [sourceText, setSourceText] = useState('');
   const [fileName, setFileName] = useState('');
+  const [selectedTopicId, setSelectedTopicId] = useState('');
   const [promptCopied, setPromptCopied] = useState(false);
   const [step, setStep] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -66,7 +69,7 @@ export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showTo
     if (next) { setActiveId(next.id); setStep(0); }
     window.dispatchEvent(new CustomEvent(MIND_MAPS_UPDATED_EVENT));
   };
-  const importPreview = sourceText.trim() ? parseMindMapInput(sourceText, { fileName: fileName || undefined }) : null;
+  const importPreview = sourceText.trim() ? parseMindMapInput(sourceText, { fileName: fileName || undefined, linkedTopicId: selectedTopicId || undefined }) : null;
   const doImport = () => {
     if (!importPreview?.success || !importPreview.document) { showToast(importPreview?.error || 'تعذر تحليل الخريطة', 'info'); return; }
     const saved = upsertMindMap(importPreview.document);
@@ -137,6 +140,7 @@ export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showTo
         <main className="min-h-0 overflow-y-auto p-3 sm:p-5 space-y-3">
           {!activeMap || !currentNode ? <div className="h-full min-h-48 grid place-items-center text-center text-slate-500"><div><Network className="w-10 h-10 mx-auto mb-2 opacity-40"/><p className="text-sm font-bold">استورد خريطة لبدء العرض التفاعلي</p></div></div> : <>
             <div className="flex items-center justify-between gap-2"><div className="min-w-0"><h3 className="font-black text-sm sm:text-base truncate">{activeMap.title}</h3><p className="text-[11px] text-slate-500">العقدة {step+1} من {orderedNodes.length} · العرض التسلسلي</p></div><button onClick={()=>{if(window.confirm('حذف الخريطة من مكتبتي؟')){deleteMindMap(activeMap.id);setMaps(loadMindMaps());setActiveId(null);setStep(0);}}} className="text-[11px] font-bold text-rose-600">حذف</button></div>
+            <label className="block text-[11px] font-bold">ارتباط الخريطة بموضوع<select value={activeMap.linkedTopicId || ''} onChange={e=>{const next={...activeMap,linkedTopicId:e.target.value || undefined,updatedAt:new Date().toISOString()};upsertMindMap(next);refresh(next);}} className="mt-1 w-full min-h-10 rounded-lg bg-slate-100 dark:bg-slate-800 p-2"><option value="">غير مرتبطة</option>{topics.map(t=><option key={t.id} value={t.id}>{t.titleAr || t.titleEn || t.title}</option>)}</select></label>
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
               <div className="p-4 sm:p-6 min-h-40" style={{background:`linear-gradient(135deg,${currentNode.color || '#0f766e'}20,transparent)`}}>
                 <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 mb-3"><span className="w-2.5 h-2.5 rounded-full" style={{background:currentNode.color || '#0f766e'}}/>{currentNode.role || 'concept'} · {currentNode.shape || 'rounded'}</div>
