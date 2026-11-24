@@ -117,7 +117,17 @@ export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showTo
           {importPreview.success ? <><b>تم اكتشاف بنية خريطة</b> · {importPreview.detectedFormatLabelAr} · {importPreview.stats.nodeCount} عقدة · {importPreview.stats.edgeCount} علاقة · عمق {importPreview.stats.maxDepth}{importPreview.warnings.length>0&&<p className="mt-1">{importPreview.warnings.join(' · ')}</p>}</> : importPreview.error}
         </div>}
         <button disabled={!importPreview?.success} onClick={doImport} className="min-h-10 px-4 rounded-xl bg-emerald-600 text-white text-xs font-extrabold disabled:opacity-40">تحليل وحفظ الخريطة في مكتبتي</button>
-        <p className="text-[10px] leading-5 text-slate-500">يقرأ المستورد حالياً JSON وMarkdown وTXT والنص الهرمي وأسهم التدفق. لا يقرأ الصور أو PDF ولا ينفذ OCR؛ يجب تحويلها أولاً إلى نص أو JSON منظم.</p>
+        <details className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 text-xs">
+          <summary className="cursor-pointer font-extrabold">كيف يكتشف UMEDT الخريطة ويقرأها؟</summary>
+          <ol className="mt-2 list-decimal pr-5 space-y-1 text-[11px] leading-6 text-slate-600 dark:text-slate-300">
+            <li>يفحص الملف كنص محلياً دون رفعه إلى خادم.</li>
+            <li>يبحث أولاً عن JSON ثم Markdown والعناوين والقوائم المتداخلة.</li>
+            <li>يتعرف على الترقيم والتباعد الهرمي وشجرة ASCII وأسهم التدفق A → B.</li>
+            <li>ينشئ العقد والعلاقات، ويعرض معاينة بعدد العقد والروابط والعمق قبل الحفظ.</li>
+            <li>ضع الشرح الطويل داخل note؛ يبقى منفصلاً عن عنوان العقدة المختصر.</li>
+          </ol>
+          <p className="mt-2 text-[10px] leading-5 text-amber-700 dark:text-amber-300">الصور ولقطات الشاشة وPDF وملفات Office لا تُحوّل إلى خرائط تلقائياً حالياً؛ لا يوجد OCR. حوّل الرسم إلى نص هرمي أو JSON أولاً.</p>
+        </details>
       </div>}
       <div className="grid grid-cols-1 md:grid-cols-[250px_minmax(0,1fr)] min-h-0 flex-1">
         <aside className="border-b md:border-b-0 md:border-l border-slate-200 dark:border-slate-800 p-3 overflow-y-auto max-h-36 md:max-h-none">
