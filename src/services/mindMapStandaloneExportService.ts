@@ -54,3 +54,4 @@ view.addEventListener('wheel',function(e){e.preventDefault();scale=Math.max(.2,M
 window.addEventListener('resize',fit);refresh();setTimeout(fit,40);
 })();
 </script></body></html>`;
+}
