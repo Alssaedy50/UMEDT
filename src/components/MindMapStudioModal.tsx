@@ -203,7 +203,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
         if (parsed.parseWarnings?.length) showToast(parsed.parseWarnings.join(' · '), 'info');
       } else {
         content = await file.text();
-        if (['html', 'htm'].includes(ext)) content = content.replace(/<\\/(?:p|div|li|h[1-6]|tr)>/gi, '\\n').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\\s+/g, ' ').trim();
+        if (['html', 'htm'].includes(ext)) content = content.replace(/<\/(?:p|div|li|h[1-6]|tr)>/gi, '\n').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
       }
       setImportFileName(file.name);
       setImportText(content);
