@@ -450,9 +450,7 @@ function parseJsonMindMap(
           ? (String(rn.shape) as MindMapNode['shape'])
           : undefined,
         color: typeof rn.color === 'string' && /^#[0-9a-f]{6}$/i.test(rn.color) ? rn.color : undefined,
-        position: pos,
-        shape: ['rounded', 'pill', 'diamond', 'hexagon', 'circle'].includes(String(rn.shape)) ? rn.shape as MindMapNode['shape'] : undefined,
-        color: typeof rn.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(rn.color) ? rn.color : undefined
+        position: pos
       });
     });
 
