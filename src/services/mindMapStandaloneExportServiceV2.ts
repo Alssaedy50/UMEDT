@@ -10,7 +10,7 @@ function safeJson(value: unknown): string {
   const svg = buildStandaloneMindMapSvg(doc, layout, isDark).replace(/^<\?xml[^>]*>\s*/, '');
     .replace(/>/g, '\\u003e')
     .replace(/&/g, '\\u0026')
-    .replace(/\\u2028/g, '\\u2028')
+    .replace(/\u2028/g, '\\u2028')
     .replace(/\u2028/g, '\\u2028')
     .replace(/\u2029/g, '\\u2029');
 
