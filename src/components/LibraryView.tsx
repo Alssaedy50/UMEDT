@@ -26,7 +26,8 @@ import {
   HardDrive,
   GraduationCap,
   Star,
-  ExternalLink
+  ExternalLink,
+  Network
 } from 'lucide-react';
 import {
   DictionaryTerm,
@@ -94,6 +95,7 @@ import {
 } from '../services/aiUniversalImportService';
 import { AiContentGuideModal } from './AiContentGuideModal';
 import { QuizCenterModal } from './QuizCenterModal';
+import { LibraryMindMapsPortal } from './LibraryMindMapsPortal';
 
 export interface StagedTermItem {
   id: string;
@@ -220,6 +222,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [busyTargetKey, setBusyTargetKey] = useState<string | null>(null);
   const [syncRevision, setSyncRevision] = useState(0);
   const [isAiGuideOpen, setIsAiGuideOpen] = useState(false);
+  const [isMindMapsPortalOpen, setIsMindMapsPortalOpen] = useState(false);
   const [activeExamModal, setActiveExamModal] = useState<AcademicExamPackage | null>(null);
   const [bookPdfPreview, setBookPdfPreview] = useState<{
     title: string;
@@ -1299,6 +1302,30 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
                 <span>بطاقات · اختيار · كتابة</span>
                 <ChevronLeft className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+            </div>
+          </button>
+          {/* CARD 5: INTERACTIVE MIND MAPS */}
+          <button
+            type="button"
+            onClick={() => setIsMindMapsPortalOpen(true)}
+            className="group text-right bg-white dark:bg-slate-900 hover:border-violet-500/60 rounded-3xl p-4 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-3"
+          >
+            <div className="flex items-center justify-between gap-2 w-full">
+              <div className="w-10 h-10 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-600 dark:text-violet-400 shrink-0">
+                <Network className="w-5 h-5" />
+              </div>
+              <span className="px-2 py-0.5 rounded-lg bg-violet-500/10 text-violet-700 dark:text-violet-300 text-[11px] font-extrabold font-mono tabular-nums">
+                خرائط
+              </span>
+            </div>
+            <div className="space-y-0.5 min-w-0">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors truncate">
+                الخرائط التفاعلية
+              </h3>
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                <span>استيراد · شرح · مشاركة</span>
+                <ChevronLeft className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
               </div>
             </div>
           </button>
@@ -3399,6 +3426,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           </section>
         </div>
       )}
+
+      <LibraryMindMapsPortal
+        isOpen={isMindMapsPortalOpen}
+        onClose={() => setIsMindMapsPortalOpen(false)}
+        showToast={(message, type) => showToast?.(message, type)}
+      />
 
       <AiContentGuideModal
         isOpen={isAiGuideOpen}
