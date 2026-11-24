@@ -1343,6 +1343,74 @@ public class MainActivity extends BridgeActivity {
             }
             return res.toString();
         }
+
+        @JavascriptInterface
+        public boolean updateDictionaryTerms(String json) {
+            try {
+                JSONArray input = new JSONArray(json == null ? "[]" : json);
+                JSONArray compact = new JSONArray();
+                for (int i = 0; i < input.length(); i++) {
+                    JSONObject source = input.optJSONObject(i);
+                    if (source == null) continue;
+                    String term = source.optString("term", "").trim();
+                    if (term.isEmpty()) continue;
+                    JSONObject item = new JSONObject();
+                    item.put("term", term);
+                    item.put("translation", source.optString("translation", ""));
+                    item.put("definitionAr", source.optString("definitionAr", ""));
+                    item.put("definitionEn", source.optString("definitionEn", ""));
+                    JSONArray aliases = new JSONArray();
+                    JSONObject relations = source.optJSONObject("relations");
+                    JSONArray synonyms = relations == null ? null : relations.optJSONArray("synonyms");
+                    if (synonyms != null) {
+                        for (int j = 0; j < synonyms.length(); j++) {
+                            String alias = synonyms.optString(j, "").trim();
+                            if (!alias.isEmpty()) aliases.put(alias);
+                        }
+                    }
+                    item.put("aliases", aliases);
+                    compact.put(item);
+                }
+                getSharedPreferences("umedt_copy_dictionary", MODE_PRIVATE)
+                        .edit().putString("terms", compact.toString()).apply();
+                return true;
+            } catch (Exception ignored) { return false; }
+        }
+
+        @JavascriptInterface
+        public void openUmedtKeyboardSettings() {
+            try {
+                Intent intent = new Intent(android.provider.Settings.ACTION_INPUT_METHOD_SETTINGS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            } catch (Exception ignored) { }
+        }
+
+        @JavascriptInterface
+        public boolean isUmedtDefaultKeyboard() {
+            try {
+                String current = android.provider.Settings.Secure.getString(
+                        getContentResolver(), android.provider.Settings.Secure.DEFAULT_INPUT_METHOD);
+                return current != null && current.contains(getPackageName() + "/.UMEDTKeyboardService");
+            } catch (Exception ignored) { return false; }
+        }
+
+        @JavascriptInterface
+        public void openUmedtOverlaySettings() {
+            try {
+                Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            } catch (Exception ignored) { }
+        }
+
+        @JavascriptInterface
+        public boolean canUmedtDrawOverlays() {
+            return Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+                    android.provider.Settings.canDrawOverlays(MainActivity.this);
+        }
+
     }
 }
 
