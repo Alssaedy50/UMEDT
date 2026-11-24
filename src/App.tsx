@@ -292,7 +292,6 @@ export default function App() {
       if (!nativeBridge?.syncDictionaryTerms) return;
       const compactDictionary = terms.map((item) => ({
         term: item.term,
-        aliasName: item.aliasName || '',
         translation: item.translation,
         definitionAr: (item.definitionAr || '').slice(0, 280)
       }));
