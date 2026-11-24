@@ -44,10 +44,6 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     () => new Set(mapDocument.nodes.filter((node) => mapDocument.nodes.some((child) => child.parentId === node.id)).map((node) => node.id))
   );
   const isDark = typeof window !== 'undefined' && window.document.documentElement.classList.contains('dark');
-  const svgMarkup = useMemo(
-    () => buildStandaloneMindMapSvg(displayDocument, layout, isDark).replace(/^<\?xml[^>]*>\s*/, ''),
-    [displayDocument, layout, isDark]
-  );
   const sequenceNodes = useMemo(() => {
     const byParent = new Map<string, typeof mapDocument.nodes>();
     mapDocument.nodes.forEach((node) => {
@@ -86,6 +82,10 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     [displayDocument, isSequentialMode, collapsedIds]
   );
   const fullLayout = useMemo(() => computeMindMapLayout(mapDocument, new Set()), [mapDocument]);
+  const svgMarkup = useMemo(
+    () => buildStandaloneMindMapSvg(displayDocument, layout, isDark).replace(/^<\?xml[^>]*>\s*/, ''),
+    [displayDocument, layout, isDark]
+  );
   const selectedNode = useMemo(
     () => mapDocument.nodes.find((node) => node.id === selectedNodeId) || null,
     [mapDocument.nodes, selectedNodeId]
