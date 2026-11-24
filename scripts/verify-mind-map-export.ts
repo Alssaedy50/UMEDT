@@ -1,16 +1,19 @@
 import { createBlankMindMap, buildStandaloneMindMapSvg } from '../src/services/mindMapStorageService';
 import { computeMindMapLayout } from '../src/services/mindMapLayoutEngine';
-import { buildStandaloneMindMapHtml } from '../src/services/mindMapStandaloneExportService';
+import { buildStandaloneMindMapHtmlV2 as buildStandaloneMindMapHtml } from '../src/services/mindMapStandaloneExportServiceV2';
 function assert(ok: boolean, message: string): void { if (!ok) throw new Error('MIND MAP EXPORT TEST FAILED: ' + message); }
 const map=createBlankMindMap({title:'Atherosclerosis',style:'medical_flow'});
 map.nodes[1].note='Endothelial injury and lipid accumulation';
 const layout=computeMindMapLayout(map),svg=buildStandaloneMindMapSvg(map,layout),html=buildStandaloneMindMapHtml(map,layout);
-assert(svg.includes('class="mm-node"'),'SVG node groups must be addressable.');
+assert(svg.includes('class="mm-node"') && svg.includes('data-node-id='),'SVG node groups must be addressable and selectable.');
 assert(svg.includes('class="mm-edge"')||layout.edges.length===0,'SVG relationship groups must be addressable.');
 assert(html.startsWith('<!doctype html>'),'Complete HTML document required.');
 assert(html.includes('Atherosclerosis')&&html.includes('Endothelial injury and lipid accumulation'),'Map content must be preserved.');
-assert(html.includes('id="in"')&&html.includes('id="out"')&&html.includes('id="expand"')&&html.includes('id="collapse"'),'Interactive controls required.');
-assert(html.includes('pointermove')&&html.includes('pointerdown'),'Touch/mouse pan required.');
+assert(html.includes('id="fit"')&&html.includes('id="expand"')&&html.includes('id="collapse"'),'Map navigation controls required.');
+cassert = null;
+assert(html.includes('pointermove')&&html.includes('pointerdown')&&html.includes("type:'pinch'"),'Touch pan and two-finger pinch zoom required.');
+assert(html.includes('touch-action:none') && html.includes('100dvh'),'Full-screen touch-first layout required.');
+assert(!html.includes('id="in"') && !html.includes('id="out"'),'Viewer must not require zoom buttons.');
 assert(!/<script\\s+src=/i.test(html) && !/<link[^>]+href=[\"']https?:/i.test(html), 'No external dependencies are allowed.');
 const unsafe=createBlankMindMap({title:'<script>alert(1)</script>'});
 const safe=buildStandaloneMindMapHtml(unsafe,computeMindMapLayout(unsafe));
