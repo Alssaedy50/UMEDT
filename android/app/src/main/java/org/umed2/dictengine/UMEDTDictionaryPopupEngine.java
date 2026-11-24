@@ -389,6 +389,74 @@ public final class UMEDTDictionaryPopupEngine {
     }
 
     /**
+     * Returns up to maxResults dictionary term suggestions matching a typed prefix or substring
+     * (in English or Arabic) for the UMEDT Keyboard live autocomplete bar.
+     */
+    public static synchronized List<JSONObject> findSuggestions(Context context, String rawPrefix, int maxResults) {
+        List<JSONObject> results = new ArrayList<>();
+        if (context == null || rawPrefix == null || maxResults <= 0) return results;
+        String normPrefix = normalizeLookupKey(rawPrefix);
+        if (normPrefix.length() < 2) return results;
+
+        ensureIndexLoaded(context);
+        if (cachedTermsList.isEmpty()) return results;
+
+        List<JSONObject> prefixMatches = new ArrayList<>();
+        List<JSONObject> substringMatches = new ArrayList<>();
+
+        // Check exact match first
+        JSONObject exact = exactIndex.get(normPrefix);
+        if (exact != null) {
+            results.add(exact);
+        }
+
+        for (int i = 0; i < cachedTermsList.size(); i++) {
+            JSONObject item = cachedTermsList.get(i);
+            if (item == null || item == exact) continue;
+
+            String termNorm = normalizeLookupKey(item.optString("term", ""));
+            String transNorm = normalizeLookupKey(item.optString("translation", ""));
+
+            if (termNorm.startsWith(normPrefix) || transNorm.startsWith(normPrefix)) {
+                prefixMatches.add(item);
+                if (results.size() + prefixMatches.size() >= maxResults) {
+                    break;
+                }
+            } else if (substringMatches.size() < maxResults &&
+                    (termNorm.contains(normPrefix) || transNorm.contains(normPrefix))) {
+                substringMatches.add(item);
+            }
+        }
+
+        for (JSONObject p : prefixMatches) {
+            if (results.size() >= maxResults) break;
+            results.add(p);
+        }
+        for (JSONObject s : substringMatches) {
+            if (results.size() >= maxResults) break;
+            results.add(s);
+        }
+        return results;
+    }
+
+    /**
+     * Safely reads the current plain text from the clipboard.
+     */
+    public static String getCurrentClipboardText(Context context) {
+        if (context == null) return "";
+        try {
+            ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+            if (cm == null || !cm.hasPrimaryClip()) return "";
+            ClipData clip = cm.getPrimaryClip();
+            if (clip == null || clip.getItemCount() == 0) return "";
+            CharSequence textSeq = clip.getItemAt(0).coerceToText(context);
+            return textSeq != null ? textSeq.toString().trim() : "";
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    /**
      * Reads the current primary clipboard and shows the floating overlay card if a dictionary term is found.
      * Returns the matched JSONObject if found, or null otherwise.
      */

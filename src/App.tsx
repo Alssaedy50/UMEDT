@@ -84,6 +84,7 @@ import {
 import { SearchHub } from './components/SearchHub';
 import { TopicsHub } from './components/TopicsHub';
 import { MindMapStudioModal } from './components/MindMapStudioModal';
+import { UmedtKeyboardPreviewModal } from './components/UmedtKeyboardPreviewModal';
 import { TermDetailSheet } from './components/TermDetailSheet';
 import { LibraryView, LibrarySubMode, StagedTermItem } from './components/LibraryView';
 import { SettingsView } from './components/SettingsView';
@@ -255,6 +256,7 @@ export default function App() {
     topicId?: string;
   }>({});
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [isKeyboardPreviewOpen, setIsKeyboardPreviewOpen] = useState(false);
   const [terms, setTerms] = useState<DictionaryTerm[]>(initialPersisted.terms);
   const [sentences, setSentences] = useState<LinkedSentence[]>(initialPersisted.sentences);
   const [topics, setTopics] = useState<TopicArticle[]>(initialPersisted.topics);
@@ -4050,6 +4052,14 @@ export default function App() {
               >
                 ⚡ معاينة بطاقة الترجمة العائمة
               </button>
+
+              <button
+                type="button"
+                onClick={() => setIsKeyboardPreviewOpen(true)}
+                className="min-h-[42px] rounded-xl border border-sky-500/40 bg-sky-500/10 hover:bg-sky-500/20 px-3.5 text-xs font-extrabold text-sky-700 dark:text-sky-300 transition-colors"
+              >
+                ⌨️ فحص وتجربة أزرار لوحة UMEDT
+              </button>
             </div>
 
             <div className="pt-2 border-t border-emerald-500/15 text-[11px] leading-5 text-slate-600 dark:text-slate-400 grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -4066,6 +4076,16 @@ export default function App() {
                 تحتوي البطاقة العائمة على زر نطق صوتي مباشر (🔊) ونسخ الترجمة العربية بدون مغادرة شاشتك.
               </div>
             </div>
+
+            <UmedtKeyboardPreviewModal
+              isOpen={isKeyboardPreviewOpen}
+              onClose={() => setIsKeyboardPreviewOpen(false)}
+              terms={terms}
+              abbreviations={customAbbreviations}
+              onTriggerTTS={(text, key) => triggerTTS(text, key)}
+              onShowFloatingCard={(card) => showFloatingCopiedTranslationCard(card)}
+              showToast={showToast}
+            />
           </div>
         )}
 
