@@ -1112,7 +1112,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                   ملاحظة سريرية تفصيلية (تظهر عند النقر)
                 </label>
                 <textarea
-                  rows={2}
+                  rows={6}
                   dir="auto"
                   value={editNote}
                   onChange={(e) => setEditNote(e.target.value)}
