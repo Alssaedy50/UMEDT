@@ -120,8 +120,11 @@ public class UMEDTKeyboardService extends InputMethodService {
         bottom.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(48));
         bp.topMargin = dp(5); root.addView(bottom, bp);
-        addBottomKey(bottom, "?123", 1, () -> { arabic = !arabic; renderKeys(); });
-        addBottomKey(bottom, arabic ? "English" : "عربي", 1, () -> { arabic = !arabic; renderKeys(); });
+        addBottomKey(bottom, "⌫", 1, () -> {
+            InputConnection ic = getCurrentInputConnection();
+            if (ic != null) ic.deleteSurroundingText(1, 0);
+        });
+        addBottomKey(bottom, arabic ? "EN" : "عربي", 1, () -> { arabic = !arabic; renderKeys(); });
         addBottomKey(bottom, "،", 0.7f, () -> commit(arabic ? "،" : ","));
         addBottomKey(bottom, "مسافة", 3.2f, () -> commit(" "));
         addBottomKey(bottom, "↵", 1, () -> {
@@ -235,7 +238,9 @@ public class UMEDTKeyboardService extends InputMethodService {
                 card.setOnClickListener(v -> removeFloatingCard());
                 WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                         WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT,
-                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                                : WindowManager.LayoutParams.TYPE_PHONE,
                         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                                 | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                                 | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
