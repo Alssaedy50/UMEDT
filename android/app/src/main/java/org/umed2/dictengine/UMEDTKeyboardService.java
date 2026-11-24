@@ -198,9 +198,10 @@ public class UMEDTKeyboardService extends InputMethodService {
                 JSONObject item = entries.optJSONObject(i);
                 if (item == null) continue;
                 String term = item.optString("term", "").trim();
+                String alias = item.optString("aliasName", "").trim();
                 String translation = item.optString("translation", "").trim();
                 String definition = item.optString("definitionAr", "").trim();
-                if (!term.isEmpty() && term.equalsIgnoreCase(needle)) {
+                if (!term.isEmpty() && (term.equalsIgnoreCase(needle) || alias.equalsIgnoreCase(needle))) {
                     return term + "|" + translation + "|" + definition;
                 }
             }
