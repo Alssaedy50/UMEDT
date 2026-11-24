@@ -189,8 +189,7 @@ public final class UMEDTKeyboardService extends InputMethodService {
                 LinearLayout panel = new LinearLayout(this);
                 panel.setOrientation(LinearLayout.VERTICAL);
                 panel.setPadding(dp(18), dp(14), dp(18), dp(12));
-                panel.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(19, 45, 39)));
-                panel.setBackground(getDrawable(android.R.drawable.dialog_holo_light_frame));
+                panel.setBackgroundColor(Color.rgb(19, 45, 39));
                 TextView title = new TextView(this);
                 title.setText(term.optString("term", ""));
                 title.setTextColor(Color.WHITE);
@@ -227,7 +226,7 @@ public final class UMEDTKeyboardService extends InputMethodService {
                 params.y = dp(42);
                 windowManager.addView(panel, params);
                 floatingCard = panel;
-                handler.postDelayed(this::hideFloatingCard, 8500L);
+                handler.postDelayed(hideCardRunnable, 8500L);
             } catch (Exception ignored) { }
         });
     }
