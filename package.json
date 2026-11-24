@@ -1,7 +1,7 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "2.5.1",
+  "version": "2.5.2",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx scripts/verify-master-data.ts && tsx scripts/verify-release-readiness.ts",
+    "test": "tsx scripts/verify-master-data.ts && tsx scripts/verify-mind-map-export.ts && tsx scripts/verify-release-readiness.ts",
     "cap:sync": "npm run build && npx cap sync android",
     "release:data": "tsx scripts/publish-data-release.ts"
   },
