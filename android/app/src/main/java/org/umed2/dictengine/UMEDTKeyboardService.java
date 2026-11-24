@@ -155,9 +155,10 @@ public final class UMEDTKeyboardService extends InputMethodService {
             CharSequence raw = clip.getItemAt(0).coerceToText(this);
             if (raw == null) return;
             String copied = raw.toString().trim();
-            if (copied.isEmpty() || copied.length() > 120 || copied.equals(lastClipboard)) return;
+            if (copied.isEmpty() || copied.length() > 120) return;
             long now = System.currentTimeMillis();
-            if (now - lastShownAt < 700) return;
+            if (copied.equals(lastClipboard) && now - lastShownAt < 1800L) return;
+            if (now - lastShownAt < 700L) return;
             JSONObject match = findTerm(copied);
             if (match == null) return;
             lastClipboard = copied;
