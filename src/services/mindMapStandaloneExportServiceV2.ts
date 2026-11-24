@@ -21,7 +21,6 @@ export function buildStandaloneMindMapHtmlV2(
   isDark = false
 ): string {
   const svg = buildStandaloneMindMapSvg(doc, layout, isDark).replace(/^<\?xml[^>]*>\s*/, '');
-  const svg = buildStandaloneMindMapSvg(doc, layout, isDark).replace(/^<\?xml[^>]*>\s*/, '');
   const payload = safeJson({
     svg,
     title: doc.title || 'UMEDT Mind Map',
