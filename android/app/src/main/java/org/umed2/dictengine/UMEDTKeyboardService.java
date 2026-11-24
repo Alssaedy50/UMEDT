@@ -76,7 +76,7 @@ public final class UMEDTKeyboardService extends InputMethodService {
         if (symbolsLayout) {
             addRow(root, new String[]{"1","2","3","4","5","6","7","8","9","0"});
             addRow(root, new String[]{"@","#","$","%","&","-","+","(",")","/"});
-            addRow(root, new String[]{"=","*","\u0022","' ",":",";","!","?","⌫"});
+            addRow(root, new String[]{"=","*","\"","' ",":",";","!","?","⌫"});
         } else if (arabicLayout) {
             addRow(root, new String[]{"ض","ص","ث","ق","ف","غ","ع","ه","خ","ح"});
             addRow(root, new String[]{"ش","س","ي","ب","ل","ا","ت","ن","م","ك"});
