@@ -11,7 +11,7 @@ assert(html.startsWith('<!doctype html>'),'Complete HTML document required.');
 assert(html.includes('Atherosclerosis')&&html.includes('Endothelial injury and lipid accumulation'),'Map content must be preserved.');
 assert(html.includes('id="in"')&&html.includes('id="out"')&&html.includes('id="expand"')&&html.includes('id="collapse"'),'Interactive controls required.');
 assert(html.includes('pointermove')&&html.includes('pointerdown'),'Touch/mouse pan required.');
-assert(!/<script\\s+src=/i.test(html)&&!/<link[^>]+href=["']https?:/i.test(html)&&! /https?:\\/\\//i.test(html),'No external dependencies are allowed.');
+assert(!html.includes('<script src=') && !html.includes('https://') && !html.includes('http://'), 'No external dependencies are allowed.');
 const unsafe=createBlankMindMap({title:'<script>alert(1)</script>'});
 const safe=buildStandaloneMindMapHtml(unsafe,computeMindMapLayout(unsafe));
 assert(!safe.includes('<script>alert(1)</script>'),'User title must be escaped.');
