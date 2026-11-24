@@ -8,6 +8,7 @@ import { buildStandaloneMindMapHtmlV2 } from '../services/mindMapStandaloneExpor
 import { computeMindMapLayout } from '../services/mindMapLayoutEngine';
 import { shareFileWithVerification } from '../utils/downloadHelper';
 import { MindMapFullScreenViewer } from './MindMapFullScreenViewer';
+import { parseUploadedFile } from '../services/fileParserService';
 
 interface Props {
   isOpen: boolean;
@@ -96,10 +97,32 @@ export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showTo
   };
   const upload = async (file?: File) => {
     if (!file) return;
-    const allowed = /\\.(json|md|markdown|txt)$/i.test(file.name);
-    if (!allowed) { showToast('الصيغ المدعومة حالياً: JSON وMarkdown وTXT. لا يدعم المستورد OCR للصور أو PDF.', 'info'); return; }
-    try { setSourceText(await file.text()); setFileName(file.name); }
-    catch { showToast('تعذر قراءة الملف', 'info'); }
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const allowed = ['json', 'md', 'markdown', 'txt', 'pdf', 'docx', 'html', 'htm'].includes(ext);
+    if (!allowed) { showToast('الصيغ المدعومة: JSON وMarkdown وTXT وPDF وDOCX وHTML.', 'info'); return; }
+    try {
+      let content = '';
+      if (ext === 'pdf' || ext === 'docx') {
+        const parsed = await parseUploadedFile(file);
+        content = parsed.extractedText || '';
+        if (parsed.parseWarnings?.length) showToast(parsed.parseWarnings.join(' · '), 'info');
+        if (!content.trim()) throw new Error('لم يتم العثور على نص قابل للاستخراج. قد يكون PDF مصوراً ويحتاج OCR.');
+      } else {
+        content = await file.text();
+        if (ext === 'html' || ext === 'htm') {
+          content = content.replace(/<\\/(?:p|div|li|h[1-6]|tr)>/gi, '\\n')
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/\\s+/g, ' ')
+            .trim();
+        }
+      }
+      setSourceText(content);
+      setFileName(file.name);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'تعذر قراءة الملف', 'info');
+    }
   };
 
   return <div className="fixed inset-0 z-[130] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4" dir="rtl">
@@ -116,8 +139,8 @@ export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showTo
         <span className="mr-auto self-center text-[11px] text-slate-500">{maps.length} خريطة محفوظة محلياً</span>
       </div>
       {showImporter && <div className="p-3 sm:p-4 border-b border-slate-200 dark:border-slate-800 space-y-2 max-h-[42dvh] overflow-y-auto">
-        <input ref={fileRef} type="file" accept=".json,.md,.markdown,.txt" className="hidden" onChange={e=>{void upload(e.target.files?.[0]);e.target.value='';}}/>
-        <div className="flex flex-wrap gap-2"><button onClick={()=>fileRef.current?.click()} className="min-h-9 px-3 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-bold">اختيار ملف JSON / MD / TXT</button><span className="self-center text-[11px] text-slate-500">{fileName || 'أو الصق النص أدناه'}</span></div>
+        <input ref={fileRef} type="file" accept=".json,.md,.markdown,.txt,.pdf,.docx,.html,.htm" className="hidden" onChange={e=>{void upload(e.target.files?.[0]);e.target.value='';}}/>
+        <div className="flex flex-wrap gap-2"><button onClick={()=>fileRef.current?.click()} className="min-h-9 px-3 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-bold">اختيار ملف JSON / MD / TXT / PDF / DOCX / HTML</button><span className="self-center text-[11px] text-slate-500">{fileName || 'أو الصق النص أدناه'}</span></div>
         <textarea value={sourceText} onChange={e=>setSourceText(e.target.value)} rows={7} placeholder="الصق JSON أو Markdown أو نصاً هرمياً يحتوي على الخريطة..." className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3 text-xs leading-6 font-mono"/>
         {importPreview && <div className={`rounded-xl p-3 text-xs ${importPreview.success?'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300':'bg-rose-500/10 text-rose-700 dark:text-rose-300'}`}>
           {importPreview.success ? <><b>تم اكتشاف بنية خريطة</b> · {importPreview.detectedFormatLabelAr} · {importPreview.stats.nodeCount} عقدة · {importPreview.stats.edgeCount} علاقة · عمق {importPreview.stats.maxDepth}{importPreview.warnings.length>0&&<p className="mt-1">{importPreview.warnings.join(' · ')}</p>}</> : importPreview.error}
@@ -132,7 +155,7 @@ export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showTo
             <li>ينشئ العقد والعلاقات، ويعرض معاينة بعدد العقد والروابط والعمق قبل الحفظ.</li>
             <li>ضع الشرح الطويل داخل note؛ يبقى منفصلاً عن عنوان العقدة المختصر.</li>
           </ol>
-          <p className="mt-2 text-[10px] leading-5 text-amber-700 dark:text-amber-300">الصور ولقطات الشاشة وPDF وملفات Office لا تُحوّل إلى خرائط تلقائياً حالياً؛ لا يوجد OCR. حوّل الرسم إلى نص هرمي أو JSON أولاً.</p>
+          <p className="mt-2 text-[10px] leading-5 text-amber-700 dark:text-amber-300">يستخرج التطبيق النص من PDF وDOCX النصيين، ويقرأ HTML وJSON وMarkdown وTXT. ملفات PDF الممسوحة ضوئياً والصور لا تُقرأ بصرياً بعد؛ تحتاج OCR أولاً. كما يجب أن يحتوي النص المستخرج فعلاً على بنية خريطة (عناوين/تفرعات/عقد وعلاقات)، وإلا فلن يُعامل كخريطة.</p>
         </details>
       </div>}
       <div className="grid grid-cols-1 md:grid-cols-[250px_minmax(0,1fr)] min-h-0 flex-1">
