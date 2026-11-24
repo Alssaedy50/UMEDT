@@ -596,6 +596,49 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </span>
       </div>
 
+      <section className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-slate-950 to-slate-900 p-4 text-white space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center text-emerald-300 text-xl font-black">U</div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-extrabold">لوحة مفاتيح UMEDT الطبية</div>
+            <div className="text-[11px] text-slate-300 mt-0.5">لوحة عربية وإنجليزية مع وصول محلي إلى قاموس المصطلحات</div>
+          </div>
+          <span className="text-[10px] font-bold text-emerald-300 border border-emerald-400/30 rounded-full px-2 py-1">Native IME</span>
+        </div>
+        <p className="text-[11px] leading-relaxed text-slate-300">
+          فعّل لوحة UMEDT من إعدادات طرق الإدخال، ثم اخترها من زر تبديل لوحة المفاتيح. تُزامَن المصطلحات محلياً على الجهاز ولا تُرسل الحافظة إلى الإنترنت.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button"
+            onClick={() => {
+              const bridge = (window as any).UMEDNativeDownloader;
+              if (bridge?.openInputMethodSettings) bridge.openInputMethodSettings();
+              else alert('هذه الميزة تتطلب تطبيق Android المثبّت.');
+            }}
+            className="min-h-[42px] rounded-xl bg-emerald-500 text-slate-950 text-xs font-extrabold">
+            تفعيل لوحة UMEDT
+          </button>
+          <button type="button"
+            onClick={() => {
+              const bridge = (window as any).UMEDNativeDownloader;
+              if (bridge?.showInputMethodPicker) bridge.showInputMethodPicker();
+              else alert('هذه الميزة تتطلب تطبيق Android المثبّت.');
+            }}
+            className="min-h-[42px] rounded-xl bg-white/10 border border-white/15 text-white text-xs font-bold">
+            اختيار لوحة المفاتيح
+          </button>
+          <button type="button"
+            onClick={() => {
+              const bridge = (window as any).UMEDNativeDownloader;
+              if (bridge?.openOverlayPermissionSettings) bridge.openOverlayPermissionSettings();
+              else alert('هذه الميزة تتطلب تطبيق Android المثبّت.');
+            }}
+            className="col-span-2 min-h-[38px] rounded-xl bg-white/5 border border-white/10 text-slate-200 text-[11px] font-bold">
+            السماح ببطاقة المصطلح العائمة فوق التطبيقات
+          </button>
+        </div>
+      </section>
+
       <ImportGroupsPanel />
 
       {/* Single Compact List Card (1-2 Word Labels) */}

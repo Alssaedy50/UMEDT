@@ -184,8 +184,8 @@ async function main() {
   console.log('UMED-2 — Independent Web, PWA & Android APK Verification Suite');
   console.log('================================================================');
 
-  // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.5.2)
-  assertCondition(APP_VERSION === '2.5.2', `Expected APP_VERSION 2.5.2, got ${APP_VERSION}`);
+  // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.5.3)
+  assertCondition(APP_VERSION === '2.5.3', `Expected APP_VERSION 2.5.3, got ${APP_VERSION}`);
   assertCondition(DB_SCHEMA_VERSION === 2, `Expected DB_SCHEMA_VERSION 2, got ${DB_SCHEMA_VERSION}`);
   assertCondition(
     BUNDLED_DATA_VERSION === '2026.10.0-umd',
@@ -265,21 +265,49 @@ async function main() {
   assertCondition(
     apkWorkflowContent.includes('assembleDebug') &&
       apkWorkflowContent.includes('assembleRelease') &&
-      apkWorkflowContent.includes('UMED-2-v2.5.2-debug-apk') &&
-      apkWorkflowContent.includes('UMED-2-v2.5.2-release-apk') &&
+      apkWorkflowContent.includes('UMED-2-v2.5.3-debug-apk') &&
+      apkWorkflowContent.includes('UMED-2-v2.5.3-release-apk') &&
       apkWorkflowContent.includes('VITE_UMED_MANIFEST_URL') &&
       apkWorkflowContent.includes('VITE_UMED_PUBLIC_KEY_PEM'),
-    'android-apk-release.yml must build v2.5.2 Debug/Release APKs with Cloud OTA env vars'
+    'android-apk-release.yml must build v2.5.3 Debug/Release APKs with Cloud OTA env vars'
   );
 
   const gradleContent = fs.readFileSync(androidBuildGradlePath, 'utf8');
   assertCondition(
     gradleContent.includes('org.umed2.dictengine') &&
-      gradleContent.includes('versionCode 20502') &&
-      gradleContent.includes('versionName "2.5.2"'),
-    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20502, and versionName "2.5.2"'
+      gradleContent.includes('versionCode 20503') &&
+      gradleContent.includes('versionName "2.5.3"'),
+    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20503, and versionName "2.5.3"'
   );
-  console.log('[PASS] 3. Capacitor Native Android Project (v2.5.2 / 20502) & Bundled Local Web Assets Synced');
+  console.log('[PASS] 3. Capacitor Native Android Project (v2.5.3 / 20503) & Bundled Local Web Assets Synced');
+
+  // 3a. Verify the native bilingual IME, local clipboard matching, and optional floating-card permission.
+  const imeServicePath = path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'java', 'org', 'umed2', 'dictengine', 'UMEDTKeyboardService.java');
+  const imeManifestPath = path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'AndroidManifest.xml');
+  const imeBridgePath = path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'java', 'org', 'umed2', 'dictengine', 'MainActivity.java');
+  const imeAppPath = path.join(ROOT_DIR, 'src', 'App.tsx');
+  const imeServiceContent = fs.readFileSync(imeServicePath, 'utf8');
+  const imeManifestContent = fs.readFileSync(imeManifestPath, 'utf8');
+  const imeBridgeContent = fs.readFileSync(imeBridgePath, 'utf8');
+  const imeAppContent = fs.readFileSync(imeAppPath, 'utf8');
+  assertCondition(
+    imeServiceContent.includes('extends InputMethodService') &&
+      imeServiceContent.includes('addPrimaryClipChangedListener') &&
+      imeServiceContent.includes('showInputMethodPicker') &&
+      imeServiceContent.includes('TYPE_APPLICATION_OVERLAY') &&
+      imeServiceContent.includes('translation.equalsIgnoreCase(needle)'),
+    'UMEDT native keyboard must support clipboard monitoring, keyboard switching, Arabic translation matching, and floating cards'
+  );
+  assertCondition(
+    imeManifestContent.includes('.UMEDTKeyboardService') &&
+      imeManifestContent.includes('android.permission.BIND_INPUT_METHOD') &&
+      imeManifestContent.includes('SYSTEM_ALERT_WINDOW') &&
+      imeBridgeContent.includes('syncDictionaryTerms') &&
+      imeAppContent.includes('syncDictionaryTerms'),
+    'UMEDT keyboard must be registered and receive the local dictionary snapshot with overlay permission declared'
+  );
+  console.log('[PASS] 3a. Native UMEDT Keyboard, Clipboard Matching & Floating Dictionary Card');
+
 
   // 3b. Verify the two-path AI generator and local-only hierarchy/import contract.
   const aiGeneratorPath = path.join(ROOT_DIR, 'src', 'components', 'AiContentGuideModal.tsx');

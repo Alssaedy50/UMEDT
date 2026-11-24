@@ -285,6 +285,22 @@ export default function App() {
     }
   }, [isDark]);
 
+  // Keep a compact, offline-only copy of the active dictionary available to the native IME.
+  useEffect(() => {
+    try {
+      const nativeBridge = (window as any).UMEDNativeDownloader;
+      if (!nativeBridge?.syncDictionaryTerms) return;
+      const compactDictionary = terms.map((item) => ({
+        term: item.term,
+        translation: item.translation,
+        definitionAr: (item.definitionAr || '').slice(0, 280)
+      }));
+      nativeBridge.syncDictionaryTerms(JSON.stringify(compactDictionary));
+    } catch {
+      // Native keyboard synchronization is optional on web/PWA builds.
+    }
+  }, [terms]);
+
   useEffect(() => {
     const root = document.documentElement;
     const fontMap: Record<AppFontFamily, string> = {
