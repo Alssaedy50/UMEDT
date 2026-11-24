@@ -85,6 +85,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     () => computeMindMapLayout(displayDocument, isSequentialMode ? new Set() : collapsedIds),
     [displayDocument, isSequentialMode, collapsedIds]
   );
+  const fullLayout = useMemo(() => computeMindMapLayout(mapDocument, new Set()), [mapDocument]);
   const selectedNode = useMemo(
     () => mapDocument.nodes.find((node) => node.id === selectedNodeId) || null,
     [mapDocument.nodes, selectedNodeId]
@@ -125,7 +126,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     const handleClick = (event: Event) => {
       const target = event.target as Element | null;
       const node = target?.closest?.('.mm-node[data-node-id]') as SVGGElement | null;
-      if (node?.dataset.nodeId) setSelectedNodeId(node.dataset.nodeId);
+      if (node?.dataset.nodeId) { setSelectedNodeId(node.dataset.nodeId); if (isSequentialMode) { const index = sequenceNodes.findIndex((item) => item.id === node.dataset.nodeId); if (index >= 0) setSequenceIndex(index); } }
     };
     const handleDoubleClick = (event: Event) => {
       const target = event.target as Element | null;
@@ -264,7 +265,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     const safeName = (mapDocument.title || 'mind-map').replace(/[^\w\u0600-\u06FF-]+/g, '-').slice(0, 48);
     const result = await shareFileWithVerification({
       filename: `${safeName || 'mind-map'}.html`,
-      content: buildStandaloneMindMapHtml(mapDocument, layout, isDark),
+      content: buildStandaloneMindMapHtml(mapDocument, fullLayout, isDark),
       mime: 'text/html;charset=utf-8',
       title: mapDocument.title || 'UMEDT Mind Map',
       text: `خريطة ذهنية تفاعلية مستقلة: ${mapDocument.title || 'UMEDT Mind Map'}`
