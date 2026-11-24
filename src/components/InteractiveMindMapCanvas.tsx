@@ -132,7 +132,9 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
   showToast
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set());
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(
+    () => new Set(doc.nodes.filter((node) => doc.nodes.some((child) => child.parentId === node.id)).map((node) => node.id))
+  );
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(doc.rootNodeId || null);
   const [zoom, setZoom] = useState<number>(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -216,7 +218,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
   // Reset selected node when switching documents
   useEffect(() => {
     setSelectedNodeId(doc.rootNodeId || doc.nodes[0]?.id || null);
-    setCollapsedIds(new Set());
+    setCollapsedIds(new Set(doc.nodes.filter((node) => doc.nodes.some((child) => child.parentId === node.id)).map((node) => node.id)));
     setIsEditingNode(false);
     setLinkSourceId(null);
   }, [doc.id, doc.rootNodeId]);
