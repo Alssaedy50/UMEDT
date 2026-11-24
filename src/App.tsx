@@ -288,15 +288,28 @@ export default function App() {
 
   // Keep the mobile tab bar out of the way while the Android/iOS keyboard is open.
   useEffect(() => {
+    let baselineHeight = window.innerHeight;
     const updateKeyboardVisibility = () => {
       const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-      const heightDelta = Math.max(0, window.innerHeight - viewportHeight);
+      const heightDelta = Math.max(
+        0,
+        baselineHeight - window.innerHeight,
+        baselineHeight - viewportHeight,
+        window.innerHeight - viewportHeight
+      );
       setIsKeyboardVisible(heightDelta > 140);
+    };
+    const handleOrientationChange = () => {
+      window.requestAnimationFrame(() => {
+        baselineHeight = window.innerHeight;
+        updateKeyboardVisibility();
+      });
     };
     const viewport = window.visualViewport;
     viewport?.addEventListener('resize', updateKeyboardVisibility);
     viewport?.addEventListener('scroll', updateKeyboardVisibility);
     window.addEventListener('resize', updateKeyboardVisibility);
+    window.addEventListener('orientationchange', handleOrientationChange);
     document.addEventListener('focusin', updateKeyboardVisibility);
     document.addEventListener('focusout', updateKeyboardVisibility);
     updateKeyboardVisibility();
@@ -304,6 +317,7 @@ export default function App() {
       viewport?.removeEventListener('resize', updateKeyboardVisibility);
       viewport?.removeEventListener('scroll', updateKeyboardVisibility);
       window.removeEventListener('resize', updateKeyboardVisibility);
+      window.removeEventListener('orientationchange', handleOrientationChange);
       document.removeEventListener('focusin', updateKeyboardVisibility);
       document.removeEventListener('focusout', updateKeyboardVisibility);
     };
