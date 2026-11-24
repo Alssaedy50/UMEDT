@@ -241,6 +241,27 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<MainTab>(() => resolveInitialTabFromLocation());
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [terms, setTerms] = useState<DictionaryTerm[]>(initialPersisted.terms);
+
+  // Mirror the active local dictionary into Android's native keyboard for offline lookup.
+  useEffect(() => {
+    try {
+      const bridge = (window as unknown as {
+        UMEDAndroidBridge?: { updateDictionaryTerms?: (json: string) => boolean };
+      }).UMEDAndroidBridge;
+      if (!bridge?.updateDictionaryTerms) return;
+      bridge.updateDictionaryTerms(JSON.stringify(terms.map((term) => ({
+        term: term.term,
+        translation: term.translation,
+        phonetic: term.phonetic,
+        definitionAr: term.definitionAr,
+        definitionEn: term.definitionEn,
+        relations: term.relations
+      }))));
+    } catch {
+      // Native keyboard sync must never interrupt the main app.
+    }
+  }, [terms]);
+
   const [sentences, setSentences] = useState<LinkedSentence[]>(initialPersisted.sentences);
   const [topics, setTopics] = useState<TopicArticle[]>(initialPersisted.topics);
   const [customAffixes, setCustomAffixes] = useState<MorphologicalAffix[]>(
@@ -3358,6 +3379,27 @@ export default function App() {
             onBackupNowTriggered={(reason) => triggerTelegramAutoSync(reason)}
             showToast={showToast}
           />
+        )}
+
+        {activeTab === 'settings' && (
+          <div className="mb-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-4 space-y-3">
+            <div>
+              <h3 className="text-sm font-extrabold text-emerald-700 dark:text-emerald-300">لوحة مفاتيح UMEDT والترجمة العائمة</h3>
+              <p className="mt-1 text-xs leading-6 text-slate-600 dark:text-slate-300">
+                فعّل لوحة UMEDT من إعدادات Android واجعلها لوحة الإدخال الافتراضية. اسمح أيضًا بالظهور فوق التطبيقات لعرض بطاقة المصطلح.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => {
+                const bridge = (window as Window & { UMEDAndroidBridge?: { openUmedtKeyboardSettings?: () => void } }).UMEDAndroidBridge;
+                bridge?.openUmedtKeyboardSettings?.();
+              }} className="min-h-[42px] rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white">تفعيل لوحة UMEDT</button>
+              <button type="button" onClick={() => {
+                const bridge = (window as Window & { UMEDAndroidBridge?: { openUmedtOverlaySettings?: () => void } }).UMEDAndroidBridge;
+                bridge?.openUmedtOverlaySettings?.();
+              }} className="min-h-[42px] rounded-xl border border-slate-300 px-4 text-xs font-bold dark:border-slate-700">السماح بالبطاقة العائمة</button>
+            </div>
+          </div>
         )}
 
         {activeTab === 'settings' && (

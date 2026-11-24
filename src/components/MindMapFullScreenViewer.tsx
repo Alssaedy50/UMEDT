@@ -40,13 +40,10 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isSequentialMode, setIsSequentialMode] = useState(false);
   const [sequenceIndex, setSequenceIndex] = useState(0);
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set());
-  const layout = useMemo(() => computeMindMapLayout(mapDocument, collapsedIds), [mapDocument, collapsedIds]);
-  const isDark = typeof window !== 'undefined' && window.document.documentElement.classList.contains('dark');
-  const svgMarkup = useMemo(
-    () => buildStandaloneMindMapSvg(mapDocument, layout, isDark).replace(/^<\?xml[^>]*>\s*/, ''),
-    [mapDocument, layout, isDark]
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(
+    () => new Set(mapDocument.nodes.filter((node) => mapDocument.nodes.some((child) => child.parentId === node.id)).map((node) => node.id))
   );
+  const isDark = typeof window !== 'undefined' && window.document.documentElement.classList.contains('dark');
   const sequenceNodes = useMemo(() => {
     const byParent = new Map<string, typeof mapDocument.nodes>();
     mapDocument.nodes.forEach((node) => {
@@ -66,6 +63,29 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     mapDocument.nodes.forEach((node) => visit(node.id));
     return ordered;
   }, [mapDocument]);
+  const sequentialVisibleIds = useMemo(
+    () => new Set(sequenceNodes.slice(0, Math.max(1, sequenceIndex + 1)).map((node) => node.id)),
+    [sequenceNodes, sequenceIndex]
+  );
+  const displayDocument = useMemo(() => {
+    if (!isSequentialMode) return mapDocument;
+    const nodes = mapDocument.nodes.filter((node) => sequentialVisibleIds.has(node.id));
+    const visibleIds = new Set(nodes.map((node) => node.id));
+    return {
+      ...mapDocument,
+      nodes,
+      edges: mapDocument.edges.filter((edge) => visibleIds.has(edge.sourceId) && visibleIds.has(edge.targetId))
+    };
+  }, [mapDocument, isSequentialMode, sequentialVisibleIds]);
+  const layout = useMemo(
+    () => computeMindMapLayout(displayDocument, isSequentialMode ? new Set() : collapsedIds),
+    [displayDocument, isSequentialMode, collapsedIds]
+  );
+  const fullLayout = useMemo(() => computeMindMapLayout(mapDocument, new Set()), [mapDocument]);
+  const svgMarkup = useMemo(
+    () => buildStandaloneMindMapSvg(displayDocument, layout, isDark).replace(/^<\?xml[^>]*>\s*/, ''),
+    [displayDocument, layout, isDark]
+  );
   const selectedNode = useMemo(
     () => mapDocument.nodes.find((node) => node.id === selectedNodeId) || null,
     [mapDocument.nodes, selectedNodeId]
@@ -106,7 +126,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     const handleClick = (event: Event) => {
       const target = event.target as Element | null;
       const node = target?.closest?.('.mm-node[data-node-id]') as SVGGElement | null;
-      if (node?.dataset.nodeId) setSelectedNodeId(node.dataset.nodeId);
+      if (node?.dataset.nodeId) { setSelectedNodeId(node.dataset.nodeId); if (isSequentialMode) { const index = sequenceNodes.findIndex((item) => item.id === node.dataset.nodeId); if (index >= 0) setSequenceIndex(index); } }
     };
     const handleDoubleClick = (event: Event) => {
       const target = event.target as Element | null;
@@ -114,7 +134,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       const nodeId = node?.dataset.nodeId;
       if (!nodeId) return;
       const hasChildren = mapDocument.nodes.some((item) => item.parentId === nodeId);
-      if (!hasChildren) return;
+      if (!hasChildren || isSequentialMode) return;
       event.preventDefault();
       setCollapsedIds((previous) => {
         const next = new Set(previous);
@@ -129,7 +149,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       svg.removeEventListener('click', handleClick);
       svg.removeEventListener('dblclick', handleDoubleClick);
     };
-  }, [svgMarkup, mapDocument.nodes]);
+  }, [svgMarkup, mapDocument.nodes, isSequentialMode]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => fitToView());
@@ -245,7 +265,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     const safeName = (mapDocument.title || 'mind-map').replace(/[^\w\u0600-\u06FF-]+/g, '-').slice(0, 48);
     const result = await shareFileWithVerification({
       filename: `${safeName || 'mind-map'}.html`,
-      content: buildStandaloneMindMapHtml(mapDocument, layout, isDark),
+      content: buildStandaloneMindMapHtml(mapDocument, fullLayout, isDark),
       mime: 'text/html;charset=utf-8',
       title: mapDocument.title || 'UMEDT Mind Map',
       text: `خريطة ذهنية تفاعلية مستقلة: ${mapDocument.title || 'UMEDT Mind Map'}`
@@ -271,7 +291,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
           <div className="text-[10px] font-semibold text-slate-400">اسحب للتحريك · استخدم إصبعين للتكبير والتصغير</div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <button type="button" onClick={() => { const next = !isSequentialMode; setIsSequentialMode(next); if (next && sequenceNodes.length) { setSequenceIndex(0); setSelectedNodeId(sequenceNodes[0].id); } }} className={`min-h-10 rounded-xl border px-3 text-xs font-bold ${isSequentialMode ? 'border-emerald-400 bg-emerald-400 text-slate-950' : 'border-white/15 bg-white/5 hover:bg-white/10'}`} title="العرض التسلسلي">{isSequentialMode ? 'العرض الحر' : 'عرض تسلسلي'}</button>
+          <button type="button" onClick={() => { const next = !isSequentialMode; setIsSequentialMode(next); if (next && sequenceNodes.length) { setSequenceIndex(0); setSelectedNodeId(sequenceNodes[0].id); } else { setCollapsedIds(new Set()); } }} className={`min-h-10 rounded-xl border px-3 text-xs font-bold ${isSequentialMode ? 'border-emerald-400 bg-emerald-400 text-slate-950' : 'border-white/15 bg-white/5 hover:bg-white/10'}`} title="العرض التسلسلي">{isSequentialMode ? 'العرض الحر' : 'عرض تسلسلي'}</button>
           <button type="button" onClick={fitToView} className="min-h-10 rounded-xl border border-white/15 bg-white/5 px-3 text-xs font-bold hover:bg-white/10" title="ملاءمة الخريطة للشاشة">ملاءمة</button>
           <button type="button" onClick={() => void handleShare()} className="flex min-h-10 items-center gap-1.5 rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 hover:bg-emerald-300" title="مشاركة HTML تفاعلي"><Share2 className="h-4 w-4" /><span className="hidden sm:inline">مشاركة HTML</span></button>
           <button type="button" onClick={() => void toggleBrowserFullscreen()} className="hidden min-h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/5 sm:flex" title="ملء الشاشة"><Maximize2 className="h-4 w-4" /></button>
