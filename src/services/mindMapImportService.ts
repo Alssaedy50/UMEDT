@@ -434,7 +434,9 @@ function parseJsonMindMap(
         parentId,
         role: normalizeRole(rn.role ?? rn.type ?? rn.category, condensed.label, parentId ? 1 : 0),
         order: typeof rn.order === 'number' ? rn.order : idx,
-        position: pos
+        position: pos,
+        shape: ['rounded', 'pill', 'diamond', 'hexagon', 'circle'].includes(String(rn.shape)) ? rn.shape as MindMapNode['shape'] : undefined,
+        color: typeof rn.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(rn.color) ? rn.color : undefined
       });
     });
 
