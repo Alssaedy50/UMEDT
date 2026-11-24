@@ -30,5 +30,6 @@ const portal = fs.readFileSync(portalPath, 'utf8');
 assert(portal.includes('السابق') && portal.includes('التالي'), 'Sequential previous/next controls must exist.');
 assert(portal.includes('textarea') && portal.includes('نص غير محدود'), 'Unlimited explanation editor must exist.');
 assert(portal.includes('buildStandaloneMindMapHtmlV2'), 'Standalone HTML sharing must be wired.');
+assert(portal.includes('MindMapFullScreenViewer') && portal.includes('عرض الرسم الكامل'), 'Full graph viewer must be accessible from the Library portal.');
 assert(portal.includes('MIND_MAP_AI_PROMPTS') && portal.includes('JSON'), 'Import and prompt instructions must be included.');
 console.log('[PASS] Library mind map import, unlimited node notes, sequential navigation, styling and sharing.');
