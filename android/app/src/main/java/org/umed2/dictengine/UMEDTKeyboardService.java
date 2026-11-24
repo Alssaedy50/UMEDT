@@ -2,16 +2,18 @@ package org.umed2.dictengine;
 
 import android.content.ClipData;
 import android.content.ClipboardManager;
-import android.content.Context;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.Typeface;
 import android.inputmethodservice.InputMethodService;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.View;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.inputmethod.InputConnection;
 import android.widget.Button;
@@ -21,10 +23,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.Locale;
 
-/**
- * UMEDT native IME. The IME is the Android-authorized clipboard reader while it is
- * active as the default input method. Dictionary data is mirrored locally by the app.
- */
+/** UMEDT IME and offline clipboard dictionary lookup. */
 public final class UMEDTKeyboardService extends InputMethodService {
     private ClipboardManager clipboard;
     private ClipboardManager.OnPrimaryClipChangedListener clipListener;
@@ -33,8 +32,9 @@ public final class UMEDTKeyboardService extends InputMethodService {
     private View floatingCard;
     private String lastClipboard = "";
     private long lastShownAt;
-    private boolean keyboardVisible;
     private boolean arabicLayout;
+    private boolean symbolsLayout;
+    private boolean shifted;
 
     @Override public void onCreate() {
         super.onCreate();
@@ -49,8 +49,16 @@ public final class UMEDTKeyboardService extends InputMethodService {
     @Override public View onCreateInputView() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(8), dp(8), dp(8), dp(10));
+        root.setPadding(dp(7), dp(6), dp(7), dp(8));
         root.setBackgroundColor(Color.rgb(19, 31, 42));
+        if (Build.VERSION.SDK_INT >= 21) {
+            root.setOnApplyWindowInsetsListener((view, insets) -> {
+                int bottom = insets.getSystemWindowInsetBottom();
+                view.setPadding(dp(7), dp(6), dp(7), dp(8) + bottom);
+                return insets;
+            });
+            root.setFitsSystemWindows(true);
+        }
 
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
@@ -59,26 +67,17 @@ public final class UMEDTKeyboardService extends InputMethodService {
         brand.setTextColor(Color.WHITE);
         brand.setTextSize(13);
         brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        header.addView(brand, new LinearLayout.LayoutParams(0, dp(38), 1));
-        Button clipboardButton = keyButton("لصق");
-        clipboardButton.setOnClickListener(v -> {
-            try {
-                if (clipboard != null && clipboard.hasPrimaryClip()) {
-                    ClipData clip = clipboard.getPrimaryClip();
-                    if (clip != null && clip.getItemCount() > 0) {
-                        CharSequence text = clip.getItemAt(0).coerceToText(this);
-                        if (text != null) {
-                            InputConnection ic = getCurrentInputConnection();
-                            if (ic != null) ic.commitText(text, 1);
-                        }
-                    }
-                }
-            } catch (Exception ignored) { }
-        });
-        header.addView(clipboardButton, new LinearLayout.LayoutParams(dp(64), dp(38)));
+        header.addView(brand, new LinearLayout.LayoutParams(0, dp(36), 1));
+        Button paste = keyButton("لصق");
+        paste.setOnClickListener(v -> pasteClipboard());
+        header.addView(paste, new LinearLayout.LayoutParams(dp(64), dp(36)));
         root.addView(header);
 
-        if (arabicLayout) {
+        if (symbolsLayout) {
+            addRow(root, new String[]{"1","2","3","4","5","6","7","8","9","0"});
+            addRow(root, new String[]{"@","#","$","%","&","-","+","(",")","/"});
+            addRow(root, new String[]{"=","*","\u0022","' ",":",";","!","?","⌫"});
+        } else if (arabicLayout) {
             addRow(root, new String[]{"ض","ص","ث","ق","ف","غ","ع","ه","خ","ح"});
             addRow(root, new String[]{"ش","س","ي","ب","ل","ا","ت","ن","م","ك"});
             addRow(root, new String[]{"⇧","ئ","ء","ؤ","ر","لا","ى","ة","و","ز","⌫"});
@@ -87,56 +86,82 @@ public final class UMEDTKeyboardService extends InputMethodService {
             addRow(root, new String[]{"a","s","d","f","g","h","j","k","l"});
             addRow(root, new String[]{"⇧","z","x","c","v","b","n","m","⌫"});
         }
+
         LinearLayout bottom = new LinearLayout(this);
+        bottom.setGravity(Gravity.CENTER_VERTICAL);
+        Button mode = keyButton(symbolsLayout ? "ABC" : "?123");
+        mode.setOnClickListener(v -> { symbolsLayout = !symbolsLayout; shifted = false; refreshKeyboard(); });
+        bottom.addView(mode, new LinearLayout.LayoutParams(dp(58), dp(44)));
         Button language = keyButton(arabicLayout ? "EN" : "عربي");
-        language.setOnClickListener(v -> {
-            arabicLayout = !arabicLayout;
-            setInputView(onCreateInputView());
-        });
-        bottom.addView(language, new LinearLayout.LayoutParams(dp(58), dp(48)));
+        language.setOnClickListener(v -> { arabicLayout = !arabicLayout; symbolsLayout = false; refreshKeyboard(); });
+        bottom.addView(language, new LinearLayout.LayoutParams(dp(58), dp(44)));
         Button comma = keyButton(",");
         comma.setOnClickListener(v -> commit(","));
-        bottom.addView(comma, new LinearLayout.LayoutParams(dp(42), dp(48)));
+        bottom.addView(comma, new LinearLayout.LayoutParams(dp(38), dp(44)));
         Button space = keyButton("مسافة");
         space.setOnClickListener(v -> commit(" "));
-        bottom.addView(space, new LinearLayout.LayoutParams(0, dp(48), 1));
+        bottom.addView(space, new LinearLayout.LayoutParams(0, dp(44), 1));
         Button period = keyButton(".");
         period.setOnClickListener(v -> commit("."));
-        bottom.addView(period, new LinearLayout.LayoutParams(dp(42), dp(48)));
+        bottom.addView(period, new LinearLayout.LayoutParams(dp(38), dp(44)));
         Button enter = keyButton("↵");
         enter.setOnClickListener(v -> {
             InputConnection ic = getCurrentInputConnection();
-            if (ic != null) ic.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_ENTER));
+            if (ic != null) {
+                ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER));
+                ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER));
+            }
         });
-        bottom.addView(enter, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        bottom.addView(enter, new LinearLayout.LayoutParams(dp(44), dp(44)));
         root.addView(bottom);
         return root;
+    }
+
+    private void refreshKeyboard() {
+        setInputView(onCreateInputView());
     }
 
     private void addRow(LinearLayout parent, String[] labels) {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER);
-        for (String label : labels) {
+        for (String original : labels) {
+            String label = (!arabicLayout && shifted && original.length() == 1
+                    && Character.isLetter(original.charAt(0))) ? original.toUpperCase(Locale.ROOT) : original;
             Button button = keyButton(label);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(46), 1);
-            lp.setMargins(dp(2), dp(3), dp(2), dp(3));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(43), 1);
+            lp.setMargins(dp(2), dp(2), dp(2), dp(2));
             button.setLayoutParams(lp);
             button.setOnClickListener(v -> {
-                if ("⌫".equals(label)) {
+                if ("⌫".equals(original)) {
                     InputConnection ic = getCurrentInputConnection();
-                    if (ic != null) ic.deleteSurroundingText(1, 0);
-                } else if (!"⇧".equals(label)) commit(label);
+                    if (ic != null) {
+                        if (Build.VERSION.SDK_INT >= 24) ic.deleteSurroundingTextInCodePoints(1, 0);
+                        else ic.deleteSurroundingText(1, 0);
+                    }
+                } else if ("⇧".equals(original)) {
+                    shifted = !shifted;
+                    refreshKeyboard();
+                } else {
+                    commit(label);
+                    if (shifted && !arabicLayout) { shifted = false; refreshKeyboard(); }
+                }
             });
             row.addView(button);
         }
-        parent.addView(row);
+        parent.addView(row, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(47)));
     }
 
     private Button keyButton(String label) {
         Button button = new Button(this);
         button.setText(label);
         button.setAllCaps(false);
-        button.setTextSize(15);
+        button.setTextSize(14);
+        button.setMinWidth(0);
+        button.setMinimumWidth(0);
+        button.setMinHeight(0);
+        button.setMinimumHeight(0);
+        button.setPadding(dp(2), 0, dp(2), 0);
         button.setTextColor(Color.WHITE);
         button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(48, 65, 80)));
         return button;
@@ -145,6 +170,17 @@ public final class UMEDTKeyboardService extends InputMethodService {
     private void commit(String value) {
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) ic.commitText(value, 1);
+    }
+
+    private void pasteClipboard() {
+        try {
+            if (clipboard == null || !clipboard.hasPrimaryClip()) return;
+            ClipData clip = clipboard.getPrimaryClip();
+            if (clip == null || clip.getItemCount() == 0) return;
+            CharSequence text = clip.getItemAt(0).coerceToText(this);
+            InputConnection ic = getCurrentInputConnection();
+            if (text != null && ic != null) ic.commitText(text, 1);
+        } catch (Exception ignored) { }
     }
 
     private void inspectClipboard() {
@@ -165,7 +201,7 @@ public final class UMEDTKeyboardService extends InputMethodService {
             lastShownAt = now;
             showFloatingCard(match);
         } catch (SecurityException ignored) {
-            // Android/ROM clipboard policy can still deny access outside an active IME session.
+            // Clipboard access is controlled by Android and the active input method state.
         } catch (Exception ignored) { }
     }
 
@@ -193,7 +229,7 @@ public final class UMEDTKeyboardService extends InputMethodService {
     }
 
     private void showFloatingCard(JSONObject term) {
-        if (BuildVersion.sdk() >= 23 && !Settings.canDrawOverlays(this)) return;
+        if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) return;
         handler.post(() -> {
             try {
                 hideFloatingCard();
@@ -224,7 +260,7 @@ public final class UMEDTKeyboardService extends InputMethodService {
                 Button close = keyButton("إغلاق");
                 close.setOnClickListener(v -> hideFloatingCard());
                 panel.addView(close);
-                int type = BuildVersion.sdk() >= 26
+                int type = Build.VERSION.SDK_INT >= 26
                         ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                         : WindowManager.LayoutParams.TYPE_PHONE;
                 WindowManager.LayoutParams params = new WindowManager.LayoutParams(
@@ -259,18 +295,11 @@ public final class UMEDTKeyboardService extends InputMethodService {
 
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
 
-    @Override public void onWindowShown() { keyboardVisible = true; super.onWindowShown(); }
-    @Override public void onWindowHidden() { keyboardVisible = false; super.onWindowHidden(); }
-
     @Override public void onDestroy() {
         if (clipboard != null && clipListener != null) {
             try { clipboard.removePrimaryClipChangedListener(clipListener); } catch (Exception ignored) { }
         }
         hideFloatingCard();
         super.onDestroy();
-    }
-
-    private static final class BuildVersion {
-        static int sdk() { return android.os.Build.VERSION.SDK_INT; }
     }
 }
