@@ -627,6 +627,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             className="min-h-[42px] rounded-xl bg-white/10 border border-white/15 text-white text-xs font-bold">
             اختيار لوحة المفاتيح
           </button>
+          <button type="button"
+            onClick={() => {
+              const bridge = (window as any).UMEDNativeDownloader;
+              if (bridge?.openOverlayPermissionSettings) bridge.openOverlayPermissionSettings();
+              else alert('هذه الميزة تتطلب تطبيق Android المثبّت.');
+            }}
+            className="col-span-2 min-h-[38px] rounded-xl bg-white/5 border border-white/10 text-slate-200 text-[11px] font-bold">
+            السماح ببطاقة المصطلح العائمة فوق التطبيقات
+          </button>
         </div>
       </section>
 
