@@ -4,4 +4,7 @@
     <string name="title_activity_main">UMEDT</string>
     <string name="package_name">org.umed2.dictengine</string>
     <string name="custom_url_scheme">org.umed2.dictengine</string>
+    <string name="ime_name">UMEDT Medical Keyboard</string>
+    <string name="ime_subtype_english">English</string>
+    <string name="ime_subtype_arabic">العربية</string>
 </resources>
