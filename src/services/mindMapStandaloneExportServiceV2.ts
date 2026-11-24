@@ -20,7 +20,7 @@ export function buildStandaloneMindMapHtmlV2(
   layout: MindMapLayoutResult,
   isDark = false
 ): string {
-  const svg = buildStandaloneMindMapSvg(doc, layout, isDark).replace(/^<\\?xml[^>]*>\\s*/, '');
+  const svg = buildStandaloneMindMapSvg(doc, layout, isDark).replace(/^<\?xml[^>]*>\s*/, '');
   const payload = safeJson({
     svg,
     title: doc.title || 'UMEDT Mind Map',
@@ -90,7 +90,7 @@ function mid(a,b){return{x:(a.x+b.x)/2,y:(a.y+b.y)/2};}
 function transform(){stage.style.transform='translate3d('+tx+'px,'+ty+'px,0) scale('+scale+')';}
 function fit(){var box=(svg.getAttribute('viewBox')||'0 0 900 600').split(/[ ,]+/).map(Number),vx=box[0]||0,vy=box[1]||0,w=Math.max(1,box[2]||900),h=Math.max(1,box[3]||600);scale=clamp(Math.min(viewport.clientWidth/w,viewport.clientHeight/h)*.92,.18,1.45);tx=(viewport.clientWidth-w*scale)/2-vx*scale;ty=(viewport.clientHeight-h*scale)/2-vy*scale;transform();}
 function descendants(id){(children.get(id)||[]).forEach(function(child){if(hidden.has(child))return;hidden.add(child);descendants(child);});}
-function refresh(){hidden.clear();collapsed.forEach(descendants);nodes.forEach(function(node,id){var el=svg.querySelector('.mm-node[data-node-id="'+CSS.escape(id)+'"]');if(el)el.style.display=hidden.has(id)?'none':'';});edgeEls.forEach(function(el){el.style.display=hidden.has(el.dataset.from)||hidden.has(el.dataset.to)?'none':'';});}
+function refresh(){hidden.clear();collapsed.forEach(descendants);nodes.forEach(function(node,id){var el=nodeEls.find(function(item){return item.dataset.nodeId===id;});if(el)el.style.display=hidden.has(id)?'none':'';});edgeEls.forEach(function(el){el.style.display=hidden.has(el.dataset.from)||hidden.has(el.dataset.to)?'none':'';});}
 function selectNode(id){if(!nodes.has(id))return;selectedId=id;nodeEls.forEach(function(el){el.classList.toggle('selected',el.dataset.nodeId===id);});var node=nodes.get(id);document.getElementById('node-title').textContent=node.label||'';document.getElementById('node-note').textContent=[node.sublabel,node.note].filter(Boolean).join(' · ');details.style.display='block';}
 function pointerDown(e){if(e.pointerType==='mouse'&&e.button!==0)return;viewport.setPointerCapture&&viewport.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size>=2){var p=Array.from(pointers.values()).slice(0,2),c=mid(p[0],p[1]);gesture={type:'pinch',distance:Math.max(1,dist(p[0],p[1])),scale:scale,worldX:(c.x-tx)/scale,worldY:(c.y-ty)/scale,moved:false};return;}var node=e.target.closest&&e.target.closest('.mm-node[data-node-id]');gesture={type:'pan',id:e.pointerId,x:e.clientX,y:e.clientY,tx:tx,ty:ty,nodeId:node?node.dataset.nodeId:null,moved:false};}
 function pointerMove(e){if(!pointers.has(e.pointerId))return;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});var p=Array.from(pointers.values()),g=gesture;if(p.length>=2&&g&&g.type==='pinch'){var c=mid(p[0],p[1]),next=clamp(g.scale*dist(p[0],p[1])/g.distance,.18,3.2);g.moved=true;scale=next;tx=c.x-g.worldX*next;ty=c.y-g.worldY*next;transform();return;}if(p.length===1&&g&&g.type==='pan'){var dx=e.clientX-g.x,dy=e.clientY-g.y;if(Math.hypot(dx,dy)>5)g.moved=true;if(g.moved&&!g.nodeId){tx=g.tx+dx;ty=g.ty+dy;transform();}}}
