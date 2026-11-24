@@ -69,6 +69,16 @@ public class UMEDTKeyboardService extends InputMethodService {
         TextView language = key(arabic ? "عربي" : "EN", true);
         language.setOnClickListener(v -> { arabic = !arabic; renderKeys(); });
         header.addView(language, new LinearLayout.LayoutParams(dp(64), dp(34)));
+        TextView switcher = key("⌨", true);
+        switcher.setOnClickListener(v -> {
+            try {
+                android.view.inputmethod.InputMethodManager manager =
+                        (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                if (manager != null) manager.showInputMethodPicker();
+            } catch (Exception ignored) {}
+        });
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(42), dp(34));
+        sp.leftMargin = dp(6); header.addView(switcher, sp);
         TextView hide = key("⌄", true);
         hide.setOnClickListener(v -> requestHideSelf(0));
         LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(dp(42), dp(34));
@@ -201,7 +211,7 @@ public class UMEDTKeyboardService extends InputMethodService {
                 String alias = item.optString("aliasName", "").trim();
                 String translation = item.optString("translation", "").trim();
                 String definition = item.optString("definitionAr", "").trim();
-                if (!term.isEmpty() && (term.equalsIgnoreCase(needle) || alias.equalsIgnoreCase(needle))) {
+                if (!term.isEmpty() && (term.equalsIgnoreCase(needle) || translation.equalsIgnoreCase(needle) || alias.equalsIgnoreCase(needle))) {
                     return term + "|" + translation + "|" + definition;
                 }
             }
