@@ -124,6 +124,19 @@ function cleanMarkdownFormatting(raw: string): string {
     .trim();
 }
 
+function cleanMarkdownNote(raw: string): string {
+  return String(raw || '')
+    .replace(/\\[([^\\]]+)\\]\\([^)]+\\)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\\*\\*([^*]+)\\*\\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/\\*([^*]+)\\*/g, '$1')
+    .replace(/\\r\\n?/g, '\\n')
+    .replace(/[ \\t]+/g, ' ')
+    .replace(/\\n{3,}/g, '\\n\\n')
+    .trim();
+}
+
 /**
  * Keeps mind map nodes concise and scannable so they never duplicate long textbook paragraphs.
  * Splits `Term: short cue` into label + sublabel, and moves overflow prose into `note`.
@@ -140,7 +153,7 @@ function condenseNodeText(
 } {
   let clean = cleanMarkdownFormatting(rawLabel);
   let sublabel = existingSublabel ? cleanMarkdownFormatting(existingSublabel) : undefined;
-  let note = existingNote ? cleanMarkdownFormatting(existingNote) : undefined;
+  let note = existingNote ? cleanMarkdownNote(existingNote) : undefined;
   let wasTrimmed = false;
 
   // Split "Main Label: Short Cue" or "Main Label — Short Cue" when no explicit sublabel exists
