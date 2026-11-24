@@ -241,6 +241,26 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<MainTab>(() => resolveInitialTabFromLocation());
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [terms, setTerms] = useState<DictionaryTerm[]>(initialPersisted.terms);
+
+  // Mirror the active local dictionary into Android's native keyboard for offline lookup.
+  useEffect(() => {
+    try {
+      const bridge = (window as unknown as {
+        UMEDAndroidBridge?: { updateDictionaryTerms?: (json: string) => boolean };
+      }).UMEDAndroidBridge;
+      if (!bridge?.updateDictionaryTerms) return;
+      bridge.updateDictionaryTerms(JSON.stringify(terms.map((term) => ({
+        term: term.term,
+        translation: term.translation,
+        definitionAr: term.definitionAr,
+        definitionEn: term.definitionEn,
+        relations: term.relations
+      }))));
+    } catch {
+      // Native keyboard sync must never interrupt the main app.
+    }
+  }, [terms]);
+
   const [sentences, setSentences] = useState<LinkedSentence[]>(initialPersisted.sentences);
   const [topics, setTopics] = useState<TopicArticle[]>(initialPersisted.topics);
   const [customAffixes, setCustomAffixes] = useState<MorphologicalAffix[]>(
