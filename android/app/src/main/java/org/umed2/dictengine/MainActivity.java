@@ -3,6 +3,9 @@ package org.umed2.dictengine;
 import android.Manifest;
 import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
+import android.content.ComponentName;
+import android.provider.Settings;
+import android.view.accessibility.AccessibilityManager;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -643,6 +646,55 @@ public class MainActivity extends BridgeActivity {
         public boolean isAvailable() {
             return true;
         }
+
+        @JavascriptInterface
+        public boolean isDictionaryAccessibilityEnabled() {
+            try {
+                AccessibilityManager manager = (AccessibilityManager) getSystemService(ACCESSIBILITY_SERVICE);
+                if (manager == null || !manager.isEnabled()) return false;
+                String expected = getPackageName() + "/" + DictionaryAccessibilityService.class.getName();
+                String enabled = Settings.Secure.getString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+                return enabled != null && enabled.toLowerCase(Locale.ROOT).contains(expected.toLowerCase(Locale.ROOT));
+            } catch (Exception ignored) { return false; }
+        }
+
+        @JavascriptInterface
+        public void openDictionaryAccessibilitySettings() {
+            try {
+                Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            } catch (Exception ignored) { }
+        }
+
+        @JavascriptInterface
+        public boolean updateDictionaryTerms(String json) {
+            try {
+                JSONArray input = new JSONArray(json == null ? "[]" : json);
+                JSONArray compact = new JSONArray();
+                for (int i = 0; i < input.length(); i++) {
+                    JSONObject source = input.optJSONObject(i);
+                    if (source == null) continue;
+                    JSONObject item = new JSONObject();
+                    item.put("term", source.optString("term", ""));
+                    item.put("translation", source.optString("translation", ""));
+                    item.put("definitionAr", source.optString("definitionAr", ""));
+                    item.put("definitionEn", source.optString("definitionEn", ""));
+                    JSONArray aliases = new JSONArray();
+                    JSONObject relations = source.optJSONObject("relations");
+                    if (relations != null) {
+                        JSONArray synonyms = relations.optJSONArray("synonyms");
+                        if (synonyms != null) for (int j = 0; j < synonyms.length(); j++) aliases.put(synonyms.optString(j));
+                    }
+                    item.put("aliases", aliases);
+                    compact.put(item);
+                }
+                getSharedPreferences("umedt_copy_dictionary", MODE_PRIVATE)
+                        .edit().putString("terms", compact.toString()).apply();
+                return true;
+            } catch (Exception ignored) { return false; }
+        }
+
 
         @JavascriptInterface
         public float getSystemFontScale() {
