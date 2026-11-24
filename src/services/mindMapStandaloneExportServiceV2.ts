@@ -7,12 +7,12 @@ function escapeHtml(value: string): string {
 
 function safeJson(value: unknown): string {
   return JSON.stringify(value)
-  const svg = buildStandaloneMindMapSvg(doc, layout, isDark).replace(/^<\?xml[^>]*>\s*/, '');
+    .replace(/</g, '\\u003c')
     .replace(/>/g, '\\u003e')
     .replace(/&/g, '\\u0026')
     .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2028/g, '\\u2028')
     .replace(/\u2029/g, '\\u2029');
+}
 
 /** A self-contained, offline-first, touch-friendly full-screen map document. */
 export function buildStandaloneMindMapHtmlV2(
@@ -20,6 +20,7 @@ export function buildStandaloneMindMapHtmlV2(
   layout: MindMapLayoutResult,
   isDark = false
 ): string {
+  const svg = buildStandaloneMindMapSvg(doc, layout, isDark).replace(/^<\?xml[^>]*>\s*/, '');
   const svg = buildStandaloneMindMapSvg(doc, layout, isDark).replace(/^<\?xml[^>]*>\s*/, '');
   const payload = safeJson({
     svg,
