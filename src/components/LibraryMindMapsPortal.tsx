@@ -110,11 +110,11 @@ export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showTo
       } else {
         content = await file.text();
         if (ext === 'html' || ext === 'htm') {
-          content = content.replace(/<\\/(?:p|div|li|h[1-6]|tr)>/gi, '\\n')
+          content = content.replace(/<\/(?:p|div|li|h[1-6]|tr)>/gi, '\n')
             .replace(/<[^>]*>/g, ' ')
             .replace(/&nbsp;/g, ' ')
             .replace(/&amp;/g, '&')
-            .replace(/\\s+/g, ' ')
+            .replace(/\s+/g, ' ')
             .trim();
         }
       }
