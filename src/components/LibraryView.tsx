@@ -3431,6 +3431,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         isOpen={isMindMapsPortalOpen}
         onClose={() => setIsMindMapsPortalOpen(false)}
         showToast={(message, type) => showToast?.(message, type)}
+        topics={topics}
       />
 
       <AiContentGuideModal
