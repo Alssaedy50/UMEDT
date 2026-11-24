@@ -620,7 +620,7 @@ export function buildStandaloneMindMapSvg(
       const palette = SVG_ROLE_PALETTE[pn.node.role] || SVG_ROLE_PALETTE.concept;
       const fill = pn.node.color || (isDark ? palette.fillDark : palette.fillLight);
       const stroke = pn.node.color || (isDark ? palette.strokeDark : palette.strokeLight);
-      const textColor = isDark ? palette.textDark : palette.textLight;
+      const textColor = pn.node.color ? '#ffffff' : isDark ? palette.textDark : palette.textLight;
       const x = pn.x - pn.width / 2;
       const y = pn.y - pn.height / 2;
       const shape = pn.node.shape || 'rounded';
