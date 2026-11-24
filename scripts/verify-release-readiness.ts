@@ -281,6 +281,34 @@ async function main() {
   );
   console.log('[PASS] 3. Capacitor Native Android Project (v2.5.3 / 20503) & Bundled Local Web Assets Synced');
 
+  // 3a. Verify the native bilingual IME, local clipboard matching, and optional floating-card permission.
+  const imeServicePath = path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'java', 'org', 'umed2', 'dictengine', 'UMEDTKeyboardService.java');
+  const imeManifestPath = path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'AndroidManifest.xml');
+  const imeBridgePath = path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'java', 'org', 'umed2', 'dictengine', 'MainActivity.java');
+  const imeAppPath = path.join(ROOT_DIR, 'src', 'App.tsx');
+  const imeServiceContent = fs.readFileSync(imeServicePath, 'utf8');
+  const imeManifestContent = fs.readFileSync(imeManifestPath, 'utf8');
+  const imeBridgeContent = fs.readFileSync(imeBridgePath, 'utf8');
+  const imeAppContent = fs.readFileSync(imeAppPath, 'utf8');
+  assertCondition(
+    imeServiceContent.includes('extends InputMethodService') &&
+      imeServiceContent.includes('addPrimaryClipChangedListener') &&
+      imeServiceContent.includes('showInputMethodPicker') &&
+      imeServiceContent.includes('TYPE_APPLICATION_OVERLAY') &&
+      imeServiceContent.includes('translation.equalsIgnoreCase(needle)'),
+    'UMEDT native keyboard must support clipboard monitoring, keyboard switching, Arabic translation matching, and floating cards'
+  );
+  assertCondition(
+    imeManifestContent.includes('.UMEDTKeyboardService') &&
+      imeManifestContent.includes('android.permission.BIND_INPUT_METHOD') &&
+      imeManifestContent.includes('SYSTEM_ALERT_WINDOW') &&
+      imeBridgeContent.includes('syncDictionaryTerms') &&
+      imeAppContent.includes('syncDictionaryTerms'),
+    'UMEDT keyboard must be registered and receive the local dictionary snapshot with overlay permission declared'
+  );
+  console.log('[PASS] 3a. Native UMEDT Keyboard, Clipboard Matching & Floating Dictionary Card');
+
+
   // 3b. Verify the two-path AI generator and local-only hierarchy/import contract.
   const aiGeneratorPath = path.join(ROOT_DIR, 'src', 'components', 'AiContentGuideModal.tsx');
   const aiImporterPath = path.join(ROOT_DIR, 'src', 'services', 'aiUniversalImportService.ts');
