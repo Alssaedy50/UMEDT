@@ -32,7 +32,7 @@ Return ONLY valid JSON matching this schema. Keep label concise (2-6 words), but
   "style": "radial",
   "nodes": [
     { "id": "n1", "label": "Central Concept", "sublabel": "المفهوم الرئيسي", "parentId": null, "role": "root" },
-    { "id": "n2", "label": "Pathophysiology", "sublabel": "الفيزيولوجيا المرضية", "note": "Write the complete explanation here without an artificial word limit. Include mechanisms, examples, and clinical relevance.", "parentId": "n1", "role": "mechanism" },
+    { "id": "n2", "label": "Pathophysiology", "sublabel": "الفيزيولوجيا المرضية", "note": "Write the complete explanation here without an artificial word limit. Include mechanisms, examples, and clinical relevance.", "parentId": "n1", "role": "mechanism", "shape": "diamond", "color": "#38bdf8" },
     { "id": "n3", "label": "First-line Therapy", "sublabel": "العلاج الأولي", "note": "Detailed treatment explanation, indications, cautions, and examples.", "parentId": "n1", "role": "treatment" }
   ],
   "edges": [
@@ -446,6 +446,10 @@ function parseJsonMindMap(
         parentId,
         role: normalizeRole(rn.role ?? rn.type ?? rn.category, condensed.label, parentId ? 1 : 0),
         order: typeof rn.order === 'number' ? rn.order : idx,
+        shape: ['rounded', 'pill', 'diamond', 'hexagon', 'circle'].includes(String(rn.shape))
+          ? (String(rn.shape) as MindMapNode['shape'])
+          : undefined,
+        color: typeof rn.color === 'string' && /^#[0-9a-f]{6}$/i.test(rn.color) ? rn.color : undefined,
         position: pos,
         shape: ['rounded', 'pill', 'diamond', 'hexagon', 'circle'].includes(String(rn.shape)) ? rn.shape as MindMapNode['shape'] : undefined,
         color: typeof rn.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(rn.color) ? rn.color : undefined
