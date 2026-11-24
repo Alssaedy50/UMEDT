@@ -95,6 +95,7 @@ import {
 } from '../services/aiUniversalImportService';
 import { AiContentGuideModal } from './AiContentGuideModal';
 import { QuizCenterModal } from './QuizCenterModal';
+import { MindMapStudioModal } from './MindMapStudioModal';
 import { LibraryMindMapsPortal } from './LibraryMindMapsPortal';
 
 export interface StagedTermItem {
@@ -122,7 +123,8 @@ export type LibrarySubMode =
   | 'favorites'
   | 'add_offline'
   | 'flashcards'
-  | 'cloud_library';
+  | 'cloud_library'
+  | 'mind_maps';
 
 interface LibraryViewProps {
   terms: DictionaryTerm[];
@@ -222,6 +224,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [busyTargetKey, setBusyTargetKey] = useState<string | null>(null);
   const [syncRevision, setSyncRevision] = useState(0);
   const [isAiGuideOpen, setIsAiGuideOpen] = useState(false);
+  const [isMindMapPortalOpen, setIsMindMapPortalOpen] = useState(false);
   const [isMindMapsPortalOpen, setIsMindMapsPortalOpen] = useState(false);
   const [activeExamModal, setActiveExamModal] = useState<AcademicExamPackage | null>(null);
   const [bookPdfPreview, setBookPdfPreview] = useState<{
@@ -3449,6 +3452,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         }}
         showToast={showToast}
       />
+
+      <MindMapStudioModal isOpen={isMindMapPortalOpen} onClose={() => setIsMindMapPortalOpen(false)} topics={topics} showToast={(msg, type) => showToast?.(msg, type)} />
 
       {activeExamModal && (
         <QuizCenterModal
