@@ -4,4 +4,5 @@
     <string name="umedt_keyboard_english">English</string>
     <string name="umedt_keyboard_arabic">Arabic</string>
     <string name="umedt_keyboard_description">لوحة مفاتيح UMEDT الطبية مع البحث المحلي عن المصطلحات المنسوخة.</string>
+    <string name="umedt_instant_translate_label">ترجمة UMEDT الفورية</string>
 </resources>

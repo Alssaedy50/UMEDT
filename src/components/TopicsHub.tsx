@@ -145,6 +145,11 @@ interface TopicsHubProps {
   onAddSentenceToExistingTerm: (termId: string, example: TermExample) => void;
   onTriggerTTS: (text: string, key: string, lang?: string) => void;
   onHierarchyChanged?: (reason: string) => void;
+  onOpenFullScreenMindMapStudio?: (ctx?: {
+    blockId?: string;
+    subjectId?: string;
+    topicId?: string;
+  }) => void;
   showToast: (message: string, type?: string) => void;
 }
 

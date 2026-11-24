@@ -1,0 +1,830 @@
+package org.umed2.dictengine;
+
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.graphics.PixelFormat;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.Settings;
+import android.speech.tts.TextToSpeech;
+import android.text.TextUtils;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowManager;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+/**
+ * Shared offline dictionary lookup and floating overlay translation card engine.
+ * Works directly from UMEDTKeyboardService, UMEDTClipboardMonitorService, and UMEDTPopupCardActivity
+ * without opening or loading the main WebView application.
+ */
+public final class UMEDTDictionaryPopupEngine {
+    public static final String PREFS_NAME = "umedt_copy_dictionary";
+    public static final String KEY_TERMS_JSON = "terms_json";
+    public static final String KEY_TERMS_COUNT = "terms_count";
+    public static final String KEY_MONITOR_ENABLED = "clipboard_monitor_enabled";
+    public static final String KEY_LAST_SYNC_TS = "last_sync_ts";
+
+    private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
+
+    private static String cachedRawJson = null;
+    private static List<JSONObject> cachedTermsList = new ArrayList<>();
+    private static Map<String, JSONObject> exactIndex = new HashMap<>();
+    private static Map<String, JSONObject> stemIndex = new HashMap<>();
+
+    private static View activeFloatingView = null;
+    private static WindowManager activeWindowManager = null;
+    private static final Runnable AUTO_DISMISS_RUNNABLE = UMEDTDictionaryPopupEngine::dismissFloatingCard;
+
+    private static String lastShownTermKey = "";
+    private static long lastShownTimestampMs = 0L;
+    private static volatile String ignoreClipboardText = "";
+
+    private static TextToSpeech ttsEngine = null;
+    private static boolean ttsReady = false;
+    private static String pendingTtsText = null;
+
+    private UMEDTDictionaryPopupEngine() {
+    }
+
+    /**
+     * Saves synced dictionary terms JSON from WebView into SharedPreferences and refreshes the in-memory index.
+     */
+    public static synchronized int saveDictionaryTermsJson(Context context, String json) {
+        if (context == null) return 0;
+        String safeJson = (json == null || json.trim().isEmpty()) ? "[]" : json;
+        int count = 0;
+        try {
+            JSONArray arr = new JSONArray(safeJson);
+            count = arr.length();
+        } catch (Exception ignored) {
+            safeJson = "[]";
+        }
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit()
+                .putString(KEY_TERMS_JSON, safeJson)
+                .putString("terms", safeJson)
+                .putInt(KEY_TERMS_COUNT, count)
+                .putLong(KEY_LAST_SYNC_TS, System.currentTimeMillis())
+                .apply();
+        rebuildMemoryIndex(safeJson);
+        return count;
+    }
+
+    public static int getSyncedTermsCount(Context context) {
+        if (context == null) return 0;
+        ensureIndexLoaded(context);
+        return cachedTermsList.size();
+    }
+
+    public static boolean isClipboardMonitorEnabled(Context context) {
+        if (context == null) return true;
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        return prefs.getBoolean(KEY_MONITOR_ENABLED, true);
+    }
+
+    public static void setClipboardMonitorEnabled(Context context, boolean enabled) {
+        if (context == null) return;
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit().putBoolean(KEY_MONITOR_ENABLED, enabled).apply();
+    }
+
+    private static synchronized void ensureIndexLoaded(Context context) {
+        if (context == null) return;
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String raw = prefs.getString(KEY_TERMS_JSON, null);
+        if (raw == null || raw.equals("[]") || raw.trim().isEmpty()) {
+            String legacy = prefs.getString("terms", "[]");
+            raw = (legacy != null && !legacy.trim().isEmpty()) ? legacy : "[]";
+        }
+        if (!raw.equals(cachedRawJson)) {
+            rebuildMemoryIndex(raw);
+        }
+    }
+
+    private static synchronized void rebuildMemoryIndex(String rawJson) {
+        cachedRawJson = rawJson;
+        cachedTermsList = new ArrayList<>();
+        exactIndex = new HashMap<>();
+        stemIndex = new HashMap<>();
+
+        try {
+            JSONArray arr = new JSONArray(rawJson);
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject item = arr.optJSONObject(i);
+                if (item == null) continue;
+                String term = item.optString("term", "").trim();
+                if (term.isEmpty()) continue;
+
+                cachedTermsList.add(item);
+
+                indexCandidateKey(term, item, true);
+
+                String umdCode = item.optString("umdCode", "").trim();
+                if (!umdCode.isEmpty()) {
+                    indexCandidateKey(umdCode, item, false);
+                }
+
+                String translation = item.optString("translation", "").trim();
+                if (!translation.isEmpty()) {
+                    indexCandidateKey(translation, item, true);
+                    // Also index slash/comma-separated Arabic translations (e.g. "تسرع القلب / خفقان")
+                    String[] arParts = translation.split("[/،,;|-]");
+                    for (String part : arParts) {
+                        String trimmedPart = part.trim();
+                        if (trimmedPart.length() >= 2) {
+                            indexCandidateKey(trimmedPart, item, true);
+                        }
+                    }
+                }
+
+                // Index aliases array
+                JSONArray aliases = item.optJSONArray("aliases");
+                if (aliases != null) {
+                    for (int j = 0; j < aliases.length(); j++) {
+                        String alias = aliases.optString(j, "").trim();
+                        if (!alias.isEmpty()) {
+                            indexCandidateKey(alias, item, true);
+                        }
+                    }
+                }
+
+                // Index relations.synonyms
+                JSONObject relations = item.optJSONObject("relations");
+                if (relations != null) {
+                    JSONArray synonyms = relations.optJSONArray("synonyms");
+                    if (synonyms != null) {
+                        for (int j = 0; j < synonyms.length(); j++) {
+                            String syn = synonyms.optString(j, "").trim();
+                            if (!syn.isEmpty()) {
+                                indexCandidateKey(syn, item, true);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static void indexCandidateKey(String rawKey, JSONObject item, boolean includeStems) {
+        String norm = normalizeLookupKey(rawKey);
+        if (norm.isEmpty()) return;
+        if (!exactIndex.containsKey(norm)) {
+            exactIndex.put(norm, item);
+        }
+        if (includeStems) {
+            for (String stem : generateMorphologicalVariants(norm)) {
+                if (!stem.isEmpty() && !stemIndex.containsKey(stem)) {
+                    stemIndex.put(stem, item);
+                }
+            }
+        }
+    }
+
+    /**
+     * Cleans punctuation, zero-width characters, surrounding quotes/brackets, and Arabic diacritics.
+     */
+    public static String normalizeLookupKey(String value) {
+        if (value == null) return "";
+        String cleaned = value
+                .replaceAll("[\\u200B-\\u200F\\uFEFF]", "")
+                // Remove Arabic tashkeel / diacritics and tatweel
+                .replaceAll("[\\u0640\\u064B-\\u065F\\u0670]", "")
+                .toLowerCase(Locale.ROOT)
+                .trim();
+
+        // Normalize common Arabic character variants for reliable lookup
+        cleaned = cleaned
+                .replace('أ', 'ا')
+                .replace('إ', 'ا')
+                .replace('آ', 'ا')
+                .replace('ٱ', 'ا')
+                .replace('ة', 'ه')
+                .replace('ى', 'ي');
+
+        // Strip leading and trailing punctuation/quotes/brackets
+        cleaned = cleaned
+                .replaceAll("^[^\\p{L}\\p{N}]+", "")
+                .replaceAll("[^\\p{L}\\p{N}]+$", "")
+                .replaceAll("\\s+", " ")
+                .trim();
+        return cleaned;
+    }
+
+    /**
+     * Generates English medical/standard inflections and Arabic definite-article variants.
+     */
+    private static List<String> generateMorphologicalVariants(String norm) {
+        List<String> variants = new ArrayList<>();
+        if (norm == null || norm.length() < 2) return variants;
+        variants.add(norm);
+
+        // Arabic prefix stripping (ال، وال، بال، كال، فال، لل)
+        String[] arPrefixes = new String[]{"وال", "بال", "كال", "فال", "ال", "لل"};
+        for (String prefix : arPrefixes) {
+            if (norm.startsWith(prefix) && norm.length() - prefix.length() >= 2) {
+                variants.add(norm.substring(prefix.length()));
+            }
+        }
+
+        // English & Greco-Latin medical plural / inflection normalization
+        if (norm.length() >= 4) {
+            if (norm.endsWith("ies") && norm.length() > 4) {
+                variants.add(norm.substring(0, norm.length() - 3) + "y");
+            }
+            if (norm.endsWith("ae") && norm.length() > 4) {
+                variants.add(norm.substring(0, norm.length() - 2) + "a");
+            }
+            if (norm.endsWith("ices") && norm.length() > 5) {
+                String base = norm.substring(0, norm.length() - 4);
+                variants.add(base + "ix");
+                variants.add(base + "ex");
+            }
+            if (norm.endsWith("itides") && norm.length() > 7) {
+                variants.add(norm.substring(0, norm.length() - 6) + "itis");
+            }
+            if (norm.endsWith("ata") && norm.length() > 5) {
+                variants.add(norm.substring(0, norm.length() - 3) + "a");
+            }
+            if (norm.endsWith("i") && norm.length() > 4) {
+                variants.add(norm.substring(0, norm.length() - 1) + "us");
+            }
+            if (norm.endsWith("a") && norm.length() > 4) {
+                String base = norm.substring(0, norm.length() - 1);
+                variants.add(base + "um");
+                variants.add(base + "on");
+            }
+            if (norm.endsWith("es") && norm.length() > 4) {
+                variants.add(norm.substring(0, norm.length() - 2));
+                variants.add(norm.substring(0, norm.length() - 1));
+            }
+            if (norm.endsWith("s") && !norm.endsWith("ss") && !norm.endsWith("is") && !norm.endsWith("us")) {
+                variants.add(norm.substring(0, norm.length() - 1));
+            }
+            if (norm.endsWith("ed") && norm.length() > 4) {
+                variants.add(norm.substring(0, norm.length() - 2));
+                variants.add(norm.substring(0, norm.length() - 1));
+            }
+            if (norm.endsWith("ing") && norm.length() > 5) {
+                variants.add(norm.substring(0, norm.length() - 3));
+                variants.add(norm.substring(0, norm.length() - 3) + "e");
+            }
+        }
+        return variants;
+    }
+
+    /**
+     * Looks up a copied or selected text string in the synced local dictionary.
+     * Supports exact match, synonym/alias match, Arabic reverse match, inflection stem match,
+     * and n-gram extraction from short copied phrases.
+     */
+    public static synchronized JSONObject findTerm(Context context, String rawText) {
+        if (context == null || rawText == null) return null;
+        String trimmed = rawText.trim();
+        if (trimmed.isEmpty() || trimmed.length() > 180) return null;
+        // Ignore URLs
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return null;
+
+        ensureIndexLoaded(context);
+        if (cachedTermsList.isEmpty()) return null;
+
+        String queryNorm = normalizeLookupKey(trimmed);
+        if (queryNorm.isEmpty()) return null;
+
+        // 1. Direct exact lookup (O(1))
+        JSONObject exact = exactIndex.get(queryNorm);
+        if (exact != null) {
+            return attachMatchedQuery(exact, trimmed);
+        }
+
+        // 2. Morphological / Inflection stem lookup (O(1))
+        for (String variant : generateMorphologicalVariants(queryNorm)) {
+            JSONObject byVariant = exactIndex.get(variant);
+            if (byVariant != null) {
+                return attachMatchedQuery(byVariant, trimmed);
+            }
+            JSONObject byStem = stemIndex.get(variant);
+            if (byStem != null) {
+                return attachMatchedQuery(byStem, trimmed);
+            }
+        }
+
+        // 3. If the copied text contains parenthetical or slash/dash separated parts
+        // e.g. "تصلب الشرايين (Atherosclerosis)" or "Myocardial Infarction - MI"
+        String[] segments = trimmed.split("[()\\[\\]/،,;|\\-–—:]");
+        if (segments.length > 1) {
+            for (String seg : segments) {
+                String segNorm = normalizeLookupKey(seg);
+                if (segNorm.length() >= 2) {
+                    JSONObject segMatch = exactIndex.get(segNorm);
+                    if (segMatch != null) return attachMatchedQuery(segMatch, seg.trim());
+                    for (String variant : generateMorphologicalVariants(segNorm)) {
+                        JSONObject varMatch = exactIndex.get(variant);
+                        if (varMatch != null) return attachMatchedQuery(varMatch, seg.trim());
+                    }
+                }
+            }
+        }
+
+        // 4. Short phrase n-gram scanning (if user copied 2 to 10 words, find longest dictionary term inside)
+        String[] words = queryNorm.split("\\s+");
+        if (words.length >= 2 && words.length <= 10) {
+            int maxN = Math.min(4, words.length);
+            for (int n = maxN; n >= 1; n--) {
+                for (int start = 0; start <= words.length - n; start++) {
+                    StringBuilder sb = new StringBuilder();
+                    for (int k = 0; k < n; k++) {
+                        if (k > 0) sb.append(' ');
+                        sb.append(words[start + k]);
+                    }
+                    String candidate = normalizeLookupKey(sb.toString());
+                    if (n == 1 && candidate.length() < 3) continue;
+                    JSONObject ngramMatch = exactIndex.get(candidate);
+                    if (ngramMatch != null) {
+                        return attachMatchedQuery(ngramMatch, sb.toString());
+                    }
+                    for (String variant : generateMorphologicalVariants(candidate)) {
+                        if (n == 1 && variant.length() < 3) continue;
+                        JSONObject ngramVarMatch = exactIndex.get(variant);
+                        if (ngramVarMatch != null) {
+                            return attachMatchedQuery(ngramVarMatch, sb.toString());
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static JSONObject attachMatchedQuery(JSONObject source, String matchedInput) {
+        try {
+            JSONObject copy = new JSONObject(source.toString());
+            copy.put("_matchedInput", matchedInput != null ? matchedInput.trim() : "");
+            return copy;
+        } catch (Exception e) {
+            return source;
+        }
+    }
+
+    /**
+     * Reads the current primary clipboard and shows the floating overlay card if a dictionary term is found.
+     * Returns the matched JSONObject if found, or null otherwise.
+     */
+    public static JSONObject inspectClipboardAndShowIfMatched(Context context, boolean forceShow) {
+        if (context == null) return null;
+        try {
+            ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+            if (cm == null || !cm.hasPrimaryClip()) return null;
+            ClipData clip = cm.getPrimaryClip();
+            if (clip == null || clip.getItemCount() == 0) return null;
+            CharSequence textSeq = clip.getItemAt(0).coerceToText(context);
+            if (textSeq == null) return null;
+            String copied = textSeq.toString().trim();
+            if (copied.isEmpty()) return null;
+            if (copied.equals(ignoreClipboardText)) {
+                return null;
+            }
+            JSONObject matched = findTerm(context, copied);
+            if (matched != null) {
+                showFloatingCard(context.getApplicationContext(), matched, forceShow);
+            }
+            return matched;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Reads the current clipboard and returns a matched dictionary term without showing the overlay.
+     */
+    public static JSONObject peekClipboardMatchedTerm(Context context) {
+        if (context == null) return null;
+        try {
+            ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+            if (cm == null || !cm.hasPrimaryClip()) return null;
+            ClipData clip = cm.getPrimaryClip();
+            if (clip == null || clip.getItemCount() == 0) return null;
+            CharSequence textSeq = clip.getItemAt(0).coerceToText(context);
+            if (textSeq == null) return null;
+            String copied = textSeq.toString().trim();
+            if (copied.isEmpty()) return null;
+            return findTerm(context, copied);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    public static boolean canDrawOverlays(Context context) {
+        if (context == null) return false;
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context);
+    }
+
+    /**
+     * Displays the floating dictionary translation card over any running app via WindowManager overlay.
+     */
+    public static void showFloatingCard(final Context context, final JSONObject term, final boolean forceShow) {
+        if (context == null || term == null) return;
+        MAIN_HANDLER.post(() -> {
+            String termKey = term.optString("term", "") + "|" + term.optString("translation", "");
+            long now = System.currentTimeMillis();
+            if (!forceShow && termKey.equals(lastShownTermKey) && (now - lastShownTimestampMs) < 1200L) {
+                return;
+            }
+            lastShownTermKey = termKey;
+            lastShownTimestampMs = now;
+
+            if (!canDrawOverlays(context)) {
+                // Fallback: if overlay permission is not granted yet, show a rich multi-line Toast
+                String title = term.optString("term", "");
+                String tr = term.optString("translation", "");
+                String def = term.optString("definitionAr", "");
+                String msg = "📖 " + title + " : " + tr + (def.isEmpty() ? "" : "\n" + def);
+                Toast.makeText(context, msg, Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            dismissFloatingCard();
+
+            WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+            if (wm == null) return;
+
+            View cardView = buildTranslationCardView(
+                    context,
+                    term,
+                    UMEDTDictionaryPopupEngine::dismissFloatingCard,
+                    () -> scheduleAutoDismiss(11000L)
+            );
+
+            int overlayType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                    ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                    : WindowManager.LayoutParams.TYPE_PHONE;
+
+            int screenWidth = context.getResources().getDisplayMetrics().widthPixels;
+            int cardWidth = Math.min(screenWidth - dp(context, 24), dp(context, 460));
+
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                    cardWidth,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    overlayType,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                            | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                            | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                    PixelFormat.TRANSLUCENT
+            );
+            params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+            params.y = dp(context, 44);
+
+            try {
+                wm.addView(cardView, params);
+                activeFloatingView = cardView;
+                activeWindowManager = wm;
+                scheduleAutoDismiss(10000L);
+            } catch (Exception ignored) {
+            }
+        });
+    }
+
+    private static void scheduleAutoDismiss(long delayMs) {
+        MAIN_HANDLER.removeCallbacks(AUTO_DISMISS_RUNNABLE);
+        MAIN_HANDLER.postDelayed(AUTO_DISMISS_RUNNABLE, delayMs);
+    }
+
+    public static void dismissFloatingCard() {
+        MAIN_HANDLER.removeCallbacks(AUTO_DISMISS_RUNNABLE);
+        if (activeWindowManager != null && activeFloatingView != null) {
+            try {
+                activeWindowManager.removeView(activeFloatingView);
+            } catch (Exception ignored) {
+            }
+        }
+        activeFloatingView = null;
+        activeWindowManager = null;
+    }
+
+    /**
+     * Builds the styled floating card View. Used both by WindowManager overlay and UMEDTPopupCardActivity.
+     */
+    public static View buildTranslationCardView(
+            final Context context,
+            final JSONObject term,
+            final Runnable onClose,
+            final Runnable onUserInteraction
+    ) {
+        final String termEn = term.optString("term", "");
+        final String translationAr = term.optString("translation", "");
+        final String phonetic = term.optString("phonetic", "");
+        final String category = term.optString("category", "Medical");
+        final String pos = term.optString("pos", "");
+        final String definitionAr = term.optString("definitionAr", "");
+        final String definitionEn = term.optString("definitionEn", "");
+        final String exampleEn = term.optString("exampleEn", "");
+        final String exampleAr = term.optString("exampleAr", "");
+        final String matchedInput = term.optString("_matchedInput", "");
+
+        LinearLayout root = new LinearLayout(context);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        root.setPadding(dp(context, 16), dp(context, 14), dp(context, 16), dp(context, 14));
+
+        GradientDrawable cardBg = new GradientDrawable();
+        cardBg.setColor(Color.parseColor("#0F172A"));
+        cardBg.setCornerRadius(dp(context, 20));
+        cardBg.setStroke(dp(context, 2), Color.parseColor("#10B981"));
+        root.setBackground(cardBg);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            root.setElevation(dp(context, 12));
+        }
+
+        // 1. Header Row: Badge + Category Pill + Close Button
+        LinearLayout headerRow = new LinearLayout(context);
+        headerRow.setOrientation(LinearLayout.HORIZONTAL);
+        headerRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView brandBadge = new TextView(context);
+        brandBadge.setText("⚡ قاموس UMEDT الفوري");
+        brandBadge.setTextColor(Color.parseColor("#34D399"));
+        brandBadge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
+        brandBadge.setTypeface(Typeface.DEFAULT_BOLD);
+        LinearLayout.LayoutParams brandParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        headerRow.addView(brandBadge, brandParams);
+
+        if (!category.isEmpty() || !pos.isEmpty()) {
+            TextView catBadge = new TextView(context);
+            String badgeLabel = category + (!pos.isEmpty() ? " · " + pos : "");
+            catBadge.setText(badgeLabel);
+            catBadge.setTextColor(Color.parseColor("#CBD5E1"));
+            catBadge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f);
+            catBadge.setPadding(dp(context, 8), dp(context, 3), dp(context, 8), dp(context, 3));
+            GradientDrawable pillBg = new GradientDrawable();
+            pillBg.setColor(Color.parseColor("#1E293B"));
+            pillBg.setCornerRadius(dp(context, 10));
+            pillBg.setStroke(dp(context, 1), Color.parseColor("#334155"));
+            catBadge.setBackground(pillBg);
+            LinearLayout.LayoutParams catParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            catParams.setMargins(dp(context, 6), 0, dp(context, 6), 0);
+            headerRow.addView(catBadge, catParams);
+        }
+
+        TextView closeBtn = new TextView(context);
+        closeBtn.setText("✕");
+        closeBtn.setTextColor(Color.parseColor("#94A3B8"));
+        closeBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f);
+        closeBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        closeBtn.setGravity(Gravity.CENTER);
+        closeBtn.setPadding(dp(context, 10), dp(context, 4), dp(context, 10), dp(context, 4));
+        GradientDrawable closeBg = new GradientDrawable();
+        closeBg.setColor(Color.parseColor("#1E293B"));
+        closeBg.setCornerRadius(dp(context, 10));
+        closeBtn.setBackground(closeBg);
+        closeBtn.setOnClickListener(v -> {
+            if (onClose != null) onClose.run();
+        });
+        headerRow.addView(closeBtn);
+        root.addView(headerRow);
+
+        // Matched Alias note if matched via abbreviation or inflection
+        if (!matchedInput.isEmpty()
+                && !matchedInput.equalsIgnoreCase(termEn)
+                && !matchedInput.equalsIgnoreCase(translationAr)) {
+            TextView matchedNote = new TextView(context);
+            matchedNote.setText("تطابق مع المنسوخ: \"" + matchedInput + "\"");
+            matchedNote.setTextColor(Color.parseColor("#38BDF8"));
+            matchedNote.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f);
+            matchedNote.setPadding(0, dp(context, 4), 0, 0);
+            root.addView(matchedNote);
+        }
+
+        // 2. English Term + Phonetic Row
+        LinearLayout termRow = new LinearLayout(context);
+        termRow.setOrientation(LinearLayout.HORIZONTAL);
+        termRow.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        termRow.setGravity(Gravity.CENTER_VERTICAL);
+        termRow.setPadding(0, dp(context, 8), 0, dp(context, 6));
+
+        TextView termView = new TextView(context);
+        termView.setText(termEn);
+        termView.setTextColor(Color.WHITE);
+        termView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 19f);
+        termView.setTypeface(Typeface.DEFAULT_BOLD);
+        LinearLayout.LayoutParams termParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        termRow.addView(termView, termParams);
+
+        if (!phonetic.isEmpty()) {
+            TextView phoneticView = new TextView(context);
+            phoneticView.setText(phonetic);
+            phoneticView.setTextColor(Color.parseColor("#94A3B8"));
+            phoneticView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
+            phoneticView.setTypeface(Typeface.MONOSPACE);
+            phoneticView.setPadding(dp(context, 8), 0, 0, 0);
+            termRow.addView(phoneticView);
+        }
+        root.addView(termRow);
+
+        // 3. Highlighted Arabic Translation Box
+        LinearLayout transBox = new LinearLayout(context);
+        transBox.setOrientation(LinearLayout.VERTICAL);
+        transBox.setPadding(dp(context, 12), dp(context, 10), dp(context, 12), dp(context, 10));
+        GradientDrawable transBg = new GradientDrawable();
+        transBg.setColor(Color.parseColor("#064E3B"));
+        transBg.setCornerRadius(dp(context, 14));
+        transBg.setStroke(dp(context, 1), Color.parseColor("#10B981"));
+        transBox.setBackground(transBg);
+
+        TextView transView = new TextView(context);
+        transView.setText(translationAr.isEmpty() ? termEn : translationAr);
+        transView.setTextColor(Color.parseColor("#A7F3D0"));
+        transView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16.5f);
+        transView.setTypeface(Typeface.DEFAULT_BOLD);
+        transBox.addView(transView);
+        root.addView(transBox);
+
+        // 4. Scrollable Definition & Example Section (capped height so it never fills screen)
+        if (!definitionAr.isEmpty() || !definitionEn.isEmpty() || !exampleEn.isEmpty()) {
+            ScrollView scroll = new ScrollView(context);
+            LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            scrollParams.topMargin = dp(context, 8);
+            scroll.setLayoutParams(scrollParams);
+
+            LinearLayout detailsCol = new LinearLayout(context);
+            detailsCol.setOrientation(LinearLayout.VERTICAL);
+
+            if (!definitionAr.isEmpty()) {
+                TextView defArView = new TextView(context);
+                defArView.setText(definitionAr);
+                defArView.setTextColor(Color.parseColor("#E2E8F0"));
+                defArView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+                defArView.setLineSpacing(dp(context, 2), 1.1f);
+                defArView.setMaxLines(4);
+                defArView.setEllipsize(TextUtils.TruncateAt.END);
+                detailsCol.addView(defArView);
+            }
+
+            if (!definitionEn.isEmpty()) {
+                TextView defEnView = new TextView(context);
+                defEnView.setText(definitionEn);
+                defEnView.setTextColor(Color.parseColor("#94A3B8"));
+                defEnView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
+                defEnView.setPadding(0, dp(context, 4), 0, 0);
+                defEnView.setMaxLines(2);
+                defEnView.setEllipsize(TextUtils.TruncateAt.END);
+                detailsCol.addView(defEnView);
+            }
+
+            if (!exampleEn.isEmpty()) {
+                TextView exView = new TextView(context);
+                String exText = "💡 " + exampleEn + (!exampleAr.isEmpty() ? "\n" + exampleAr : "");
+                exView.setText(exText);
+                exView.setTextColor(Color.parseColor("#CBD5E1"));
+                exView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
+                exView.setPadding(dp(context, 10), dp(context, 6), dp(context, 10), dp(context, 6));
+                GradientDrawable exBg = new GradientDrawable();
+                exBg.setColor(Color.parseColor("#1E293B"));
+                exBg.setCornerRadius(dp(context, 10));
+                exView.setBackground(exBg);
+                LinearLayout.LayoutParams exParams = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                );
+                exParams.topMargin = dp(context, 6);
+                detailsCol.addView(exView, exParams);
+            }
+
+            scroll.addView(detailsCol);
+            root.addView(scroll);
+        }
+
+        // 5. Action Buttons Row (Speak TTS + Copy Translation + Close) — zero app launch required!
+        LinearLayout actionsRow = new LinearLayout(context);
+        actionsRow.setOrientation(LinearLayout.HORIZONTAL);
+        actionsRow.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        actionsParams.topMargin = dp(context, 10);
+        actionsRow.setLayoutParams(actionsParams);
+
+        // Speak Button
+        TextView speakBtn = createActionChip(context, "🔊 نطق المصطلح", "#059669", "#FFFFFF");
+        speakBtn.setOnClickListener(v -> {
+            if (onUserInteraction != null) onUserInteraction.run();
+            speakMedicalTerm(context, termEn);
+        });
+        LinearLayout.LayoutParams speakParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        speakParams.setMargins(0, 0, dp(context, 4), 0);
+        actionsRow.addView(speakBtn, speakParams);
+
+        // Copy Translation Button
+        final TextView copyBtn = createActionChip(context, "📋 نسخ الترجمة", "#1E293B", "#E2E8F0");
+        copyBtn.setOnClickListener(v -> {
+            if (onUserInteraction != null) onUserInteraction.run();
+            String toCopy = translationAr.isEmpty() ? termEn : translationAr;
+            ignoreClipboardText = toCopy;
+            try {
+                ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+                if (cm != null) {
+                    cm.setPrimaryClip(ClipData.newPlainText("UMEDT Translation", toCopy));
+                    copyBtn.setText("✓ تم النسخ");
+                    copyBtn.setTextColor(Color.parseColor("#34D399"));
+                }
+            } catch (Exception ignored) {
+            }
+        });
+        LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        copyParams.setMargins(dp(context, 4), 0, 0, 0);
+        actionsRow.addView(copyBtn, copyParams);
+
+        root.addView(actionsRow);
+        return root;
+    }
+
+    private static TextView createActionChip(Context context, String label, String bgHex, String fgHex) {
+        TextView btn = new TextView(context);
+        btn.setText(label);
+        btn.setTextColor(Color.parseColor(fgHex));
+        btn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
+        btn.setTypeface(Typeface.DEFAULT_BOLD);
+        btn.setGravity(Gravity.CENTER);
+        btn.setPadding(dp(context, 10), dp(context, 8), dp(context, 10), dp(context, 8));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Color.parseColor(bgHex));
+        bg.setCornerRadius(dp(context, 12));
+        bg.setStroke(dp(context, 1), Color.parseColor("#334155"));
+        btn.setBackground(bg);
+        return btn;
+    }
+
+    /**
+     * Speaks the English medical term using native Android TextToSpeech without opening the main app.
+     */
+    public static void speakMedicalTerm(Context context, final String textToSpeak) {
+        if (context == null || textToSpeak == null || textToSpeak.trim().isEmpty()) return;
+        final Context appCtx = context.getApplicationContext();
+        if (ttsEngine == null) {
+            pendingTtsText = textToSpeak.trim();
+            ttsEngine = new TextToSpeech(appCtx, status -> {
+                if (status == TextToSpeech.SUCCESS && ttsEngine != null) {
+                    ttsEngine.setLanguage(Locale.US);
+                    ttsEngine.setSpeechRate(0.92f);
+                    ttsReady = true;
+                    if (pendingTtsText != null) {
+                        speakInternal(pendingTtsText);
+                        pendingTtsText = null;
+                    }
+                }
+            });
+        } else if (ttsReady) {
+            speakInternal(textToSpeak.trim());
+        } else {
+            pendingTtsText = textToSpeak.trim();
+        }
+    }
+
+    private static void speakInternal(String text) {
+        if (ttsEngine == null) return;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                ttsEngine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "umedt_popup_tts");
+            } else {
+                ttsEngine.speak(text, TextToSpeech.QUEUE_FLUSH, null);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static int dp(Context context, int value) {
+        return Math.round(value * context.getResources().getDisplayMetrics().density);
+    }
+}

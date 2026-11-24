@@ -1357,9 +1357,23 @@ public class MainActivity extends BridgeActivity {
                     JSONObject item = new JSONObject();
                     item.put("term", term);
                     item.put("translation", source.optString("translation", ""));
+                    item.put("phonetic", source.optString("phonetic", ""));
+                    item.put("pos", source.optString("pos", ""));
+                    item.put("category", source.optString("category", "Medical"));
+                    item.put("umdCode", source.optString("umdCode", ""));
                     item.put("definitionAr", source.optString("definitionAr", ""));
                     item.put("definitionEn", source.optString("definitionEn", ""));
+                    item.put("exampleEn", source.optString("exampleEn", ""));
+                    item.put("exampleAr", source.optString("exampleAr", ""));
+
                     JSONArray aliases = new JSONArray();
+                    JSONArray directAliases = source.optJSONArray("aliases");
+                    if (directAliases != null) {
+                        for (int j = 0; j < directAliases.length(); j++) {
+                            String alias = directAliases.optString(j, "").trim();
+                            if (!alias.isEmpty()) aliases.put(alias);
+                        }
+                    }
                     JSONObject relations = source.optJSONObject("relations");
                     JSONArray synonyms = relations == null ? null : relations.optJSONArray("synonyms");
                     if (synonyms != null) {
@@ -1371,10 +1385,15 @@ public class MainActivity extends BridgeActivity {
                     item.put("aliases", aliases);
                     compact.put(item);
                 }
-                getSharedPreferences("umedt_copy_dictionary", MODE_PRIVATE)
-                        .edit().putString("terms", compact.toString()).apply();
+                UMEDTDictionaryPopupEngine.saveDictionaryTermsJson(MainActivity.this, compact.toString());
+                UMEDTClipboardMonitorService.startMonitorIfEnabled(MainActivity.this);
                 return true;
             } catch (Exception ignored) { return false; }
+        }
+
+        @JavascriptInterface
+        public int getSyncedDictionaryCount() {
+            return UMEDTDictionaryPopupEngine.getSyncedTermsCount(MainActivity.this);
         }
 
         @JavascriptInterface
@@ -1387,11 +1406,41 @@ public class MainActivity extends BridgeActivity {
         }
 
         @JavascriptInterface
+        public void showUmedtKeyboardPicker() {
+            runOnUiThread(() -> {
+                try {
+                    android.view.inputmethod.InputMethodManager imm =
+                            (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                    if (imm != null) {
+                        imm.showInputMethodPicker();
+                    }
+                } catch (Exception ignored) { }
+            });
+        }
+
+        @JavascriptInterface
+        public boolean isUmedtKeyboardEnabled() {
+            try {
+                android.view.inputmethod.InputMethodManager imm =
+                        (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm == null) return false;
+                List<android.view.inputmethod.InputMethodInfo> list = imm.getEnabledInputMethodList();
+                String pkg = getPackageName();
+                for (android.view.inputmethod.InputMethodInfo info : list) {
+                    if (info != null && pkg.equals(info.getPackageName())) {
+                        return true;
+                    }
+                }
+                return false;
+            } catch (Exception ignored) { return false; }
+        }
+
+        @JavascriptInterface
         public boolean isUmedtDefaultKeyboard() {
             try {
                 String current = android.provider.Settings.Secure.getString(
                         getContentResolver(), android.provider.Settings.Secure.DEFAULT_INPUT_METHOD);
-                return current != null && current.contains(getPackageName() + "/.UMEDTKeyboardService");
+                return current != null && current.contains(getPackageName() + "/");
             } catch (Exception ignored) { return false; }
         }
 
@@ -1407,8 +1456,58 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public boolean canUmedtDrawOverlays() {
-            return Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
-                    android.provider.Settings.canDrawOverlays(MainActivity.this);
+            return UMEDTDictionaryPopupEngine.canDrawOverlays(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public boolean isClipboardMonitorEnabled() {
+            return UMEDTDictionaryPopupEngine.isClipboardMonitorEnabled(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public boolean setClipboardMonitorEnabled(boolean enabled) {
+            UMEDTDictionaryPopupEngine.setClipboardMonitorEnabled(MainActivity.this, enabled);
+            if (enabled) {
+                UMEDTClipboardMonitorService.startMonitorIfEnabled(MainActivity.this);
+            } else {
+                UMEDTClipboardMonitorService.stopMonitor(MainActivity.this);
+            }
+            return enabled;
+        }
+
+        @JavascriptInterface
+        public boolean testFloatingTranslationCard(String queryOrTermJson) {
+            try {
+                JSONObject matched = null;
+                if (queryOrTermJson != null && queryOrTermJson.trim().startsWith("{")) {
+                    matched = new JSONObject(queryOrTermJson.trim());
+                } else if (queryOrTermJson != null && !queryOrTermJson.trim().isEmpty()) {
+                    matched = UMEDTDictionaryPopupEngine.findTerm(MainActivity.this, queryOrTermJson.trim());
+                }
+                if (matched == null) {
+                    matched = UMEDTDictionaryPopupEngine.peekClipboardMatchedTerm(MainActivity.this);
+                }
+                if (matched == null) {
+                    matched = new JSONObject();
+                    matched.put("term", "Thrombocytopenia");
+                    matched.put("translation", "نقص الصفيحات الدموية");
+                    matched.put("phonetic", "/ˌθrɒmboʊˌsaɪtoʊˈpiːniə/");
+                    matched.put("category", "Hematology");
+                    matched.put("pos", "Noun");
+                    matched.put("definitionAr", "انخفاض غير طبيعي في عدد الصفيحات الدموية في الدم مما يزيد قابلية النزف.");
+                    matched.put("definitionEn", "Abnormally low level of platelets in the circulating blood.");
+                }
+                UMEDTDictionaryPopupEngine.showFloatingCard(getApplicationContext(), matched, true);
+                return true;
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+
+        @JavascriptInterface
+        public boolean checkClipboardAndShowCardNow() {
+            JSONObject matched = UMEDTDictionaryPopupEngine.inspectClipboardAndShowIfMatched(MainActivity.this, true);
+            return matched != null;
         }
 
     }

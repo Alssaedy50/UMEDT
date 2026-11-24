@@ -38,6 +38,8 @@ interface MindMapStudioModalProps {
   initialTopic?: TopicArticle | null;
   initialMindMapId?: string | null;
   onEmbedMapInTopic?: (topic: TopicArticle, mindMap: MindMapDocument) => void;
+  onOpenLinkedTopic?: (topicId: string) => void;
+  backLabel?: string;
   showToast: (msg: string, type?: string) => void;
 }
 

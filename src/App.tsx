@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   Search,
   Star,
@@ -14,7 +14,10 @@ import {
   CheckCircle2,
   BookOpen,
   Menu,
-  Settings
+  Settings,
+  GitFork,
+  Copy,
+  Sparkles
 } from 'lucide-react';
 import {
   EXTRA_LINKABLE_ALIASES,
@@ -80,6 +83,7 @@ import {
 } from './services/storageService';
 import { SearchHub } from './components/SearchHub';
 import { TopicsHub } from './components/TopicsHub';
+import { MindMapStudioModal } from './components/MindMapStudioModal';
 import { TermDetailSheet } from './components/TermDetailSheet';
 import { LibraryView, LibrarySubMode, StagedTermItem } from './components/LibraryView';
 import { SettingsView } from './components/SettingsView';
@@ -134,7 +138,7 @@ import {
   clearLocallyRemovedRegistry
 } from './services/cloudLibrarySyncService';
 
-type MainTab = 'home' | 'topics' | 'library' | 'settings';
+type MainTab = 'home' | 'topics' | 'mindmaps' | 'library' | 'settings';
 
 const ROUTE_TO_TAB: Record<string, MainTab> = {
   '/': 'home',
@@ -142,6 +146,8 @@ const ROUTE_TO_TAB: Record<string, MainTab> = {
   '/search': 'home',
   '/topics': 'topics',
   '/translator': 'topics',
+  '/mindmaps': 'mindmaps',
+  '/mindmap': 'mindmaps',
   '/datacenter': 'library',
   '/medical-data-center': 'library',
   '/ingest': 'library',
@@ -152,6 +158,7 @@ const ROUTE_TO_TAB: Record<string, MainTab> = {
 const TAB_TO_HASH: Record<MainTab, string> = {
   home: '#home',
   topics: '#topics',
+  mindmaps: '#mindmaps',
   library: '#library',
   settings: '#settings'
 };
@@ -159,6 +166,7 @@ const TAB_TO_HASH: Record<MainTab, string> = {
 const PAGE_LABELS: Record<MainTab, string> = {
   home: 'القاموس',
   topics: 'المواضيع',
+  mindmaps: 'الخرائط الذهنية',
   library: 'مكتبتي',
   settings: 'الإعدادات'
 };
@@ -167,6 +175,7 @@ function resolveInitialTabFromLocation(): MainTab {
   if (typeof window === 'undefined') return 'home';
   const hashClean = window.location.hash.replace(/^#\/?/, '').toLowerCase();
   if (hashClean === 'translator') return 'topics';
+  if (hashClean === 'mindmaps' || hashClean === 'mindmap') return 'mindmaps';
   if (
     hashClean === 'datacenter' ||
     hashClean === 'medical-data-center' ||
@@ -177,6 +186,7 @@ function resolveInitialTabFromLocation(): MainTab {
   if (
     hashClean === 'home' ||
     hashClean === 'topics' ||
+    hashClean === 'mindmaps' ||
     hashClean === 'library' ||
     hashClean === 'settings'
   ) {
@@ -239,29 +249,13 @@ export default function App() {
     initialPersisted.settings.colorTheme || 'emerald'
   );
   const [activeTab, setActiveTab] = useState<MainTab>(() => resolveInitialTabFromLocation());
+  const [mindMapContext, setMindMapContext] = useState<{
+    blockId?: string;
+    subjectId?: string;
+    topicId?: string;
+  }>({});
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [terms, setTerms] = useState<DictionaryTerm[]>(initialPersisted.terms);
-
-  // Mirror the active local dictionary into Android's native keyboard for offline lookup.
-  useEffect(() => {
-    try {
-      const bridge = (window as unknown as {
-        UMEDAndroidBridge?: { updateDictionaryTerms?: (json: string) => boolean };
-      }).UMEDAndroidBridge;
-      if (!bridge?.updateDictionaryTerms) return;
-      bridge.updateDictionaryTerms(JSON.stringify(terms.map((term) => ({
-        term: term.term,
-        translation: term.translation,
-        phonetic: term.phonetic,
-        definitionAr: term.definitionAr,
-        definitionEn: term.definitionEn,
-        relations: term.relations
-      }))));
-    } catch {
-      // Native keyboard sync must never interrupt the main app.
-    }
-  }, [terms]);
-
   const [sentences, setSentences] = useState<LinkedSentence[]>(initialPersisted.sentences);
   const [topics, setTopics] = useState<TopicArticle[]>(initialPersisted.topics);
   const [customAffixes, setCustomAffixes] = useState<MorphologicalAffix[]>(
@@ -270,6 +264,144 @@ export default function App() {
   const [customAbbreviations, setCustomAbbreviations] = useState<ClinicalAbbreviation[]>(
     initialPersisted.customAbbreviations
   );
+
+  // Instant Copied-Word Floating Translation Card State (works in Web/PWA and mirrors Android native overlay)
+  const [floatingCopiedCard, setFloatingCopiedCard] = useState<{
+    id?: string;
+    term: string;
+    translation: string;
+    phonetic?: string;
+    pos?: string;
+    category?: string;
+    definitionAr?: string;
+    definitionEn?: string;
+    exampleEn?: string;
+    exampleAr?: string;
+    matchedInput?: string;
+  } | null>(null);
+  const [webCopyLookupEnabled, setWebCopyLookupEnabled] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem('umed_instant_copy_popup_v1') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  const [nativeOverlayStatus, setNativeOverlayStatus] = useState<{
+    isAndroidBridgeAvailable: boolean;
+    canDrawOverlays: boolean;
+    isKeyboardEnabled: boolean;
+    isDefaultKeyboard: boolean;
+    clipboardMonitorEnabled: boolean;
+    syncedCount: number;
+  }>({
+    isAndroidBridgeAvailable: false,
+    canDrawOverlays: false,
+    isKeyboardEnabled: false,
+    isDefaultKeyboard: false,
+    clipboardMonitorEnabled: true,
+    syncedCount: 0
+  });
+  const ignoreCopiedTextRef = useRef<string>('');
+  const floatingCardTimerRef = useRef<number | null>(null);
+
+  const refreshNativeOverlayStatus = useCallback(() => {
+    try {
+      const bridge = (window as unknown as {
+        UMEDAndroidBridge?: {
+          canUmedtDrawOverlays?: () => boolean;
+          isUmedtKeyboardEnabled?: () => boolean;
+          isUmedtDefaultKeyboard?: () => boolean;
+          isClipboardMonitorEnabled?: () => boolean;
+          getSyncedDictionaryCount?: () => number;
+        };
+      }).UMEDAndroidBridge;
+      if (!bridge) return;
+      setNativeOverlayStatus({
+        isAndroidBridgeAvailable: true,
+        canDrawOverlays: Boolean(bridge.canUmedtDrawOverlays?.()),
+        isKeyboardEnabled: Boolean(bridge.isUmedtKeyboardEnabled?.()),
+        isDefaultKeyboard: Boolean(bridge.isUmedtDefaultKeyboard?.()),
+        clipboardMonitorEnabled:
+          typeof bridge.isClipboardMonitorEnabled === 'function'
+            ? Boolean(bridge.isClipboardMonitorEnabled())
+            : true,
+        syncedCount:
+          typeof bridge.getSyncedDictionaryCount === 'function'
+            ? Number(bridge.getSyncedDictionaryCount()) || 0
+            : terms.length + customAbbreviations.length
+      });
+    } catch {
+      // ignore
+    }
+  }, [terms.length, customAbbreviations.length]);
+
+  // Mirror the active local dictionary + clinical abbreviations into Android's native engine for instant offline popup cards without opening the app.
+  useEffect(() => {
+    try {
+      const bridge = (window as unknown as {
+        UMEDAndroidBridge?: {
+          updateDictionaryTerms?: (json: string) => boolean;
+        };
+      }).UMEDAndroidBridge;
+      if (!bridge?.updateDictionaryTerms) return;
+
+      const termRecords = terms.map((term) => ({
+        term: term.term,
+        translation: term.translation,
+        phonetic: term.phonetic || '',
+        pos: term.pos || '',
+        category: term.category || 'Medical',
+        umdCode: term.umdCode || '',
+        definitionAr: term.definitionAr || '',
+        definitionEn: term.definitionEn || '',
+        exampleEn: term.examples?.[0]?.en || '',
+        exampleAr: term.examples?.[0]?.ar || '',
+        relations: term.relations,
+        aliases: term.relations?.synonyms || []
+      }));
+
+      const existingTermKeys = new Set(
+        terms.map((t) => (t.term || '').trim().toLowerCase()).filter(Boolean)
+      );
+      const abbrRecords = customAbbreviations
+        .filter((a) => a && a.abbr && !existingTermKeys.has(a.abbr.trim().toLowerCase()))
+        .map((a) => ({
+          term: a.abbr,
+          translation: a.defaultTranslationAr || a.candidates?.[0]?.translationAr || a.abbr,
+          phonetic: a.defaultExpansionEn || a.candidates?.[0]?.expansionEn || '',
+          pos: 'Abbr',
+          category: a.category || 'Medical',
+          umdCode: '',
+          definitionAr: `${a.defaultTranslationAr || ''} (${a.defaultExpansionEn || ''})`.trim(),
+          definitionEn: a.defaultExpansionEn || a.candidates?.[0]?.expansionEn || '',
+          exampleEn: '',
+          exampleAr: '',
+          aliases: [
+            ...(a.defaultExpansionEn ? [a.defaultExpansionEn] : []),
+            ...(a.candidates || []).flatMap((c) =>
+              [c.expansionEn, c.translationAr].filter(Boolean)
+            )
+          ]
+        }));
+
+      bridge.updateDictionaryTerms(JSON.stringify([...termRecords, ...abbrRecords]));
+      refreshNativeOverlayStatus();
+    } catch {
+      // Native dictionary sync must never interrupt the main app.
+    }
+  }, [terms, customAbbreviations, refreshNativeOverlayStatus]);
+
+  useEffect(() => {
+    refreshNativeOverlayStatus();
+    const onFocus = () => refreshNativeOverlayStatus();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [refreshNativeOverlayStatus]);
+
   const [versionMetadata, setVersionMetadata] = useState<VersionMetadata>(
     initialPersisted.versionMetadata
   );
@@ -1416,6 +1548,7 @@ export default function App() {
   };
 
   const copyToClipboard = (text: string, key: string, label = 'تم النسخ إلى الحافظة') => {
+    ignoreCopiedTextRef.current = (text || '').trim();
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text);
@@ -1436,6 +1569,216 @@ export default function App() {
       setCopiedId((prev) => (prev === key ? null : prev));
     }, 1800);
   };
+
+  // Multi-strategy fast lookup for copied words/phrases (exact, Arabic reverse, synonyms, medical plurals/inflections, abbreviations, and short phrase n-grams)
+  const findCopiedDictionaryMatch = useCallback(
+    (rawInput: string) => {
+      const trimmed = (rawInput || '').trim();
+      if (!trimmed || trimmed.length > 180 || /^https?:\/\//i.test(trimmed)) return null;
+
+      const cleanLookupKey = (val: string) =>
+        (val || '')
+          .replace(/[\u200B-\u200F\uFEFF]/g, '')
+          .replace(/[\u0640\u064B-\u065F\u0670]/g, '')
+          .toLowerCase()
+          .replace(/[أإآٱ]/g, 'ا')
+          .replace(/ة/g, 'ه')
+          .replace(/ى/g, 'ي')
+          .replace(/^[^\p{L}\p{N}]+/gu, '')
+          .replace(/[^\p{L}\p{N}]+$/gu, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      const buildVariants = (norm: string): string[] => {
+        const list = [norm];
+        for (const pref of ['وال', 'بال', 'كال', 'فال', 'ال', 'لل']) {
+          if (norm.startsWith(pref) && norm.length - pref.length >= 2) {
+            list.push(norm.slice(pref.length));
+          }
+        }
+        if (norm.length >= 4) {
+          if (norm.endsWith('ies') && norm.length > 4) list.push(`${norm.slice(0, -3)}y`);
+          if (norm.endsWith('ae') && norm.length > 4) list.push(`${norm.slice(0, -2)}a`);
+          if (norm.endsWith('ices') && norm.length > 5) {
+            list.push(`${norm.slice(0, -4)}ix`, `${norm.slice(0, -4)}ex`);
+          }
+          if (norm.endsWith('itides') && norm.length > 7) list.push(`${norm.slice(0, -6)}itis`);
+          if (norm.endsWith('ata') && norm.length > 5) list.push(`${norm.slice(0, -3)}a`);
+          if (norm.endsWith('i') && norm.length > 4) list.push(`${norm.slice(0, -1)}us`);
+          if (norm.endsWith('a') && norm.length > 4) {
+            list.push(`${norm.slice(0, -1)}um`, `${norm.slice(0, -1)}on`);
+          }
+          if (norm.endsWith('es') && norm.length > 4) {
+            list.push(norm.slice(0, -2), norm.slice(0, -1));
+          }
+          if (
+            norm.endsWith('s') &&
+            !norm.endsWith('ss') &&
+            !norm.endsWith('is') &&
+            !norm.endsWith('us')
+          ) {
+            list.push(norm.slice(0, -1));
+          }
+          if (norm.endsWith('ed') && norm.length > 4) {
+            list.push(norm.slice(0, -2), norm.slice(0, -1));
+          }
+          if (norm.endsWith('ing') && norm.length > 5) {
+            list.push(norm.slice(0, -3), `${norm.slice(0, -3)}e`);
+          }
+        }
+        return list;
+      };
+
+      const lookupMap = new Map<
+        string,
+        {
+          id?: string;
+          term: string;
+          translation: string;
+          phonetic?: string;
+          pos?: string;
+          category?: string;
+          definitionAr?: string;
+          definitionEn?: string;
+          exampleEn?: string;
+          exampleAr?: string;
+        }
+      >();
+
+      for (const t of terms) {
+        const cardObj = {
+          id: t.id,
+          term: t.term,
+          translation: t.translation,
+          phonetic: t.phonetic,
+          pos: t.pos,
+          category: t.category,
+          definitionAr: t.definitionAr,
+          definitionEn: t.definitionEn,
+          exampleEn: t.examples?.[0]?.en,
+          exampleAr: t.examples?.[0]?.ar
+        };
+        const keys = [
+          t.term,
+          t.termNormalized,
+          t.umdCode || '',
+          t.translation,
+          ...(t.translation ? t.translation.split(/[/،,;|-]/) : []),
+          ...(t.relations?.synonyms || [])
+        ];
+        for (const k of keys) {
+          const nk = cleanLookupKey(k);
+          if (nk && !lookupMap.has(nk)) {
+            lookupMap.set(nk, cardObj);
+          }
+        }
+      }
+
+      for (const a of customAbbreviations) {
+        if (!a || !a.abbr) continue;
+        const expEn = a.defaultExpansionEn || a.candidates?.[0]?.expansionEn || '';
+        const transAr = a.defaultTranslationAr || a.candidates?.[0]?.translationAr || a.abbr;
+        const cardObj = {
+          term: a.abbr,
+          translation: transAr,
+          phonetic: expEn,
+          pos: 'Abbr',
+          category: a.category || 'Medical',
+          definitionAr: `${transAr}${expEn ? ` (${expEn})` : ''}`,
+          definitionEn: expEn
+        };
+        for (const k of [
+          a.abbr,
+          expEn,
+          transAr,
+          ...(a.candidates || []).flatMap((c) => [c.expansionEn, c.translationAr])
+        ]) {
+          const nk = cleanLookupKey(k);
+          if (nk && !lookupMap.has(nk)) {
+            lookupMap.set(nk, cardObj);
+          }
+        }
+      }
+
+      const tryMatchSingle = (candidateRaw: string) => {
+        const norm = cleanLookupKey(candidateRaw);
+        if (!norm) return null;
+        for (const variant of buildVariants(norm)) {
+          const hit = lookupMap.get(variant);
+          if (hit) {
+            return { ...hit, matchedInput: candidateRaw.trim() };
+          }
+        }
+        return null;
+      };
+
+      const direct = tryMatchSingle(trimmed);
+      if (direct) return direct;
+
+      // Parenthetical or dash-separated segments
+      const segments = trimmed.split(/[()[\]/،,;|–—:-]/);
+      if (segments.length > 1) {
+        for (const seg of segments) {
+          if (cleanLookupKey(seg).length >= 2) {
+            const segHit = tryMatchSingle(seg);
+            if (segHit) return segHit;
+          }
+        }
+      }
+
+      // Short phrase n-gram scan (2 to 10 words)
+      const words = cleanLookupKey(trimmed).split(/\s+/);
+      if (words.length >= 2 && words.length <= 10) {
+        const maxN = Math.min(4, words.length);
+        for (let n = maxN; n >= 1; n -= 1) {
+          for (let start = 0; start <= words.length - n; start += 1) {
+            const sub = words.slice(start, start + n).join(' ');
+            if (n === 1 && sub.length < 3) continue;
+            const ngramHit = tryMatchSingle(sub);
+            if (ngramHit) return ngramHit;
+          }
+        }
+      }
+
+      return null;
+    },
+    [terms, customAbbreviations]
+  );
+
+  const showFloatingCopiedTranslationCard = useCallback(
+    (cardData: NonNullable<typeof floatingCopiedCard>) => {
+      setFloatingCopiedCard(cardData);
+      if (floatingCardTimerRef.current !== null) {
+        window.clearTimeout(floatingCardTimerRef.current);
+      }
+      floatingCardTimerRef.current = window.setTimeout(() => {
+        setFloatingCopiedCard(null);
+        floatingCardTimerRef.current = null;
+      }, 9500);
+    },
+    []
+  );
+
+  // Global copy event listener: immediately shows the floating translation card when a copied word is found in the dictionary
+  useEffect(() => {
+    if (!webCopyLookupEnabled) return;
+    const handleGlobalCopy = () => {
+      window.setTimeout(() => {
+        try {
+          const selected = window.getSelection()?.toString()?.trim() || '';
+          if (!selected || selected === ignoreCopiedTextRef.current) return;
+          const match = findCopiedDictionaryMatch(selected);
+          if (match) {
+            showFloatingCopiedTranslationCard(match);
+          }
+        } catch {
+          // ignore
+        }
+      }, 30);
+    };
+    document.addEventListener('copy', handleGlobalCopy);
+    return () => document.removeEventListener('copy', handleGlobalCopy);
+  }, [webCopyLookupEnabled, findCopiedDictionaryMatch, showFloatingCopiedTranslationCard]);
 
   // Open Contextual Full Term Sheet & Record in Recent Searches
   const openTermDetail = (termId: string) => {
@@ -3124,7 +3467,7 @@ export default function App() {
       {/* ====================================================================
           TOP HEADER BAR (Clean: Side Menu Trigger + Desktop Tabs + Brand)
          ==================================================================== */}
-      <header className={`sticky top-0 z-30 min-h-14 pt-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 lg:px-8 py-1.5 items-center justify-between gap-3 w-full box-border ${activeTab === 'library' ? 'hidden md:flex' : 'flex'}`}>
+      <header className={`sticky top-0 z-30 min-h-14 pt-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 lg:px-8 py-1.5 items-center justify-between gap-3 w-full box-border ${activeTab === 'mindmaps' ? 'hidden' : activeTab === 'library' ? 'hidden md:flex' : 'flex'}`}>
         <div className="flex items-center gap-2 min-w-0">
           {/* Top-level duplicate dictionary/search menu removed; bottom navigation remains available. */}
 
@@ -3133,6 +3476,7 @@ export default function App() {
             {[
               { id: 'home' as MainTab, label: 'القاموس', icon: Search },
               { id: 'topics' as MainTab, label: 'المواضيع', icon: BookOpen },
+              { id: 'mindmaps' as MainTab, label: 'الخرائط الذهنية', icon: GitFork },
               { id: 'library' as MainTab, label: 'مكتبتي', icon: Star },
               { id: 'settings' as MainTab, label: 'الإعدادات', icon: Settings }
             ].map((tabItem) => {
@@ -3202,6 +3546,7 @@ export default function App() {
               {[
                 { id: 'home' as MainTab, label: 'القاموس', sub: `${terms.length}`, icon: Search },
                 { id: 'topics' as MainTab, label: 'المواضيع', sub: `${topics.length}`, icon: BookOpen },
+                { id: 'mindmaps' as MainTab, label: 'الخرائط الذهنية', sub: 'شاشة كاملة', icon: GitFork },
                 { id: 'library' as MainTab, label: 'مكتبتي', sub: `${favoriteTerms.length}`, icon: Star },
                 { id: 'settings' as MainTab, label: 'الإعدادات', sub: `${dbMetrics.actualSizeKb} KB`, icon: Settings }
               ].map((item) => {
@@ -3318,6 +3663,61 @@ export default function App() {
             onHierarchyChanged={(reason) => {
               triggerTelegramAutoSync(reason);
             }}
+            onOpenFullScreenMindMapStudio={(ctx) => {
+              setMindMapContext(ctx || {});
+              setActiveTab('mindmaps');
+            }}
+            showToast={showToast}
+          />
+        )}
+
+        {activeTab === 'mindmaps' && (
+          <MindMapStudioModal
+            isOpen={true}
+            onClose={() => setActiveTab('topics')}
+            topics={topics}
+            initialTopic={
+              mindMapContext.topicId
+                ? topics.find((t) => t.id === mindMapContext.topicId) || null
+                : null
+            }
+            onEmbedMapInTopic={(targetTopic, mindMap) => {
+              const firstSec = targetTopic.sections[0] || {
+                id: `sec-${Date.now()}`,
+                heading: 'الخريطة الذهنية للموضوع',
+                paragraphs: [],
+                contentBlocks: []
+              };
+              const existingBlocks = firstSec.contentBlocks || [];
+              const blockIdx = existingBlocks.findIndex(
+                (b) => b.type === 'mind_map' && b.mindMapData?.id === mindMap.id
+              );
+              const nextBlock = {
+                id:
+                  blockIdx >= 0
+                    ? existingBlocks[blockIdx].id
+                    : `blk-mm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                type: 'mind_map' as const,
+                order: blockIdx >= 0 ? existingBlocks[blockIdx].order : existingBlocks.length,
+                title: mindMap.title,
+                mindMapData: mindMap
+              };
+              const nextBlocks =
+                blockIdx >= 0
+                  ? existingBlocks.map((b, i) => (i === blockIdx ? nextBlock : b))
+                  : [...existingBlocks, nextBlock];
+              const nextSections =
+                targetTopic.sections.length > 0
+                  ? targetTopic.sections.map((s, idx) =>
+                      idx === 0 ? { ...s, contentBlocks: nextBlocks } : s
+                    )
+                  : [{ ...firstSec, contentBlocks: nextBlocks }];
+              handleSaveTopic({ ...targetTopic, sections: nextSections }, true);
+            }}
+            onOpenLinkedTopic={(topicId) => {
+              setTopicsInitialTopicId(topicId);
+              setActiveTab('topics');
+            }}
             showToast={showToast}
           />
         )}
@@ -3382,22 +3782,289 @@ export default function App() {
         )}
 
         {activeTab === 'settings' && (
-          <div className="mb-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-4 space-y-3">
-            <div>
-              <h3 className="text-sm font-extrabold text-emerald-700 dark:text-emerald-300">لوحة مفاتيح UMEDT والترجمة العائمة</h3>
-              <p className="mt-1 text-xs leading-6 text-slate-600 dark:text-slate-300">
-                فعّل لوحة UMEDT من إعدادات Android واجعلها لوحة الإدخال الافتراضية. اسمح أيضًا بالظهور فوق التطبيقات لعرض بطاقة المصطلح.
-              </p>
+          <div className="mb-4 rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-slate-900/5 to-teal-500/5 dark:from-emerald-950/35 dark:via-slate-900/80 dark:to-teal-950/25 p-4 sm:p-5 space-y-4 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-[11px] font-extrabold mb-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>ترجمة فورية بدون فتح التطبيق</span>
+                </div>
+                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                  بطاقة الترجمة العائمة للكلمات المنسوخة ولوحة UMEDT الطبية
+                </h3>
+                <p className="mt-1 text-xs leading-6 text-slate-600 dark:text-slate-300 max-w-3xl">
+                  تظهر بطاقة ترجمة المصطلحات والاختصارات الطبية المنسوخة تلقائيًا في أعلى الشاشة فوق أي تطبيق (ملفات PDF، المتصفح، تيليجرام، الملاحظات) في حال وُجدت الكلمة في القاموس المحلي وبدون فتح تطبيق UMEDT.
+                </p>
+              </div>
+              <span className="px-3 py-1.5 rounded-xl bg-white/80 dark:bg-slate-800/90 border border-emerald-500/30 text-xs font-mono font-extrabold text-emerald-700 dark:text-emerald-300">
+                {nativeOverlayStatus.isAndroidBridgeAvailable
+                  ? `${nativeOverlayStatus.syncedCount || terms.length + customAbbreviations.length} مصطلح واختصار متزامن`
+                  : `${terms.length + customAbbreviations.length} مصطلح واختصار جاهز`}
+              </span>
             </div>
+
+            {/* Live Status Indicators */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                    صلاحية البطاقة العائمة (Overlay)
+                  </span>
+                  <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100">
+                    {nativeOverlayStatus.isAndroidBridgeAvailable
+                      ? nativeOverlayStatus.canDrawOverlays
+                        ? 'مفعّلة فوق التطبيقات ✓'
+                        : 'تحتاج السماح بالظهور'
+                      : 'مفعّلة داخل المتصفح ✓'}
+                  </span>
+                </div>
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${
+                    !nativeOverlayStatus.isAndroidBridgeAvailable || nativeOverlayStatus.canDrawOverlays
+                      ? 'bg-emerald-500'
+                      : 'bg-amber-500'
+                  }`}
+                />
+              </div>
+
+              <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                    لوحة مفاتيح UMEDT الطبية
+                  </span>
+                  <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100">
+                    {nativeOverlayStatus.isAndroidBridgeAvailable
+                      ? nativeOverlayStatus.isDefaultKeyboard
+                        ? 'اللوحة الافتراضية النشطة ✓'
+                        : nativeOverlayStatus.isKeyboardEnabled
+                        ? 'مفعّلة وجاهزة للتبديل ✓'
+                        : 'غير مفعّلة في الإعدادات'
+                      : 'قائمة تحديد النص + النسخ'}
+                  </span>
+                </div>
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${
+                    nativeOverlayStatus.isDefaultKeyboard || nativeOverlayStatus.isKeyboardEnabled
+                      ? 'bg-emerald-500'
+                      : 'bg-sky-500'
+                  }`}
+                />
+              </div>
+
+              <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                    مراقبة الحافظة التلقائية
+                  </span>
+                  <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100">
+                    {(nativeOverlayStatus.isAndroidBridgeAvailable
+                      ? nativeOverlayStatus.clipboardMonitorEnabled
+                      : webCopyLookupEnabled)
+                      ? 'نشطة فور النسخ ✓'
+                      : 'متوقفة مؤقتًا'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const bridge = (window as unknown as {
+                      UMEDAndroidBridge?: {
+                        setClipboardMonitorEnabled?: (enabled: boolean) => boolean;
+                      };
+                    }).UMEDAndroidBridge;
+                    if (bridge?.setClipboardMonitorEnabled) {
+                      const next = !nativeOverlayStatus.clipboardMonitorEnabled;
+                      bridge.setClipboardMonitorEnabled(next);
+                      refreshNativeOverlayStatus();
+                      showToast(
+                        next
+                          ? 'تم تفعيل مراقب الحافظة لعرض بطاقة الترجمة العائمة فور النسخ'
+                          : 'تم إيقاف مراقب الحافظة في الخلفية'
+                      );
+                    } else {
+                      const next = !webCopyLookupEnabled;
+                      setWebCopyLookupEnabled(next);
+                      try {
+                        window.localStorage.setItem('umed_instant_copy_popup_v1', String(next));
+                      } catch {
+                        // ignore
+                      }
+                      showToast(
+                        next
+                          ? 'تم تفعيل بطاقة الترجمة الفورية عند نسخ المصطلحات'
+                          : 'تم إيقاف بطاقة الترجمة الفورية عند النسخ'
+                      );
+                    }
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition-colors ${
+                    (nativeOverlayStatus.isAndroidBridgeAvailable
+                      ? nativeOverlayStatus.clipboardMonitorEnabled
+                      : webCopyLookupEnabled)
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  {(nativeOverlayStatus.isAndroidBridgeAvailable
+                    ? nativeOverlayStatus.clipboardMonitorEnabled
+                    : webCopyLookupEnabled)
+                    ? 'مفعّل'
+                    : 'تفعيل'}
+                </button>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => {
-                const bridge = (window as Window & { UMEDAndroidBridge?: { openUmedtKeyboardSettings?: () => void } }).UMEDAndroidBridge;
-                bridge?.openUmedtKeyboardSettings?.();
-              }} className="min-h-[42px] rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white">تفعيل لوحة UMEDT</button>
-              <button type="button" onClick={() => {
-                const bridge = (window as Window & { UMEDAndroidBridge?: { openUmedtOverlaySettings?: () => void } }).UMEDAndroidBridge;
-                bridge?.openUmedtOverlaySettings?.();
-              }} className="min-h-[42px] rounded-xl border border-slate-300 px-4 text-xs font-bold dark:border-slate-700">السماح بالبطاقة العائمة</button>
+              <button
+                type="button"
+                onClick={() => {
+                  const bridge = (window as unknown as {
+                    UMEDAndroidBridge?: { openUmedtOverlaySettings?: () => void };
+                  }).UMEDAndroidBridge;
+                  if (bridge?.openUmedtOverlaySettings) {
+                    bridge.openUmedtOverlaySettings();
+                  } else {
+                    showToast('صلاحية البطاقة العائمة مفعّلة تلقائيًا في هذه البيئة', 'info');
+                  }
+                }}
+                className="min-h-[42px] rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 text-xs font-extrabold text-white transition-colors"
+              >
+                1. السماح بالبطاقة العائمة فوق التطبيقات
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const bridge = (window as unknown as {
+                    UMEDAndroidBridge?: { openUmedtKeyboardSettings?: () => void };
+                  }).UMEDAndroidBridge;
+                  if (bridge?.openUmedtKeyboardSettings) {
+                    bridge.openUmedtKeyboardSettings();
+                  } else {
+                    showToast('إعدادات لوحة مفاتيح أندرويد متاحة داخل تطبيق الهاتف (APK)', 'info');
+                  }
+                }}
+                className="min-h-[42px] rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 px-4 text-xs font-extrabold text-white border border-slate-700 transition-colors"
+              >
+                2. تفعيل لوحة مفاتيح UMEDT
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const bridge = (window as unknown as {
+                    UMEDAndroidBridge?: { showUmedtKeyboardPicker?: () => void };
+                  }).UMEDAndroidBridge;
+                  if (bridge?.showUmedtKeyboardPicker) {
+                    bridge.showUmedtKeyboardPicker();
+                  } else {
+                    showToast('مبدّل لوحة المفاتيح يعمل على أجهزة أندرويد', 'info');
+                  }
+                }}
+                className="min-h-[42px] rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 text-xs font-extrabold text-slate-800 dark:text-slate-200 hover:border-emerald-500/50 transition-colors"
+              >
+                🌐 اختيار / تبديل الكيبورد
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  const bridge = (window as unknown as {
+                    UMEDAndroidBridge?: { checkClipboardAndShowCardNow?: () => boolean };
+                  }).UMEDAndroidBridge;
+                  if (bridge?.checkClipboardAndShowCardNow) {
+                    const found = bridge.checkClipboardAndShowCardNow();
+                    if (!found) {
+                      showToast('الكلمة المنسوخة حاليًا في الحافظة غير موجودة في القاموس المحلي', 'info');
+                    }
+                    return;
+                  }
+                  try {
+                    if (navigator.clipboard && navigator.clipboard.readText) {
+                      const clipText = (await navigator.clipboard.readText()).trim();
+                      if (!clipText) {
+                        showToast('الحافظة فارغة حاليًا', 'info');
+                        return;
+                      }
+                      const match = findCopiedDictionaryMatch(clipText);
+                      if (match) {
+                        showFloatingCopiedTranslationCard(match);
+                      } else {
+                        showToast(`لم يتم العثور على "${clipText.slice(0, 28)}" في القاموس المحلي`, 'info');
+                      }
+                      return;
+                    }
+                  } catch {
+                    // Fallback below
+                  }
+                  showToast('انسخ أي مصطلح طبي لعرض بطاقته العائمة فورًا', 'info');
+                }}
+                className="min-h-[42px] rounded-xl border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 px-3.5 text-xs font-extrabold text-emerald-700 dark:text-emerald-300 transition-colors"
+              >
+                📋 ترجمة الكلمة المنسوخة الآن
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const sampleTerm = terms[0] || {
+                    id: 'sample-popup-term',
+                    term: 'Thrombocytopenia',
+                    translation: 'نقص الصفيحات الدموية',
+                    phonetic: '/ˌθrɒmboʊˌsaɪtoʊˈpiːniə/',
+                    pos: 'Noun',
+                    category: 'Medical',
+                    definitionAr:
+                      'انخفاض غير طبيعي في عدد الصفيحات الدموية في الدم مما يزيد قابلية النزف.',
+                    definitionEn: 'Abnormally low level of platelets in the circulating blood.',
+                    examples: [
+                      {
+                        en: 'Heparin-induced thrombocytopenia requires immediate discontinuation of heparin.',
+                        ar: 'يتطلب نقص الصفيحات المحدث بالهيبارين إيقاف الهيبارين فورًا.'
+                      }
+                    ]
+                  };
+                  const samplePayload = {
+                    id: sampleTerm.id,
+                    term: sampleTerm.term,
+                    translation: sampleTerm.translation,
+                    phonetic: sampleTerm.phonetic || '/ˈmɛdɪkəl/',
+                    pos: sampleTerm.pos || 'Noun',
+                    category: sampleTerm.category || 'Medical',
+                    definitionAr: sampleTerm.definitionAr,
+                    definitionEn: sampleTerm.definitionEn,
+                    exampleEn: sampleTerm.examples?.[0]?.en || '',
+                    exampleAr: sampleTerm.examples?.[0]?.ar || ''
+                  };
+                  const bridge = (window as unknown as {
+                    UMEDAndroidBridge?: {
+                      testFloatingTranslationCard?: (json: string) => boolean;
+                    };
+                  }).UMEDAndroidBridge;
+                  if (bridge?.testFloatingTranslationCard) {
+                    bridge.testFloatingTranslationCard(JSON.stringify(samplePayload));
+                  }
+                  showFloatingCopiedTranslationCard(samplePayload);
+                }}
+                className="min-h-[42px] rounded-xl border border-teal-500/40 bg-teal-500/10 hover:bg-teal-500/20 px-3.5 text-xs font-extrabold text-teal-700 dark:text-teal-300 transition-colors"
+              >
+                ⚡ معاينة بطاقة الترجمة العائمة
+              </button>
+            </div>
+
+            <div className="pt-2 border-t border-emerald-500/15 text-[11px] leading-5 text-slate-600 dark:text-slate-400 grid grid-cols-1 md:grid-cols-3 gap-2">
+              <div>
+                <strong className="text-slate-800 dark:text-slate-200">• النسخ التلقائي المباشر:</strong>{' '}
+                عند نسخ أي مصطلح طبي أو اختصار (أو صيغة جمع/مفرد) أثناء تفعيل لوحة UMEDT أو مراقب الحافظة، تظهر البطاقة العائمة فورًا بدون فتح التطبيق.
+              </div>
+              <div>
+                <strong className="text-slate-800 dark:text-slate-200">• من قائمة تحديد النص في أي تطبيق:</strong>{' '}
+                حدّد أي كلمة في ملف PDF أو متصفح واضغط <strong>«ترجمة UMEDT الفورية»</strong> بجوار زر النسخ لعرض البطاقة العائمة فوق تطبيقك الحالي.
+              </div>
+              <div>
+                <strong className="text-slate-800 dark:text-slate-200">• نطق ونسخ فوري من البطاقة:</strong>{' '}
+                تحتوي البطاقة العائمة على زر نطق صوتي مباشر (🔊) ونسخ الترجمة العربية بدون مغادرة شاشتك.
+              </div>
             </div>
           </div>
         )}
@@ -3483,12 +4150,119 @@ export default function App() {
       </main>
 
       {/* ====================================================================
-          MOBILE BOTTOM NAVIGATION BAR (4 CLEAR PAGES)
+          INSTANT FLOATING COPIED-TERM TRANSLATION CARD
          ==================================================================== */}
-      <nav className={`md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-2 pb-[env(safe-area-inset-bottom,4px)] pt-1.5 grid-cols-4 gap-1 ${isKeyboardVisible ? 'hidden' : 'grid'}`}>
+      {floatingCopiedCard && (
+        <div
+          dir="rtl"
+          className="fixed top-[calc(env(safe-area-inset-top,0px)+0.75rem)] inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-md z-[95] rounded-3xl bg-slate-900 text-white border-2 border-emerald-500 shadow-2xl p-4 space-y-2.5 animate-in fade-in slide-in-from-top-3 duration-200"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-extrabold text-emerald-400 flex items-center gap-1.5">
+              <span>⚡ قاموس UMEDT الفوري</span>
+              {floatingCopiedCard.category && (
+                <span className="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-300 text-[10px]">
+                  {floatingCopiedCard.category}
+                  {floatingCopiedCard.pos ? ` · ${floatingCopiedCard.pos}` : ''}
+                </span>
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={() => setFloatingCopiedCard(null)}
+              className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center"
+              aria-label="إغلاق البطاقة العائمة"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {floatingCopiedCard.matchedInput &&
+            floatingCopiedCard.matchedInput.toLowerCase() !== floatingCopiedCard.term.toLowerCase() &&
+            floatingCopiedCard.matchedInput.toLowerCase() !==
+              floatingCopiedCard.translation.toLowerCase() && (
+              <div className="text-[11px] text-sky-400 font-bold">
+                تطابق مع المنسوخ: &ldquo;{floatingCopiedCard.matchedInput}&rdquo;
+              </div>
+            )}
+
+          <div dir="ltr" className="flex items-baseline justify-between gap-2">
+            <h4 className="text-lg font-extrabold text-white tracking-tight">
+              {floatingCopiedCard.term}
+            </h4>
+            {floatingCopiedCard.phonetic && (
+              <span className="text-xs font-mono text-slate-400">
+                {floatingCopiedCard.phonetic}
+              </span>
+            )}
+          </div>
+
+          <div className="p-2.5 rounded-2xl bg-emerald-950/90 border border-emerald-500/60 text-emerald-200 font-extrabold text-sm">
+            {floatingCopiedCard.translation}
+          </div>
+
+          {floatingCopiedCard.definitionAr && (
+            <p className="text-xs text-slate-200 leading-relaxed line-clamp-3">
+              {floatingCopiedCard.definitionAr}
+            </p>
+          )}
+          {floatingCopiedCard.definitionEn && (
+            <p dir="ltr" className="text-[11px] text-slate-400 leading-relaxed line-clamp-2 text-left">
+              {floatingCopiedCard.definitionEn}
+            </p>
+          )}
+
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() =>
+                triggerTTS(floatingCopiedCard.term, `floating-copy-tts-${floatingCopiedCard.term}`)
+              }
+              className="flex-1 min-h-[36px] rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center justify-center gap-1.5"
+            >
+              <Volume2 className="w-3.5 h-3.5" />
+              <span>نطق المصطلح</span>
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                copyToClipboard(
+                  floatingCopiedCard.translation,
+                  `floating-copy-tr-${floatingCopiedCard.term}`,
+                  'تم نسخ الترجمة العربية'
+                )
+              }
+              className="flex-1 min-h-[36px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-extrabold flex items-center justify-center gap-1.5"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              <span>نسخ الترجمة</span>
+            </button>
+            {floatingCopiedCard.id &&
+              terms.some((t) => t.id === floatingCopiedCard.id) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetId = floatingCopiedCard.id!;
+                    setFloatingCopiedCard(null);
+                    openTermDetail(targetId);
+                  }}
+                  className="min-h-[36px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-400 text-xs font-extrabold"
+                >
+                  التفاصيل
+                </button>
+              )}
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          MOBILE BOTTOM NAVIGATION BAR (5 CLEAR PAGES)
+         ==================================================================== */}
+      <nav className={`md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-1.5 pb-[env(safe-area-inset-bottom,4px)] pt-1.5 grid-cols-5 gap-1 ${isKeyboardVisible || activeTab === 'mindmaps' ? 'hidden' : 'grid'}`}>
         {[
           { id: 'home' as MainTab, label: 'القاموس', icon: Search },
           { id: 'topics' as MainTab, label: 'المواضيع', icon: BookOpen },
+          { id: 'mindmaps' as MainTab, label: 'الخرائط', icon: GitFork },
           { id: 'library' as MainTab, label: 'مكتبتي', icon: Star },
           { id: 'settings' as MainTab, label: 'الإعدادات', icon: Settings }
         ].map((item) => {

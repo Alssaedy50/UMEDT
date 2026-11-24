@@ -1,276 +1,344 @@
 package org.umed2.dictengine;
 
-import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.graphics.Color;
-import android.graphics.PixelFormat;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.inputmethodservice.InputMethodService;
-import android.os.Handler;
-import android.os.Looper;
-import android.provider.Settings;
+import android.os.Build;
+import android.os.IBinder;
+import android.text.TextUtils;
+import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.View;
-import android.view.WindowManager;
+import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
-import android.widget.Button;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import org.json.JSONArray;
+
 import org.json.JSONObject;
-import java.util.Locale;
 
 /**
- * UMEDT native IME. The IME is the Android-authorized clipboard reader while it is
- * active as the default input method. Dictionary data is mirrored locally by the app.
+ * UMEDT Medical Keyboard & Instant Clipboard Dictionary Lookup Service.
+ * Monitors copied text and displays the UMEDT floating translation card immediately
+ * when a dictionary match is found, without opening the main UMEDT application.
  */
-public final class UMEDTKeyboardService extends InputMethodService {
+public class UMEDTKeyboardService extends InputMethodService {
+    private boolean arabicLayout = false;
+    private boolean symbolsLayout = false;
+    private boolean shiftUppercase = false;
+    private LinearLayout rootView;
+    private TextView clipboardQuickBanner;
     private ClipboardManager clipboard;
-    private ClipboardManager.OnPrimaryClipChangedListener clipListener;
-    private final Handler handler = new Handler(Looper.getMainLooper());
-    private WindowManager windowManager;
-    private View floatingCard;
-    private String lastClipboard = "";
-    private long lastShownAt;
-    private boolean keyboardVisible;
-    private boolean arabicLayout;
+    private String lastInspectedClip = "";
 
-    @Override public void onCreate() {
-        super.onCreate();
-        clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-        windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        clipListener = () -> handler.postDelayed(this::inspectClipboard, 180L);
-        if (clipboard != null) {
-            try { clipboard.addPrimaryClipChangedListener(clipListener); } catch (Exception ignored) { }
-        }
-    }
-
-    @Override public View onCreateInputView() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(8), dp(8), dp(8), dp(10));
-        root.setBackgroundColor(Color.rgb(19, 31, 42));
-
-        LinearLayout header = new LinearLayout(this);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView brand = new TextView(this);
-        brand.setText("UMEDT  ·  Medical Keyboard");
-        brand.setTextColor(Color.WHITE);
-        brand.setTextSize(13);
-        brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        header.addView(brand, new LinearLayout.LayoutParams(0, dp(38), 1));
-        Button clipboardButton = keyButton("لصق");
-        clipboardButton.setOnClickListener(v -> {
-            try {
-                if (clipboard != null && clipboard.hasPrimaryClip()) {
-                    ClipData clip = clipboard.getPrimaryClip();
-                    if (clip != null && clip.getItemCount() > 0) {
-                        CharSequence text = clip.getItemAt(0).coerceToText(this);
-                        if (text != null) {
-                            InputConnection ic = getCurrentInputConnection();
-                            if (ic != null) ic.commitText(text, 1);
-                        }
-                    }
-                }
-            } catch (Exception ignored) { }
-        });
-        header.addView(clipboardButton, new LinearLayout.LayoutParams(dp(64), dp(38)));
-        root.addView(header);
-
-        if (arabicLayout) {
-            addRow(root, new String[]{"ض","ص","ث","ق","ف","غ","ع","ه","خ","ح"});
-            addRow(root, new String[]{"ش","س","ي","ب","ل","ا","ت","ن","م","ك"});
-            addRow(root, new String[]{"⇧","ئ","ء","ؤ","ر","لا","ى","ة","و","ز","⌫"});
-        } else {
-            addRow(root, new String[]{"q","w","e","r","t","y","u","i","o","p"});
-            addRow(root, new String[]{"a","s","d","f","g","h","j","k","l"});
-            addRow(root, new String[]{"⇧","z","x","c","v","b","n","m","⌫"});
-        }
-        LinearLayout bottom = new LinearLayout(this);
-        Button language = keyButton(arabicLayout ? "EN" : "عربي");
-        language.setOnClickListener(v -> {
-            arabicLayout = !arabicLayout;
-            setInputView(onCreateInputView());
-        });
-        bottom.addView(language, new LinearLayout.LayoutParams(dp(58), dp(48)));
-        Button comma = keyButton(",");
-        comma.setOnClickListener(v -> commit(","));
-        bottom.addView(comma, new LinearLayout.LayoutParams(dp(42), dp(48)));
-        Button space = keyButton("مسافة");
-        space.setOnClickListener(v -> commit(" "));
-        bottom.addView(space, new LinearLayout.LayoutParams(0, dp(48), 1));
-        Button period = keyButton(".");
-        period.setOnClickListener(v -> commit("."));
-        bottom.addView(period, new LinearLayout.LayoutParams(dp(42), dp(48)));
-        Button enter = keyButton("↵");
-        enter.setOnClickListener(v -> {
-            InputConnection ic = getCurrentInputConnection();
-            if (ic != null) ic.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_ENTER));
-        });
-        bottom.addView(enter, new LinearLayout.LayoutParams(dp(48), dp(48)));
-        root.addView(bottom);
-        return root;
-    }
-
-    private void addRow(LinearLayout parent, String[] labels) {
-        LinearLayout row = new LinearLayout(this);
-        row.setGravity(Gravity.CENTER);
-        for (String label : labels) {
-            Button button = keyButton(label);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(46), 1);
-            lp.setMargins(dp(2), dp(3), dp(2), dp(3));
-            button.setLayoutParams(lp);
-            button.setOnClickListener(v -> {
-                if ("⌫".equals(label)) {
-                    InputConnection ic = getCurrentInputConnection();
-                    if (ic != null) ic.deleteSurroundingText(1, 0);
-                } else if (!"⇧".equals(label)) commit(label);
-            });
-            row.addView(button);
-        }
-        parent.addView(row);
-    }
-
-    private Button keyButton(String label) {
-        Button button = new Button(this);
-        button.setText(label);
-        button.setAllCaps(false);
-        button.setTextSize(15);
-        button.setTextColor(Color.WHITE);
-        button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(48, 65, 80)));
-        return button;
-    }
-
-    private void commit(String value) {
-        InputConnection ic = getCurrentInputConnection();
-        if (ic != null) ic.commitText(value, 1);
-    }
-
-    private void inspectClipboard() {
-        try {
-            if (clipboard == null || !clipboard.hasPrimaryClip()) return;
-            ClipData clip = clipboard.getPrimaryClip();
-            if (clip == null || clip.getItemCount() == 0) return;
-            CharSequence raw = clip.getItemAt(0).coerceToText(this);
-            if (raw == null) return;
-            String copied = raw.toString().trim();
-            if (copied.isEmpty() || copied.length() > 120) return;
-            long now = System.currentTimeMillis();
-            if (copied.equals(lastClipboard) && now - lastShownAt < 1800L) return;
-            if (now - lastShownAt < 700L) return;
-            JSONObject match = findTerm(copied);
-            if (match == null) return;
-            lastClipboard = copied;
-            lastShownAt = now;
-            showFloatingCard(match);
-        } catch (SecurityException ignored) {
-            // Android/ROM clipboard policy can still deny access outside an active IME session.
-        } catch (Exception ignored) { }
-    }
-
-    private JSONObject findTerm(String copied) {
-        try {
-            JSONArray terms = new JSONArray(getSharedPreferences("umedt_copy_dictionary", MODE_PRIVATE)
-                    .getString("terms", "[]"));
-            String key = normalize(copied);
-            for (int i = 0; i < terms.length(); i++) {
-                JSONObject item = terms.optJSONObject(i);
-                if (item == null) continue;
-                if (key.equals(normalize(item.optString("term")))) return item;
-                JSONArray aliases = item.optJSONArray("aliases");
-                if (aliases != null) for (int j = 0; j < aliases.length(); j++) {
-                    if (key.equals(normalize(aliases.optString(j)))) return item;
-                }
-            }
-        } catch (Exception ignored) { }
-        return null;
-    }
-
-    private String normalize(String value) {
-        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT)
-                .replaceAll("[^\\p{L}\\p{N}]+", " ").replaceAll("\\s+", " ").trim();
-    }
-
-    private void showFloatingCard(JSONObject term) {
-        if (BuildVersion.sdk() >= 23 && !Settings.canDrawOverlays(this)) return;
-        handler.post(() -> {
-            try {
-                hideFloatingCard();
-                LinearLayout panel = new LinearLayout(this);
-                panel.setOrientation(LinearLayout.VERTICAL);
-                panel.setPadding(dp(18), dp(14), dp(18), dp(12));
-                panel.setBackgroundColor(Color.rgb(19, 45, 39));
-                TextView title = new TextView(this);
-                title.setText(term.optString("term", ""));
-                title.setTextColor(Color.WHITE);
-                title.setTextSize(18);
-                title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-                panel.addView(title);
-                TextView translation = new TextView(this);
-                translation.setText(term.optString("translation", "لا توجد ترجمة"));
-                translation.setTextColor(Color.rgb(180, 245, 210));
-                translation.setTextSize(16);
-                panel.addView(translation);
-                String definition = term.optString("definitionAr", term.optString("definitionEn", ""));
-                if (!definition.isEmpty()) {
-                    TextView detail = new TextView(this);
-                    detail.setText(definition);
-                    detail.setTextColor(Color.WHITE);
-                    detail.setTextSize(13);
-                    detail.setPadding(0, dp(6), 0, 0);
-                    panel.addView(detail);
-                }
-                Button close = keyButton("إغلاق");
-                close.setOnClickListener(v -> hideFloatingCard());
-                panel.addView(close);
-                int type = BuildVersion.sdk() >= 26
-                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                        : WindowManager.LayoutParams.TYPE_PHONE;
-                WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                        WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT,
-                        type, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                        PixelFormat.TRANSLUCENT);
-                params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-                params.y = dp(42);
-                windowManager.addView(panel, params);
-                floatingCard = panel;
-                handler.postDelayed(hideCardRunnable, 8500L);
-            } catch (Exception ignored) { }
-        });
-    }
-
-    private void hideFloatingCard() {
-        handler.removeCallbacks(hideCardRunnable);
-        if (floatingCard != null && windowManager != null) {
-            try { windowManager.removeView(floatingCard); } catch (Exception ignored) { }
-            floatingCard = null;
-        }
-    }
-
-    private final Runnable hideCardRunnable = () -> {
-        if (floatingCard != null && windowManager != null) {
-            try { windowManager.removeView(floatingCard); } catch (Exception ignored) { }
-            floatingCard = null;
-        }
+    private static final String[][] EN_ROWS = new String[][]{
+            {"q", "w", "e", "r", "t", "y", "u", "i", "o", "p"},
+            {"a", "s", "d", "f", "g", "h", "j", "k", "l"},
+            {"⇧", "z", "x", "c", "v", "b", "n", "m", "⌫"},
+            {"123", "🌐", "AR", ",", "SPACE", ".", "⏎"}
     };
 
-    private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
+    private static final String[][] AR_ROWS = new String[][]{
+            {"ض", "ص", "ث", "ق", "ف", "غ", "ع", "ه", "خ", "ح", "ج"},
+            {"ش", "س", "ي", "ب", "ل", "ا", "ت", "ن", "م", "ك", "ط"},
+            {"ئ", "ء", "ؤ", "ر", "لا", "ى", "ة", "و", "ز", "ظ", "⌫"},
+            {"123", "🌐", "EN", "،", "SPACE", ".", "⏎"}
+    };
 
-    @Override public void onWindowShown() { keyboardVisible = true; super.onWindowShown(); }
-    @Override public void onWindowHidden() { keyboardVisible = false; super.onWindowHidden(); }
+    private static final String[][] SYM_ROWS = new String[][]{
+            {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0"},
+            {"-", "/", ":", ";", "(", ")", "%", "+", "=", "\""},
+            {"ABC", ".", ",", "?", "!", "'", "[", "]", "⌫"},
+            {"ABC", "🌐", "AR/EN", ",", "SPACE", ".", "⏎"}
+    };
 
-    @Override public void onDestroy() {
-        if (clipboard != null && clipListener != null) {
-            try { clipboard.removePrimaryClipChangedListener(clipListener); } catch (Exception ignored) { }
+    private final ClipboardManager.OnPrimaryClipChangedListener clipListener = this::inspectClipboardForPopup;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard != null) {
+            try {
+                clipboard.removePrimaryClipChangedListener(clipListener);
+            } catch (Exception ignored) {
+            }
+            clipboard.addPrimaryClipChangedListener(clipListener);
         }
-        hideFloatingCard();
+        UMEDTClipboardMonitorService.startMonitorIfEnabled(this);
+    }
+
+    @Override
+    public View onCreateInputView() {
+        rootView = new LinearLayout(this);
+        rootView.setOrientation(LinearLayout.VERTICAL);
+        rootView.setBackgroundColor(Color.parseColor("#0B1320"));
+        rootView.setPadding(dp(6), dp(6), dp(6), dp(10));
+        renderKeyboard();
+        return rootView;
+    }
+
+    @Override
+    public void onStartInput(EditorInfo attribute, boolean restarting) {
+        super.onStartInput(attribute, restarting);
+        inspectClipboardForPopup();
+    }
+
+    @Override
+    public void onWindowShown() {
+        super.onWindowShown();
+        inspectClipboardForPopup();
+        refreshClipboardBanner();
+    }
+
+    @Override
+    public void onDestroy() {
+        if (clipboard != null) {
+            try {
+                clipboard.removePrimaryClipChangedListener(clipListener);
+            } catch (Exception ignored) {
+            }
+        }
+        UMEDTDictionaryPopupEngine.dismissFloatingCard();
         super.onDestroy();
     }
 
-    private static final class BuildVersion {
-        static int sdk() { return android.os.Build.VERSION.SDK_INT; }
+    private void renderKeyboard() {
+        if (rootView == null) return;
+        rootView.removeAllViews();
+
+        // 1. Top Smart Medical Bar: Instant Clipboard Lookup Banner + Switch Keyboard Button
+        LinearLayout topBar = new LinearLayout(this);
+        topBar.setOrientation(LinearLayout.HORIZONTAL);
+        topBar.setGravity(Gravity.CENTER_VERTICAL);
+        topBar.setPadding(dp(4), dp(2), dp(4), dp(6));
+
+        clipboardQuickBanner = new TextView(this);
+        clipboardQuickBanner.setTextColor(Color.parseColor("#A7F3D0"));
+        clipboardQuickBanner.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
+        clipboardQuickBanner.setTypeface(Typeface.DEFAULT_BOLD);
+        clipboardQuickBanner.setSingleLine(true);
+        clipboardQuickBanner.setEllipsize(TextUtils.TruncateAt.END);
+        clipboardQuickBanner.setPadding(dp(10), dp(6), dp(10), dp(6));
+        GradientDrawable bannerBg = new GradientDrawable();
+        bannerBg.setColor(Color.parseColor("#064E3B"));
+        bannerBg.setCornerRadius(dp(10));
+        bannerBg.setStroke(dp(1), Color.parseColor("#10B981"));
+        clipboardQuickBanner.setBackground(bannerBg);
+        clipboardQuickBanner.setOnClickListener(v -> {
+            JSONObject matched = UMEDTDictionaryPopupEngine.inspectClipboardAndShowIfMatched(this, true);
+            if (matched != null) {
+                refreshClipboardBanner();
+            }
+        });
+        LinearLayout.LayoutParams bannerParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        bannerParams.setMargins(0, 0, dp(6), 0);
+        topBar.addView(clipboardQuickBanner, bannerParams);
+
+        TextView switchImeChip = new TextView(this);
+        switchImeChip.setText("🌐 الكيبورد");
+        switchImeChip.setTextColor(Color.parseColor("#E2E8F0"));
+        switchImeChip.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
+        switchImeChip.setTypeface(Typeface.DEFAULT_BOLD);
+        switchImeChip.setPadding(dp(10), dp(6), dp(10), dp(6));
+        GradientDrawable switchBg = new GradientDrawable();
+        switchBg.setColor(Color.parseColor("#1E293B"));
+        switchBg.setCornerRadius(dp(10));
+        switchBg.setStroke(dp(1), Color.parseColor("#334155"));
+        switchImeChip.setBackground(switchBg);
+        switchImeChip.setOnClickListener(v -> switchKeyboardMethod());
+        topBar.addView(switchImeChip);
+
+        rootView.addView(topBar);
+        refreshClipboardBanner();
+
+        // 2. Key Rows
+        String[][] rows = symbolsLayout ? SYM_ROWS : (arabicLayout ? AR_ROWS : EN_ROWS);
+        for (String[] row : rows) {
+            LinearLayout rowLayout = new LinearLayout(this);
+            rowLayout.setOrientation(LinearLayout.HORIZONTAL);
+            rowLayout.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            rowParams.bottomMargin = dp(5);
+            rowLayout.setLayoutParams(rowParams);
+
+            for (String key : row) {
+                rowLayout.addView(createKeyView(key));
+            }
+            rootView.addView(rowLayout);
+        }
+    }
+
+    private void refreshClipboardBanner() {
+        if (clipboardQuickBanner == null) return;
+        JSONObject matched = UMEDTDictionaryPopupEngine.peekClipboardMatchedTerm(this);
+        if (matched != null) {
+            String term = matched.optString("term", "");
+            String trans = matched.optString("translation", "");
+            clipboardQuickBanner.setText("⚡ " + term + " ← " + trans + " (اضغط للبطاقة)");
+        } else {
+            int count = UMEDTDictionaryPopupEngine.getSyncedTermsCount(this);
+            clipboardQuickBanner.setText("📖 قاموس UMEDT جاهز (" + count + " مصطلح) · انسخ أي كلمة لترجمتها");
+        }
+    }
+
+    private View createKeyView(final String label) {
+        TextView keyView = new TextView(this);
+        String displayLabel = label;
+        if ("SPACE".equals(label)) {
+            displayLabel = arabicLayout ? "مسافة · UMEDT" : "UMEDT Medical";
+        } else if (!symbolsLayout && !arabicLayout && label.length() == 1 && Character.isLetter(label.charAt(0))) {
+            displayLabel = shiftUppercase ? label.toUpperCase() : label.toLowerCase();
+        }
+
+        keyView.setText(displayLabel);
+        keyView.setGravity(Gravity.CENTER);
+        keyView.setTextColor(Color.WHITE);
+        keyView.setTextSize(TypedValue.COMPLEX_UNIT_SP, "SPACE".equals(label) ? 13f : 15.5f);
+        keyView.setTypeface(Typeface.DEFAULT_BOLD);
+
+        boolean isAccentKey = "⏎".equals(label) || "AR".equals(label) || "EN".equals(label) || "AR/EN".equals(label);
+        boolean isModifierKey = "⌫".equals(label) || "⇧".equals(label) || "123".equals(label) || "ABC".equals(label) || "🌐".equals(label);
+
+        String bgColor = "#1E293B";
+        if (isAccentKey) {
+            bgColor = "#059669";
+        } else if ("⇧".equals(label) && shiftUppercase) {
+            bgColor = "#0284C7";
+        } else if (isModifierKey) {
+            bgColor = "#334155";
+        }
+
+        GradientDrawable keyBg = new GradientDrawable();
+        keyBg.setColor(Color.parseColor(bgColor));
+        keyBg.setCornerRadius(dp(8));
+        keyView.setBackground(keyBg);
+        keyView.setPadding(dp(4), dp(11), dp(4), dp(11));
+
+        float weight = 1f;
+        if ("SPACE".equals(label)) {
+            weight = 3.6f;
+        } else if ("⌫".equals(label) || "⏎".equals(label) || "⇧".equals(label) || "123".equals(label) || "ABC".equals(label)) {
+            weight = 1.35f;
+        }
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                weight
+        );
+        params.setMargins(dp(2), 0, dp(2), 0);
+        keyView.setLayoutParams(params);
+        keyView.setOnClickListener(v -> handleKeyPress(label));
+        return keyView;
+    }
+
+    private void handleKeyPress(String label) {
+        InputConnection ic = getCurrentInputConnection();
+        if ("AR".equals(label) || "EN".equals(label) || "AR/EN".equals(label)) {
+            arabicLayout = !arabicLayout;
+            symbolsLayout = false;
+            renderKeyboard();
+            return;
+        }
+        if ("123".equals(label)) {
+            symbolsLayout = true;
+            renderKeyboard();
+            return;
+        }
+        if ("ABC".equals(label)) {
+            symbolsLayout = false;
+            renderKeyboard();
+            return;
+        }
+        if ("⇧".equals(label)) {
+            shiftUppercase = !shiftUppercase;
+            renderKeyboard();
+            return;
+        }
+        if ("🌐".equals(label)) {
+            switchKeyboardMethod();
+            return;
+        }
+        if (ic == null) return;
+
+        if ("⌫".equals(label)) {
+            CharSequence selected = ic.getSelectedText(0);
+            if (TextUtils.isEmpty(selected)) {
+                ic.deleteSurroundingText(1, 0);
+            } else {
+                ic.commitText("", 1);
+            }
+        } else if ("SPACE".equals(label)) {
+            ic.commitText(" ", 1);
+        } else if ("⏎".equals(label)) {
+            ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER));
+            ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER));
+        } else {
+            String out = label;
+            if (!symbolsLayout && !arabicLayout && label.length() == 1 && Character.isLetter(label.charAt(0))) {
+                out = shiftUppercase ? label.toUpperCase() : label.toLowerCase();
+                if (shiftUppercase) {
+                    shiftUppercase = false;
+                    renderKeyboard();
+                }
+            }
+            ic.commitText(out, 1);
+        }
+    }
+
+    private void switchKeyboardMethod() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                boolean switched = switchToPreviousInputMethod();
+                if (switched) return;
+            }
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                IBinder token = getWindow() != null && getWindow().getWindow() != null
+                        ? getWindow().getWindow().getAttributes().token
+                        : null;
+                if (token != null) {
+                    imm.switchToLastInputMethod(token);
+                    return;
+                }
+                imm.showInputMethodPicker();
+            }
+        } catch (Exception ignored) {
+            try {
+                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm != null) imm.showInputMethodPicker();
+            } catch (Exception ignored2) {
+            }
+        }
+    }
+
+    private void inspectClipboardForPopup() {
+        try {
+            JSONObject matched = UMEDTDictionaryPopupEngine.peekClipboardMatchedTerm(this);
+            refreshClipboardBanner();
+            if (matched != null) {
+                String matchedKey = matched.optString("_matchedInput", matched.optString("term", ""));
+                if (!matchedKey.equals(lastInspectedClip)) {
+                    lastInspectedClip = matchedKey;
+                }
+                UMEDTDictionaryPopupEngine.showFloatingCard(getApplicationContext(), matched, false);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 }
