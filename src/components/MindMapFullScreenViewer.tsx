@@ -3,7 +3,7 @@ import { Maximize2, Minimize2, Share2, X } from 'lucide-react';
 import { MindMapDocument } from '../types/mindMap';
 import { computeMindMapLayout } from '../services/mindMapLayoutEngine';
 import { buildStandaloneMindMapSvg } from '../services/mindMapStorageService';
-import { buildStandaloneMindMapHtml } from '../services/mindMapStandaloneExportService';
+import { buildStandaloneMindMapHtmlV2 as buildStandaloneMindMapHtml } from '../services/mindMapStandaloneExportServiceV2';
 import { shareFileWithVerification } from '../utils/downloadHelper';
 
 interface MindMapFullScreenViewerProps {
