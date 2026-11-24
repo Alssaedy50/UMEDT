@@ -611,7 +611,7 @@ export function buildStandaloneMindMapSvg(
              <text x="0" y="3" text-anchor="middle" font-family="Cairo, sans-serif" font-size="10" font-weight="700" fill="${labelText}">${escapeXml(e.label)}</text>
            </g>`
         : '';
-      return `<path d="${escapeXml(e.path)}" fill="none" stroke="${edgeStroke}" stroke-width="2"${dash}${marker} />${edgeLabel}`;
+      return `<g class="mm-edge" data-from="${escapeXml(e.sourceId)}" data-to="${escapeXml(e.targetId)}"><path d="${escapeXml(e.path)}" fill="none" stroke="${edgeStroke}" stroke-width="2"${dash}${marker} />${edgeLabel}</g>`;
     })
     .join('\n');
 
@@ -643,7 +643,7 @@ export function buildStandaloneMindMapSvg(
           )}</text>`
         : '';
 
-      return `<g>
+      return `<g class="mm-node" data-node-id="${escapeXml(pn.node.id)}" role="button" tabindex="0" aria-label="${escapeXml(pn.node.label)}">
         <rect x="${x}" y="${y}" width="${pn.width}" height="${pn.height}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${
         pn.node.role === 'root' ? 2.5 : 1.75
       }"/>

@@ -70,6 +70,7 @@ import {
   validateSingleQuizQuestion
 } from './quizEngineService';
 import { autoEnrichAllTermsRelations } from '../engine/knowledgeLinker';
+import { parseMindMapInput } from './mindMapImportService';
 import {
   deduplicateTopicMediaAndAttachments,
   enqueueEntitiesForCloudSync,
@@ -523,6 +524,28 @@ function normalizeContentBlock(
       ) || undefined;
   }
 
+  // Mind maps use their dedicated parser while remaining part of the unified topic import.
+  const embeddedMap =
+    raw.mindMapData && typeof raw.mindMapData === 'object'
+      ? (raw.mindMapData as unknown as import('../types/mindMap').MindMapDocument)
+      : Array.isArray(raw.nodes)
+        ? (raw as unknown as import('../types/mindMap').MindMapDocument)
+        : undefined;
+  const mapText =
+    typeof raw.mindMapText === 'string'
+      ? raw.mindMapText
+      : typeof raw.text === 'string'
+        ? raw.text
+        : typeof raw.content === 'string'
+          ? raw.content
+          : '';
+  const parsedMap =
+    blkType === 'mind_map' && !embeddedMap && mapText.trim()
+      ? parseMindMapInput(mapText)
+      : null;
+  const normalizedMindMap =
+    embeddedMap || (parsedMap?.success ? parsedMap.document || undefined : undefined);
+
   return {
     id: String(raw.id || `cblk-${secId}-${Date.now()}-${idx}`),
     type: blkType,
@@ -593,11 +616,9 @@ function normalizeContentBlock(
       raw.diagramData && typeof raw.diagramData === 'object'
         ? (raw.diagramData as Record<string, unknown>)
         : undefined,
-    mindMapId: typeof raw.mindMapId === 'string' ? raw.mindMapId : undefined,
-    mindMapData:
-      raw.mindMapData && typeof raw.mindMapData === 'object'
-        ? (raw.mindMapData as unknown as import('../types/mindMap').MindMapDocument)
-        : undefined,
+    mindMapId:
+      typeof raw.mindMapId === 'string' ? raw.mindMapId : normalizedMindMap?.id,
+    mindMapData: normalizedMindMap,
     sha256: typeof raw.sha256 === 'string' ? raw.sha256 : undefined,
     inlineQuestion: inlineQ
   };

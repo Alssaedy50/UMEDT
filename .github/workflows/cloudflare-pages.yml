@@ -1,12 +1,7 @@
 name: Deploy UMED-2 to Cloudflare Pages
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+  # Manual-only: Cloudflare deployment is intentionally disabled for automatic builds.
   workflow_dispatch:
 
 permissions:

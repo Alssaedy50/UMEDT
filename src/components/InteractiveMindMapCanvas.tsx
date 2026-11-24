@@ -3,7 +3,6 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
-  Minimize2,
   RotateCcw,
   Plus,
   Trash2,
@@ -23,7 +22,8 @@ import {
   ChevronRight,
   ChevronLeft,
   Sparkles,
-  FileCode
+  FileCode,
+  Share2
 } from 'lucide-react';
 import {
   MindMapDocument,
@@ -35,7 +35,9 @@ import {
 } from '../types/mindMap';
 import { computeMindMapLayout } from '../services/mindMapLayoutEngine';
 import { buildStandaloneMindMapSvg } from '../services/mindMapStorageService';
-import { prepareAndDownloadFile } from '../utils/downloadHelper';
+import { buildStandaloneMindMapHtmlV2 as buildStandaloneMindMapHtml } from '../services/mindMapStandaloneExportServiceV2';
+import { MindMapFullScreenViewer } from './MindMapFullScreenViewer';
+import { prepareAndDownloadFile, shareFileWithVerification } from '../utils/downloadHelper';
 
 export const MIND_MAP_ROLE_META: Record<
   MindMapNodeRole,
@@ -136,6 +138,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showSearch, setShowSearch] = useState<boolean>(false);
+  const [isFullScreenViewerOpen, setIsFullScreenViewerOpen] = useState<boolean>(false);
 
   // Editing states inside Inspector
   const [isEditingNode, setIsEditingNode] = useState<boolean>(false);
@@ -498,6 +501,26 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
     showToast?.(res.initiated ? res.messageAr : res.error || 'تعذر تنزيل JSON');
   };
 
+  const createStandaloneHtml = () => {
+    const dark = typeof window !== 'undefined' && window.document.documentElement.classList.contains('dark');
+    return buildStandaloneMindMapHtml(doc, layout, dark);
+  };
+  const getHtmlFilename = () => {
+    const safe = (doc.title || 'mind-map').replace(/[^\w\u0600-\u06FF-]+/g, '-').slice(0, 48);
+    return `${safe || 'mind-map'}.html`;
+  };
+  const handleExportHtml = async () => {
+    const res = await prepareAndDownloadFile({ filename: getHtmlFilename(), content: createStandaloneHtml(), mime: 'text/html;charset=utf-8' });
+    showToast?.(res.initiated ? res.messageAr : res.error || 'تعذر تصدير HTML');
+  };
+  const handleShareHtml = async () => {
+    const res = await shareFileWithVerification({
+      filename: getHtmlFilename(), content: createStandaloneHtml(), mime: 'text/html;charset=utf-8',
+      title: doc.title || 'UMEDT Mind Map', text: `خريطة ذهنية تفاعلية مستقلة: ${doc.title || 'UMEDT Mind Map'}`
+    });
+    showToast?.(res.messageAr);
+  };
+
   const connectedEdgesForSelected = useMemo(() => {
     if (!selectedNode) return [];
     return doc.edges.filter(
@@ -613,18 +636,23 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                 <FileCode className="w-3.5 h-3.5 text-emerald-500" />
                 <span>JSON</span>
               </button>
+              <button type="button" onClick={() => void handleExportHtml()} className="min-h-[34px] px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1" title="تصدير صفحة HTML مستقلة تعمل دون إنترنت"><FileCode className="w-3.5 h-3.5 text-sky-500" /><span>HTML</span></button>
+              <button type="button" onClick={() => void handleShareHtml()} className="min-h-[34px] px-2.5 py-1 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-[11px] font-extrabold flex items-center gap-1" title="مشاركة ملف الخريطة كصفحة مستقلة"><Share2 className="w-3.5 h-3.5" /><span>مشاركة</span></button>
             </>
           )}
 
-          {onRequestFullscreen && (
+          {true && (
             <button
               type="button"
-              onClick={onRequestFullscreen}
+              onClick={() => {
+                if (onRequestFullscreen) onRequestFullscreen();
+                else setIsFullScreenViewerOpen(true);
+              }}
               className="min-h-[34px] px-2.5 py-1 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-[11px] font-extrabold flex items-center gap-1"
               title="فتح في الاستوديو الكامل"
             >
               <Maximize2 className="w-3.5 h-3.5" />
-              <span>توسيع وتعديل</span>
+              <span>عرض الخريطة كاملة</span>
             </button>
           )}
         </div>
@@ -1112,6 +1140,13 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
             </form>
           )}
         </div>
+      )}
+      {isFullScreenViewerOpen && (
+        <MindMapFullScreenViewer
+          mapDocument={doc}
+          onClose={() => setIsFullScreenViewerOpen(false)}
+          showToast={showToast}
+        />
       )}
     </div>
   );
