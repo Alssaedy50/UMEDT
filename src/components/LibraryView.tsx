@@ -883,6 +883,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   ) => {
     const key = `${targetType}:${targetId}`;
     setBusyTargetKey(key);
+    let completed = false;
     try {
       const res = await deleteCloudLibraryTargetLocally({
         targetType,
@@ -891,6 +892,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         currentTerms: terms,
         currentSentences: sentences
       });
+      if (!res.success) throw new Error(res.messageAr || 'تعذر حذف النسخة المحلية.');
       onSyncStateUpdated?.({
         topics: res.updatedTopics,
         terms: res.updatedTerms,
@@ -898,10 +900,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       });
       setSyncRevision((prev) => prev + 1);
       onBackupNowTriggered?.(`حذف محلي (${targetType})`);
-      showToast?.(res.messageAr, 'info');
+      showToast?.(res.messageAr, 'success');
+      completed = true;
+    } catch (error) {
+      showToast?.(error instanceof Error ? error.message : 'حدث خطأ أثناء الحذف المحلي.', 'error');
     } finally {
       setBusyTargetKey(null);
-      setPendingDeleteTarget(null);
+      if (completed) setPendingDeleteTarget(null);
     }
   };
 
@@ -911,6 +916,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   ) => {
     const key = `perm:${targetType}:${targetId}`;
     setBusyTargetKey(key);
+    let completed = false;
     try {
       const res = await deleteCloudLibraryTargetPermanently({
         targetType,
@@ -919,6 +925,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         currentTerms: terms,
         currentSentences: sentences
       });
+      if (!res.success) throw new Error(res.messageAr || 'تعذر تنفيذ الحذف النهائي.');
       onSyncStateUpdated?.({
         topics: res.updatedTopics,
         terms: res.updatedTerms,
@@ -930,10 +937,15 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         type: 'success',
         message: res.messageAr
       });
-      showToast?.(res.messageAr, 'info');
+      showToast?.(res.messageAr, 'success');
+      completed = true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'حدث خطأ أثناء الحذف النهائي.';
+      setOfflineFeedback({ type: 'error', message });
+      showToast?.(message, 'error');
     } finally {
       setBusyTargetKey(null);
-      setPendingDeleteTarget(null);
+      if (completed) setPendingDeleteTarget(null);
     }
   };
 
@@ -1195,7 +1207,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   }, [cloudSummary]);
 
   return (
-    <div className="space-y-4 pb-8">
+    <div className="space-y-2 pb-5">
       {/* ====================================================================
           MODE 1: LIBRARY MAIN HUB (COMPACT CARDS - 1 TO 2 WORDS)
          ==================================================================== */}
@@ -1337,16 +1349,16 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           MODE 1B: UNIFIED CLOUD LIBRARY & SELECTIVE DOWNLOAD MANAGER
          ==================================================================== */}
       {libraryMode === 'cloud_library' && (
-        <div className="space-y-3">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-3.5 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3.5">
+        <div className="space-y-2">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-2.5 sm:p-3.5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2">
             {/* Top Bar: Clean 2-Row Mobile-Safe Header (Zero Overlap) */}
-            <div className="space-y-2.5">
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <button
                     type="button"
                     onClick={() => setLibraryMode('hub')}
-                    className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1 transition-colors shrink-0"
+                    className="min-h-[34px] px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1 transition-colors shrink-0"
                   >
                     <ArrowRight className="w-4 h-4" />
                     <span>رجوع</span>
@@ -1356,7 +1368,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   </h2>
                 </div>
 
-                <span className="min-h-[32px] px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-[11px] font-extrabold text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
+                <span className="min-h-[30px] px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[10px] font-extrabold text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 whitespace-nowrap shrink-0">
                   {cloudSummary.overallSyncStatus === 'synced' && (
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                   )}
@@ -1375,12 +1387,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   disabled={busyTargetKey === 'catalog:refresh'}
                   onClick={() => void handleRefreshCloudCatalog()}
-                  className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
+                  className="min-h-[32px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1 transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
                 >
                   <RefreshCw
                     className={`w-3.5 h-3.5 ${
@@ -1393,7 +1405,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsAiGuideOpen(true)}
-                  className="min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+                  className="min-h-[32px] px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] font-extrabold flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>برومبت AI</span>
@@ -1402,7 +1414,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             </div>
 
             {/* Compact Storage Strip */}
-            <div className="px-3 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+            <div className="px-1 py-0.5 flex flex-wrap items-center justify-between gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400">
               <div className="flex items-center gap-2">
                 <HardDrive className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                 <span>
@@ -1422,12 +1434,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             </div>
 
             {/* Responsive 3-Column Filter Tabs (No Overlap on Narrow Screens) */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5">
               <div className="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/90 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setCloudFilterTab('all')}
-                  className={`min-h-[40px] px-1.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-extrabold transition-colors flex items-center justify-center gap-1 leading-tight text-center ${
+                  className={`min-h-[34px] px-1.5 sm:px-3 py-1 rounded-lg text-[10px] sm:text-[11px] font-extrabold transition-colors flex items-center justify-center gap-1 leading-tight text-center ${
                     cloudFilterTab === 'all'
                       ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
                       : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -1441,7 +1453,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setCloudFilterTab('local')}
-                  className={`min-h-[40px] px-1.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-extrabold transition-colors flex items-center justify-center gap-1 leading-tight text-center ${
+                  className={`min-h-[34px] px-1.5 sm:px-3 py-1 rounded-lg text-[10px] sm:text-[11px] font-extrabold transition-colors flex items-center justify-center gap-1 leading-tight text-center ${
                     cloudFilterTab === 'local'
                       ? 'bg-emerald-600 text-white shadow-xs'
                       : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -1455,7 +1467,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setCloudFilterTab('cloud')}
-                  className={`min-h-[40px] px-1.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-extrabold transition-colors flex items-center justify-center gap-1 leading-tight text-center ${
+                  className={`min-h-[34px] px-1.5 sm:px-3 py-1 rounded-lg text-[10px] sm:text-[11px] font-extrabold transition-colors flex items-center justify-center gap-1 leading-tight text-center ${
                     cloudFilterTab === 'cloud'
                       ? 'bg-emerald-600 text-white shadow-xs'
                       : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -1468,28 +1480,43 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 </button>
               </div>
 
-              <div className="relative flex-1 max-w-md">
-                <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <div className="relative flex-1 min-w-0 sm:max-w-md">
+                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <MobileSafeInput
                   type="text"
-                  dir="auto"
+                  dir="rtl"
                   value={cloudSearchQuery}
                   onValueChange={setCloudSearchQuery}
                   placeholder="بحث..."
-                  className="w-full min-h-[38px] pr-9 pl-3 py-1.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-medium focus:outline-none focus:border-emerald-500"
+                  className="w-full min-h-[36px] pr-9 pl-9 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-medium text-right focus:outline-none focus:border-emerald-500"
                 />
+                {cloudSearchQuery.length > 0 && (
+                  <button
+                    type="button"
+                    aria-label="مسح البحث"
+                    title="مسح البحث"
+                    onClick={() => setCloudSearchQuery('')}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 min-h-[28px] min-w-[28px] rounded-lg text-slate-400 hover:text-rose-500 flex items-center justify-center"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
 
             {/* Hierarchical Tree: Blocks -> Subjects -> Topics */}
             <div className="space-y-2.5">
-              {filteredCloudBlocks.length === 0 ? (
-                <div className="p-6 text-center rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/70 dark:border-slate-800 text-xs font-bold text-slate-500">
+              {filteredCloudBlocks.length === 0 &&
+              filteredCloudBooks.length === 0 &&
+              filteredCloudExams.length === 0 &&
+              filteredDynamicCollections.length === 0 &&
+              (cloudSummary.cloudDictionaryTotalCount || 0) === 0 ? (
+                <div className="px-3 py-4 text-center rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200/70 dark:border-slate-800 text-[11px] font-bold text-slate-500">
                   {!isCloudSyncOnline()
                     ? 'يلزم الاتصال بالإنترنت لتحميل المكتبة السحابية'
                     : cloudFilterTab === 'local'
                     ? 'المكتبة المحلية فارغة — نزّل من المكتبة السحابية'
-                    : 'اضغط "تحديث" لجلب المكتبة السحابية'}
+                    : 'لا توجد عناصر مطابقة للبحث أو الفلتر الحالي'}
                 </div>
               ) : (
                 filteredCloudBlocks.map((blk) => {
@@ -3334,6 +3361,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 pendingDeleteTarget.targetType !== 'all_data' && (
                   <button
                     type="button"
+                    disabled={busyTargetKey === `${pendingDeleteTarget.targetType}:${pendingDeleteTarget.targetId}`}
                     onClick={() =>
                       void handleDeleteTargetLocally(
                         pendingDeleteTarget.targetType as
@@ -3358,6 +3386,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
               <button
                 type="button"
+                disabled={busyTargetKey === `perm:${pendingDeleteTarget.targetType}:${pendingDeleteTarget.targetId}`}
                 onClick={() =>
                   void handleDeleteTargetPermanently(
                     pendingDeleteTarget.targetType,
