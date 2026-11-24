@@ -15,9 +15,9 @@ export const MIND_MAP_AI_PROMPTS = {
   markdown: `أنشئ خريطة ذهنية طبية أكاديمية مختصرة وواضحة حول: [اكتب اسم الموضوع الطبي هنا]
 التزم بالقواعد التالية بدقة:
 1. استخدم صيغة Markdown متداخلة (# للعنوان الرئيسي، ## للفروع الرئيسية، - للفروع الفرعية).
-2. اجعل كل عقدة مختصرة جداً (2 إلى 6 كلمات فقط) بدون فقرات طويلة أو شروحات مطولة.
-3. يمكنك إضافة ترجمة أو مؤشر سريري قصير بعد نقطتين، مثل: **ACE Inhibitors**: مثبطات الإنزيم المحول.
-4. ركّز على التصنيف، الآلية، التشخيص، والعلاج الأساسي فقط.`,
+2. اجعل عنوان العقدة مختصراً (2 إلى 6 كلمات)، وضع الشرح الكامل غير المحدود في حقل note لكل عقدة؛ لا تحذف التفاصيل الطبية أو الأمثلة.
+3. أضف sublabel للترجمة أو مؤشر سريري قصير، وأضف note لشرح تفصيلي كامل يدعم الأسطر والفقرات.
+4. ميّز العقد بالأدوار: root, concept, mechanism, diagnosis, treatment, warning؛ سيختار التطبيق لوناً وشكلاً مناسباً لكل دور.\n5. حافظ على التسلسل الهرمي والعلاقات السببية، ولا تضع الشرح الطويل داخل label.`,
 
   flow: `أنشئ خريطة تدفق طبية (Medical Flow Map) لمسار التشخيص والعلاج لـ: [اكتب الحالة السريرية هنا]
 التزم بصيغة الأسهم المباشرة التالية سطراً بسطر:
@@ -26,14 +26,14 @@ Title: [عنوان المسار]
 اجعل كل عقدة قصيرة وواضحة (أقل من 6 كلمات).`,
 
   json: `Generate a concise medical-academic mind map JSON for: [Medical Topic]
-Return ONLY valid JSON matching this schema (keep every label short: 2-6 words, no long paragraphs):
+Return ONLY valid JSON matching this schema. Keep label concise (2-6 words), but put the complete, detailed, multi-paragraph explanation in note. Never truncate note content.
 {
   "title": "Topic Title",
   "style": "radial",
   "nodes": [
     { "id": "n1", "label": "Central Concept", "sublabel": "المفهوم الرئيسي", "parentId": null, "role": "root" },
-    { "id": "n2", "label": "Pathophysiology", "sublabel": "الفيزيولوجيا المرضية", "parentId": "n1", "role": "mechanism" },
-    { "id": "n3", "label": "First-line Therapy", "sublabel": "العلاج الأولي", "parentId": "n1", "role": "treatment" }
+    { "id": "n2", "label": "Pathophysiology", "sublabel": "الفيزيولوجيا المرضية", "note": "Write the complete explanation here without an artificial word limit. Include mechanisms, examples, and clinical relevance.", "parentId": "n1", "role": "mechanism", "shape": "diamond", "color": "#38bdf8" },
+    { "id": "n3", "label": "First-line Therapy", "sublabel": "العلاج الأولي", "note": "Detailed treatment explanation, indications, cautions, and examples.", "parentId": "n1", "role": "treatment" }
   ],
   "edges": [
     { "id": "e1", "sourceId": "n2", "targetId": "n3", "label": "Targeted by" }
@@ -124,6 +124,18 @@ function cleanMarkdownFormatting(raw: string): string {
     .trim();
 }
 
+function cleanMarkdownNote(raw: string): string {
+  return String(raw || '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 /**
  * Keeps mind map nodes concise and scannable so they never duplicate long textbook paragraphs.
  * Splits `Term: short cue` into label + sublabel, and moves overflow prose into `note`.
@@ -140,7 +152,7 @@ function condenseNodeText(
 } {
   let clean = cleanMarkdownFormatting(rawLabel);
   let sublabel = existingSublabel ? cleanMarkdownFormatting(existingSublabel) : undefined;
-  let note = existingNote ? cleanMarkdownFormatting(existingNote) : undefined;
+  let note = existingNote ? cleanMarkdownNote(existingNote) : undefined;
   let wasTrimmed = false;
 
   // Split "Main Label: Short Cue" or "Main Label — Short Cue" when no explicit sublabel exists
@@ -434,6 +446,10 @@ function parseJsonMindMap(
         parentId,
         role: normalizeRole(rn.role ?? rn.type ?? rn.category, condensed.label, parentId ? 1 : 0),
         order: typeof rn.order === 'number' ? rn.order : idx,
+        shape: ['rounded', 'pill', 'diamond', 'hexagon', 'circle'].includes(String(rn.shape))
+          ? (String(rn.shape) as MindMapNode['shape'])
+          : undefined,
+        color: typeof rn.color === 'string' && /^#[0-9a-f]{6}$/i.test(rn.color) ? rn.color : undefined,
         position: pos
       });
     });

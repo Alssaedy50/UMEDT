@@ -618,12 +618,20 @@ export function buildStandaloneMindMapSvg(
   const nodeElements = layout.nodes
     .map((pn) => {
       const palette = SVG_ROLE_PALETTE[pn.node.role] || SVG_ROLE_PALETTE.concept;
-      const fill = isDark ? palette.fillDark : palette.fillLight;
-      const stroke = isDark ? palette.strokeDark : palette.strokeLight;
-      const textColor = isDark ? palette.textDark : palette.textLight;
+      const fill = pn.node.color || (isDark ? palette.fillDark : palette.fillLight);
+      const stroke = pn.node.color || (isDark ? palette.strokeDark : palette.strokeLight);
+      const textColor = pn.node.color ? '#ffffff' : isDark ? palette.textDark : palette.textLight;
       const x = pn.x - pn.width / 2;
       const y = pn.y - pn.height / 2;
-      const rx = pn.node.role === 'root' ? 18 : 14;
+      const shape = pn.node.shape || 'rounded';
+      const rx = shape === 'pill' ? pn.height / 2 : pn.node.role === 'root' ? 18 : 14;
+      const shapeMarkup = shape === 'circle'
+        ? `<ellipse cx="${pn.x}" cy="${pn.y}" rx="${Math.max(pn.width,pn.height)/2}" ry="${Math.max(pn.width,pn.height)/2}" fill="${fill}" stroke="${stroke}" stroke-width="${pn.node.role === 'root' ? 2.5 : 1.75}"/>`
+        : shape === 'diamond'
+          ? `<polygon points="${pn.x},${y} ${x+pn.width},${pn.y} ${pn.x},${y+pn.height} ${x},${pn.y}" fill="${fill}" stroke="${stroke}" stroke-width="${pn.node.role === 'root' ? 2.5 : 1.75}"/>`
+          : shape === 'hexagon'
+            ? `<polygon points="${x+pn.width*0.18},${y} ${x+pn.width*0.82},${y} ${x+pn.width},${pn.y} ${x+pn.width*0.82},${y+pn.height} ${x+pn.width*0.18},${y+pn.height} ${x},${pn.y}" fill="${fill}" stroke="${stroke}" stroke-width="${pn.node.role === 'root' ? 2.5 : 1.75}"/>`
+            : `<rect x="${x}" y="${y}" width="${pn.width}" height="${pn.height}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${pn.node.role === 'root' ? 2.5 : 1.75}"/>`;
 
       const totalLines = pn.lines.length + (pn.sublabelLine ? 1 : 0);
       const startY = pn.y - ((totalLines - 1) * 16) / 2 + 4;
@@ -644,9 +652,7 @@ export function buildStandaloneMindMapSvg(
         : '';
 
       return `<g class="mm-node" data-node-id="${escapeXml(pn.node.id)}" role="button" tabindex="0" aria-label="${escapeXml(pn.node.label)}">
-        <rect x="${x}" y="${y}" width="${pn.width}" height="${pn.height}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${
-        pn.node.role === 'root' ? 2.5 : 1.75
-      }"/>
+        ${shapeMarkup}
         ${textLines}
         ${subLine}
       </g>`;

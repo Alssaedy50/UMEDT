@@ -29,6 +29,7 @@ import {
   MIND_MAP_AI_PROMPTS
 } from '../services/mindMapImportService';
 import { InteractiveMindMapCanvas } from './InteractiveMindMapCanvas';
+import { parseUploadedFile } from '../services/fileParserService';
 
 interface MindMapStudioModalProps {
   isOpen: boolean;
@@ -193,11 +194,21 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const content = await file.text();
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      let content = '';
+      if (['pdf', 'docx'].includes(ext)) {
+        const parsed = await parseUploadedFile(file);
+        content = parsed.extractedText || '';
+        if (!content.trim()) throw new Error(parsed.parseWarnings?.join(' ') || 'لم يتم العثور على نص قابل للاستخراج');
+        if (parsed.parseWarnings?.length) showToast(parsed.parseWarnings.join(' · '), 'info');
+      } else {
+        content = await file.text();
+        if (['html', 'htm'].includes(ext)) content = content.replace(/<\/(?:p|div|li|h[1-6]|tr)>/gi, '\n').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+      }
       setImportFileName(file.name);
       setImportText(content);
     } catch {
-      showToast('تعذر قراءة الملف المرفوع', 'info');
+      showToast('تعذر قراءة الملف المرفوع أو لا يحتوي على نص قابل للاستخراج', 'info');
     } finally {
       e.target.value = '';
     }
@@ -226,7 +237,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".json,.md,.markdown,.txt"
+          accept=".json,.md,.markdown,.txt,.pdf,.docx,.html,.htm"
           onChange={handleUploadFile}
           className="hidden"
         />
@@ -405,6 +416,12 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                 placeholder={`مثال Markdown:\n# Iron Deficiency Anemia\n## Etiology\n- Chronic blood loss: نزف مزمن\n- Dietary insufficiency\n## Diagnosis\n- Low Ferritin: أدق مؤشر\n- Microcytic hypochromic RBCs\n\nأو مثال مسار تدفق:\nChest Pain -> [ECG] ST Elevation -> PCI within 90 min`}
                 className="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono leading-relaxed focus:outline-none focus:border-emerald-500"
               />
+
+              <div className="rounded-xl border border-violet-200 bg-violet-50/70 px-3 py-2 text-[11px] leading-5 text-violet-900 dark:border-violet-900/60 dark:bg-violet-950/30 dark:text-violet-200">
+                <strong>كيف يتعرف UMEDT على الخريطة؟</strong>
+                <p>يقرأ JSON لاكتشاف nodes وedges أو children، ويحلل Markdown من العناوين والقوائم المتداخلة، وTXT من المسافات والتفرعات، وأسهم A -&gt; B لمسارات التدفق. يمكن استخراج النص من PDF وDOCX قبل التحليل. يعرض التطبيق الصيغة والعقد والعلاقات وعمق الشجرة قبل الحفظ.</p>
+                <p>الملفات المصورة أو PDF الممسوح ضوئياً تحتاج OCR خارجياً أولاً؛ لا يدّعي المستورد قراءة الصور تلقائياً.</p>
+              </div>
 
               {/* Live Parse Preview */}
               {importPreview && (

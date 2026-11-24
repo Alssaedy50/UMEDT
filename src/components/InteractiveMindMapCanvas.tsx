@@ -146,6 +146,8 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
   const [editSublabel, setEditSublabel] = useState<string>('');
   const [editNote, setEditNote] = useState<string>('');
   const [editRole, setEditRole] = useState<MindMapNodeRole>('concept');
+  const [editShape, setEditShape] = useState<NonNullable<MindMapNode['shape']>>('rounded');
+  const [editColor, setEditColor] = useState<string>('');
 
   // Linking mode: click source -> click target to create edge
   const [linkSourceId, setLinkSourceId] = useState<string | null>(null);
@@ -230,6 +232,8 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
       setEditSublabel(selectedNode.sublabel || '');
       setEditNote(selectedNode.note || '');
       setEditRole(selectedNode.role);
+      setEditShape(selectedNode.shape || 'rounded');
+      setEditColor(selectedNode.color || '');
     }
   }, [selectedNode]);
 
@@ -324,7 +328,9 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
               label: cleanLabel,
               sublabel: editSublabel.trim() || undefined,
               note: editNote.trim() || undefined,
-              role: selectedNode.id === doc.rootNodeId ? 'root' : editRole
+              role: selectedNode.id === doc.rootNodeId ? 'root' : editRole,
+              shape: editShape,
+              color: editColor || undefined
             }
           : n
       ),
@@ -1107,12 +1113,25 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                 </div>
               )}
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 block mb-1">شكل العقدة</label>
+                  <select value={editShape} onChange={(e) => setEditShape(e.target.value as NonNullable<MindMapNode['shape']>)} className="w-full min-h-[38px] rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs dark:border-slate-800 dark:bg-slate-950">
+                    <option value="rounded">مستطيل مستدير</option><option value="pill">بيضاوي</option><option value="diamond">مُعين</option><option value="hexagon">سداسي</option><option value="circle">دائري</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 block mb-1">لون مخصص</label>
+                  <div className="flex items-center gap-2"><input aria-label="لون العقدة" type="color" value={editColor || '#64748b'} onChange={(e) => setEditColor(e.target.value)} className="h-9 w-12 cursor-pointer rounded-lg border border-slate-200 bg-transparent p-1" /><button type="button" onClick={() => setEditColor('')} className="min-h-9 rounded-lg bg-slate-100 px-3 text-[11px] font-bold dark:bg-slate-800">لون الدور الافتراضي</button></div>
+                </div>
+              </div>
+
               <div>
                 <label className="text-[11px] font-bold text-slate-500 block mb-1">
                   ملاحظة سريرية تفصيلية (تظهر عند النقر)
                 </label>
                 <textarea
-                  rows={2}
+                  rows={6}
                   dir="auto"
                   value={editNote}
                   onChange={(e) => setEditNote(e.target.value)}
