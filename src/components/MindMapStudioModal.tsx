@@ -417,6 +417,12 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                 className="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono leading-relaxed focus:outline-none focus:border-emerald-500"
               />
 
+              <div className="rounded-xl border border-violet-200 bg-violet-50/70 px-3 py-2 text-[11px] leading-5 text-violet-900 dark:border-violet-900/60 dark:bg-violet-950/30 dark:text-violet-200">
+                <strong>كيف يتعرف UMEDT على الخريطة؟</strong>
+                <p>يقرأ JSON لاكتشاف nodes وedges أو children، ويحلل Markdown من العناوين والقوائم المتداخلة، وTXT من المسافات والتفرعات، وأسهم A -&gt; B لمسارات التدفق. يمكن استخراج النص من PDF وDOCX قبل التحليل. يعرض التطبيق الصيغة والعقد والعلاقات وعمق الشجرة قبل الحفظ.</p>
+                <p>الملفات المصورة أو PDF الممسوح ضوئياً تحتاج OCR خارجياً أولاً؛ لا يدّعي المستورد قراءة الصور تلقائياً.</p>
+              </div>
+
               {/* Live Parse Preview */}
               {importPreview && (
                 <div
