@@ -38,6 +38,8 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [isSequentialMode, setIsSequentialMode] = useState(false);
+  const [sequenceIndex, setSequenceIndex] = useState(0);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set());
   const layout = useMemo(() => computeMindMapLayout(mapDocument, collapsedIds), [mapDocument, collapsedIds]);
   const isDark = typeof window !== 'undefined' && window.document.documentElement.classList.contains('dark');
@@ -45,6 +47,25 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     () => buildStandaloneMindMapSvg(mapDocument, layout, isDark).replace(/^<\?xml[^>]*>\s*/, ''),
     [mapDocument, layout, isDark]
   );
+  const sequenceNodes = useMemo(() => {
+    const byParent = new Map<string, typeof mapDocument.nodes>();
+    mapDocument.nodes.forEach((node) => {
+      const key = node.parentId || '__root__';
+      byParent.set(key, [...(byParent.get(key) || []), node]);
+    });
+    const ordered: typeof mapDocument.nodes = [];
+    const visited = new Set<string>();
+    const visit = (id: string) => {
+      const node = mapDocument.nodes.find((item) => item.id === id);
+      if (!node || visited.has(id)) return;
+      visited.add(id);
+      ordered.push(node);
+      (byParent.get(id) || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).forEach((child) => visit(child.id));
+    };
+    visit(mapDocument.rootNodeId);
+    mapDocument.nodes.forEach((node) => visit(node.id));
+    return ordered;
+  }, [mapDocument]);
   const selectedNode = useMemo(
     () => mapDocument.nodes.find((node) => node.id === selectedNodeId) || null,
     [mapDocument.nodes, selectedNodeId]
@@ -250,6 +271,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
           <div className="text-[10px] font-semibold text-slate-400">اسحب للتحريك · استخدم إصبعين للتكبير والتصغير</div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          <button type="button" onClick={() => { const next = !isSequentialMode; setIsSequentialMode(next); if (next && sequenceNodes.length) { setSequenceIndex(0); setSelectedNodeId(sequenceNodes[0].id); } }} className={`min-h-10 rounded-xl border px-3 text-xs font-bold ${isSequentialMode ? 'border-emerald-400 bg-emerald-400 text-slate-950' : 'border-white/15 bg-white/5 hover:bg-white/10'}`} title="العرض التسلسلي">{isSequentialMode ? 'العرض الحر' : 'عرض تسلسلي'}</button>
           <button type="button" onClick={fitToView} className="min-h-10 rounded-xl border border-white/15 bg-white/5 px-3 text-xs font-bold hover:bg-white/10" title="ملاءمة الخريطة للشاشة">ملاءمة</button>
           <button type="button" onClick={() => void handleShare()} className="flex min-h-10 items-center gap-1.5 rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 hover:bg-emerald-300" title="مشاركة HTML تفاعلي"><Share2 className="h-4 w-4" /><span className="hidden sm:inline">مشاركة HTML</span></button>
           <button type="button" onClick={() => void toggleBrowserFullscreen()} className="hidden min-h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/5 sm:flex" title="ملء الشاشة"><Maximize2 className="h-4 w-4" /></button>
@@ -267,10 +289,17 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
         onWheel={handleWheel}
       >
         <div ref={stageRef} className="absolute left-0 top-0 origin-top-left will-change-transform" style={{ transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})` }} />
+        {isSequentialMode && selectedNode && (
+          <div className="absolute top-3 left-3 right-3 z-10 mx-auto flex max-w-xl items-center justify-between gap-3 rounded-2xl border border-emerald-400/30 bg-slate-900/90 p-2.5 text-white shadow-xl backdrop-blur-xl">
+            <button type="button" disabled={sequenceIndex <= 0} onClick={() => { const next = Math.max(0, sequenceIndex - 1); setSequenceIndex(next); setSelectedNodeId(sequenceNodes[next]?.id || null); }} className="min-h-10 rounded-xl border border-white/15 px-3 text-xs font-bold disabled:opacity-40">السابق</button>
+            <div className="min-w-0 flex-1 text-center"><div className="truncate text-xs font-black">{selectedNode.label}</div><div className="mt-0.5 text-[10px] text-slate-400">{sequenceIndex + 1} / {sequenceNodes.length}</div></div>
+            <button type="button" disabled={sequenceIndex >= sequenceNodes.length - 1} onClick={() => { const next = Math.min(sequenceNodes.length - 1, sequenceIndex + 1); setSequenceIndex(next); setSelectedNodeId(sequenceNodes[next]?.id || null); }} className="min-h-10 rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 disabled:opacity-40">التالي</button>
+          </div>
+        )}
         {selectedNode && (
-          <div className="absolute bottom-3 left-3 right-3 z-10 mx-auto max-w-2xl rounded-2xl border border-white/15 bg-slate-900/90 p-3 shadow-2xl backdrop-blur-xl sm:bottom-5 sm:p-4">
+          <div className="absolute bottom-3 left-3 right-3 z-10 mx-auto max-h-[42%] max-w-2xl overflow-y-auto rounded-2xl border border-white/15 bg-slate-900/95 p-3 shadow-2xl backdrop-blur-xl sm:bottom-5 sm:p-4">
             <div className="text-sm font-black text-emerald-300">{selectedNode.label}</div>
-            {(selectedNode.sublabel || selectedNode.note) && <p className="mt-1 whitespace-pre-wrap text-xs leading-6 text-slate-200">{[selectedNode.sublabel, selectedNode.note].filter(Boolean).join(' · ')}</p>}
+            {(selectedNode.sublabel || selectedNode.note) && <p className="mt-1 max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-6 text-slate-200">{[selectedNode.sublabel, selectedNode.note].filter(Boolean).join(' · ')}</p>}
             <button type="button" onClick={() => setSelectedNodeId(null)} className="mt-2 text-[10px] font-bold text-slate-400 hover:text-white">إخفاء التفاصيل</button>
           </div>
         )}
