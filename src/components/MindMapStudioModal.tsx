@@ -29,6 +29,7 @@ import {
   MIND_MAP_AI_PROMPTS
 } from '../services/mindMapImportService';
 import { InteractiveMindMapCanvas } from './InteractiveMindMapCanvas';
+import { parseUploadedFile } from '../services/fileParserService';
 
 interface MindMapStudioModalProps {
   isOpen: boolean;
@@ -193,11 +194,21 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const content = await file.text();
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      let content = '';
+      if (['pdf', 'docx'].includes(ext)) {
+        const parsed = await parseUploadedFile(file);
+        content = parsed.extractedText || '';
+        if (!content.trim()) throw new Error(parsed.parseWarnings?.join(' ') || 'لم يتم العثور على نص قابل للاستخراج');
+        if (parsed.parseWarnings?.length) showToast(parsed.parseWarnings.join(' · '), 'info');
+      } else {
+        content = await file.text();
+        if (['html', 'htm'].includes(ext)) content = content.replace(/<\\/(?:p|div|li|h[1-6]|tr)>/gi, '\\n').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\\s+/g, ' ').trim();
+      }
       setImportFileName(file.name);
       setImportText(content);
     } catch {
-      showToast('تعذر قراءة الملف المرفوع', 'info');
+      showToast('تعذر قراءة الملف المرفوع أو لا يحتوي على نص قابل للاستخراج', 'info');
     } finally {
       e.target.value = '';
     }
@@ -226,7 +237,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".json,.md,.markdown,.txt"
+          accept=".json,.md,.markdown,.txt,.pdf,.docx,.html,.htm"
           onChange={handleUploadFile}
           className="hidden"
         />
