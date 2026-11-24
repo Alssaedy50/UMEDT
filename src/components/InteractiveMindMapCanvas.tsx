@@ -36,7 +36,7 @@ import {
 } from '../types/mindMap';
 import { computeMindMapLayout } from '../services/mindMapLayoutEngine';
 import { buildStandaloneMindMapSvg } from '../services/mindMapStorageService';
-import { buildStandaloneMindMapHtml } from '../services/mindMapStandaloneExportService';
+import { buildStandaloneMindMapHtmlV2 as buildStandaloneMindMapHtml } from '../services/mindMapStandaloneExportServiceV2';
 import { MindMapFullScreenViewer } from './MindMapFullScreenViewer';
 import { prepareAndDownloadFile, shareFileWithVerification } from '../utils/downloadHelper';
 
