@@ -884,14 +884,14 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                     data-mm-interactive="true"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => toggleCollapseNode(pNode.node.id, e)}
-                    className={`absolute -bottom-2.5 left-1/2 -translate-x-1/2 min-w-[22px] h-[20px] px-1.5 rounded-full border text-[10px] font-mono font-extrabold flex items-center justify-center shadow-xs transition-colors ${
+                    className={`absolute -bottom-3 left-1/2 -translate-x-1/2 min-h-[26px] min-w-[30px] px-2 rounded-full border text-[10px] font-mono font-extrabold flex items-center justify-center shadow-sm transition-colors ${
                       pNode.isCollapsed
                         ? 'bg-emerald-600 text-white border-emerald-700'
                         : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:border-emerald-500'
                     }`}
                     title={pNode.isCollapsed ? 'توسيع الفرع' : 'طي الفرع'}
                   >
-                    {pNode.isCollapsed ? `+${pNode.hiddenDescendantsCount}` : '−'}
+                    {pNode.isCollapsed ? `+ عرض ${pNode.hiddenDescendantsCount}` : 'طي'}
                   </button>
                 )}
               </div>
