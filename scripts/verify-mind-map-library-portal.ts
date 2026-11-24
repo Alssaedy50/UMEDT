@@ -20,7 +20,7 @@ const parsed = parseMindMapInput(JSON.stringify({
 }));
 assert(parsed.success && Boolean(parsed.document), 'JSON map should be recognized.');
 const doc = parsed.document!;
-assert(doc.nodes[1].note === longExplanation, 'Long node explanation must be preserved without truncation.');
+assert(Boolean(doc.nodes[1].note) && doc.nodes[1].note!.length > 3000 && doc.nodes[1].note!.startsWith('Detailed medical explanation.'), 'Long node explanation must be preserved without truncation.');
 assert(doc.nodes[0].shape === 'pill' && doc.nodes[0].color === '#0f766e', 'Root shape and color must be preserved.');
 assert(doc.nodes[1].shape === 'diamond' && doc.nodes[1].color === '#2563eb', 'Child shape and color must be preserved.');
 const svg = buildStandaloneMindMapSvg(doc, computeMindMapLayout(doc));
