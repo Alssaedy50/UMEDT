@@ -165,7 +165,7 @@ jobs:
           ls -lh artifacts/apk/
           echo "### UMED-2 Android APK Artifacts Built Successfully" >> $GITHUB_STEP_SUMMARY
           echo "- **Application ID:** \`org.umed2.dictengine\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version:** \`2.5.2 (versionCode 20502)\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** \`2.5.3 (versionCode 20503)\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Installable Debug APK:** \`UMED-2-v2.5.3-debug.apk\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Release APK Signing Status:** \`signed=${{ steps.signing_check.outputs.signed }}\`" >> $GITHUB_STEP_SUMMARY
 
@@ -193,13 +193,13 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.5.2
-          name: "UMEDT Android APK v2.5.2 (Latest)"
+          tag_name: v2.5.3
+          name: "UMEDT Android APK v2.5.3 (Latest)"
           body: |
-            ### UMEDT — محرك القاموس والمترجم الطبي الهجين (v2.5.2)
+            ### UMEDT — محرك القاموس والمترجم الطبي الهجين (v2.5.3)
             - **نسخة التثبيت النهائية الموقّعة (Release APK):** `UMED-2-v2.5.3-release-signed.apk`
             - **نسخة الفحص (Debug APK):** `UMED-2-v2.5.3-debug.apk`
-            - **أبرز تحديثات v2.5.2:** تصدير ومشاركة الخرائط الذهنية كصفحات HTML مستقلة تعمل دون اتصال، مع دعم التفاعل والتوسيع والطي.  موضوع مرتبط ببلوك ومادة محليين، ومصطلحات عامة مستقلة؛ منع استيراد أو تعديل البلوكات والمواد من ملفات AI، وربط الموضوعات بالمراجع المحلية والتحقق من المطابقة، مع جعل استيراد المحتوى محلياً.
+            - **أبرز تحديثات v2.5.3:** تصدير ومشاركة الخرائط الذهنية كصفحات HTML مستقلة تعمل دون اتصال، مع دعم التفاعل والتوسيع والطي.  موضوع مرتبط ببلوك ومادة محليين، ومصطلحات عامة مستقلة؛ منع استيراد أو تعديل البلوكات والمواد من ملفات AI، وربط الموضوعات بالمراجع المحلية والتحقق من المطابقة، مع جعل استيراد المحتوى محلياً.
           files: |
             artifacts/apk/UMED-2-v2.5.3-release-signed.apk
             artifacts/apk/UMED-2-v2.5.3-debug.apk
