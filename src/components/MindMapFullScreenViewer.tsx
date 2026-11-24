@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize2, Minimize2, Share2, X } from 'lucide-react';
+import { Maximize2, Share2, X } from 'lucide-react';
 import { MindMapDocument } from '../types/mindMap';
 import { computeMindMapLayout } from '../services/mindMapLayoutEngine';
 import { buildStandaloneMindMapSvg } from '../services/mindMapStorageService';
@@ -39,7 +39,6 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set());
-  const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
   const layout = useMemo(() => computeMindMapLayout(mapDocument, collapsedIds), [mapDocument, collapsedIds]);
   const isDark = typeof window !== 'undefined' && window.document.documentElement.classList.contains('dark');
   const svgMarkup = useMemo(
@@ -126,7 +125,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     if (!svg) return;
     svg.querySelectorAll('.mm-node').forEach((node) => node.classList.remove('selected'));
     if (selectedNodeId) {
-      const selected = svg.querySelector(`.mm-node[data-node-id="${CSS.escape(selectedNodeId)}"]`);
+      const selected = Array.from(svg.querySelectorAll('.mm-node')).find((node) => (node as SVGGElement).dataset.nodeId === selectedNodeId);
       selected?.classList.add('selected');
     }
   }, [selectedNodeId, svgMarkup]);
@@ -275,9 +274,9 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
             <button type="button" onClick={() => setSelectedNodeId(null)} className="mt-2 text-[10px] font-bold text-slate-400 hover:text-white">إخفاء التفاصيل</button>
           </div>
         )}
-        <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-slate-950/65 px-3 py-1 text-[10px] font-semibold text-slate-400 backdrop-blur sm:bottom-5">
+        {!selectedNode && <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-slate-950/65 px-3 py-1 text-[10px] font-semibold text-slate-400 backdrop-blur sm:bottom-5">
           انقر على العقدة لعرض تفاصيلها · انقر مرتين لطي الفروع
-        </div>
+        </div>}
       </main>
     </div>
   );
