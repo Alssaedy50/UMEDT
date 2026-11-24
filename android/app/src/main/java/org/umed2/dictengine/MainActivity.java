@@ -686,6 +686,22 @@ public class MainActivity extends BridgeActivity {
             } catch (Exception ignored) {}
         }
 
+        @JavascriptInterface
+        public void openOverlayPermissionSettings() {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(MainActivity.this)) {
+                    Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:" + getPackageName()));
+                    startActivity(intent);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        @JavascriptInterface
+        public boolean hasOverlayPermission() {
+            return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(MainActivity.this);
+        }
+
 
         @JavascriptInterface
         public float getSystemFontScale() {
