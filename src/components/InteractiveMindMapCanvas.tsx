@@ -505,7 +505,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
     return buildStandaloneMindMapHtml(doc, layout, dark);
   };
   const getHtmlFilename = () => {
-    const safe = (doc.title || 'mind-map').replace(/[^\\w\\u0600-\\u06FF-]+/g, '-').slice(0, 48);
+    const safe = (doc.title || 'mind-map').replace(/[^\w\u0600-\u06FF-]+/g, '-').slice(0, 48);
     return `${safe || 'mind-map'}.html`;
   };
   const handleExportHtml = async () => {
