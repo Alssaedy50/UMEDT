@@ -2069,6 +2069,12 @@ export const TopicsHub: React.FC<TopicsHubProps> = ({
         initialTopic={mindMapInitialTopic}
         initialMindMapId={mindMapInitialId}
         onEmbedMapInTopic={handleEmbedMindMapInTopic}
+        onOpenLinkedTopic={(topicId) => {
+          setSelectedTopicId(topicId);
+          setViewMode('reader');
+          setIsMindMapStudioOpen(false);
+        }}
+        backLabel={mindMapInitialTopic ? 'العودة للموضوع' : 'العودة للمواضيع'}
         showToast={showToast}
       />
 
