@@ -34,6 +34,7 @@ public final class UMEDTKeyboardService extends InputMethodService {
     private String lastClipboard = "";
     private long lastShownAt;
     private boolean keyboardVisible;
+    private boolean arabicLayout;
 
     @Override public void onCreate() {
         super.onCreate();
@@ -77,17 +78,26 @@ public final class UMEDTKeyboardService extends InputMethodService {
         header.addView(clipboardButton, new LinearLayout.LayoutParams(dp(64), dp(38)));
         root.addView(header);
 
-        addRow(root, new String[]{"q","w","e","r","t","y","u","i","o","p"});
-        addRow(root, new String[]{"a","s","d","f","g","h","j","k","l"});
-        addRow(root, new String[]{"⇧","z","x","c","v","b","n","m","⌫"});
+        if (arabicLayout) {
+            addRow(root, new String[]{"ض","ص","ث","ق","ف","غ","ع","ه","خ","ح"});
+            addRow(root, new String[]{"ش","س","ي","ب","ل","ا","ت","ن","م","ك"});
+            addRow(root, new String[]{"⇧","ئ","ء","ؤ","ر","لا","ى","ة","و","ز","⌫"});
+        } else {
+            addRow(root, new String[]{"q","w","e","r","t","y","u","i","o","p"});
+            addRow(root, new String[]{"a","s","d","f","g","h","j","k","l"});
+            addRow(root, new String[]{"⇧","z","x","c","v","b","n","m","⌫"});
+        }
         LinearLayout bottom = new LinearLayout(this);
-        Button symbols = keyButton("?123");
-        symbols.setOnClickListener(v -> { });
-        bottom.addView(symbols, new LinearLayout.LayoutParams(dp(58), dp(48)));
+        Button language = keyButton(arabicLayout ? "EN" : "عربي");
+        language.setOnClickListener(v -> {
+            arabicLayout = !arabicLayout;
+            setInputView(onCreateInputView());
+        });
+        bottom.addView(language, new LinearLayout.LayoutParams(dp(58), dp(48)));
         Button comma = keyButton(",");
         comma.setOnClickListener(v -> commit(","));
         bottom.addView(comma, new LinearLayout.LayoutParams(dp(42), dp(48)));
-        Button space = keyButton("English / العربية");
+        Button space = keyButton("مسافة");
         space.setOnClickListener(v -> commit(" "));
         bottom.addView(space, new LinearLayout.LayoutParams(0, dp(48), 1));
         Button period = keyButton(".");
