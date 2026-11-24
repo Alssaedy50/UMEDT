@@ -277,6 +277,45 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
 
   useEffect(() => {
+    try {
+      const bridge = (window as unknown as {
+        UMEDAndroidBridge?: {
+          updateDictionaryTerms?: (json: string) => boolean;
+          isDictionaryAccessibilityEnabled?: () => boolean;
+          openDictionaryAccessibilitySettings?: () => void;
+        };
+      }).UMEDAndroidBridge;
+      if (!bridge) return;
+      bridge.updateDictionaryTerms?.(JSON.stringify(terms.map((term) => ({
+        term: term.term,
+        translation: term.translation,
+        definitionAr: term.definitionAr,
+        definitionEn: term.definitionEn,
+        relations: term.relations
+      }))));
+    } catch {
+      // Native dictionary mirror is best-effort; web dictionary remains unaffected.
+    }
+  }, [terms]);
+
+  useEffect(() => {
+    try {
+      const bridge = (window as unknown as {
+        UMEDAndroidBridge?: {
+          isDictionaryAccessibilityEnabled?: () => boolean;
+          openDictionaryAccessibilitySettings?: () => void;
+        };
+      }).UMEDAndroidBridge;
+      if (!bridge || !bridge.isDictionaryAccessibilityEnabled) return;
+      if (!bridge.isDictionaryAccessibilityEnabled()) {
+        bridge.openDictionaryAccessibilitySettings?.();
+      }
+    } catch {
+      // The user can enable the service manually from Android Accessibility settings.
+    }
+  }, []);
+
+  useEffect(() => {
     const root = document.documentElement;
     if (isDark) {
       root.classList.add('dark');
