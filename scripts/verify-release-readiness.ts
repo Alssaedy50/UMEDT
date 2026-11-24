@@ -275,11 +275,11 @@ async function main() {
   const gradleContent = fs.readFileSync(androidBuildGradlePath, 'utf8');
   assertCondition(
     gradleContent.includes('org.umed2.dictengine') &&
-      gradleContent.includes('versionCode 20502') &&
+      gradleContent.includes('versionCode 20503') &&
       gradleContent.includes('versionName "2.5.3"'),
-    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20502, and versionName "2.5.3"'
+    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20503, and versionName "2.5.3"'
   );
-  console.log('[PASS] 3. Capacitor Native Android Project (v2.5.3 / 20502) & Bundled Local Web Assets Synced');
+  console.log('[PASS] 3. Capacitor Native Android Project (v2.5.3 / 20503) & Bundled Local Web Assets Synced');
 
   // 3b. Verify the two-path AI generator and local-only hierarchy/import contract.
   const aiGeneratorPath = path.join(ROOT_DIR, 'src', 'components', 'AiContentGuideModal.tsx');
