@@ -239,6 +239,7 @@ export default function App() {
     initialPersisted.settings.colorTheme || 'emerald'
   );
   const [activeTab, setActiveTab] = useState<MainTab>(() => resolveInitialTabFromLocation());
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [terms, setTerms] = useState<DictionaryTerm[]>(initialPersisted.terms);
   const [sentences, setSentences] = useState<LinkedSentence[]>(initialPersisted.sentences);
   const [topics, setTopics] = useState<TopicArticle[]>(initialPersisted.topics);
@@ -284,6 +285,70 @@ export default function App() {
       root.classList.remove('dark');
     }
   }, [isDark]);
+
+  // Keep the mobile tab bar out of the way while the Android/iOS keyboard is open.
+  useEffect(() => {
+    const updateKeyboardVisibility = () => {
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      const heightDelta = Math.max(0, window.innerHeight - viewportHeight);
+      setIsKeyboardVisible(heightDelta > 140);
+    };
+    const viewport = window.visualViewport;
+    viewport?.addEventListener('resize', updateKeyboardVisibility);
+    viewport?.addEventListener('scroll', updateKeyboardVisibility);
+    window.addEventListener('resize', updateKeyboardVisibility);
+    document.addEventListener('focusin', updateKeyboardVisibility);
+    document.addEventListener('focusout', updateKeyboardVisibility);
+    updateKeyboardVisibility();
+    return () => {
+      viewport?.removeEventListener('resize', updateKeyboardVisibility);
+      viewport?.removeEventListener('scroll', updateKeyboardVisibility);
+      window.removeEventListener('resize', updateKeyboardVisibility);
+      document.removeEventListener('focusin', updateKeyboardVisibility);
+      document.removeEventListener('focusout', updateKeyboardVisibility);
+    };
+  }, []);
+
+  // A short, quiet click tone for interactive controls across the app.
+  useEffect(() => {
+    let audioContext: AudioContext | null = null;
+    const playClick = () => {
+      try {
+        const AudioContextCtor = window.AudioContext ||
+          (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!AudioContextCtor) return;
+        audioContext ||= new AudioContextCtor();
+        if (audioContext.state === 'suspended') void audioContext.resume();
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        const startAt = audioContext.currentTime;
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(760, startAt);
+        oscillator.frequency.exponentialRampToValueAtTime(560, startAt + 0.025);
+        gain.gain.setValueAtTime(0.0001, startAt);
+        gain.gain.exponentialRampToValueAtTime(0.018, startAt + 0.004);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.045);
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+        oscillator.start(startAt);
+        oscillator.stop(startAt + 0.05);
+      } catch {
+        // Audio is optional; never block an interaction if the device disallows it.
+      }
+    };
+    const handleControlPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const control = target.closest('button,[role="button"]') as HTMLElement | null;
+      if (!control || control.hasAttribute('disabled') || control.getAttribute('aria-disabled') === 'true') return;
+      playClick();
+    };
+    document.addEventListener('pointerdown', handleControlPointerDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', handleControlPointerDown, true);
+      if (audioContext) void audioContext.close();
+    };
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -3150,7 +3215,7 @@ export default function App() {
       {/* ====================================================================
           MAIN APPLICATION WORKSPACE
          ==================================================================== */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 pt-4 box-border">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 pt-3 pb-[calc(4.25rem+env(safe-area-inset-bottom,0px))] md:pt-4 md:pb-8 box-border">
 
         {activeTab === 'home' && (
           <SearchHub
@@ -3364,7 +3429,7 @@ export default function App() {
       {/* ====================================================================
           MOBILE BOTTOM NAVIGATION BAR (4 CLEAR PAGES)
          ==================================================================== */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-2 pb-[env(safe-area-inset-bottom,4px)] pt-1.5 grid grid-cols-4 gap-1">
+      <nav className={`md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-2 pb-[env(safe-area-inset-bottom,4px)] pt-1.5 grid-cols-4 gap-1 ${isKeyboardVisible ? 'hidden' : 'grid'}`}>
         {[
           { id: 'home' as MainTab, label: 'القاموس', icon: Search },
           { id: 'topics' as MainTab, label: 'المواضيع', icon: BookOpen },
