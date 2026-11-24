@@ -3072,7 +3072,7 @@ export default function App() {
   return (
     <div
       dir="rtl"
-      className="min-h-screen w-full max-w-full box-border bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col pb-24 sm:pb-12"
+      className="min-h-screen w-full max-w-full box-border bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col pb-0"
     >
       {/* Service Worker & Offline Mode Portal Notices */}
       <PWAInstallBanner
@@ -3103,7 +3103,7 @@ export default function App() {
       {/* ====================================================================
           TOP HEADER BAR (Clean: Side Menu Trigger + Desktop Tabs + Brand)
          ==================================================================== */}
-      <header className={`sticky top-0 z-30 min-h-14 pt-[env(safe-area-inset-top,0px)] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 lg:px-8 py-1.5 items-center justify-between gap-3 w-full box-border ${activeTab === 'library' ? 'hidden md:flex' : 'flex'}`}>
+      <header className={`sticky top-0 z-30 min-h-14 pt-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 lg:px-8 py-1.5 items-center justify-between gap-3 w-full box-border ${activeTab === 'library' ? 'hidden md:flex' : 'flex'}`}>
         <div className="flex items-center gap-2 min-w-0">
           {/* Top-level duplicate dictionary/search menu removed; bottom navigation remains available. */}
 
