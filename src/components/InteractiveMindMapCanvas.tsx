@@ -3,7 +3,6 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
-  Minimize2,
   RotateCcw,
   Plus,
   Trash2,
