@@ -10,7 +10,6 @@ assert(svg.includes('class="mm-edge"')||layout.edges.length===0,'SVG relationshi
 assert(html.startsWith('<!doctype html>'),'Complete HTML document required.');
 assert(html.includes('Atherosclerosis')&&html.includes('Endothelial injury and lipid accumulation'),'Map content must be preserved.');
 assert(html.includes('id="fit"')&&html.includes('id="expand"')&&html.includes('id="collapse"'),'Map navigation controls required.');
-cassert = null;
 assert(html.includes('pointermove')&&html.includes('pointerdown')&&html.includes("type:'pinch'"),'Touch pan and two-finger pinch zoom required.');
 assert(html.includes('touch-action:none') && html.includes('100dvh'),'Full-screen touch-first layout required.');
 assert(!html.includes('id="in"') && !html.includes('id="out"'),'Viewer must not require zoom buttons.');
