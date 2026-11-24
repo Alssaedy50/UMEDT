@@ -7,6 +7,7 @@ import { loadMindMaps, upsertMindMap, deleteMindMap, MIND_MAPS_UPDATED_EVENT } f
 import { buildStandaloneMindMapHtmlV2 } from '../services/mindMapStandaloneExportServiceV2';
 import { computeMindMapLayout } from '../services/mindMapLayoutEngine';
 import { shareFileWithVerification } from '../utils/downloadHelper';
+import { MindMapFullScreenViewer } from './MindMapFullScreenViewer';
 
 interface Props {
   isOpen: boolean;
@@ -44,6 +45,7 @@ export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showTo
   const [maps, setMaps] = useState<MindMapDocument[]>(() => loadMindMaps());
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showImporter, setShowImporter] = useState(false);
+  const [showGraphViewer, setShowGraphViewer] = useState(false);
   const [sourceText, setSourceText] = useState('');
   const [fileName, setFileName] = useState('');
   const [selectedTopicId, setSelectedTopicId] = useState('');
@@ -109,6 +111,7 @@ export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showTo
       <div className="p-3 sm:p-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap gap-2">
         <button onClick={()=>setShowImporter(v=>!v)} className="min-h-10 px-3 rounded-xl bg-emerald-600 text-white text-xs font-extrabold flex items-center gap-2"><FileUp className="w-4 h-4"/>استيراد خريطة</button>
         <button onClick={()=>void copyPrompt()} className="min-h-10 px-3 rounded-xl bg-violet-600 text-white text-xs font-extrabold flex items-center gap-2"><Copy className="w-4 h-4"/>{promptCopied?'تم النسخ':'نسخ برومبت الإنشاء'}</button>
+        {activeMap && <button onClick={()=>setShowGraphViewer(true)} className="min-h-10 px-3 rounded-xl bg-indigo-600 text-white text-xs font-extrabold flex items-center gap-2"><Network className="w-4 h-4"/>عرض الرسم الكامل</button>}
         {activeMap && <button onClick={()=>void share()} className="min-h-10 px-3 rounded-xl bg-sky-600 text-white text-xs font-extrabold flex items-center gap-2"><Share2 className="w-4 h-4"/>مشاركة HTML تفاعلي</button>}
         <span className="mr-auto self-center text-[11px] text-slate-500">{maps.length} خريطة محفوظة محلياً</span>
       </div>
@@ -164,5 +167,6 @@ export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showTo
         </main>
       </div>
     </section>
+    {showGraphViewer && activeMap && <MindMapFullScreenViewer mapDocument={activeMap} onClose={()=>setShowGraphViewer(false)} showToast={showToast}/>} 
   </div>;
 };
