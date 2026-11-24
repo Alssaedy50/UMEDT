@@ -15,6 +15,8 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
+import android.provider.Settings;
+import android.view.inputmethod.InputMethodManager;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
@@ -643,6 +645,47 @@ public class MainActivity extends BridgeActivity {
         public boolean isAvailable() {
             return true;
         }
+
+        @JavascriptInterface
+        public boolean syncDictionaryTerms(String dictionaryJson) {
+            try {
+                JSONArray entries = new JSONArray(dictionaryJson == null ? "[]" : dictionaryJson);
+                if (entries.length() > 10000) return false;
+                getSharedPreferences("umedt_keyboard", MODE_PRIVATE)
+                        .edit().putString("dictionary_json", entries.toString()).apply();
+                return true;
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+
+        @JavascriptInterface
+        public void openInputMethodSettings() {
+            try {
+                Intent intent = new Intent(Settings.ACTION_INPUT_METHOD_SETTINGS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            } catch (Exception ignored) {
+                try {
+                    Intent fallback = new Intent(Settings.ACTION_SETTINGS);
+                    fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(fallback);
+                } catch (Exception ignoredAgain) {}
+            }
+        }
+
+        @JavascriptInterface
+        public void showInputMethodPicker() {
+            try {
+                MainActivity.this.runOnUiThread(() -> {
+                    try {
+                        InputMethodManager manager = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                        if (manager != null) manager.showInputMethodPicker();
+                    } catch (Exception ignored) {}
+                });
+            } catch (Exception ignored) {}
+        }
+
 
         @JavascriptInterface
         public float getSystemFontScale() {
