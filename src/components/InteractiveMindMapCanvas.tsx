@@ -37,6 +37,7 @@ import {
 import { computeMindMapLayout } from '../services/mindMapLayoutEngine';
 import { buildStandaloneMindMapSvg } from '../services/mindMapStorageService';
 import { buildStandaloneMindMapHtml } from '../services/mindMapStandaloneExportService';
+import { MindMapFullScreenViewer } from './MindMapFullScreenViewer';
 import { prepareAndDownloadFile, shareFileWithVerification } from '../utils/downloadHelper';
 
 export const MIND_MAP_ROLE_META: Record<
@@ -138,6 +139,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showSearch, setShowSearch] = useState<boolean>(false);
+  const [isFullScreenViewerOpen, setIsFullScreenViewerOpen] = useState<boolean>(false);
 
   // Editing states inside Inspector
   const [isEditingNode, setIsEditingNode] = useState<boolean>(false);
@@ -643,12 +645,12 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
           {onRequestFullscreen && (
             <button
               type="button"
-              onClick={onRequestFullscreen}
+              onClick={() => setIsFullScreenViewerOpen(true)}
               className="min-h-[34px] px-2.5 py-1 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-[11px] font-extrabold flex items-center gap-1"
               title="فتح في الاستوديو الكامل"
             >
               <Maximize2 className="w-3.5 h-3.5" />
-              <span>توسيع وتعديل</span>
+              <span>عرض الخريطة كاملة</span>
             </button>
           )}
         </div>
@@ -1136,6 +1138,13 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
             </form>
           )}
         </div>
+      )}
+      {isFullScreenViewerOpen && (
+        <MindMapFullScreenViewer
+          mapDocument={doc}
+          onClose={() => setIsFullScreenViewerOpen(false)}
+          showToast={showToast}
+        />
       )}
     </div>
   );
