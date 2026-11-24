@@ -76,8 +76,9 @@ public class DictionaryAccessibilityService extends AccessibilityService {
     private JSONObject findTerm(String copied) {
         try {
             String key = normalize(copied);
-            JSONArray terms = getSharedPreferences("umedt_copy_dictionary", MODE_PRIVATE)
-                    .getJSONArray("terms");
+            String rawTerms = getSharedPreferences("umedt_copy_dictionary", MODE_PRIVATE)
+                    .getString("terms", "[]");
+            JSONArray terms = new JSONArray(rawTerms);
             for (int i = 0; i < terms.length(); i++) {
                 JSONObject term = terms.optJSONObject(i);
                 if (term == null) continue;
