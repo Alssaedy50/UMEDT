@@ -123,6 +123,19 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   const selectNodeAndRevealFirstChild = useCallback((nodeId: string) => {
     const firstChild = mapDocument.nodes.filter((node) => node.parentId === nodeId).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0];
     const targetId = firstChild?.id || nodeId;
+    // Reveal every ancestor so the focused child exists in the rendered SVG.
+    if (!isSequentialMode && firstChild) {
+      const byId = new Map(mapDocument.nodes.map((node) => [node.id, node]));
+      setCollapsedIds((previous) => {
+        const next = new Set(previous);
+        let parentId: string | null = firstChild.parentId;
+        while (parentId) {
+          next.delete(parentId);
+          parentId = byId.get(parentId)?.parentId || null;
+        }
+        return next;
+      });
+    }
     setSelectedNodeId(targetId);
     if (isSequentialMode) {
       const index = sequenceNodes.findIndex((node) => node.id === targetId);
