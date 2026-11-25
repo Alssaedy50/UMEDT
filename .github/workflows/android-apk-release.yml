@@ -165,7 +165,7 @@ jobs:
           ls -lh artifacts/apk/
           echo "### UMED-2 Android APK Artifacts Built Successfully" >> $GITHUB_STEP_SUMMARY
           echo "- **Application ID:** \`org.umed2.dictengine\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version:** \`2.5.4 (versionCode 20503)\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** \`2.5.4 (versionCode 20504)\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Installable Debug APK:** \`UMED-2-v2.5.4-debug.apk\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Release APK Signing Status:** \`signed=${{ steps.signing_check.outputs.signed }}\`" >> $GITHUB_STEP_SUMMARY
 
