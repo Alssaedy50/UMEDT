@@ -181,7 +181,7 @@ function assertCondition(condition: boolean, message: string): void {
 
 async function main() {
   console.log('================================================================');
-  console.log('UMED-2 — Independent Web, PWA & Android APK Verification Suite');
+  console.log('UMED-2 — Android APK Release Verification Suite');
   console.log('================================================================');
 
   // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.5.4)
@@ -228,7 +228,7 @@ async function main() {
   assertCondition(fs.existsSync(distIndexPath), 'dist/index.html must exist');
   assertCondition(fs.existsSync(distSwPath), 'dist/sw.js PWA service worker must exist');
   assertCondition(fs.existsSync(distManifestPath), 'dist/manifest.webmanifest must exist');
-  console.log('[PASS] 2. package-lock.json & Production Web/PWA Build Assets');
+  console.log('[PASS] 2. package-lock.json & Android WebView Assets');
 
   // 3. Verify Capacitor Android Native Project & APK GitHub Actions Workflow
   const capConfigPath = path.join(ROOT_DIR, 'capacitor.config.ts');
