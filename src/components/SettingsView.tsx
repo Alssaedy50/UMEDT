@@ -628,7 +628,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         >
           <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
             <Type className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span>حجم الخط</span>
+            <span>الخط</span>
           </div>
 
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400 min-w-0">
@@ -648,7 +648,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         >
           <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
             <Palette className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span>الألوان</span>
+            <span>اللون</span>
           </div>
 
           <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
@@ -735,7 +735,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         >
           <div className="flex items-center gap-2.5 text-sm font-bold text-slate-900 dark:text-white">
             <FolderSync className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span>النسخ الاحتياطي</span>
+            <span>النسخ</span>
           </div>
 
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
@@ -851,7 +851,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div className="flex items-center gap-2">
                     <Type className="w-4 h-4 text-emerald-500" />
                     <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                      حجم الخط
+                      الخط
                     </span>
                   </div>
                   <button
@@ -868,11 +868,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="font-extrabold text-slate-800 dark:text-slate-100">
-                        حجم النص (75% – 100%)
+                        حجم النص
                       </span>
                       <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-mono font-extrabold">
                         {isAutoFontScale
-                          ? 'تلقائي (خط الهاتف)'
+                          ? 'تلقائي'
                           : `${effectiveScalePercent}% (${Math.round((16 * effectiveScalePercent) / 100)}px)`}
                       </span>
                     </div>
@@ -977,7 +977,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div className="flex items-center gap-2">
                     <Palette className="w-4 h-4 text-emerald-500" />
                     <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                      ثيمات التطبيق
+                      الألوان
                     </span>
                   </div>
                   <button
@@ -1029,7 +1029,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div className="flex items-center gap-2">
                     <Send className="w-4 h-4 text-sky-500" />
                     <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                      النسخ الاحتياطي إلى تليجرام
+                      النسخ إلى تليجرام
                     </span>
                   </div>
                   <button
@@ -1045,7 +1045,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 {currentDataSummary && (
                   <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1 text-xs">
                     <div className="flex items-center justify-between font-bold text-emerald-600 dark:text-emerald-400">
-                      <span>تعريف البيانات المشمولة بالنسخ:</span>
+                      <span>البيانات:</span>
                       <span className="font-mono">{currentDataSummary.sizeKB} KB</span>
                     </div>
                     <div className="text-slate-700 dark:text-slate-300 font-bold">
@@ -1053,7 +1053,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </div>
                     {telegramConfig.lastBackupAt && (
                       <div className="text-[11px] text-slate-400">
-                        آخر نسخ لتليجرام: {new Date(telegramConfig.lastBackupAt).toLocaleString('ar-SA')}
+                        آخر نسخ: {new Date(telegramConfig.lastBackupAt).toLocaleString('ar-SA')}
                       </div>
                     )}
                   </div>
@@ -1063,10 +1063,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div className="space-y-1">
                     <div className="flex items-center justify-between gap-2">
                       <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
-                        رمز البوت (Telegram Bot Token) *
+                        رمز البوت *
                       </label>
                       <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                        محمي ومشفر محلياً (Keystore)
+                        محمي
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -1099,7 +1099,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                   <div className="space-y-1">
                     <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
-                      معرف المحادثة أو القناة (Chat ID) *
+                      معرف القناة *
                     </label>
                     <MobileSafeInput
                       ref={chatIdInputRef}
@@ -1123,7 +1123,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {/* Backup Mode Selection (Clean, Single-Line, Zero Duplicates) */}
                   <div className="space-y-1.5">
                     <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
-                      طريقة النسخ:
+                      النسخ:
                     </label>
                     <div className="space-y-1.5">
                       {(
@@ -1168,7 +1168,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {/* Backup File Format */}
                   <div className="space-y-1.5">
                     <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
-                      صيغة النسخة:
+                      الصيغة:
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                       {(
@@ -1202,7 +1202,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {/* Periodic Schedule Selector */}
                   <div className="space-y-1.5">
                     <label className="font-extrabold text-slate-700 dark:text-slate-200 block">
-                      الجدولة الدورية:
+                      الجدولة:
                     </label>
                     <select
                       value={telegramConfig.schedule}
@@ -1227,7 +1227,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     {telegramConfig.schedule === 'custom_hours' && (
                       <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
                         <span className="font-bold text-slate-700 dark:text-slate-300 shrink-0">
-                          الفاصل الزمني (بالساعات):
+                          الفاصل:
                         </span>
                         <MobileSafeNumericInput
                           allowDecimal
@@ -1278,7 +1278,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       <RefreshCw
                         className={`w-3.5 h-3.5 ${isTestingTelegram ? 'animate-spin' : ''}`}
                       />
-                      <span>فحص الاتصال</span>
+                      <span>فحص</span>
                     </button>
 
                     <button
@@ -1293,7 +1293,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       className="min-h-[44px] px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
                       <Send className="w-3.5 h-3.5" />
-                      <span>{isSendingTelegram ? 'جاري الإرسال...' : 'نسخ الآن لتليجرام'}</span>
+                      <span>{isSendingTelegram ? 'جاري الإرسال...' : 'نسخ الآن'}</span>
                     </button>
                   </div>
 
@@ -1315,7 +1315,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       <span>
                         {isRestoringTelegram
                           ? 'جاري الجلب والدمج من تليجرام...'
-                          : 'استيراد ودمج آخر نسخة من تليجرام مباشرة'}
+                          : 'استعادة'}
                       </span>
                     </button>
                   )}
@@ -1338,7 +1338,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       <span>
                         {isSyncingTelegramMedia
                           ? 'جاري مزامنة الوسائط...'
-                          : 'مزامنة الوسائط المحلية منفصلة الآن'}
+                          : 'مزامنة الوسائط'}
                       </span>
                     </button>
                   )}
@@ -1351,7 +1351,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <>
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                   <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                    تكرار المصطلحات عند الاستيراد
+                    التكرار
                   </span>
                   <button
                     type="button"
@@ -1392,7 +1392,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <>
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                   <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                    النسخ الاحتياطي والاستعادة أوفلاين
+                    النسخ والاستعادة أوفلاين
                   </span>
                   <button
                     type="button"
@@ -1407,7 +1407,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 {currentDataSummary && (
                   <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1 text-xs">
                     <div className="flex items-center justify-between font-bold text-emerald-600 dark:text-emerald-400">
-                      <span>تعريف البيانات الحالية:</span>
+                      <span>البيانات:</span>
                       <span className="font-mono">{currentDataSummary.sizeKB} KB</span>
                     </div>
                     <div className="text-slate-700 dark:text-slate-300 font-bold">
@@ -1469,7 +1469,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center gap-1.5"
                   >
                     <Upload className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>استيراد بيانات أوفلاين</span>
+                    <span>استيراد</span>
                   </button>
 
                   <button
@@ -1508,7 +1508,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-colors"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>تأكيد وفحص التحميل والتخزين المحلي</span>
+                  <span>فحص التخزين</span>
                 </button>
 
                 {localVerifyFeedback && (
@@ -1522,7 +1522,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-extrabold text-slate-700 dark:text-slate-200">
-                        سجل التنزيلات (Download/UMEDT)
+                        التنزيلات
                       </span>
                       <span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">
                         {downloadedFilesList.length} ملف
@@ -1613,14 +1613,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-xs font-bold text-slate-500">
-                      نقاط الاستعادة المحفوظة محلياً ({backupHistory.length})
+                      نقاط الاستعادة ({backupHistory.length})
                     </span>
                     <button
                       type="button"
                       onClick={onCreateManualBackup}
                       className="min-h-[36px] px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs font-bold"
                     >
-                      + حفظ نقطة الآن
+                      + حفظ
                     </button>
                   </div>
 
@@ -1713,7 +1713,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <>
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                   <span className="text-sm font-extrabold text-rose-600 dark:text-rose-400">
-                    إعادة الضبط للمصنع
+                    إعادة الضبط
                   </span>
                   <button
                     type="button"
@@ -1733,7 +1733,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     }}
                     className="min-h-[42px] px-3 py-2 rounded-xl bg-rose-600 text-white font-extrabold"
                   >
-                    تأكيد الضبط
+                    تأكيد
                   </button>
                   <button
                     type="button"
