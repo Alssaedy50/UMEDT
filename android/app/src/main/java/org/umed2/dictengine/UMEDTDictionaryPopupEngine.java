@@ -626,7 +626,7 @@ public final class UMEDTDictionaryPopupEngine {
         final String termEn = term.optString("term", "");
         final String translationAr = term.optString("translation", "");
         final String phonetic = term.optString("phonetic", "");
-        final String category = term.optString("category", "Medical");
+        final String category = term.optString("category", "");
         final String pos = term.optString("pos", "");
         final String definitionAr = term.optString("definitionAr", "");
         final String definitionEn = term.optString("definitionEn", "");
@@ -637,227 +637,158 @@ public final class UMEDTDictionaryPopupEngine {
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        root.setPadding(dp(context, 16), dp(context, 14), dp(context, 16), dp(context, 14));
+        root.setPadding(dp(context, 12), dp(context, 10), dp(context, 12), dp(context, 10));
 
         GradientDrawable cardBg = new GradientDrawable();
         cardBg.setColor(Color.parseColor("#0F172A"));
-        cardBg.setCornerRadius(dp(context, 20));
-        cardBg.setStroke(dp(context, 2), Color.parseColor("#10B981"));
+        cardBg.setCornerRadius(dp(context, 16));
+        cardBg.setStroke(dp(context, 1), Color.parseColor("#10B981"));
         root.setBackground(cardBg);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            root.setElevation(dp(context, 12));
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) root.setElevation(dp(context, 10));
 
-        // 1. Header Row: Badge + Category Pill + Close Button
-        LinearLayout headerRow = new LinearLayout(context);
-        headerRow.setOrientation(LinearLayout.HORIZONTAL);
-        headerRow.setGravity(Gravity.CENTER_VERTICAL);
-
-        TextView brandBadge = new TextView(context);
-        brandBadge.setText("⚡ قاموس UMEDT الفوري");
-        brandBadge.setTextColor(Color.parseColor("#34D399"));
-        brandBadge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
-        brandBadge.setTypeface(Typeface.DEFAULT_BOLD);
-        LinearLayout.LayoutParams brandParams = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-        );
-        headerRow.addView(brandBadge, brandParams);
+        LinearLayout header = new LinearLayout(context);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        TextView brand = new TextView(context);
+        brand.setText("UMEDT");
+        brand.setTextColor(Color.parseColor("#34D399"));
+        brand.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        brand.setTypeface(Typeface.DEFAULT_BOLD);
+        header.addView(brand, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         if (!category.isEmpty() || !pos.isEmpty()) {
-            TextView catBadge = new TextView(context);
-            String badgeLabel = category + (!pos.isEmpty() ? " · " + pos : "");
-            catBadge.setText(badgeLabel);
-            catBadge.setTextColor(Color.parseColor("#CBD5E1"));
-            catBadge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f);
-            catBadge.setPadding(dp(context, 8), dp(context, 3), dp(context, 8), dp(context, 3));
-            GradientDrawable pillBg = new GradientDrawable();
-            pillBg.setColor(Color.parseColor("#1E293B"));
-            pillBg.setCornerRadius(dp(context, 10));
-            pillBg.setStroke(dp(context, 1), Color.parseColor("#334155"));
-            catBadge.setBackground(pillBg);
-            LinearLayout.LayoutParams catParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            );
-            catParams.setMargins(dp(context, 6), 0, dp(context, 6), 0);
-            headerRow.addView(catBadge, catParams);
+            TextView meta = new TextView(context);
+            meta.setText(category + (!pos.isEmpty() ? " · " + pos : ""));
+            meta.setTextColor(Color.parseColor("#94A3B8"));
+            meta.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9);
+            header.addView(meta);
         }
+        TextView close = new TextView(context);
+        close.setText("✕");
+        close.setTextColor(Color.parseColor("#CBD5E1"));
+        close.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        close.setGravity(Gravity.CENTER);
+        close.setPadding(dp(context, 8), dp(context, 2), dp(context, 8), dp(context, 2));
+        close.setOnClickListener(v -> { if (onClose != null) onClose.run(); });
+        header.addView(close);
+        root.addView(header);
 
-        TextView closeBtn = new TextView(context);
-        closeBtn.setText("✕");
-        closeBtn.setTextColor(Color.parseColor("#94A3B8"));
-        closeBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f);
-        closeBtn.setTypeface(Typeface.DEFAULT_BOLD);
-        closeBtn.setGravity(Gravity.CENTER);
-        closeBtn.setPadding(dp(context, 10), dp(context, 4), dp(context, 10), dp(context, 4));
-        GradientDrawable closeBg = new GradientDrawable();
-        closeBg.setColor(Color.parseColor("#1E293B"));
-        closeBg.setCornerRadius(dp(context, 10));
-        closeBtn.setBackground(closeBg);
-        closeBtn.setOnClickListener(v -> {
-            if (onClose != null) onClose.run();
-        });
-        headerRow.addView(closeBtn);
-        root.addView(headerRow);
-
-        // Matched Alias note if matched via abbreviation or inflection
-        if (!matchedInput.isEmpty()
-                && !matchedInput.equalsIgnoreCase(termEn)
-                && !matchedInput.equalsIgnoreCase(translationAr)) {
-            TextView matchedNote = new TextView(context);
-            matchedNote.setText("تطابق مع المنسوخ: \"" + matchedInput + "\"");
-            matchedNote.setTextColor(Color.parseColor("#38BDF8"));
-            matchedNote.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f);
-            matchedNote.setPadding(0, dp(context, 4), 0, 0);
-            root.addView(matchedNote);
-        }
-
-        // 2. English Term + Phonetic Row
         LinearLayout termRow = new LinearLayout(context);
-        termRow.setOrientation(LinearLayout.HORIZONTAL);
-        termRow.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         termRow.setGravity(Gravity.CENTER_VERTICAL);
-        termRow.setPadding(0, dp(context, 8), 0, dp(context, 6));
-
+        termRow.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        termRow.setPadding(0, dp(context, 5), 0, dp(context, 2));
         TextView termView = new TextView(context);
         termView.setText(termEn);
         termView.setTextColor(Color.WHITE);
-        termView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 19f);
+        termView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
         termView.setTypeface(Typeface.DEFAULT_BOLD);
-        LinearLayout.LayoutParams termParams = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-        );
-        termRow.addView(termView, termParams);
-
+        termRow.addView(termView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         if (!phonetic.isEmpty()) {
-            TextView phoneticView = new TextView(context);
-            phoneticView.setText(phonetic);
-            phoneticView.setTextColor(Color.parseColor("#94A3B8"));
-            phoneticView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
-            phoneticView.setTypeface(Typeface.MONOSPACE);
-            phoneticView.setPadding(dp(context, 8), 0, 0, 0);
-            termRow.addView(phoneticView);
+            TextView phon = new TextView(context);
+            phon.setText(phonetic);
+            phon.setTextColor(Color.parseColor("#94A3B8"));
+            phon.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+            termRow.addView(phon);
         }
         root.addView(termRow);
 
-        // 3. Highlighted Arabic Translation Box
-        LinearLayout transBox = new LinearLayout(context);
-        transBox.setOrientation(LinearLayout.VERTICAL);
-        transBox.setPadding(dp(context, 12), dp(context, 10), dp(context, 12), dp(context, 10));
-        GradientDrawable transBg = new GradientDrawable();
-        transBg.setColor(Color.parseColor("#064E3B"));
-        transBg.setCornerRadius(dp(context, 14));
-        transBg.setStroke(dp(context, 1), Color.parseColor("#10B981"));
-        transBox.setBackground(transBg);
+        TextView translation = new TextView(context);
+        translation.setText(translationAr.isEmpty() ? termEn : translationAr);
+        translation.setTextColor(Color.parseColor("#A7F3D0"));
+        translation.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        translation.setTypeface(Typeface.DEFAULT_BOLD);
+        translation.setPadding(dp(context, 9), dp(context, 6), dp(context, 9), dp(context, 6));
+        GradientDrawable translationBg = new GradientDrawable();
+        translationBg.setColor(Color.parseColor("#064E3B"));
+        translationBg.setCornerRadius(dp(context, 10));
+        translation.setBackground(translationBg);
+        root.addView(translation);
 
-        TextView transView = new TextView(context);
-        transView.setText(translationAr.isEmpty() ? termEn : translationAr);
-        transView.setTextColor(Color.parseColor("#A7F3D0"));
-        transView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16.5f);
-        transView.setTypeface(Typeface.DEFAULT_BOLD);
-        transBox.addView(transView);
-        root.addView(transBox);
+        String shortDefinition = !definitionAr.isEmpty() ? definitionAr : definitionEn;
+        TextView definition = new TextView(context);
+        definition.setText(shortDefinition.isEmpty() ? "لا يتوفر شرح لهذا المصطلح." : shortDefinition);
+        definition.setTextColor(Color.parseColor("#E2E8F0"));
+        definition.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        definition.setMaxLines(2);
+        definition.setEllipsize(TextUtils.TruncateAt.END);
+        definition.setPadding(0, dp(context, 6), 0, 0);
+        root.addView(definition);
 
-        // 4. Scrollable Definition & Example Section (capped height so it never fills screen)
-        if (!definitionAr.isEmpty() || !definitionEn.isEmpty() || !exampleEn.isEmpty()) {
-            ScrollView scroll = new ScrollView(context);
-            LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            );
-            scrollParams.topMargin = dp(context, 8);
-            scroll.setLayoutParams(scrollParams);
+        LinearLayout expandedDetails = new LinearLayout(context);
+        expandedDetails.setOrientation(LinearLayout.VERTICAL);
+        expandedDetails.setVisibility(View.GONE);
+        expandedDetails.setPadding(0, dp(context, 6), 0, 0);
 
-            LinearLayout detailsCol = new LinearLayout(context);
-            detailsCol.setOrientation(LinearLayout.VERTICAL);
-
-            if (!definitionAr.isEmpty()) {
-                TextView defArView = new TextView(context);
-                defArView.setText(definitionAr);
-                defArView.setTextColor(Color.parseColor("#E2E8F0"));
-                defArView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
-                defArView.setLineSpacing(dp(context, 2), 1.1f);
-                defArView.setMaxLines(4);
-                defArView.setEllipsize(TextUtils.TruncateAt.END);
-                detailsCol.addView(defArView);
-            }
-
-            if (!definitionEn.isEmpty()) {
-                TextView defEnView = new TextView(context);
-                defEnView.setText(definitionEn);
-                defEnView.setTextColor(Color.parseColor("#94A3B8"));
-                defEnView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
-                defEnView.setPadding(0, dp(context, 4), 0, 0);
-                defEnView.setMaxLines(2);
-                defEnView.setEllipsize(TextUtils.TruncateAt.END);
-                detailsCol.addView(defEnView);
-            }
-
-            if (!exampleEn.isEmpty()) {
-                TextView exView = new TextView(context);
-                String exText = "💡 " + exampleEn + (!exampleAr.isEmpty() ? "\n" + exampleAr : "");
-                exView.setText(exText);
-                exView.setTextColor(Color.parseColor("#CBD5E1"));
-                exView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
-                exView.setPadding(dp(context, 10), dp(context, 6), dp(context, 10), dp(context, 6));
-                GradientDrawable exBg = new GradientDrawable();
-                exBg.setColor(Color.parseColor("#1E293B"));
-                exBg.setCornerRadius(dp(context, 10));
-                exView.setBackground(exBg);
-                LinearLayout.LayoutParams exParams = new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                );
-                exParams.topMargin = dp(context, 6);
-                detailsCol.addView(exView, exParams);
-            }
-
-            scroll.addView(detailsCol);
-            root.addView(scroll);
+        if (!definitionAr.isEmpty() && !definitionEn.isEmpty()) {
+            TextView englishDefinition = new TextView(context);
+            englishDefinition.setText(definitionEn);
+            englishDefinition.setTextColor(Color.parseColor("#94A3B8"));
+            englishDefinition.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+            expandedDetails.addView(englishDefinition);
         }
+        if (!matchedInput.isEmpty() && !matchedInput.equalsIgnoreCase(termEn)
+                && !matchedInput.equalsIgnoreCase(translationAr)) {
+            TextView matched = new TextView(context);
+            matched.setText("النص المطابق: " + matchedInput);
+            matched.setTextColor(Color.parseColor("#38BDF8"));
+            matched.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+            expandedDetails.addView(matched);
+        }
+        if (!exampleEn.isEmpty()) {
+            TextView example = new TextView(context);
+            example.setText("مثال: " + exampleEn + (!exampleAr.isEmpty() ? "\\n" + exampleAr : ""));
+            example.setTextColor(Color.parseColor("#CBD5E1"));
+            example.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+            example.setPadding(0, dp(context, 5), 0, 0);
+            expandedDetails.addView(example);
+        }
+        root.addView(expandedDetails);
 
-        // 5. Action Buttons Row (Speak TTS + Copy Translation + Close) — zero app launch required!
-        LinearLayout actionsRow = new LinearLayout(context);
-        actionsRow.setOrientation(LinearLayout.HORIZONTAL);
-        actionsRow.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        actionsParams.topMargin = dp(context, 10);
-        actionsRow.setLayoutParams(actionsParams);
+        LinearLayout actions = new LinearLayout(context);
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+        actions.setPadding(0, dp(context, 7), 0, 0);
+        TextView expand = createActionChip(context, "عرض البطاقة كاملة", "#1E293B", "#A7F3D0");
+        expand.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        expand.setPadding(dp(context, 9), dp(context, 5), dp(context, 9), dp(context, 5));
+        expand.setOnClickListener(v -> {
+            boolean show = expandedDetails.getVisibility() != View.VISIBLE;
+            expandedDetails.setVisibility(show ? View.VISIBLE : View.GONE);
+            definition.setMaxLines(show ? 8 : 2);
+            expand.setText(show ? "إخفاء التفاصيل" : "عرض البطاقة كاملة");
+            if (onUserInteraction != null) onUserInteraction.run();
+        });
+        actions.addView(expand, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        // Speak Button
-        TextView speakBtn = createActionChip(context, "🔊 نطق المصطلح", "#059669", "#FFFFFF");
-        speakBtn.setOnClickListener(v -> {
+        TextView speak = createActionChip(context, "🔊", "#059669", "#FFFFFF");
+        speak.setContentDescription("نطق المصطلح");
+        speak.setOnClickListener(v -> {
             if (onUserInteraction != null) onUserInteraction.run();
             speakMedicalTerm(context, termEn);
         });
-        LinearLayout.LayoutParams speakParams = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-        );
-        speakParams.setMargins(0, 0, dp(context, 4), 0);
-        actionsRow.addView(speakBtn, speakParams);
+        LinearLayout.LayoutParams speakLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        speakLp.setMargins(dp(context, 5), 0, 0, 0);
+        actions.addView(speak, speakLp);
 
-        // Copy Translation Button
-        final TextView copyBtn = createActionChip(context, "📋 نسخ الترجمة", "#1E293B", "#E2E8F0");
-        copyBtn.setOnClickListener(v -> {
+        TextView copy = createActionChip(context, "نسخ", "#1E293B", "#E2E8F0");
+        copy.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        copy.setPadding(dp(context, 9), dp(context, 5), dp(context, 9), dp(context, 5));
+        copy.setOnClickListener(v -> {
             if (onUserInteraction != null) onUserInteraction.run();
-            String toCopy = translationAr.isEmpty() ? termEn : translationAr;
-            ignoreClipboardText = toCopy;
+            String value = translationAr.isEmpty() ? termEn : translationAr;
+            ignoreClipboardText = value;
             try {
                 ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
                 if (cm != null) {
-                    cm.setPrimaryClip(ClipData.newPlainText("UMEDT Translation", toCopy));
-                    copyBtn.setText("✓ تم النسخ");
-                    copyBtn.setTextColor(Color.parseColor("#34D399"));
+                    cm.setPrimaryClip(ClipData.newPlainText("UMEDT Translation", value));
+                    copy.setText("تم");
                 }
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) { }
         });
-        LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-        );
-        copyParams.setMargins(dp(context, 4), 0, 0, 0);
-        actionsRow.addView(copyBtn, copyParams);
-
-        root.addView(actionsRow);
+        LinearLayout.LayoutParams copyLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        copyLp.setMargins(dp(context, 5), 0, 0, 0);
+        actions.addView(copy, copyLp);
+        root.addView(actions);
         return root;
     }
 
