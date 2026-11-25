@@ -116,11 +116,8 @@ export const ImportGroupsPanel: React.FC = () => {
           <FolderOpen className="w-4 h-4 text-emerald-500 shrink-0" />
           <div>
             <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
-              مجموعات البيانات المستوردة
+              المجموعات
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              إدارة الدفعات حسب موضوعها ومصدرها
-            </p>
           </div>
         </div>
         <button
@@ -135,7 +132,7 @@ export const ImportGroupsPanel: React.FC = () => {
       <div className="p-3 space-y-2">
         {groups.length === 0 && (
           <p className="text-xs text-slate-500 text-center py-4">
-            لا توجد مجموعات استيراد مسجلة بعد. ستظهر عمليات الاستيراد الجديدة هنا.
+            لا توجد مجموعات
           </p>
         )}
         {groups.map((group) => {
