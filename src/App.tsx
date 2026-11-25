@@ -752,6 +752,8 @@ export default function App() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handlePopState = () => {
+      const overlayWindow = window as Window & { __umedtMindMapStudioOpen?: boolean; __umedtMindMapViewerOpen?: boolean };
+      if (overlayWindow.__umedtMindMapStudioOpen || overlayWindow.__umedtMindMapViewerOpen) return;
       if (isSidebarOpen) {
         setIsSidebarOpen(false);
         return;
