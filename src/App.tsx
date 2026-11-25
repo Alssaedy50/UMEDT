@@ -4073,6 +4073,7 @@ export default function App() {
               >
                 ⚡ معاينة البطاقة العائمة
               </button>
+            </div>
 
             <div className="pt-2 border-t border-emerald-500/15 text-[11px] leading-5 text-slate-600 dark:text-slate-400 grid grid-cols-1 md:grid-cols-3 gap-2">
               <div>
