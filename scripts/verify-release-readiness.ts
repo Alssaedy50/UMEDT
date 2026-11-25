@@ -284,7 +284,6 @@ async function main() {
   const javaDir = path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'java', 'org.umed2.dictengine'.replace(/\./g, path.sep));
   const requiredJavaFiles = [
     'MainActivity.java',
-    'UMEDTKeyboardService.java',
     'UMEDTDictionaryPopupEngine.java',
     'UMEDTPopupCardActivity.java',
     'UMEDTClipboardMonitorService.java',

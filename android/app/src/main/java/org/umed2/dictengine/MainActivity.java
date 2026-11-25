@@ -27,6 +27,8 @@ import android.speech.tts.UtteranceProgressListener;
 import android.util.Base64;
 import android.view.View;
 import android.view.accessibility.AccessibilityManager;
+import android.view.inputmethod.InputMethodInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
 import android.webkit.URLUtil;
@@ -1399,6 +1401,54 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public int getSyncedDictionaryCount() {
             return UMEDTDictionaryPopupEngine.getSyncedTermsCount(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void openUmedtKeyboardSettings() {
+            try {
+                Intent intent = new Intent(Settings.ACTION_INPUT_METHOD_SETTINGS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            } catch (Exception ignored) { }
+        }
+
+        @JavascriptInterface
+        public void showUmedtKeyboardPicker() {
+            runOnUiThread(() -> {
+                try {
+                    InputMethodManager imm =
+                            (InputMethodManager) MainActivity.this.getSystemService(Context.INPUT_METHOD_SERVICE);
+                    if (imm != null) {
+                        imm.showInputMethodPicker();
+                    }
+                } catch (Exception ignored) { }
+            });
+        }
+
+        @JavascriptInterface
+        public boolean isUmedtKeyboardEnabled() {
+            try {
+                InputMethodManager imm =
+                        (InputMethodManager) MainActivity.this.getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm == null) return false;
+                List<InputMethodInfo> list = imm.getEnabledInputMethodList();
+                String pkg = getPackageName();
+                for (InputMethodInfo info : list) {
+                    if (info != null && pkg.equals(info.getPackageName())) {
+                        return true;
+                    }
+                }
+                return false;
+            } catch (Exception ignored) { return false; }
+        }
+
+        @JavascriptInterface
+        public boolean isUmedtDefaultKeyboard() {
+            try {
+                String current = Settings.Secure.getString(
+                        getContentResolver(), Settings.Secure.DEFAULT_INPUT_METHOD);
+                return current != null && current.contains(getPackageName() + "/");
+            } catch (Exception ignored) { return false; }
         }
 
         @JavascriptInterface
