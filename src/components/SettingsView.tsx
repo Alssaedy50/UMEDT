@@ -1029,7 +1029,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div className="flex items-center gap-2">
                     <Send className="w-4 h-4 text-sky-500" />
                     <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                      النسخ إلى تليجرام
+                      تليجرام
                     </span>
                   </div>
                   <button
