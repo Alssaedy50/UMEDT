@@ -128,6 +128,22 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     }
   }, []);
 
+  const focusNode = useCallback((nodeId: string) => {
+    const viewport = viewportRef.current;
+    const svg = stageRef.current?.querySelector('svg');
+    const node = svg?.querySelector(`.mm-node[data-node-id="${CSS.escape(nodeId)}"]`) as SVGGElement | null;
+    if (!viewport || !node) return;
+    const bounds = node.getBBox();
+    const scale = Math.max(0.82, Math.min(2.45, Math.min(
+      (viewport.clientWidth * 0.72) / Math.max(1, bounds.width),
+      (viewport.clientHeight * 0.48) / Math.max(1, bounds.height)
+    )));
+    applyTransform(scale, {
+      x: viewport.clientWidth / 2 - (bounds.x + bounds.width / 2) * scale,
+      y: viewport.clientHeight * 0.43 - (bounds.y + bounds.height / 2) * scale
+    });
+  }, [applyTransform]);
+
   const fitToView = useCallback(() => {
     const viewport = viewportRef.current;
     const svg = stageRef.current?.querySelector('svg');
@@ -152,10 +168,68 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     svg.style.display = 'block';
     svg.style.maxWidth = 'none';
     svg.style.overflow = 'visible';
+    // Add a dedicated forward/collapse control to every visible node.
+    svg.querySelectorAll<SVGGElement>('.mm-node[data-node-id]').forEach((node) => {
+      if (node.querySelector('.mm-node-action')) return;
+      const box = node.getBBox();
+      const action = window.document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      action.setAttribute('class', 'mm-node-action');
+      action.setAttribute('data-node-id', node.dataset.nodeId || '');
+      action.setAttribute('role', 'button');
+      action.setAttribute('tabindex', '0');
+      action.setAttribute('aria-label', 'عرض الفروع أو الانتقال للأمام');
+      action.style.cursor = 'pointer';
+      const cx = box.x + box.width - 3;
+      const cy = box.y + box.height / 2;
+      const circle = window.document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', String(cx));
+      circle.setAttribute('cy', String(cy));
+      circle.setAttribute('r', '13');
+      circle.setAttribute('fill', '#10b981');
+      circle.setAttribute('stroke', '#ecfdf5');
+      circle.setAttribute('stroke-width', '2');
+      const arrow = window.document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      arrow.setAttribute('d', `M ${cx - 3} ${cy - 5} L ${cx + 3} ${cy} L ${cx - 3} ${cy + 5}`);
+      arrow.setAttribute('fill', 'none');
+      arrow.setAttribute('stroke', '#022c22');
+      arrow.setAttribute('stroke-width', '2.4');
+      arrow.setAttribute('stroke-linecap', 'round');
+      arrow.setAttribute('stroke-linejoin', 'round');
+      action.append(circle, arrow);
+      node.appendChild(action);
+    });
     const handleClick = (event: Event) => {
       const target = event.target as Element | null;
+      const action = target?.closest?.('.mm-node-action[data-node-id]') as SVGGElement | null;
       const node = target?.closest?.('.mm-node[data-node-id]') as SVGGElement | null;
-      if (node?.dataset.nodeId) { setSelectedNodeId(node.dataset.nodeId); if (isSequentialMode) { const index = sequenceNodes.findIndex((item) => item.id === node.dataset.nodeId); if (index >= 0) setSequenceIndex(index); } }
+      const nodeId = action?.dataset.nodeId || node?.dataset.nodeId;
+      if (!nodeId) return;
+      setSelectedNodeId(nodeId);
+      if (action) {
+        event.stopPropagation();
+        const hasChildren = mapDocument.nodes.some((item) => item.parentId === nodeId);
+        if (hasChildren && !isSequentialMode) {
+          setCollapsedIds((previous) => {
+            const next = new Set(previous);
+            if (next.has(nodeId)) next.delete(nodeId);
+            else next.add(nodeId);
+            return next;
+          });
+        } else {
+          const currentIndex = sequenceNodes.findIndex((item) => item.id === nodeId);
+          const nextNode = sequenceNodes[currentIndex + 1];
+          if (nextNode) {
+            setIsSequentialMode(true);
+            setSequenceIndex(currentIndex + 1);
+            setSelectedNodeId(nextNode.id);
+          }
+        }
+        return;
+      }
+      if (isSequentialMode) {
+        const index = sequenceNodes.findIndex((item) => item.id === nodeId);
+        if (index >= 0) setSequenceIndex(index);
+      }
     };
     const handleDoubleClick = (event: Event) => {
       const target = event.target as Element | null;
@@ -197,8 +271,10 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     if (selectedNodeId) {
       const selected = Array.from(svg.querySelectorAll('.mm-node')).find((node) => (node as SVGGElement).dataset.nodeId === selectedNodeId);
       selected?.classList.add('selected');
+      const frame = window.requestAnimationFrame(() => focusNode(selectedNodeId));
+      return () => window.cancelAnimationFrame(frame);
     }
-  }, [selectedNodeId, svgMarkup]);
+  }, [selectedNodeId, svgMarkup, focusNode]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -221,6 +297,10 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       return;
     }
     const target = event.target as Element;
+    if (target.closest?.('.mm-node-action')) {
+      gestureRef.current = null;
+      return;
+    }
     const node = target.closest?.('.mm-node[data-node-id]') as SVGGElement | null;
     gestureRef.current = {
       type: 'pan',
@@ -354,10 +434,10 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
           </div>
         )}
         {selectedNode && (
-          <div className="absolute bottom-3 left-3 right-3 z-10 mx-auto max-h-[42%] max-w-2xl overflow-y-auto rounded-2xl border border-white/15 bg-slate-900/95 p-3 shadow-2xl backdrop-blur-xl sm:bottom-5 sm:p-4">
+          <div className="absolute bottom-3 left-3 right-3 z-10 mx-auto max-h-[38%] max-w-3xl overflow-y-auto rounded-3xl border border-emerald-400/30 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-xl sm:bottom-5 sm:p-5">
             {selectedNodePath.length > 1 && <div className="mb-1 flex flex-wrap items-center gap-1 text-[10px] text-slate-400">{selectedNodePath.map((node, index) => <React.Fragment key={node.id}>{index > 0 && <span aria-hidden="true">‹</span>}<span className={index === selectedNodePath.length - 1 ? 'font-black text-emerald-300' : ''}>{node.label}</span></React.Fragment>)}</div>}
-            <div className="text-sm font-black text-emerald-300">{selectedNode.label}</div>
-            {(selectedNode.sublabel || selectedNode.note) && <p className="mt-1 max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-6 text-slate-200">{[selectedNode.sublabel, selectedNode.note].filter(Boolean).join(' · ')}</p>}
+            <div className="text-lg font-black text-emerald-300 sm:text-xl">{selectedNode.label}</div>
+            {(selectedNode.sublabel || selectedNode.note) && <p className="mt-2 max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-7 text-slate-100">{[selectedNode.sublabel, selectedNode.note].filter(Boolean).join(' · ')}</p>}
             <button type="button" onClick={() => setSelectedNodeId(null)} className="mt-2 text-[10px] font-bold text-slate-400 hover:text-white">إخفاء التفاصيل</button>
           </div>
         )}
