@@ -42,6 +42,11 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
     protected void onServiceConnected() {
         super.onServiceConnected();
         serviceConnected = true;
+
+        // The Accessibility service is managed by Android and can remain active
+        // after the UMEDT activity is dismissed. Ensure clipboard monitoring is
+        // started whenever this persistent service reconnects.
+        UMEDTClipboardMonitorService.startMonitorIfEnabled(getApplicationContext());
     }
 
     @Override

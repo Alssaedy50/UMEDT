@@ -134,6 +134,10 @@ public class MainActivity extends BridgeActivity {
         applySafeSystemBarInsets();
         attachNativeDownloadBridge();
         initNativeTts(false);
+
+        // Restore the clipboard foreground monitor whenever UMEDT is launched.
+        // This keeps copy-to-translate independent from the WebView lifecycle.
+        UMEDTClipboardMonitorService.startMonitorIfEnabled(getApplicationContext());
     }
 
     @Override
