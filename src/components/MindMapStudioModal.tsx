@@ -68,6 +68,15 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
   const historyEntryRef = useRef(false);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
+  const requestClose = useCallback(() => {
+    if (historyEntryRef.current) {
+      historyEntryRef.current = false;
+      window.history.back();
+    } else {
+      onCloseRef.current();
+    }
+  }, []);
+
   useEffect(() => {
     if (!isOpen || typeof window === 'undefined') return;
     const overlayWindow = window as Window & { __umedtMindMapStudioOpen?: boolean; __umedtMindMapViewerOpen?: boolean };
@@ -91,15 +100,6 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
       overlayWindow.__umedtMindMapStudioOpen = false;
     };
   }, [isOpen]);
-
-  const requestClose = useCallback(() => {
-    if (historyEntryRef.current) {
-      historyEntryRef.current = false;
-      window.history.back();
-    } else {
-      onCloseRef.current();
-    }
-  }, []);
 
   // Sync with storage changes
   useEffect(() => {
