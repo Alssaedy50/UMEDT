@@ -179,6 +179,18 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
     [doc.nodes]
   );
 
+  const zoomAroundCenter = useCallback((nextZoom: number) => {
+    const el = containerRef.current;
+    if (!el) { setZoom(nextZoom); return; }
+    const rect = el.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const worldX = (centerX - pan.x) / zoom;
+    const worldY = (centerY - pan.y) / zoom;
+    setZoom(nextZoom);
+    setPan({ x: centerX - worldX * nextZoom, y: centerY - worldY * nextZoom });
+  }, [pan, zoom]);
+
   const fitToView = useCallback(() => {
     const el = containerRef.current;
     if (!el) {
@@ -193,7 +205,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
 
     const scaleX = cw / Math.max(1, width);
     const scaleY = ch / Math.max(1, height);
-    const nextZoom = Math.max(0.32, Math.min(1.15, Math.min(scaleX, scaleY) * 0.92));
+    const nextZoom = Math.max(0.42, Math.min(1.15, Math.min(scaleX, scaleY) * 0.92));
 
     const centerX = minX + width / 2;
     const centerY = minY + height / 2;
@@ -477,8 +489,15 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
   const handleWheelZoom = (e: React.WheelEvent<HTMLDivElement>) => {
     if (!e.ctrlKey && !e.metaKey && compact) return;
     e.stopPropagation();
-    const factor = e.deltaY < 0 ? 1.1 : 0.9;
-    setZoom((prev) => Number(Math.max(0.28, Math.min(2.3, prev * factor)).toFixed(2)));
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const cursorX = e.clientX - rect.left;
+    const cursorY = e.clientY - rect.top;
+    const nextZoom = Number(Math.max(0.4, Math.min(2.3, zoom * (e.deltaY < 0 ? 1.1 : 0.9))).toFixed(2));
+    const worldX = (cursorX - pan.x) / zoom;
+    const worldY = (cursorY - pan.y) / zoom;
+    setZoom(nextZoom);
+    setPan({ x: cursorX - worldX * nextZoom, y: cursorY - worldY * nextZoom });
   };
 
   const handleExportSvg = async () => {
@@ -574,7 +593,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
             <button
               type="button"
               onClick={() =>
-                setZoom((z) => Number(Math.max(0.28, z - 0.15).toFixed(2)))
+                zoomAroundCenter(Number(Math.max(0.4, zoom - 0.15).toFixed(2)))
               }
               className="min-h-[32px] min-w-[32px] rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300"
               title="تصغير"
@@ -590,7 +609,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
             <button
               type="button"
               onClick={() =>
-                setZoom((z) => Number(Math.min(2.3, z + 0.15).toFixed(2)))
+                zoomAroundCenter(Number(Math.min(2.3, zoom + 0.15).toFixed(2)))
               }
               className="min-h-[32px] min-w-[32px] rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300"
               title="تكبير"
