@@ -279,7 +279,47 @@ async function main() {
       gradleContent.includes('versionName "2.5.3"'),
     'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20503, and versionName "2.5.3"'
   );
-  console.log('[PASS] 3. Capacitor Native Android Project (v2.5.3 / 20503) & Bundled Local Web Assets Synced');
+
+  // Verify all Native Android Java files have required imports and balanced braces
+  const javaDir = path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'java', 'org.umed2.dictengine'.replace(/\./g, path.sep));
+  const requiredJavaFiles = [
+    'MainActivity.java',
+    'UMEDTKeyboardService.java',
+    'UMEDTDictionaryPopupEngine.java',
+    'UMEDTPopupCardActivity.java',
+    'UMEDTClipboardMonitorService.java'
+  ];
+  for (const javaFile of requiredJavaFiles) {
+    const fullJavaPath = path.join(javaDir, javaFile);
+    assertCondition(fs.existsSync(fullJavaPath), `Missing required Android Java file: ${javaFile}`);
+    const javaSource = fs.readFileSync(fullJavaPath, 'utf8');
+    // Verify every unqualified Android class used in the file is imported
+    if (/\bContext\./.test(javaSource)) {
+      assertCondition(
+        javaSource.includes('import android.content.Context;'),
+        `${javaFile} uses Context.* without importing android.content.Context;`
+      );
+    }
+    if (/\bSettings\./.test(javaSource)) {
+      assertCondition(
+        javaSource.includes('import android.provider.Settings;'),
+        `${javaFile} uses Settings.* without importing android.provider.Settings;`
+      );
+    }
+    if (/\bInputMethodManager\b/.test(javaSource)) {
+      assertCondition(
+        javaSource.includes('import android.view.inputmethod.InputMethodManager;'),
+        `${javaFile} uses InputMethodManager without importing android.view.inputmethod.InputMethodManager;`
+      );
+    }
+    if (/\bInputMethodInfo\b/.test(javaSource)) {
+      assertCondition(
+        javaSource.includes('import android.view.inputmethod.InputMethodInfo;'),
+        `${javaFile} uses InputMethodInfo without importing android.view.inputmethod.InputMethodInfo;`
+      );
+    }
+  }
+  console.log('[PASS] 3. Capacitor Native Android Project (v2.5.3 / 20503), Java Imports & Bundled Local Web Assets Synced');
 
   // 3b. Verify the two-path AI generator and local-only hierarchy/import contract.
   const aiGeneratorPath = path.join(ROOT_DIR, 'src', 'components', 'AiContentGuideModal.tsx');

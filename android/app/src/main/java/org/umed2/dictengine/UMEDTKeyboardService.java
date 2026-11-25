@@ -1,5 +1,6 @@
 package org.umed2.dictengine;
 
+import android.app.Dialog;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.graphics.Color;
@@ -18,6 +19,8 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
@@ -911,9 +914,10 @@ public class UMEDTKeyboardService extends InputMethodService {
                 if (switched) return;
             }
             if (imm != null) {
-                IBinder token = getWindow() != null && getWindow().getWindow() != null
-                        ? getWindow().getWindow().getAttributes().token
-                        : null;
+                Dialog imeDialog = getWindow();
+                Window dialogWindow = imeDialog != null ? imeDialog.getWindow() : null;
+                WindowManager.LayoutParams attrs = dialogWindow != null ? dialogWindow.getAttributes() : null;
+                IBinder token = attrs != null ? attrs.token : null;
                 if (token != null && imm.switchToLastInputMethod(token)) {
                     return;
                 }

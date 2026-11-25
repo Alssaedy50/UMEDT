@@ -4,6 +4,7 @@ import android.Manifest;
 import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -15,6 +16,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
+import android.provider.Settings;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
@@ -22,6 +24,8 @@ import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.util.Base64;
 import android.view.View;
+import android.view.inputmethod.InputMethodInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
 import android.webkit.URLUtil;
@@ -1399,7 +1403,7 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void openUmedtKeyboardSettings() {
             try {
-                Intent intent = new Intent(android.provider.Settings.ACTION_INPUT_METHOD_SETTINGS);
+                Intent intent = new Intent(Settings.ACTION_INPUT_METHOD_SETTINGS);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
             } catch (Exception ignored) { }
@@ -1409,8 +1413,8 @@ public class MainActivity extends BridgeActivity {
         public void showUmedtKeyboardPicker() {
             runOnUiThread(() -> {
                 try {
-                    android.view.inputmethod.InputMethodManager imm =
-                            (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                    InputMethodManager imm =
+                            (InputMethodManager) MainActivity.this.getSystemService(Context.INPUT_METHOD_SERVICE);
                     if (imm != null) {
                         imm.showInputMethodPicker();
                     }
@@ -1421,12 +1425,12 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public boolean isUmedtKeyboardEnabled() {
             try {
-                android.view.inputmethod.InputMethodManager imm =
-                        (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                InputMethodManager imm =
+                        (InputMethodManager) MainActivity.this.getSystemService(Context.INPUT_METHOD_SERVICE);
                 if (imm == null) return false;
-                List<android.view.inputmethod.InputMethodInfo> list = imm.getEnabledInputMethodList();
+                List<InputMethodInfo> list = imm.getEnabledInputMethodList();
                 String pkg = getPackageName();
-                for (android.view.inputmethod.InputMethodInfo info : list) {
+                for (InputMethodInfo info : list) {
                     if (info != null && pkg.equals(info.getPackageName())) {
                         return true;
                     }
@@ -1438,8 +1442,8 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public boolean isUmedtDefaultKeyboard() {
             try {
-                String current = android.provider.Settings.Secure.getString(
-                        getContentResolver(), android.provider.Settings.Secure.DEFAULT_INPUT_METHOD);
+                String current = Settings.Secure.getString(
+                        getContentResolver(), Settings.Secure.DEFAULT_INPUT_METHOD);
                 return current != null && current.contains(getPackageName() + "/");
             } catch (Exception ignored) { return false; }
         }
@@ -1447,7 +1451,7 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void openUmedtOverlaySettings() {
             try {
-                Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                         Uri.parse("package:" + getPackageName()));
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
