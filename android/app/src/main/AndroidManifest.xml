@@ -26,7 +26,7 @@
         <activity
             android:name=".UMEDTPopupCardActivity"
             android:label="@string/umedt_instant_translate_label"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:theme="@style/AppTheme.TranslucentPopup"
             android:launchMode="singleInstance"
             android:taskAffinity=""
             android:excludeFromRecents="true"
@@ -59,6 +59,30 @@
             <meta-data
                 android:name="android.view.im"
                 android:resource="@xml/umedt_input_method" />
+        </service>
+
+        <service
+            android:name=".UMEDTAutoTranslateAccessibilityService"
+            android:label="@string/umedt_accessibility_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/umedt_accessibility_service" />
+        </service>
+
+        <service
+            android:name=".UMEDTQuickTranslateTileService"
+            android:icon="@android:drawable/ic_menu_search"
+            android:label="@string/umedt_quick_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
         </service>
 
         <service

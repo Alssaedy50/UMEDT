@@ -1,7 +1,9 @@
 package org.umed2.dictengine;
 
 import android.Manifest;
+import android.accessibilityservice.AccessibilityServiceInfo;
 import android.content.ActivityNotFoundException;
+import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
@@ -24,6 +26,7 @@ import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.util.Base64;
 import android.view.View;
+import android.view.accessibility.AccessibilityManager;
 import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.DownloadListener;
@@ -1512,6 +1515,69 @@ public class MainActivity extends BridgeActivity {
         public boolean checkClipboardAndShowCardNow() {
             JSONObject matched = UMEDTDictionaryPopupEngine.inspectClipboardAndShowIfMatched(MainActivity.this, true);
             return matched != null;
+        }
+
+        @JavascriptInterface
+        public boolean isUmedtAccessibilityEnabled() {
+            if (UMEDTAutoTranslateAccessibilityService.isServiceConnected()) {
+                return true;
+            }
+            try {
+                AccessibilityManager am =
+                        (AccessibilityManager) MainActivity.this.getSystemService(Context.ACCESSIBILITY_SERVICE);
+                if (am != null) {
+                    List<AccessibilityServiceInfo> enabledServices =
+                            am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK);
+                    String pkg = getPackageName();
+                    for (AccessibilityServiceInfo info : enabledServices) {
+                        if (info != null && info.getId() != null && info.getId().contains(pkg)) {
+                            return true;
+                        }
+                    }
+                }
+                String enabledStr = Settings.Secure.getString(
+                        getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+                String expected = new ComponentName(MainActivity.this, UMEDTAutoTranslateAccessibilityService.class)
+                        .flattenToString();
+                return enabledStr != null && (enabledStr.contains(expected)
+                        || enabledStr.contains(getPackageName() + "/.UMEDTAutoTranslateAccessibilityService")
+                        || enabledStr.contains("UMEDTAutoTranslateAccessibilityService"));
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+
+        @JavascriptInterface
+        public void openUmedtAccessibilitySettings() {
+            try {
+                Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                String component = new ComponentName(MainActivity.this, UMEDTAutoTranslateAccessibilityService.class)
+                        .flattenToString();
+                Bundle bundle = new Bundle();
+                bundle.putString(":settings:fragment_args_key", component);
+                intent.putExtra(":settings:fragment_args_key", component);
+                intent.putExtra(":settings:show_fragment_args", bundle);
+                startActivity(intent);
+            } catch (Exception e) {
+                try {
+                    Intent fallback = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                    fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(fallback);
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
+        @JavascriptInterface
+        public boolean isAutoTranslateOnSelectEnabled() {
+            return UMEDTDictionaryPopupEngine.isAutoTranslateOnSelectEnabled(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public boolean setAutoTranslateOnSelectEnabled(boolean enabled) {
+            UMEDTDictionaryPopupEngine.setAutoTranslateOnSelectEnabled(MainActivity.this, enabled);
+            return enabled;
         }
 
     }

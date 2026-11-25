@@ -4,6 +4,7 @@ import android.app.Dialog;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.Insets;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.inputmethodservice.InputMethodService;
@@ -11,6 +12,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.text.InputType;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -20,12 +22,12 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
-import android.view.inputmethod.ExtractedText;
-import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -39,21 +41,29 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * UMEDT Complete Medical & Bilingual Keyboard (Arabic + English + Medical Symbols + Live Dictionary).
- * - Full 28+ Arabic letter inventory (including د, ذ, أ, إ, آ, لأ, لإ, لآ, لا, ة, ى, ء, ئ, ؤ, التشكيل)
- * - Dedicated top numbers row (1-0 / ١-٠)
- * - Two-page Symbols & Medical Units layout (123 and #+= with °, ±, μ, ≤, ≥, ‰, ÷, ×)
- * - Shift & Caps Lock (double-tap or long-press Shift for Caps Lock)
- * - Touch-and-hold continuous Backspace repeat & cursor arrow navigation (◀ / ▶)
- * - Smart Enter/Action key (Search 🔍, Send ➤, Next ⇥, Done ✓, Newline ⏎)
- * - One-tap Clipboard Paste (📋), TTS Speak (🔊), Keyboard Switcher (🌐), and Hide Keyboard (⌄)
- * - Live Medical Dictionary Autocomplete & Instant Floating Translation Card trigger
+ * UMEDT Global-Standard Compact Medical & Bilingual Keyboard (Gboard / Samsung style).
+ *
+ * Key architecture fixes:
+ * 1. Compact 4-Row Key Grid + Single 36dp Smart Header (~228dp active height, never oversized).
+ * 2. Full Android 15/16 (targetSdk 36) edge-to-edge navigation bar inset protection so the bottom
+ *    row is NEVER covered by the system navigation bar (◀ ⏺ ■).
+ * 3. 100% reliable Backspace (⌫) across Chromium WebView (React controlled inputs, mixed RTL/LTR BiDi text)
+ *    and native Android EditTexts using sendDownUpKeyEvents(KEYCODE_DEL) + InputConnection fallback + continuous hold repeat.
+ * 4. Floating Popup Key Bubbles (الأزرار المنبثقة) on long-press for numbers (1-0), Hamzas (أ إ آ لأ لإ لآ),
+ *    Tashkeel (َ ً ُ ٌ ِ ٍ ّ ْ), Punctuation (؟ ! ؛ :), and a one-tap Tools/Medical/Tashkeel Popup Tray.
+ * 5. Complete 28+ Arabic letter inventory on a symmetrical 11-key grid with fixed single-line key heights.
  */
 public class UMEDTKeyboardService extends InputMethodService {
 
     private static final int MODE_LETTERS = 0;
     private static final int MODE_SYMBOLS_1 = 1;
     private static final int MODE_SYMBOLS_2 = 2;
+
+    private static final String POPUP_NONE = "";
+    private static final String POPUP_TOOLS = "TOOLS";
+    private static final String POPUP_TASHKEEL = "TASHKEEL";
+    private static final String POPUP_MEDICAL = "MEDICAL";
+    private static final String POPUP_KEY_ALT = "KEY_ALT";
 
     private boolean arabicLayout = true;
     private int symbolMode = MODE_LETTERS;
@@ -62,87 +72,164 @@ public class UMEDTKeyboardService extends InputMethodService {
     private long lastShiftTapMs = 0L;
     private long lastSpaceTapMs = 0L;
 
-    private LinearLayout rootView;
-    private TextView clipboardQuickBanner;
+    private FrameLayout rootContainer;
+    private LinearLayout keyboardBody;
+    private FrameLayout popupOverlayContainer;
     private LinearLayout suggestionsContainer;
     private ClipboardManager clipboard;
     private String lastInspectedClip = "";
 
+    private String activePopupType = POPUP_NONE;
+    private String activePopupTitle = "";
+    private String[] activePopupOptions = new String[0];
+
     private final Handler repeatHandler = new Handler(Looper.getMainLooper());
+    private final Runnable debouncedSuggestionsRunnable = this::refreshSuggestionsStrip;
     private int backspaceHoldTicks = 0;
+    private boolean backspaceRepeating = false;
     private final Runnable backspaceRepeatRunnable = new Runnable() {
         @Override
         public void run() {
+            backspaceRepeating = true;
             backspaceHoldTicks++;
-            performBackspace(backspaceHoldTicks > 18);
-            repeatHandler.postDelayed(this, backspaceHoldTicks > 12 ? 45L : 65L);
+            performBackspace(backspaceHoldTicks > 22);
+            repeatHandler.postDelayed(this, backspaceHoldTicks > 10 ? 45L : 65L);
         }
     };
 
-    // English QWERTY with dedicated numbers row
+    // ========================================================================
+    // GLOBAL STANDARD 4-ROW LAYOUTS (Compact, Balanced, Max 11 Keys per Row)
+    // ========================================================================
+
+    // English QWERTY (4 rows, numbers 1-0 on Row 1 long-press popup + ?123 mode)
     private static final String[][] EN_ROWS = new String[][]{
-            {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0"},
             {"q", "w", "e", "r", "t", "y", "u", "i", "o", "p"},
             {"a", "s", "d", "f", "g", "h", "j", "k", "l"},
             {"⇧", "z", "x", "c", "v", "b", "n", "m", "⌫"},
-            {"123", "🌐", "AR", ",", "SPACE", ".", "/", "⏎"}
+            {"?123", "LANG", ",", "SPACE", ".", "⏎"}
     };
 
-    // Complete Arabic keyboard with all 28 letters (including د and ذ) + dedicated numbers row
+    // Complete 28-Letter Arabic Layout (Symmetrical 11-key grid, zero multi-line keys)
     private static final String[][] AR_ROWS = new String[][]{
-            {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0"},
-            {"ض", "ص", "ث", "ق", "ف", "غ", "ع", "ه", "خ", "ح", "ج", "د"},
+            {"ض", "ص", "ث", "ق", "ف", "غ", "ع", "ه", "خ", "ح", "ج"},
             {"ش", "س", "ي", "ب", "ل", "ا", "ت", "ن", "م", "ك", "ط"},
-            {"⇧", "ذ", "ئ", "ء", "ؤ", "ر", "لا", "ى", "ة", "و", "ز", "ظ", "⌫"},
-            {"123", "🌐", "EN", "،", "SPACE", ".", "؟", "⏎"}
+            {"ذ", "ء", "ر", "لا", "ى", "ة", "و", "ز", "ظ", "د", "⌫"},
+            {"?123", "LANG", "،", "SPACE", ".", "⏎"}
     };
 
-    // Arabic Shift Layer: Hamzas (أ إ آ لأ لإ لآ), Tashkeel diacritics (َ ً ُ ٌ ِ ٍ ْ ّ), Eastern Arabic numbers, and Arabic punctuation
-    private static final String[][] AR_SHIFT_ROWS = new String[][]{
-            {"١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩", "٠"},
-            {"َ", "ً", "ُ", "ٌ", "لإ", "إ", "‘", "÷", "×", "؛", "<", ">"},
-            {"ِ", "ٍ", "]", "[", "لأ", "أ", "ـ", "،", "/", ":", "\""},
-            {"⇧", "~", "ْ", "ّ", "لآ", "آ", "’", ",", ".", "؟", "!", "⌫"},
-            {"123", "🌐", "EN", "،", "SPACE", ".", "؟", "⏎"}
-    };
-
-    // Symbols Page 1 (123)
+    // Symbols & Numbers Page 1 (?123)
     private static final String[][] SYM_ROWS_1 = new String[][]{
             {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0"},
             {"@", "#", "$", "%", "&", "-", "+", "(", ")", "/"},
-            {"#+=", "*", "\"", "'", ":", ";", "!", "?", "=", "⌫"},
-            {"ABC", "🌐", "AR/EN", ",", "SPACE", ".", "_", "⏎"}
+            {"=\\<", "*", "\"", "'", ":", ";", "!", "?", "=", "⌫"},
+            {"ABC", "LANG", ",", "SPACE", ".", "⏎"}
     };
 
-    // Symbols Page 2 (#+=) with Medical & Scientific Units (°, ±, μ, ≤, ≥, ‰, ÷, ×)
+    // Symbols & Medical Units Page 2 (=\<)
     private static final String[][] SYM_ROWS_2 = new String[][]{
-            {"~", "`", "|", "•", "√", "π", "÷", "×", "¶", "∆"},
-            {"°", "±", "μ", "≤", "≥", "≠", "≈", "∞", "%", "‰"},
-            {"123", "\\", "{", "}", "[", "]", "<", ">", "^", "⌫"},
-            {"ABC", "🌐", "AR/EN", ",", "SPACE", ".", "-", "⏎"}
+            {"١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩", "٠"},
+            {"°", "±", "μ", "≤", "≥", "≠", "≈", "÷", "×", "‰"},
+            {"?123", "~", "`", "|", "{", "}", "[", "]", "^", "⌫"},
+            {"ABC", "LANG", "،", "SPACE", ".", "⏎"}
     };
 
-    // Long-press quick alternate characters for fast medical & Arabic typing
-    private static final Map<String, String> LONG_PRESS_ALT = new HashMap<>();
+    // Top-right corner hint badge for each key
+    private static final Map<String, String> KEY_CORNER_HINTS = new HashMap<>();
+    // Long-press popup options array for each key
+    private static final Map<String, String[]> KEY_POPUP_OPTIONS = new HashMap<>();
+
     static {
-        LONG_PRESS_ALT.put("ا", "أ");
-        LONG_PRESS_ALT.put("أ", "إ");
-        LONG_PRESS_ALT.put("لا", "لأ");
-        LONG_PRESS_ALT.put("ه", "ة");
-        LONG_PRESS_ALT.put("ي", "ى");
-        LONG_PRESS_ALT.put("و", "ؤ");
-        LONG_PRESS_ALT.put("ء", "ئ");
-        LONG_PRESS_ALT.put("ح", "خ");
-        LONG_PRESS_ALT.put("ج", "چ");
-        LONG_PRESS_ALT.put("د", "ذ");
-        LONG_PRESS_ALT.put("ط", "ظ");
-        LONG_PRESS_ALT.put("ص", "ض");
-        LONG_PRESS_ALT.put("ع", "غ");
-        LONG_PRESS_ALT.put("ف", "ڤ");
-        LONG_PRESS_ALT.put("ك", "گ");
-        LONG_PRESS_ALT.put(".", "؟");
-        LONG_PRESS_ALT.put("،", "؛");
-        LONG_PRESS_ALT.put("/", "\\");
+        // Arabic Row 1 hints & popups (Numbers 1-0 + Eastern Arabic numerals)
+        KEY_CORNER_HINTS.put("ض", "1");
+        KEY_POPUP_OPTIONS.put("ض", new String[]{"1", "١", "ض"});
+        KEY_CORNER_HINTS.put("ص", "2");
+        KEY_POPUP_OPTIONS.put("ص", new String[]{"2", "٢", "ص"});
+        KEY_CORNER_HINTS.put("ث", "3");
+        KEY_POPUP_OPTIONS.put("ث", new String[]{"3", "٣", "ث"});
+        KEY_CORNER_HINTS.put("ق", "4");
+        KEY_POPUP_OPTIONS.put("ق", new String[]{"4", "٤", "ڤ", "ق"});
+        KEY_CORNER_HINTS.put("ف", "5");
+        KEY_POPUP_OPTIONS.put("ف", new String[]{"5", "٥", "ڤ", "ف"});
+        KEY_CORNER_HINTS.put("غ", "6");
+        KEY_POPUP_OPTIONS.put("غ", new String[]{"6", "٦", "غ"});
+        KEY_CORNER_HINTS.put("ع", "7");
+        KEY_POPUP_OPTIONS.put("ع", new String[]{"7", "٧", "ع"});
+        KEY_CORNER_HINTS.put("ه", "8");
+        KEY_POPUP_OPTIONS.put("ه", new String[]{"8", "٨", "ة", "هـ"});
+        KEY_CORNER_HINTS.put("خ", "9");
+        KEY_POPUP_OPTIONS.put("خ", new String[]{"9", "٩", "خ"});
+        KEY_CORNER_HINTS.put("ح", "0");
+        KEY_POPUP_OPTIONS.put("ح", new String[]{"0", "٠", "ح"});
+        KEY_CORNER_HINTS.put("ج", "چ");
+        KEY_POPUP_OPTIONS.put("ج", new String[]{"چ", "د", "ذ", "-"});
+
+        // Arabic Row 2 hints & popups (Hamzas, Lam-Alif, Diacritics)
+        KEY_CORNER_HINTS.put("ي", "ى");
+        KEY_POPUP_OPTIONS.put("ي", new String[]{"ى", "ئ", "ي"});
+        KEY_CORNER_HINTS.put("ب", "پ");
+        KEY_POPUP_OPTIONS.put("ب", new String[]{"پ", "ب"});
+        KEY_CORNER_HINTS.put("ل", "لا");
+        KEY_POPUP_OPTIONS.put("ل", new String[]{"لا", "لأ", "لإ", "لآ"});
+        KEY_CORNER_HINTS.put("ا", "أ إ آ");
+        KEY_POPUP_OPTIONS.put("ا", new String[]{"أ", "إ", "آ", "ٱ", "لا", "لأ", "لإ", "لآ"});
+        KEY_CORNER_HINTS.put("ت", "ة");
+        KEY_POPUP_OPTIONS.put("ت", new String[]{"ة", "ت"});
+        KEY_CORNER_HINTS.put("ن", "ـ");
+        KEY_POPUP_OPTIONS.put("ن", new String[]{"ـ", "ن"});
+        KEY_CORNER_HINTS.put("م", "μ");
+        KEY_POPUP_OPTIONS.put("م", new String[]{"mg", "mL", "mmHg", "μ"});
+        KEY_CORNER_HINTS.put("ك", "گ");
+        KEY_POPUP_OPTIONS.put("ك", new String[]{"گ", "ك", ":"});
+        KEY_CORNER_HINTS.put("ط", "ظ");
+        KEY_POPUP_OPTIONS.put("ط", new String[]{"ظ", "ط"});
+
+        // Arabic Row 3 hints & popups
+        KEY_CORNER_HINTS.put("ذ", "ّ");
+        KEY_POPUP_OPTIONS.put("ذ", new String[]{"ّ", "ْ", "َ", "ُ", "ِ", "ذ"});
+        KEY_CORNER_HINTS.put("ء", "ئ ؤ");
+        KEY_POPUP_OPTIONS.put("ء", new String[]{"أ", "إ", "آ", "ئ", "ؤ", "ء"});
+        KEY_CORNER_HINTS.put("لا", "لأ");
+        KEY_POPUP_OPTIONS.put("لا", new String[]{"لأ", "لإ", "لآ", "لا"});
+        KEY_CORNER_HINTS.put("ى", "ئ");
+        KEY_POPUP_OPTIONS.put("ى", new String[]{"ئ", "ي", "ى"});
+        KEY_CORNER_HINTS.put("ة", "ه");
+        KEY_POPUP_OPTIONS.put("ة", new String[]{"ه", "ة"});
+        KEY_CORNER_HINTS.put("و", "ؤ");
+        KEY_POPUP_OPTIONS.put("و", new String[]{"ؤ", "و"});
+        KEY_CORNER_HINTS.put("ز", "ژ");
+        KEY_POPUP_OPTIONS.put("ز", new String[]{"ژ", "ز"});
+        KEY_CORNER_HINTS.put("د", "ذ");
+        KEY_POPUP_OPTIONS.put("د", new String[]{"ذ", "د"});
+
+        // Punctuation & Tashkeel popups
+        KEY_CORNER_HINTS.put("،", "ّ");
+        KEY_POPUP_OPTIONS.put("،", new String[]{"َ", "ً", "ُ", "ٌ", "ِ", "ٍ", "ّ", "ْ", "؛", "؟"});
+        KEY_CORNER_HINTS.put(".", "؟");
+        KEY_POPUP_OPTIONS.put(".", new String[]{"؟", "!", "؛", ":", "/", "-", "(", ")", "%", "°", "±", "μ"});
+        KEY_CORNER_HINTS.put(",", "'");
+        KEY_POPUP_OPTIONS.put(",", new String[]{"'", "\"", ";", ":", "(", ")", "/", "-", "@", "#"});
+
+        // English Row 1 hints & popups (1-0)
+        KEY_CORNER_HINTS.put("q", "1");
+        KEY_POPUP_OPTIONS.put("q", new String[]{"1", "%"});
+        KEY_CORNER_HINTS.put("w", "2");
+        KEY_POPUP_OPTIONS.put("w", new String[]{"2", "@"});
+        KEY_CORNER_HINTS.put("e", "3");
+        KEY_POPUP_OPTIONS.put("e", new String[]{"3", "é", "è"});
+        KEY_CORNER_HINTS.put("r", "4");
+        KEY_POPUP_OPTIONS.put("r", new String[]{"4", "#"});
+        KEY_CORNER_HINTS.put("t", "5");
+        KEY_POPUP_OPTIONS.put("t", new String[]{"5", "$"});
+        KEY_CORNER_HINTS.put("y", "6");
+        KEY_POPUP_OPTIONS.put("y", new String[]{"6", "^"});
+        KEY_CORNER_HINTS.put("u", "7");
+        KEY_POPUP_OPTIONS.put("u", new String[]{"7", "μ", "&"});
+        KEY_CORNER_HINTS.put("i", "8");
+        KEY_POPUP_OPTIONS.put("i", new String[]{"8", "*"});
+        KEY_CORNER_HINTS.put("o", "9");
+        KEY_POPUP_OPTIONS.put("o", new String[]{"9", "°", "("});
+        KEY_CORNER_HINTS.put("p", "0");
+        KEY_POPUP_OPTIONS.put("p", new String[]{"0", "±", ")"});
     }
 
     private final ClipboardManager.OnPrimaryClipChangedListener clipListener = this::inspectClipboardForPopup;
@@ -163,20 +250,111 @@ public class UMEDTKeyboardService extends InputMethodService {
 
     @Override
     public View onCreateInputView() {
-        rootView = new LinearLayout(this);
-        rootView.setOrientation(LinearLayout.VERTICAL);
-        rootView.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        rootView.setBackgroundColor(Color.parseColor("#0B1320"));
-        rootView.setPadding(dp(4), dp(5), dp(4), dp(10));
+        rootContainer = new FrameLayout(this);
+        rootContainer.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        rootContainer.setBackgroundColor(Color.parseColor("#111827"));
+
+        keyboardBody = new LinearLayout(this);
+        keyboardBody.setOrientation(LinearLayout.VERTICAL);
+        keyboardBody.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        keyboardBody.setBackgroundColor(Color.parseColor("#111827"));
+
+        int initialBottomPad = computeSafeNavigationBarPadding(null);
+        keyboardBody.setPadding(dp(3), dp(4), dp(3), initialBottomPad);
+
+        rootContainer.addView(keyboardBody, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        popupOverlayContainer = new FrameLayout(this);
+        popupOverlayContainer.setVisibility(View.GONE);
+        rootContainer.addView(popupOverlayContainer, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        // Listen for Android 15/16 (targetSdk 36) WindowInsets so navigation bar never covers bottom keys
+        rootContainer.setOnApplyWindowInsetsListener((v, insets) -> {
+            int bottomPad = computeSafeNavigationBarPadding(insets);
+            keyboardBody.setPadding(dp(3), dp(4), dp(3), bottomPad);
+            return insets;
+        });
+
+        styleImeNavigationBar();
         renderKeyboard();
-        return rootView;
+        return rootContainer;
+    }
+
+    private void styleImeNavigationBar() {
+        try {
+            Dialog imeDialog = getWindow();
+            Window win = imeDialog != null ? imeDialog.getWindow() : null;
+            if (win != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                win.setNavigationBarColor(Color.parseColor("#111827"));
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * Computes bottom padding so the keyboard sits cleanly above the Android system navigation bar
+     * (3-button or gesture bar) on Android 10-16 (including targetSdk 36 edge-to-edge enforcement).
+     */
+    private int computeSafeNavigationBarPadding(WindowInsets insets) {
+        int navInset = 0;
+        try {
+            if (insets != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    Insets sys = insets.getInsets(
+                            WindowInsets.Type.navigationBars() | WindowInsets.Type.systemBars()
+                    );
+                    navInset = sys.bottom;
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    navInset = insets.getSystemWindowInsetBottom();
+                }
+            }
+            if (navInset <= 0 && rootContainer != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                WindowInsets rootInsets = rootContainer.getRootWindowInsets();
+                if (rootInsets != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        navInset = rootInsets.getInsets(
+                                WindowInsets.Type.navigationBars() | WindowInsets.Type.systemBars()
+                        ).bottom;
+                    } else {
+                        navInset = rootInsets.getSystemWindowInsetBottom();
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
+        // Fallback on Android 15+ (API 35+) where edge-to-edge is enforced before first inset pass
+        if (navInset <= 0) {
+            try {
+                int resId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+                if (resId > 0) {
+                    int sysNav = getResources().getDimensionPixelSize(resId);
+                    if (sysNav > 0) {
+                        navInset = sysNav;
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (navInset <= 0) {
+            navInset = dp(42);
+        }
+        return navInset + dp(4);
     }
 
     @Override
     public void onStartInput(EditorInfo attribute, boolean restarting) {
         super.onStartInput(attribute, restarting);
+        dismissPopupOverlay();
         inspectClipboardForPopup();
-        if (rootView != null) {
+        if (keyboardBody != null) {
             renderKeyboard();
         }
     }
@@ -184,21 +362,26 @@ public class UMEDTKeyboardService extends InputMethodService {
     @Override
     public void onWindowShown() {
         super.onWindowShown();
+        styleImeNavigationBar();
+        if (keyboardBody != null && rootContainer != null) {
+            int bottomPad = computeSafeNavigationBarPadding(rootContainer.getRootWindowInsets());
+            keyboardBody.setPadding(dp(3), dp(4), dp(3), bottomPad);
+        }
         inspectClipboardForPopup();
-        refreshClipboardBanner();
-        refreshAutocompleteSuggestions();
+        refreshSuggestionsStrip();
     }
 
     @Override
     public void onUpdateSelection(int oldSelStart, int oldSelEnd, int newSelStart, int newSelEnd,
                                   int candidatesStart, int candidatesEnd) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd);
-        refreshAutocompleteSuggestions();
+        refreshSuggestionsStrip();
     }
 
     @Override
     public void onDestroy() {
         repeatHandler.removeCallbacks(backspaceRepeatRunnable);
+        repeatHandler.removeCallbacks(debouncedSuggestionsRunnable);
         if (clipboard != null) {
             try {
                 clipboard.removePrimaryClipChangedListener(clipListener);
@@ -209,149 +392,138 @@ public class UMEDTKeyboardService extends InputMethodService {
         super.onDestroy();
     }
 
+    // ========================================================================
+    // KEYBOARD RENDERER (1 Slim 36dp Header + 4 Uniform 42dp Key Rows)
+    // ========================================================================
+
     private void renderKeyboard() {
-        if (rootView == null) return;
-        rootView.removeAllViews();
+        if (keyboardBody == null) return;
+        keyboardBody.removeAllViews();
 
-        // ====================================================================
-        // 1. TOP SMART MEDICAL TOOLBAR:
-        //    [Clipboard Lookup Banner] [📋 Paste] [🔊 Speak] [◀] [▶] [🌐] [⌄]
-        // ====================================================================
-        LinearLayout topBar = new LinearLayout(this);
-        topBar.setOrientation(LinearLayout.HORIZONTAL);
-        topBar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        topBar.setGravity(Gravity.CENTER_VERTICAL);
-        topBar.setPadding(dp(2), dp(1), dp(2), dp(4));
+        // 1. SINGLE SLIM SMART HEADER (36dp):
+        //    [⊞ أدوات] [ّ تشكيل] [⚕️ وحدات] | [Live Dictionary Suggestions / Clipboard Match] | [⌄]
+        LinearLayout headerBar = new LinearLayout(this);
+        headerBar.setOrientation(LinearLayout.HORIZONTAL);
+        headerBar.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        headerBar.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(36)
+        );
+        headerParams.bottomMargin = dp(4);
+        headerBar.setLayoutParams(headerParams);
 
-        clipboardQuickBanner = new TextView(this);
-        clipboardQuickBanner.setTextColor(Color.parseColor("#A7F3D0"));
-        clipboardQuickBanner.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
-        clipboardQuickBanner.setTypeface(Typeface.DEFAULT_BOLD);
-        clipboardQuickBanner.setSingleLine(true);
-        clipboardQuickBanner.setEllipsize(TextUtils.TruncateAt.END);
-        clipboardQuickBanner.setPadding(dp(8), dp(6), dp(8), dp(6));
-        GradientDrawable bannerBg = new GradientDrawable();
-        bannerBg.setColor(Color.parseColor("#064E3B"));
-        bannerBg.setCornerRadius(dp(9));
-        bannerBg.setStroke(dp(1), Color.parseColor("#10B981"));
-        clipboardQuickBanner.setBackground(bannerBg);
-        clipboardQuickBanner.setOnClickListener(v -> {
+        // Popup Tools Button (⊞) — Paste, Speak, Cursor Arrows, Clipboard Translate, Switch IME
+        TextView toolsBtn = createHeaderIconButton(
+                "⊞",
+                POPUP_TOOLS.equals(activePopupType) ? "#059669" : "#1F2937",
+                "#34D399"
+        );
+        toolsBtn.setOnClickListener(v -> {
             v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-            JSONObject matched = UMEDTDictionaryPopupEngine.inspectClipboardAndShowIfMatched(this, true);
-            if (matched != null) {
-                refreshClipboardBanner();
+            if (POPUP_TOOLS.equals(activePopupType)) {
+                dismissPopupOverlay();
             } else {
-                String rawClip = UMEDTDictionaryPopupEngine.getCurrentClipboardText(this);
-                if (rawClip.isEmpty()) {
-                    Toast.makeText(this, "الحافظة فارغة حاليًا · انسخ أي مصطلح طبي لترجمته", Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(this, "الكلمة المنسوخة غير موجودة في قاموس UMEDT المحلي", Toast.LENGTH_SHORT).show();
-                }
+                showToolsPopupOverlay();
             }
         });
-        LinearLayout.LayoutParams bannerParams = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        headerBar.addView(toolsBtn);
+
+        // Popup Tashkeel & Hamzas Button (ّ)
+        TextView tashkeelBtn = createHeaderIconButton(
+                "ّ أ",
+                POPUP_TASHKEEL.equals(activePopupType) ? "#059669" : "#1F2937",
+                "#FDE68A"
         );
-        bannerParams.setMargins(dp(3), 0, 0, 0);
-        topBar.addView(clipboardQuickBanner, bannerParams);
-
-        // Paste Button (📋)
-        TextView pasteChip = createToolbarButton("📋 لصق", "#1E293B", "#E2E8F0");
-        pasteChip.setOnClickListener(v -> {
+        tashkeelBtn.setOnClickListener(v -> {
             v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-            pasteFromClipboard();
+            if (POPUP_TASHKEEL.equals(activePopupType)) {
+                dismissPopupOverlay();
+            } else {
+                showPresetPopupOverlay(
+                        POPUP_TASHKEEL,
+                        "التشكيل والهمزات والأرقام",
+                        new String[]{"أ", "إ", "آ", "لأ", "لإ", "لآ", "ء", "ئ", "ؤ", "َ", "ً", "ُ", "ٌ", "ِ", "ٍ", "ّ", "ْ", "ـ"}
+                );
+            }
         });
-        topBar.addView(pasteChip);
+        headerBar.addView(tashkeelBtn);
 
-        // Speak TTS Button (🔊)
-        TextView speakChip = createToolbarButton("🔊", "#1E293B", "#34D399");
-        speakChip.setOnClickListener(v -> {
+        // Popup Medical Units & Symbols Button (⚕️)
+        TextView medBtn = createHeaderIconButton(
+                "⚕️",
+                POPUP_MEDICAL.equals(activePopupType) ? "#059669" : "#1F2937",
+                "#38BDF8"
+        );
+        medBtn.setOnClickListener(v -> {
             v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-            speakCurrentOrCopiedWord();
+            if (POPUP_MEDICAL.equals(activePopupType)) {
+                dismissPopupOverlay();
+            } else {
+                showPresetPopupOverlay(
+                        POPUP_MEDICAL,
+                        "الوحدات والرموز الطبية السريعة",
+                        new String[]{"mg", "mL", "mmHg", "°C", "μg", "mmol/L", "g/dL", "bpm", "IV", "PO", "IM", "±", "≤", "≥", "°", "μ", "%", "‰"}
+                );
+            }
         });
-        topBar.addView(speakChip);
+        headerBar.addView(medBtn);
 
-        // Cursor Left / Right Buttons (◀ / ▶)
-        TextView leftArrowChip = createToolbarButton("◀", "#1E293B", "#CBD5E1");
-        leftArrowChip.setOnClickListener(v -> {
-            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-            moveCursor(-1);
-        });
-        topBar.addView(leftArrowChip);
-
-        TextView rightArrowChip = createToolbarButton("▶", "#1E293B", "#CBD5E1");
-        rightArrowChip.setOnClickListener(v -> {
-            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-            moveCursor(1);
-        });
-        topBar.addView(rightArrowChip);
-
-        // Switch Keyboard Button (🌐)
-        TextView switchImeChip = createToolbarButton("🌐", "#1E293B", "#38BDF8");
-        switchImeChip.setOnClickListener(v -> {
-            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-            switchKeyboardMethod(false);
-        });
-        switchImeChip.setOnLongClickListener(v -> {
-            v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
-            switchKeyboardMethod(true);
-            return true;
-        });
-        topBar.addView(switchImeChip);
-
-        // Hide Keyboard Button (⌄)
-        TextView hideKeyboardChip = createToolbarButton("⌄", "#1E293B", "#94A3B8");
-        hideKeyboardChip.setOnClickListener(v -> {
-            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-            requestHideSelf(0);
-        });
-        topBar.addView(hideKeyboardChip);
-
-        rootView.addView(topBar);
-
-        // ====================================================================
-        // 2. LIVE DICTIONARY AUTOCOMPLETE & TRANSLATION SUGGESTIONS STRIP
-        // ====================================================================
+        // Center Scrollable Suggestions & Instant Clipboard Match Bar
         HorizontalScrollView suggestionScroll = new HorizontalScrollView(this);
         suggestionScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                0,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                1f
         );
-        scrollParams.bottomMargin = dp(4);
+        scrollParams.setMargins(dp(3), 0, dp(3), 0);
         suggestionScroll.setLayoutParams(scrollParams);
 
         suggestionsContainer = new LinearLayout(this);
         suggestionsContainer.setOrientation(LinearLayout.HORIZONTAL);
         suggestionsContainer.setGravity(Gravity.CENTER_VERTICAL);
-        suggestionsContainer.setPadding(dp(2), dp(1), dp(2), dp(1));
         suggestionScroll.addView(suggestionsContainer);
-        rootView.addView(suggestionScroll);
+        headerBar.addView(suggestionScroll);
 
-        refreshClipboardBanner();
-        refreshAutocompleteSuggestions();
+        // Hide Keyboard Button (⌄)
+        TextView hideBtn = createHeaderIconButton("⌄", "#1F2937", "#94A3B8");
+        hideBtn.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            dismissPopupOverlay();
+            requestHideSelf(0);
+        });
+        headerBar.addView(hideBtn);
 
-        // ====================================================================
-        // 3. KEYBOARD ROWS
-        // ====================================================================
+        keyboardBody.addView(headerBar);
+        refreshSuggestionsStrip();
+
+        // 2. 4 UNIFORM KEYBOARD ROWS (42dp each)
         String[][] rows = getActiveRows();
         for (int r = 0; r < rows.length; r++) {
             String[] row = rows[r];
-            boolean isNumberRow = (r == 0 && symbolMode == MODE_LETTERS);
+            boolean isBottomRow = (r == rows.length - 1);
             LinearLayout rowLayout = new LinearLayout(this);
             rowLayout.setOrientation(LinearLayout.HORIZONTAL);
             rowLayout.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
             rowLayout.setGravity(Gravity.CENTER);
+
             LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
+                    dp(isBottomRow ? 44 : 42)
             );
-            rowParams.bottomMargin = dp(isNumberRow ? 4 : 5);
+            rowParams.bottomMargin = dp(isBottomRow ? 2 : 4);
             rowLayout.setLayoutParams(rowParams);
 
-            for (String key : row) {
-                rowLayout.addView(createKeyView(key, isNumberRow));
+            // Add subtle side padding on 9-key English row 2 ("a..l") just like Gboard
+            if (!arabicLayout && symbolMode == MODE_LETTERS && r == 1) {
+                rowLayout.setPadding(dp(14), 0, dp(14), 0);
             }
-            rootView.addView(rowLayout);
+
+            for (String key : row) {
+                rowLayout.addView(createKeyView(key, isBottomRow));
+            }
+            keyboardBody.addView(rowLayout);
         }
     }
 
@@ -362,200 +534,274 @@ public class UMEDTKeyboardService extends InputMethodService {
         if (symbolMode == MODE_SYMBOLS_2) {
             return SYM_ROWS_2;
         }
-        if (arabicLayout) {
-            return (shiftActive || capsLockActive) ? AR_SHIFT_ROWS : AR_ROWS;
-        }
-        return EN_ROWS;
+        return arabicLayout ? AR_ROWS : EN_ROWS;
     }
 
-    private TextView createToolbarButton(String text, String bgHex, String fgHex) {
+    private TextView createHeaderIconButton(String text, String bgHex, String fgHex) {
         TextView btn = new TextView(this);
         btn.setText(text);
         btn.setTextColor(Color.parseColor(fgHex));
-        btn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f);
+        btn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
         btn.setTypeface(Typeface.DEFAULT_BOLD);
         btn.setGravity(Gravity.CENTER);
-        btn.setPadding(dp(7), dp(6), dp(7), dp(6));
+        btn.setSingleLine(true);
+        btn.setPadding(dp(8), 0, dp(8), 0);
+
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(Color.parseColor(bgHex));
-        bg.setCornerRadius(dp(8));
-        bg.setStroke(dp(1), Color.parseColor("#334155"));
+        bg.setCornerRadius(dp(7));
+        bg.setStroke(dp(1), Color.parseColor("#374151"));
         btn.setBackground(bg);
+
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(32)
         );
-        lp.setMargins(dp(2), 0, 0, 0);
+        lp.setMargins(dp(2), 0, dp(2), 0);
         btn.setLayoutParams(lp);
         return btn;
     }
 
-    private void refreshClipboardBanner() {
-        if (clipboardQuickBanner == null) return;
-        JSONObject matched = UMEDTDictionaryPopupEngine.peekClipboardMatchedTerm(this);
-        if (matched != null) {
-            String term = matched.optString("term", "");
-            String trans = matched.optString("translation", "");
-            clipboardQuickBanner.setText("⚡ " + term + " ← " + trans);
-        } else {
-            int count = UMEDTDictionaryPopupEngine.getSyncedTermsCount(this);
-            clipboardQuickBanner.setText("📖 قاموس UMEDT (" + count + " مصطلح) · انسخ لترجمة فورية");
-        }
-    }
-
-    private void refreshAutocompleteSuggestions() {
+    private void refreshSuggestionsStrip() {
         if (suggestionsContainer == null) return;
         suggestionsContainer.removeAllViews();
 
-        String currentWord = getCurrentWordBeforeCursor();
+        // 1. If clipboard has a matched dictionary term, show a glowing 1-tap floating translation chip first
+        final JSONObject clipMatched = UMEDTDictionaryPopupEngine.peekClipboardMatchedTerm(this);
+        if (clipMatched != null) {
+            String term = clipMatched.optString("term", "");
+            String trans = clipMatched.optString("translation", "");
+            TextView clipChip = createSuggestionChip(
+                    "⚡ " + term + " ← " + trans,
+                    "#064E3B",
+                    "#A7F3D0",
+                    "#10B981"
+            );
+            clipChip.setOnClickListener(v -> {
+                v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                UMEDTDictionaryPopupEngine.showFloatingCard(getApplicationContext(), clipMatched, true);
+            });
+            suggestionsContainer.addView(clipChip);
+        }
+
+        // 2. Live dictionary autocomplete suggestions while typing
+        final String currentWord = getCurrentWordBeforeCursor();
         if (currentWord.length() >= 2) {
             List<JSONObject> suggestions = UMEDTDictionaryPopupEngine.findSuggestions(this, currentWord, 4);
+            for (final JSONObject item : suggestions) {
+                final String termEn = item.optString("term", "");
+                final String transAr = item.optString("translation", "");
+                TextView chip = createSuggestionChip(
+                        "📖 " + termEn + " · " + transAr,
+                        "#1E293B",
+                        "#F8FAFC",
+                        "#10B981"
+                );
+                chip.setOnClickListener(v -> {
+                    v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                    boolean typedArabic = isArabicString(currentWord);
+                    String replacement = typedArabic && !transAr.isEmpty() ? transAr : termEn;
+                    replaceCurrentWordBeforeCursor(currentWord, replacement + " ");
+                    UMEDTDictionaryPopupEngine.showFloatingCard(getApplicationContext(), item, true);
+                });
+                chip.setOnLongClickListener(v -> {
+                    v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                    UMEDTDictionaryPopupEngine.showFloatingCard(getApplicationContext(), item, true);
+                    return true;
+                });
+                suggestionsContainer.addView(chip);
+            }
             if (!suggestions.isEmpty()) {
-                for (final JSONObject item : suggestions) {
-                    final String termEn = item.optString("term", "");
-                    final String transAr = item.optString("translation", "");
-                    TextView chip = new TextView(this);
-                    chip.setText("📖 " + termEn + " · " + transAr);
-                    chip.setTextColor(Color.parseColor("#E2E8F0"));
-                    chip.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
-                    chip.setTypeface(Typeface.DEFAULT_BOLD);
-                    chip.setPadding(dp(10), dp(5), dp(10), dp(5));
-                    GradientDrawable bg = new GradientDrawable();
-                    bg.setColor(Color.parseColor("#1E293B"));
-                    bg.setCornerRadius(dp(10));
-                    bg.setStroke(dp(1), Color.parseColor("#10B981"));
-                    chip.setBackground(bg);
-
-                    // Single tap: autocomplete the term in the current language & show popup card if long-pressed
-                    chip.setOnClickListener(v -> {
-                        v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                        boolean typedArabic = isArabicString(currentWord);
-                        String replacement = typedArabic && !transAr.isEmpty() ? transAr : termEn;
-                        replaceCurrentWordBeforeCursor(currentWord, replacement + " ");
-                        UMEDTDictionaryPopupEngine.showFloatingCard(getApplicationContext(), item, true);
-                    });
-                    chip.setOnLongClickListener(v -> {
-                        v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
-                        UMEDTDictionaryPopupEngine.showFloatingCard(getApplicationContext(), item, true);
-                        return true;
-                    });
-
-                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                    );
-                    lp.setMargins(dp(3), 0, dp(3), 0);
-                    chip.setLayoutParams(lp);
-                    suggestionsContainer.addView(chip);
-                }
                 return;
             }
         }
 
-        // Default quick medical prefixes/punctuations strip when no word is being typed
-        String[] quickTokens = arabicLayout
-                ? new String[]{"أ", "إ", "آ", "ة", "ى", "؟", "،", "mg", "mL", "%"}
-                : new String[]{"mg", "mL", "mmHg", "°C", "IV", "PO", "bid", "tid", "/", "%"};
+        // 3. Quick 1-tap utility chips when idle (Paste, Speak, Translate Copied, Numbers)
+        TextView pasteChip = createSuggestionChip("📋 لصق", "#1F2937", "#E2E8F0", "#374151");
+        pasteChip.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            pasteFromClipboard();
+        });
+        suggestionsContainer.addView(pasteChip);
 
-        for (final String token : quickTokens) {
-            TextView quickChip = new TextView(this);
-            quickChip.setText(token);
-            quickChip.setTextColor(Color.parseColor("#CBD5E1"));
-            quickChip.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
-            quickChip.setTypeface(Typeface.DEFAULT_BOLD);
-            quickChip.setPadding(dp(9), dp(4), dp(9), dp(4));
-            GradientDrawable bg = new GradientDrawable();
-            bg.setColor(Color.parseColor("#162032"));
-            bg.setCornerRadius(dp(8));
-            bg.setStroke(dp(1), Color.parseColor("#26354D"));
-            quickChip.setBackground(bg);
-            quickChip.setOnClickListener(v -> {
+        TextView speakChip = createSuggestionChip("🔊 نطق", "#1F2937", "#34D399", "#374151");
+        speakChip.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            speakCurrentOrCopiedWord();
+        });
+        suggestionsContainer.addView(speakChip);
+
+        if (clipMatched == null) {
+            int count = UMEDTDictionaryPopupEngine.getSyncedTermsCount(this);
+            TextView dictChip = createSuggestionChip(
+                    "📖 القاموس (" + count + ")",
+                    "#1F2937",
+                    "#93C5FD",
+                    "#374151"
+            );
+            dictChip.setOnClickListener(v -> {
                 v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                InputConnection ic = getCurrentInputConnection();
-                if (ic != null) {
-                    ic.commitText(token.length() > 1 ? token + " " : token, 1);
-                    refreshAutocompleteSuggestions();
+                JSONObject matched = UMEDTDictionaryPopupEngine.inspectClipboardAndShowIfMatched(this, true);
+                if (matched == null) {
+                    String rawClip = UMEDTDictionaryPopupEngine.getCurrentClipboardText(this);
+                    if (rawClip.isEmpty()) {
+                        Toast.makeText(this, "انسخ أي مصطلح طبي لإظهار بطاقة ترجمته الفورية", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this, "«" + rawClip + "» غير موجود في القاموس المحلي", Toast.LENGTH_SHORT).show();
+                    }
                 }
             });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            );
-            lp.setMargins(dp(2), 0, dp(2), 0);
-            quickChip.setLayoutParams(lp);
-            suggestionsContainer.addView(quickChip);
+            suggestionsContainer.addView(dictChip);
         }
     }
 
-    private View createKeyView(final String label, final boolean isCompactNumberRow) {
-        final TextView keyView = new TextView(this);
-        String displayLabel = resolveDisplayLabel(label);
+    private TextView createSuggestionChip(String text, String bgHex, String fgHex, String strokeHex) {
+        TextView chip = new TextView(this);
+        chip.setText(text);
+        chip.setTextColor(Color.parseColor(fgHex));
+        chip.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
+        chip.setTypeface(Typeface.DEFAULT_BOLD);
+        chip.setSingleLine(true);
+        chip.setEllipsize(TextUtils.TruncateAt.END);
+        chip.setGravity(Gravity.CENTER_VERTICAL);
+        chip.setPadding(dp(9), 0, dp(9), 0);
 
-        keyView.setText(displayLabel);
-        keyView.setGravity(Gravity.CENTER);
-        keyView.setTextColor(Color.WHITE);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Color.parseColor(bgHex));
+        bg.setCornerRadius(dp(7));
+        bg.setStroke(dp(1), Color.parseColor(strokeHex));
+        chip.setBackground(bg);
 
-        float textSizeSp = 15.5f;
-        if (isCompactNumberRow) {
-            textSizeSp = 13.5f;
-        } else if ("SPACE".equals(label) || "123".equals(label) || "ABC".equals(label)
-                || "#+=".equals(label) || "AR".equals(label) || "EN".equals(label) || "AR/EN".equals(label)) {
-            textSizeSp = 12.5f;
-        }
-        keyView.setTextSize(TypedValue.COMPLEX_UNIT_SP, textSizeSp);
-        keyView.setTypeface(Typeface.DEFAULT_BOLD);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(30)
+        );
+        lp.setMargins(dp(2), 0, dp(2), 0);
+        chip.setLayoutParams(lp);
+        return chip;
+    }
 
-        final String normalBgColor = resolveKeyBackgroundColor(label, isCompactNumberRow);
-        final String pressedBgColor = "#10B981";
+    // ========================================================================
+    // INDIVIDUAL KEY BUILDER (With Corner Popup Hint + Reliable Touch/Click)
+    // ========================================================================
+
+    private View createKeyView(final String label, final boolean isBottomRow) {
+        final FrameLayout keyFrame = new FrameLayout(this);
+        keyFrame.setClickable(true);
+        keyFrame.setFocusable(false);
+
+        final String normalBgColor = resolveKeyBackgroundColor(label);
+        final String pressedBgColor = "⌫".equals(label) ? "#DC2626" : "#10B981";
 
         final GradientDrawable keyBg = new GradientDrawable();
         keyBg.setColor(Color.parseColor(normalBgColor));
-        keyBg.setCornerRadius(dp(isCompactNumberRow ? 6 : 8));
+        keyBg.setCornerRadius(dp(6));
         keyBg.setStroke(dp(1), Color.parseColor("#334155"));
-        keyView.setBackground(keyBg);
+        keyFrame.setBackground(keyBg);
 
-        int verticalPad = dp(isCompactNumberRow ? 7 : 10);
-        keyView.setPadding(dp(2), verticalPad, dp(2), verticalPad);
+        // Main center label (Strictly single-line so keys NEVER wrap or stretch!)
+        final TextView mainText = new TextView(this);
+        mainText.setText(resolveDisplayLabel(label));
+        mainText.setGravity(Gravity.CENTER);
+        mainText.setSingleLine(true);
+        mainText.setEllipsize(TextUtils.TruncateAt.END);
+        mainText.setTextColor(Color.WHITE);
+        mainText.setTypeface(Typeface.DEFAULT_BOLD);
+
+        float textSizeSp = 16.5f;
+        if ("SPACE".equals(label)) {
+            textSizeSp = 13f;
+            mainText.setTextColor(Color.parseColor("#CBD5E1"));
+        } else if ("?123".equals(label) || "ABC".equals(label) || "=\\<".equals(label) || "LANG".equals(label)) {
+            textSizeSp = 12.5f;
+        } else if ("لا".equals(label)) {
+            textSizeSp = 15f;
+        }
+        mainText.setTextSize(TypedValue.COMPLEX_UNIT_SP, textSizeSp);
+
+        keyFrame.addView(mainText, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                Gravity.CENTER
+        ));
+
+        // Top-right corner hint badge for popup options (just like Gboard / Samsung)
+        String hint = (symbolMode == MODE_LETTERS) ? KEY_CORNER_HINTS.get(label) : null;
+        if (hint != null && !hint.isEmpty()) {
+            TextView hintView = new TextView(this);
+            hintView.setText(hint);
+            hintView.setTextColor(Color.parseColor("#94A3B8"));
+            hintView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 8.5f);
+            hintView.setSingleLine(true);
+            hintView.setPadding(0, dp(2), dp(4), 0);
+            FrameLayout.LayoutParams hintLp = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.TOP | Gravity.END
+            );
+            keyFrame.addView(hintView, hintLp);
+        }
 
         float weight = 1f;
         if ("SPACE".equals(label)) {
-            weight = 3.8f;
-        } else if ("⌫".equals(label) || "⏎".equals(label) || "⇧".equals(label)
-                || "123".equals(label) || "ABC".equals(label) || "#+=".equals(label)) {
-            weight = 1.35f;
-        } else if ("AR".equals(label) || "EN".equals(label) || "AR/EN".equals(label)) {
-            weight = 1.15f;
+            weight = 3.9f;
+        } else if ("⌫".equals(label)) {
+            weight = arabicLayout && symbolMode == MODE_LETTERS ? 1.35f : 1.45f;
+        } else if ("⏎".equals(label)) {
+            weight = 1.4f;
+        } else if ("⇧".equals(label)) {
+            weight = 1.45f;
+        } else if ("?123".equals(label) || "ABC".equals(label) || "=\\<".equals(label)) {
+            weight = 1.25f;
+        } else if ("LANG".equals(label)) {
+            weight = 1.1f;
+        } else if (isBottomRow && (",".equals(label) || "،".equals(label) || ".".equals(label))) {
+            weight = 0.95f;
         }
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
                 weight
         );
         params.setMargins(dp(2), 0, dp(2), 0);
-        keyView.setLayoutParams(params);
+        keyFrame.setLayoutParams(params);
 
-        // Special touch-and-hold handling for Backspace (⌫)
+        // ====================================================================
+        // RELIABLE BACKSPACE (⌫) HANDLER: Single Tap + Continuous Hold Repeat
+        // ====================================================================
         if ("⌫".equals(label)) {
-            keyView.setOnTouchListener((v, event) -> {
+            keyFrame.setOnTouchListener((v, event) -> {
                 int action = event.getActionMasked();
                 if (action == MotionEvent.ACTION_DOWN) {
                     v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                    keyBg.setColor(Color.parseColor("#EF4444"));
+                    keyBg.setColor(Color.parseColor(pressedBgColor));
                     backspaceHoldTicks = 0;
+                    backspaceRepeating = false;
+                    // Perform immediate deletion on touch down for zero-latency responsiveness
                     performBackspace(false);
                     repeatHandler.removeCallbacks(backspaceRepeatRunnable);
-                    repeatHandler.postDelayed(backspaceRepeatRunnable, 360L);
+                    repeatHandler.postDelayed(backspaceRepeatRunnable, 350L);
                     return true;
                 } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
                     repeatHandler.removeCallbacks(backspaceRepeatRunnable);
+                    backspaceRepeating = false;
                     keyBg.setColor(Color.parseColor(normalBgColor));
                     return true;
                 }
                 return false;
             });
-            return keyView;
+            // Fallback click listener in case accessibility or OEM synthetic click triggers onClick
+            keyFrame.setOnClickListener(v -> {
+                if (!backspaceRepeating) {
+                    performBackspace(false);
+                }
+            });
+            return keyFrame;
         }
 
-        // Visual press highlight for all keys
-        keyView.setOnTouchListener((v, event) -> {
+        // Visual press highlight for all standard keys
+        keyFrame.setOnTouchListener((v, event) -> {
             int action = event.getActionMasked();
             if (action == MotionEvent.ACTION_DOWN) {
                 v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
@@ -566,26 +812,39 @@ public class UMEDTKeyboardService extends InputMethodService {
             return false;
         });
 
-        keyView.setOnClickListener(v -> handleKeyPress(label));
+        keyFrame.setOnClickListener(v -> {
+            dismissPopupOverlay();
+            handleKeyPress(label);
+        });
 
-        // Long-press handlers
-        keyView.setOnLongClickListener(v -> {
+        // ====================================================================
+        // LONG-PRESS POPUP KEYS (الأزرار المنبثقة)
+        // ====================================================================
+        keyFrame.setOnLongClickListener(v -> {
             v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+            keyBg.setColor(Color.parseColor(normalBgColor));
+
             if ("⇧".equals(label)) {
                 capsLockActive = !capsLockActive;
                 shiftActive = capsLockActive;
                 renderKeyboard();
                 return true;
             }
-            if ("🌐".equals(label) || "SPACE".equals(label)) {
+            if ("LANG".equals(label) || "SPACE".equals(label)) {
                 switchKeyboardMethod(true);
                 return true;
             }
-            String alt = LONG_PRESS_ALT.get(label);
-            if (alt != null) {
-                commitString(alt);
+
+            String[] popupOpts = KEY_POPUP_OPTIONS.get(label);
+            if (popupOpts != null && popupOpts.length > 0) {
+                if (popupOpts.length == 1) {
+                    commitString(popupOpts[0]);
+                } else {
+                    showKeyAlternatePopupOverlay(label, popupOpts);
+                }
                 return true;
             }
+
             if (label.length() == 1 && Character.isLetter(label.charAt(0))) {
                 commitString(label.toUpperCase(Locale.ROOT));
                 return true;
@@ -593,20 +852,305 @@ public class UMEDTKeyboardService extends InputMethodService {
             return false;
         });
 
-        return keyView;
+        return keyFrame;
     }
+
+    // ========================================================================
+    // FLOATING POPUP OVERLAY SYSTEM (الأزرار المنبثقة للأحرف والتشكيل والأدوات)
+    // ========================================================================
+
+    private void showKeyAlternatePopupOverlay(String baseKey, String[] options) {
+        showPresetPopupOverlay(
+                POPUP_KEY_ALT,
+                "خيارات الزر «" + baseKey + "» المنبثقة",
+                options
+        );
+    }
+
+    private void showPresetPopupOverlay(String popupType, String title, String[] options) {
+        if (popupOverlayContainer == null) return;
+        activePopupType = popupType;
+        activePopupTitle = title;
+        activePopupOptions = options;
+
+        popupOverlayContainer.removeAllViews();
+        popupOverlayContainer.setVisibility(View.VISIBLE);
+
+        // Semi-transparent dismiss backdrop covering the keyboard
+        FrameLayout backdrop = new FrameLayout(this);
+        backdrop.setBackgroundColor(Color.parseColor("#B3090D16"));
+        backdrop.setClickable(true);
+        backdrop.setOnClickListener(v -> dismissPopupOverlay());
+
+        // Elevated Popup Card centered near the top of the keyboard
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        card.setClickable(true);
+        card.setPadding(dp(10), dp(8), dp(10), dp(10));
+
+        GradientDrawable cardBg = new GradientDrawable();
+        cardBg.setColor(Color.parseColor("#1E293B"));
+        cardBg.setCornerRadius(dp(14));
+        cardBg.setStroke(dp(2), Color.parseColor("#10B981"));
+        card.setBackground(cardBg);
+
+        // Header Row inside Popup Card
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(2), 0, dp(2), dp(6));
+
+        TextView titleView = new TextView(this);
+        titleView.setText(activePopupTitle);
+        titleView.setTextColor(Color.parseColor("#A7F3D0"));
+        titleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
+        titleView.setTypeface(Typeface.DEFAULT_BOLD);
+        header.addView(titleView, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        ));
+
+        TextView closeBtn = new TextView(this);
+        closeBtn.setText("✕ إغلاق");
+        closeBtn.setTextColor(Color.parseColor("#F8FAFC"));
+        closeBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f);
+        closeBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        closeBtn.setPadding(dp(8), dp(3), dp(8), dp(3));
+        GradientDrawable closeBg = new GradientDrawable();
+        closeBg.setColor(Color.parseColor("#334155"));
+        closeBg.setCornerRadius(dp(8));
+        closeBtn.setBackground(closeBg);
+        closeBtn.setOnClickListener(v -> dismissPopupOverlay());
+        header.addView(closeBtn);
+        card.addView(header);
+
+        // Multi-row grid of popup option buttons (up to 6 buttons per row)
+        int perRow = Math.min(6, Math.max(4, activePopupOptions.length));
+        LinearLayout currentRow = null;
+        for (int i = 0; i < activePopupOptions.length; i++) {
+            if (i % perRow == 0) {
+                currentRow = new LinearLayout(this);
+                currentRow.setOrientation(LinearLayout.HORIZONTAL);
+                currentRow.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+                currentRow.setGravity(Gravity.CENTER);
+                LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        dp(40)
+                );
+                rp.topMargin = dp(4);
+                currentRow.setLayoutParams(rp);
+                card.addView(currentRow);
+            }
+            final String opt = activePopupOptions[i];
+            TextView optBtn = new TextView(this);
+            optBtn.setText(opt);
+            optBtn.setTextColor(Color.WHITE);
+            optBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, opt.length() > 3 ? 12f : 16f);
+            optBtn.setTypeface(Typeface.DEFAULT_BOLD);
+            optBtn.setGravity(Gravity.CENTER);
+            optBtn.setSingleLine(true);
+
+            GradientDrawable optBg = new GradientDrawable();
+            optBg.setColor(Color.parseColor("#0F172A"));
+            optBg.setCornerRadius(dp(8));
+            optBg.setStroke(dp(1), Color.parseColor("#10B981"));
+            optBtn.setBackground(optBg);
+
+            optBtn.setOnClickListener(v -> {
+                v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                String toCommit = (opt.length() > 1 && isAsciiLettersOrUnits(opt)) ? (opt + " ") : opt;
+                commitString(toCommit);
+                dismissPopupOverlay();
+            });
+
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    0,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    1f
+            );
+            lp.setMargins(dp(3), 0, dp(3), 0);
+            optBtn.setLayoutParams(lp);
+            if (currentRow != null) {
+                currentRow.addView(optBtn);
+            }
+        }
+
+        FrameLayout.LayoutParams cardParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP
+        );
+        cardParams.setMargins(dp(8), dp(38), dp(8), dp(8));
+        backdrop.addView(card, cardParams);
+        popupOverlayContainer.addView(backdrop, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+    }
+
+    private void showToolsPopupOverlay() {
+        if (popupOverlayContainer == null) return;
+        activePopupType = POPUP_TOOLS;
+        popupOverlayContainer.removeAllViews();
+        popupOverlayContainer.setVisibility(View.VISIBLE);
+
+        FrameLayout backdrop = new FrameLayout(this);
+        backdrop.setBackgroundColor(Color.parseColor("#B3090D16"));
+        backdrop.setClickable(true);
+        backdrop.setOnClickListener(v -> dismissPopupOverlay());
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        card.setClickable(true);
+        card.setPadding(dp(10), dp(8), dp(10), dp(10));
+
+        GradientDrawable cardBg = new GradientDrawable();
+        cardBg.setColor(Color.parseColor("#1E293B"));
+        cardBg.setCornerRadius(dp(14));
+        cardBg.setStroke(dp(2), Color.parseColor("#10B981"));
+        card.setBackground(cardBg);
+
+        // Header
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(2), 0, dp(2), dp(6));
+
+        TextView titleView = new TextView(this);
+        titleView.setText("أدوات لوحة مفاتيح UMEDT المنبثقة");
+        titleView.setTextColor(Color.parseColor("#A7F3D0"));
+        titleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
+        titleView.setTypeface(Typeface.DEFAULT_BOLD);
+        header.addView(titleView, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        ));
+
+        TextView closeBtn = new TextView(this);
+        closeBtn.setText("✕ إغلاق");
+        closeBtn.setTextColor(Color.WHITE);
+        closeBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f);
+        closeBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        closeBtn.setPadding(dp(8), dp(3), dp(8), dp(3));
+        GradientDrawable closeBg = new GradientDrawable();
+        closeBg.setColor(Color.parseColor("#334155"));
+        closeBg.setCornerRadius(dp(8));
+        closeBtn.setBackground(closeBg);
+        closeBtn.setOnClickListener(v -> dismissPopupOverlay());
+        header.addView(closeBtn);
+        card.addView(header);
+
+        // Row 1: Action Tools (Paste, Speak, Translate Clipboard, Switch System Keyboard)
+        LinearLayout row1 = new LinearLayout(this);
+        row1.setOrientation(LinearLayout.HORIZONTAL);
+        row1.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams r1p = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(38)
+        );
+        r1p.bottomMargin = dp(6);
+        row1.setLayoutParams(r1p);
+
+        row1.addView(createToolActionButton("📋 لصق", "#0F172A", "#E2E8F0", () -> {
+            pasteFromClipboard();
+            dismissPopupOverlay();
+        }));
+        row1.addView(createToolActionButton("🔊 نطق", "#0F172A", "#34D399", () -> {
+            speakCurrentOrCopiedWord();
+            dismissPopupOverlay();
+        }));
+        row1.addView(createToolActionButton("⚡ ترجمة المنسوخ", "#064E3B", "#A7F3D0", () -> {
+            dismissPopupOverlay();
+            JSONObject matched = UMEDTDictionaryPopupEngine.inspectClipboardAndShowIfMatched(this, true);
+            if (matched == null) {
+                Toast.makeText(this, "انسخ أي مصطلح طبي لعرض بطاقة ترجمته الفورية", Toast.LENGTH_SHORT).show();
+            }
+        }));
+        card.addView(row1);
+
+        // Row 2: Cursor Navigation & System Keyboard Picker
+        LinearLayout row2 = new LinearLayout(this);
+        row2.setOrientation(LinearLayout.HORIZONTAL);
+        row2.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(38)
+        );
+        row2.setLayoutParams(r2p);
+
+        row2.addView(createToolActionButton("▶ مؤشر يمين", "#0F172A", "#CBD5E1", () -> moveCursor(1)));
+        row2.addView(createToolActionButton("◀ مؤشر يسار", "#0F172A", "#CBD5E1", () -> moveCursor(-1)));
+        row2.addView(createToolActionButton("🌐 تغيير الكيبورد", "#0F172A", "#38BDF8", () -> {
+            dismissPopupOverlay();
+            switchKeyboardMethod(true);
+        }));
+        card.addView(row2);
+
+        FrameLayout.LayoutParams cardParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP
+        );
+        cardParams.setMargins(dp(8), dp(38), dp(8), dp(8));
+        backdrop.addView(card, cardParams);
+        popupOverlayContainer.addView(backdrop, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+    }
+
+    private View createToolActionButton(String label, String bgHex, String fgHex, final Runnable action) {
+        TextView btn = new TextView(this);
+        btn.setText(label);
+        btn.setTextColor(Color.parseColor(fgHex));
+        btn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
+        btn.setTypeface(Typeface.DEFAULT_BOLD);
+        btn.setGravity(Gravity.CENTER);
+        btn.setSingleLine(true);
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Color.parseColor(bgHex));
+        bg.setCornerRadius(dp(8));
+        bg.setStroke(dp(1), Color.parseColor("#334155"));
+        btn.setBackground(bg);
+
+        btn.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            action.run();
+        });
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.MATCH_PARENT, 1f
+        );
+        lp.setMargins(dp(3), 0, dp(3), 0);
+        btn.setLayoutParams(lp);
+        return btn;
+    }
+
+    private void dismissPopupOverlay() {
+        activePopupType = POPUP_NONE;
+        if (popupOverlayContainer != null) {
+            popupOverlayContainer.removeAllViews();
+            popupOverlayContainer.setVisibility(View.GONE);
+        }
+    }
+
+    private static boolean isAsciiLettersOrUnits(String s) {
+        if (s == null || s.isEmpty()) return false;
+        char c = s.charAt(0);
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || s.contains("°C") || s.contains("μg");
+    }
+
+    // ========================================================================
+    // KEY LABELS, COLORS & INPUT DISPATCH
+    // ========================================================================
 
     private String resolveDisplayLabel(String label) {
         if ("SPACE".equals(label)) {
-            if (symbolMode != MODE_LETTERS) {
-                return arabicLayout ? "مسافة · ١٢٣" : "SPACE · 123";
-            }
-            return arabicLayout ? "مسافة · UMEDT الطبية" : "UMEDT Medical · Space";
+            return arabicLayout ? "العربية" : "English";
+        }
+        if ("LANG".equals(label)) {
+            return arabicLayout ? "🌐 EN" : "🌐 AR";
         }
         if ("⇧".equals(label)) {
-            if (arabicLayout) {
-                return (shiftActive || capsLockActive) ? "أ ب ت" : "أ إ ّ";
-            }
             return capsLockActive ? "⇪" : "⇧";
         }
         if ("⏎".equals(label)) {
@@ -615,34 +1159,29 @@ public class UMEDTKeyboardService extends InputMethodService {
         if (symbolMode == MODE_LETTERS && !arabicLayout && label.length() == 1 && Character.isLetter(label.charAt(0))) {
             return (shiftActive || capsLockActive) ? label.toUpperCase(Locale.ROOT) : label.toLowerCase(Locale.ROOT);
         }
-        String alt = LONG_PRESS_ALT.get(label);
-        if (alt != null && symbolMode == MODE_LETTERS && arabicLayout && !shiftActive && !capsLockActive) {
-            return label;
-        }
         return label;
     }
 
-    private String resolveKeyBackgroundColor(String label, boolean isCompactNumberRow) {
-        if (isCompactNumberRow) {
-            return "#152033";
-        }
-        if ("⏎".equals(label) || "AR".equals(label) || "EN".equals(label) || "AR/EN".equals(label)) {
+    private String resolveKeyBackgroundColor(String label) {
+        if ("⏎".equals(label)) {
             return "#059669";
+        }
+        if ("LANG".equals(label)) {
+            return "#0F766E";
         }
         if ("⇧".equals(label)) {
             if (capsLockActive) return "#059669";
             if (shiftActive) return "#0284C7";
             return "#334155";
         }
-        if ("⌫".equals(label) || "123".equals(label) || "ABC".equals(label)
-                || "#+=".equals(label) || "🌐".equals(label)) {
+        if ("⌫".equals(label) || "?123".equals(label) || "ABC".equals(label) || "=\\<".equals(label)) {
             return "#334155";
         }
         return "#1E293B";
     }
 
     private void handleKeyPress(String label) {
-        if ("AR".equals(label) || "EN".equals(label) || "AR/EN".equals(label)) {
+        if ("LANG".equals(label)) {
             arabicLayout = !arabicLayout;
             symbolMode = MODE_LETTERS;
             shiftActive = false;
@@ -650,12 +1189,12 @@ public class UMEDTKeyboardService extends InputMethodService {
             renderKeyboard();
             return;
         }
-        if ("123".equals(label)) {
+        if ("?123".equals(label)) {
             symbolMode = MODE_SYMBOLS_1;
             renderKeyboard();
             return;
         }
-        if ("#+=".equals(label)) {
+        if ("=\\<".equals(label)) {
             symbolMode = MODE_SYMBOLS_2;
             renderKeyboard();
             return;
@@ -667,7 +1206,7 @@ public class UMEDTKeyboardService extends InputMethodService {
         }
         if ("⇧".equals(label)) {
             long now = System.currentTimeMillis();
-            if (!arabicLayout && (now - lastShiftTapMs) < 380L) {
+            if ((now - lastShiftTapMs) < 380L) {
                 capsLockActive = true;
                 shiftActive = true;
             } else if (capsLockActive) {
@@ -678,10 +1217,6 @@ public class UMEDTKeyboardService extends InputMethodService {
             }
             lastShiftTapMs = now;
             renderKeyboard();
-            return;
-        }
-        if ("🌐".equals(label)) {
-            switchKeyboardMethod(false);
             return;
         }
         if ("⌫".equals(label)) {
@@ -713,14 +1248,14 @@ public class UMEDTKeyboardService extends InputMethodService {
         InputConnection ic = getCurrentInputConnection();
         if (ic == null) return;
         ic.commitText(text, 1);
-        refreshAutocompleteSuggestions();
+        refreshSuggestionsStrip();
     }
 
     private void handleSpacePress() {
         InputConnection ic = getCurrentInputConnection();
         if (ic == null) return;
         long now = System.currentTimeMillis();
-        if ((now - lastSpaceTapMs) < 320L) {
+        if ((now - lastSpaceTapMs) < 300L) {
             CharSequence before = ic.getTextBeforeCursor(2, 0);
             if (before != null && before.length() == 2
                     && before.charAt(1) == ' '
@@ -728,46 +1263,82 @@ public class UMEDTKeyboardService extends InputMethodService {
                 ic.deleteSurroundingText(1, 0);
                 ic.commitText(". ", 1);
                 lastSpaceTapMs = 0L;
-                refreshAutocompleteSuggestions();
+                refreshSuggestionsStrip();
                 return;
             }
         }
         lastSpaceTapMs = now;
         ic.commitText(" ", 1);
-        refreshAutocompleteSuggestions();
+        refreshSuggestionsStrip();
     }
 
+    private void scheduleSuggestionsRefresh() {
+        repeatHandler.removeCallbacks(debouncedSuggestionsRunnable);
+        repeatHandler.postDelayed(debouncedSuggestionsRunnable, 110L);
+    }
+
+    /**
+     * 100% Reliable single-step Backspace across Chromium WebView (React controlled inputs, mixed RTL/LTR BiDi)
+     * and native Android EditText views — never double-fires KEYCODE_DEL + deleteSurroundingText together.
+     */
     private void performBackspace(boolean deleteWholeWord) {
         InputConnection ic = getCurrentInputConnection();
         if (ic == null) return;
-        CharSequence selected = ic.getSelectedText(0);
-        if (!TextUtils.isEmpty(selected)) {
-            ic.commitText("", 1);
-            refreshAutocompleteSuggestions();
-            return;
-        }
 
-        if (deleteWholeWord) {
-            CharSequence before = ic.getTextBeforeCursor(24, 0);
-            if (before != null && before.length() > 0) {
-                int count = 0;
-                int idx = before.length() - 1;
-                while (idx >= 0 && Character.isWhitespace(before.charAt(idx))) {
-                    count++;
-                    idx--;
-                }
-                while (idx >= 0 && !Character.isWhitespace(before.charAt(idx))) {
-                    count++;
-                    idx--;
-                }
-                ic.deleteSurroundingText(Math.max(1, count), 0);
-                refreshAutocompleteSuggestions();
+        try {
+            // 1. If text is currently highlighted/selected, clear the selection immediately
+            CharSequence selected = ic.getSelectedText(0);
+            if (!TextUtils.isEmpty(selected)) {
+                ic.commitText("", 1);
+                scheduleSuggestionsRefresh();
                 return;
             }
-        }
 
-        ic.deleteSurroundingText(1, 0);
-        refreshAutocompleteSuggestions();
+            // 2. Fast whole-word delete on long backspace hold
+            if (deleteWholeWord) {
+                CharSequence before = ic.getTextBeforeCursor(24, 0);
+                if (before != null && before.length() > 0) {
+                    int count = 0;
+                    int idx = before.length() - 1;
+                    while (idx >= 0 && Character.isWhitespace(before.charAt(idx))) {
+                        count++;
+                        idx--;
+                    }
+                    while (idx >= 0 && !Character.isWhitespace(before.charAt(idx))) {
+                        count++;
+                        idx--;
+                    }
+                    if (count > 1 && ic.deleteSurroundingText(count, 0)) {
+                        scheduleSuggestionsRefresh();
+                        return;
+                    }
+                }
+            }
+
+            // 3. Primary reliable deletion: deleteSurroundingTextInCodePoints (API 24+, handles Arabic/Latin/Emoji cleanly)
+            CharSequence before = ic.getTextBeforeCursor(2, 0);
+            if (before != null && before.length() > 0) {
+                boolean deleted = false;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    deleted = ic.deleteSurroundingTextInCodePoints(1, 0);
+                } else {
+                    deleted = ic.deleteSurroundingText(1, 0);
+                }
+                if (deleted) {
+                    scheduleSuggestionsRefresh();
+                    return;
+                }
+            }
+
+            // 4. Fallback for editors requiring hardware key event
+            sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL);
+        } catch (Exception ignored) {
+            try {
+                sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL);
+            } catch (Exception ignored2) {
+            }
+        }
+        scheduleSuggestionsRefresh();
     }
 
     private String resolveEnterKeyLabel() {
@@ -797,28 +1368,34 @@ public class UMEDTKeyboardService extends InputMethodService {
         if (ic == null) return;
         EditorInfo ei = getCurrentInputEditorInfo();
         if (ei != null) {
+            boolean isMultiLine = (ei.inputType & InputType.TYPE_TEXT_FLAG_MULTI_LINE) != 0;
             int action = ei.imeOptions & EditorInfo.IME_MASK_ACTION;
             boolean noEnterAction = (ei.imeOptions & EditorInfo.IME_FLAG_NO_ENTER_ACTION) != 0;
-            if (!noEnterAction && action != EditorInfo.IME_ACTION_NONE && action != EditorInfo.IME_ACTION_UNSPECIFIED) {
-                if (ic.performEditorAction(action)) {
-                    return;
-                }
+            if (!isMultiLine && !noEnterAction
+                    && action != EditorInfo.IME_ACTION_NONE
+                    && action != EditorInfo.IME_ACTION_UNSPECIFIED) {
+                ic.performEditorAction(action);
+                // Also dispatch KEYCODE_ENTER for WebView <form> / onKeyDown('Enter') listeners
+                sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER);
+                return;
             }
         }
-        ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER));
-        ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER));
+        sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER);
     }
 
     private void pasteFromClipboard() {
         InputConnection ic = getCurrentInputConnection();
         if (ic == null) return;
         String clipText = UMEDTDictionaryPopupEngine.getCurrentClipboardText(this);
-        if (clipText.isEmpty()) {
-            Toast.makeText(this, "الحافظة فارغة حاليًا", Toast.LENGTH_SHORT).show();
+        if (!clipText.isEmpty()) {
+            ic.commitText(clipText, 1);
+            refreshSuggestionsStrip();
             return;
         }
-        ic.commitText(clipText, 1);
-        refreshAutocompleteSuggestions();
+        // Fallback to native context menu paste action
+        if (!ic.performContextMenuAction(android.R.id.paste)) {
+            Toast.makeText(this, "الحافظة فارغة حاليًا", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void speakCurrentOrCopiedWord() {
@@ -839,21 +1416,8 @@ public class UMEDTKeyboardService extends InputMethodService {
     }
 
     private void moveCursor(int delta) {
-        InputConnection ic = getCurrentInputConnection();
-        if (ic == null) return;
-        try {
-            ExtractedText et = ic.getExtractedText(new ExtractedTextRequest(), 0);
-            if (et != null && et.text != null) {
-                int len = et.text.length();
-                int nextPos = Math.max(0, Math.min(len, et.selectionEnd + delta));
-                ic.setSelection(nextPos, nextPos);
-                return;
-            }
-        } catch (Exception ignored) {
-        }
         int keyCode = delta < 0 ? KeyEvent.KEYCODE_DPAD_LEFT : KeyEvent.KEYCODE_DPAD_RIGHT;
-        ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, keyCode));
-        ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, keyCode));
+        sendDownUpKeyEvents(keyCode);
     }
 
     private String getCurrentWordBeforeCursor() {
@@ -888,7 +1452,7 @@ public class UMEDTKeyboardService extends InputMethodService {
                 ic.deleteSurroundingText(currentWord.length(), 0);
                 ic.commitText(replacement, 1);
             }
-            refreshAutocompleteSuggestions();
+            refreshSuggestionsStrip();
         } catch (Exception ignored) {
         }
     }
@@ -934,13 +1498,17 @@ public class UMEDTKeyboardService extends InputMethodService {
 
     private void inspectClipboardForPopup() {
         try {
-            JSONObject matched = UMEDTDictionaryPopupEngine.peekClipboardMatchedTerm(this);
-            refreshClipboardBanner();
+            refreshSuggestionsStrip();
+            String currentClip = UMEDTDictionaryPopupEngine.getCurrentClipboardText(this);
+            if (currentClip.isEmpty() || UMEDTDictionaryPopupEngine.shouldIgnoreText(currentClip)) {
+                return;
+            }
+            if (currentClip.equals(lastInspectedClip)) {
+                return;
+            }
+            JSONObject matched = UMEDTDictionaryPopupEngine.findTerm(this, currentClip);
             if (matched != null) {
-                String matchedKey = matched.optString("_matchedInput", matched.optString("term", ""));
-                if (!matchedKey.equals(lastInspectedClip)) {
-                    lastInspectedClip = matchedKey;
-                }
+                lastInspectedClip = currentClip;
                 UMEDTDictionaryPopupEngine.showFloatingCard(getApplicationContext(), matched, false);
             }
         } catch (Exception ignored) {

@@ -291,6 +291,8 @@ export default function App() {
   const [nativeOverlayStatus, setNativeOverlayStatus] = useState<{
     isAndroidBridgeAvailable: boolean;
     canDrawOverlays: boolean;
+    isAccessibilityEnabled: boolean;
+    autoTranslateOnSelectEnabled: boolean;
     isKeyboardEnabled: boolean;
     isDefaultKeyboard: boolean;
     clipboardMonitorEnabled: boolean;
@@ -298,6 +300,8 @@ export default function App() {
   }>({
     isAndroidBridgeAvailable: false,
     canDrawOverlays: false,
+    isAccessibilityEnabled: false,
+    autoTranslateOnSelectEnabled: false,
     isKeyboardEnabled: false,
     isDefaultKeyboard: false,
     clipboardMonitorEnabled: true,
@@ -311,6 +315,8 @@ export default function App() {
       const bridge = (window as unknown as {
         UMEDAndroidBridge?: {
           canUmedtDrawOverlays?: () => boolean;
+          isUmedtAccessibilityEnabled?: () => boolean;
+          isAutoTranslateOnSelectEnabled?: () => boolean;
           isUmedtKeyboardEnabled?: () => boolean;
           isUmedtDefaultKeyboard?: () => boolean;
           isClipboardMonitorEnabled?: () => boolean;
@@ -321,6 +327,8 @@ export default function App() {
       setNativeOverlayStatus({
         isAndroidBridgeAvailable: true,
         canDrawOverlays: Boolean(bridge.canUmedtDrawOverlays?.()),
+        isAccessibilityEnabled: Boolean(bridge.isUmedtAccessibilityEnabled?.()),
+        autoTranslateOnSelectEnabled: Boolean(bridge.isAutoTranslateOnSelectEnabled?.()),
         isKeyboardEnabled: Boolean(bridge.isUmedtKeyboardEnabled?.()),
         isDefaultKeyboard: Boolean(bridge.isUmedtDefaultKeyboard?.()),
         clipboardMonitorEnabled:
@@ -3789,13 +3797,13 @@ export default function App() {
               <div>
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-[11px] font-extrabold mb-1.5">
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>ترجمة فورية بدون فتح التطبيق</span>
+                  <span>يعمل مع كيبورد هاتفك العادي (Gboard / Samsung) بدون تغيير لوحة المفاتيح</span>
                 </div>
                 <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-                  بطاقة الترجمة العائمة للكلمات المنسوخة ولوحة UMEDT الطبية
+                  الترجمة التلقائية العائمة للكلمات المنسوخة والمحددة (بدون كيبورد UMEDT)
                 </h3>
                 <p className="mt-1 text-xs leading-6 text-slate-600 dark:text-slate-300 max-w-3xl">
-                  تظهر بطاقة ترجمة المصطلحات والاختصارات الطبية المنسوخة تلقائيًا في أعلى الشاشة فوق أي تطبيق (ملفات PDF، المتصفح، تيليجرام، الملاحظات) في حال وُجدت الكلمة في القاموس المحلي وبدون فتح تطبيق UMEDT.
+                  يمكنك الآن تشغيل ميزة الترجمة التلقائية فور نسخ أو تحديد أي كلمة في ملفات PDF أو المتصفح أو تيليجرام <strong>باستخدام لوحة مفاتيح هاتفك المعتادة تمامًا</strong> وبدون استخدام كيبورد UMEDT أو فتح التطبيق.
                 </p>
               </div>
               <span className="px-3 py-1.5 rounded-xl bg-white/80 dark:bg-slate-800/90 border border-emerald-500/30 text-xs font-mono font-extrabold text-emerald-700 dark:text-emerald-300">
@@ -3806,7 +3814,29 @@ export default function App() {
             </div>
 
             {/* Live Status Indicators */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-emerald-500/30 flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                    الترجمة التلقائية بدون كيبورد (Accessibility)
+                  </span>
+                  <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100">
+                    {nativeOverlayStatus.isAndroidBridgeAvailable
+                      ? nativeOverlayStatus.isAccessibilityEnabled
+                        ? 'مفعّلة · تعمل مع أي كيبورد ✓'
+                        : 'تحتاج التفعيل (خطوة واحدة)'
+                      : 'مفعّلة داخل المتصفح ✓'}
+                  </span>
+                </div>
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${
+                    !nativeOverlayStatus.isAndroidBridgeAvailable || nativeOverlayStatus.isAccessibilityEnabled
+                      ? 'bg-emerald-500'
+                      : 'bg-amber-500'
+                  }`}
+                />
+              </div>
+
               <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2">
                 <div>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
@@ -3832,38 +3862,56 @@ export default function App() {
               <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2">
                 <div>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
-                    لوحة مفاتيح UMEDT الطبية
+                    ترجمة بمجرد تحديد النص (قبل النسخ)
                   </span>
                   <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100">
-                    {nativeOverlayStatus.isAndroidBridgeAvailable
-                      ? nativeOverlayStatus.isDefaultKeyboard
-                        ? 'اللوحة الافتراضية النشطة ✓'
-                        : nativeOverlayStatus.isKeyboardEnabled
-                        ? 'مفعّلة وجاهزة للتبديل ✓'
-                        : 'غير مفعّلة في الإعدادات'
-                      : 'قائمة تحديد النص + النسخ'}
+                    {nativeOverlayStatus.autoTranslateOnSelectEnabled
+                      ? 'مفعّلة عند التحديد ✓'
+                      : 'عند النسخ فقط'}
                   </span>
                 </div>
-                <span
-                  className={`w-2.5 h-2.5 rounded-full ${
-                    nativeOverlayStatus.isDefaultKeyboard || nativeOverlayStatus.isKeyboardEnabled
-                      ? 'bg-emerald-500'
-                      : 'bg-sky-500'
+                <button
+                  type="button"
+                  onClick={() => {
+                    const bridge = (window as unknown as {
+                      UMEDAndroidBridge?: {
+                        setAutoTranslateOnSelectEnabled?: (enabled: boolean) => boolean;
+                      };
+                    }).UMEDAndroidBridge;
+                    if (bridge?.setAutoTranslateOnSelectEnabled) {
+                      const next = !nativeOverlayStatus.autoTranslateOnSelectEnabled;
+                      bridge.setAutoTranslateOnSelectEnabled(next);
+                      refreshNativeOverlayStatus();
+                      showToast(
+                        next
+                          ? 'ستظهر البطاقة العائمة فور تحديد أي مصطلح طبي حتى قبل الضغط على نسخ'
+                          : 'ستظهر البطاقة العائمة عند نسخ المصطلح فقط'
+                      );
+                    } else {
+                      showToast('متاحة في تطبيق الأندرويد بعد تفعيل خدمة التسهيل الفورية', 'info');
+                    }
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition-colors ${
+                    nativeOverlayStatus.autoTranslateOnSelectEnabled
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                   }`}
-                />
+                >
+                  {nativeOverlayStatus.autoTranslateOnSelectEnabled ? 'مفعّل' : 'تفعيل'}
+                </button>
               </div>
 
               <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2">
                 <div>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
-                    مراقبة الحافظة التلقائية
+                    مراقب النسخ التلقائي
                   </span>
                   <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100">
                     {(nativeOverlayStatus.isAndroidBridgeAvailable
                       ? nativeOverlayStatus.clipboardMonitorEnabled
                       : webCopyLookupEnabled)
-                      ? 'نشطة فور النسخ ✓'
-                      : 'متوقفة مؤقتًا'}
+                      ? 'نشط فور النسخ ✓'
+                      : 'متوقف مؤقتًا'}
                   </span>
                 </div>
                 <button
@@ -3880,8 +3928,8 @@ export default function App() {
                       refreshNativeOverlayStatus();
                       showToast(
                         next
-                          ? 'تم تفعيل مراقب الحافظة لعرض بطاقة الترجمة العائمة فور النسخ'
-                          : 'تم إيقاف مراقب الحافظة في الخلفية'
+                          ? 'تم تفعيل مراقب النسخ لعرض بطاقة الترجمة العائمة تلقائيًا'
+                          : 'تم إيقاف مراقب النسخ التلقائي'
                       );
                     } else {
                       const next = !webCopyLookupEnabled;
@@ -3915,8 +3963,25 @@ export default function App() {
               </div>
             </div>
 
-            {/* Action Buttons */}
+            {/* Action Buttons: Prioritizing Zero-Keyboard Auto Translation */}
             <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const bridge = (window as unknown as {
+                    UMEDAndroidBridge?: { openUmedtAccessibilitySettings?: () => void };
+                  }).UMEDAndroidBridge;
+                  if (bridge?.openUmedtAccessibilitySettings) {
+                    bridge.openUmedtAccessibilitySettings();
+                  } else {
+                    showToast('هذه الميزة تعمل داخل تطبيق الأندرويد (APK) وتتيح الترجمة التلقائية بدون كيبورد UMEDT', 'info');
+                  }
+                }}
+                className="min-h-[42px] rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 text-xs font-extrabold text-white transition-colors shadow-sm"
+              >
+                ⚡ 1. تفعيل الترجمة التلقائية بدون كيبورد (Accessibility)
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -3929,43 +3994,9 @@ export default function App() {
                     showToast('صلاحية البطاقة العائمة مفعّلة تلقائيًا في هذه البيئة', 'info');
                   }
                 }}
-                className="min-h-[42px] rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 text-xs font-extrabold text-white transition-colors"
+                className="min-h-[42px] rounded-xl bg-teal-700 hover:bg-teal-600 px-4 text-xs font-extrabold text-white transition-colors"
               >
-                1. السماح بالبطاقة العائمة فوق التطبيقات
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const bridge = (window as unknown as {
-                    UMEDAndroidBridge?: { openUmedtKeyboardSettings?: () => void };
-                  }).UMEDAndroidBridge;
-                  if (bridge?.openUmedtKeyboardSettings) {
-                    bridge.openUmedtKeyboardSettings();
-                  } else {
-                    showToast('إعدادات لوحة مفاتيح أندرويد متاحة داخل تطبيق الهاتف (APK)', 'info');
-                  }
-                }}
-                className="min-h-[42px] rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 px-4 text-xs font-extrabold text-white border border-slate-700 transition-colors"
-              >
-                2. تفعيل لوحة مفاتيح UMEDT
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const bridge = (window as unknown as {
-                    UMEDAndroidBridge?: { showUmedtKeyboardPicker?: () => void };
-                  }).UMEDAndroidBridge;
-                  if (bridge?.showUmedtKeyboardPicker) {
-                    bridge.showUmedtKeyboardPicker();
-                  } else {
-                    showToast('مبدّل لوحة المفاتيح يعمل على أجهزة أندرويد', 'info');
-                  }
-                }}
-                className="min-h-[42px] rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 text-xs font-extrabold text-slate-800 dark:text-slate-200 hover:border-emerald-500/50 transition-colors"
-              >
-                🌐 اختيار / تبديل الكيبورد
+                2. السماح بالبطاقة العائمة فوق التطبيقات
               </button>
 
               <button
@@ -4050,7 +4081,25 @@ export default function App() {
                 }}
                 className="min-h-[42px] rounded-xl border border-teal-500/40 bg-teal-500/10 hover:bg-teal-500/20 px-3.5 text-xs font-extrabold text-teal-700 dark:text-teal-300 transition-colors"
               >
-                ⚡ معاينة بطاقة الترجمة العائمة
+                ⚡ معاينة البطاقة العائمة
+              </button>
+
+              {/* Optional UMEDT Keyboard Controls */}
+              <button
+                type="button"
+                onClick={() => {
+                  const bridge = (window as unknown as {
+                    UMEDAndroidBridge?: { openUmedtKeyboardSettings?: () => void };
+                  }).UMEDAndroidBridge;
+                  if (bridge?.openUmedtKeyboardSettings) {
+                    bridge.openUmedtKeyboardSettings();
+                  } else {
+                    showToast('إعدادات لوحة مفاتيح أندرويد متاحة داخل تطبيق الهاتف (APK)', 'info');
+                  }
+                }}
+                className="min-h-[42px] rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 px-3.5 text-xs font-extrabold text-slate-200 border border-slate-700 transition-colors"
+              >
+                ⌨️ لوحة UMEDT (اختياري)
               </button>
 
               <button
@@ -4058,22 +4107,22 @@ export default function App() {
                 onClick={() => setIsKeyboardPreviewOpen(true)}
                 className="min-h-[42px] rounded-xl border border-sky-500/40 bg-sky-500/10 hover:bg-sky-500/20 px-3.5 text-xs font-extrabold text-sky-700 dark:text-sky-300 transition-colors"
               >
-                ⌨️ فحص وتجربة أزرار لوحة UMEDT
+                معاينة الكيبورد
               </button>
             </div>
 
             <div className="pt-2 border-t border-emerald-500/15 text-[11px] leading-5 text-slate-600 dark:text-slate-400 grid grid-cols-1 md:grid-cols-3 gap-2">
               <div>
-                <strong className="text-slate-800 dark:text-slate-200">• النسخ التلقائي المباشر:</strong>{' '}
-                عند نسخ أي مصطلح طبي أو اختصار (أو صيغة جمع/مفرد) أثناء تفعيل لوحة UMEDT أو مراقب الحافظة، تظهر البطاقة العائمة فورًا بدون فتح التطبيق.
+                <strong className="text-slate-800 dark:text-slate-200">• تلقائي مع أي كيبورد:</strong>{' '}
+                عند تفعيل «الترجمة التلقائية بدون كيبورد» من الخطوة 1، يمكنك البقاء على Gboard أو لوحة Samsung وتظهر البطاقة تلقائيًا بمجرد نسخ أو تحديد أي كلمة طبية.
               </div>
               <div>
-                <strong className="text-slate-800 dark:text-slate-200">• من قائمة تحديد النص في أي تطبيق:</strong>{' '}
-                حدّد أي كلمة في ملف PDF أو متصفح واضغط <strong>«ترجمة UMEDT الفورية»</strong> بجوار زر النسخ لعرض البطاقة العائمة فوق تطبيقك الحالي.
+                <strong className="text-slate-800 dark:text-slate-200">• من قائمة التحديد وشريط الإشعارات:</strong>{' '}
+                حدّد أي كلمة في PDF أو متصفح واضغط <strong>«ترجمة UMEDT الفورية»</strong> بجوار زر النسخ، أو أضف زر <strong>«ترجمة المنسوخ»</strong> في الإعدادات السريعة بأعلى الهاتف.
               </div>
               <div>
                 <strong className="text-slate-800 dark:text-slate-200">• نطق ونسخ فوري من البطاقة:</strong>{' '}
-                تحتوي البطاقة العائمة على زر نطق صوتي مباشر (🔊) ونسخ الترجمة العربية بدون مغادرة شاشتك.
+                تحتوي البطاقة العائمة على زر نطق صوتي مباشر (🔊) ونسخ الترجمة العربية بدون مغادرة شاشتك أو فتح التطبيق.
               </div>
             </div>
 

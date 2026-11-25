@@ -665,8 +665,8 @@ export const SearchHub: React.FC<SearchHubProps> = ({
               }}
               onBlur={(event) => {
                 isComposingRef.current = false;
-                const latestValue = event.currentTarget.value;
-                if (latestValue && latestValue !== lastPushedQueryRef.current) {
+                const latestValue = event.currentTarget.value ?? '';
+                if (latestValue !== lastPushedQueryRef.current) {
                   lastPushedQueryRef.current = latestValue;
                   setDraftQuery(latestValue);
                   onSearchQueryChange(latestValue);

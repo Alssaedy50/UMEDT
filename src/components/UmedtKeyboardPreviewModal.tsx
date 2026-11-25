@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { X, Volume2, Copy, Sparkles, CheckCircle2, Keyboard } from 'lucide-react';
+import { X, Copy, CheckCircle2, Keyboard } from 'lucide-react';
 import { DictionaryTerm, ClinicalAbbreviation } from '../types/lexicon';
 import { MobileSafeInput } from './MobileSafeInput';
 
@@ -25,43 +25,122 @@ interface UmedtKeyboardPreviewModalProps {
   showToast: (msg: string, type?: string) => void;
 }
 
+// Global Standard 4-Row Layouts matching UMEDTKeyboardService.java
 const EN_ROWS: string[][] = [
-  ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
   ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
   ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
   ['⇧', 'z', 'x', 'c', 'v', 'b', 'n', 'm', '⌫'],
-  ['123', '🌐', 'AR', ',', 'SPACE', '.', '/', '⏎']
+  ['?123', 'LANG', ',', 'SPACE', '.', '⏎']
 ];
 
 const AR_ROWS: string[][] = [
-  ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
-  ['ض', 'ص', 'ث', 'ق', 'ف', 'غ', 'ع', 'ه', 'خ', 'ح', 'ج', 'د'],
+  ['ض', 'ص', 'ث', 'ق', 'ف', 'غ', 'ع', 'ه', 'خ', 'ح', 'ج'],
   ['ش', 'س', 'ي', 'ب', 'ل', 'ا', 'ت', 'ن', 'م', 'ك', 'ط'],
-  ['⇧', 'ذ', 'ئ', 'ء', 'ؤ', 'ر', 'لا', 'ى', 'ة', 'و', 'ز', 'ظ', '⌫'],
-  ['123', '🌐', 'EN', '،', 'SPACE', '.', '؟', '⏎']
-];
-
-const AR_SHIFT_ROWS: string[][] = [
-  ['١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '٠'],
-  ['َ', 'ً', 'ُ', 'ٌ', 'لإ', 'إ', '‘', '÷', '×', '؛', '<', '>'],
-  ['ِ', 'ٍ', ']', '[', 'لأ', 'أ', 'ـ', '،', '/', ':', '"'],
-  ['⇧', '~', 'ْ', 'ّ', 'لآ', 'آ', '’', ',', '.', '؟', '!', '⌫'],
-  ['123', '🌐', 'EN', '،', 'SPACE', '.', '؟', '⏎']
+  ['ذ', 'ء', 'ر', 'لا', 'ى', 'ة', 'و', 'ز', 'ظ', 'د', '⌫'],
+  ['?123', 'LANG', '،', 'SPACE', '.', '⏎']
 ];
 
 const SYM_ROWS_1: string[][] = [
   ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
   ['@', '#', '$', '%', '&', '-', '+', '(', ')', '/'],
-  ['#+=', '*', '"', "'", ':', ';', '!', '?', '=', '⌫'],
-  ['ABC', '🌐', 'AR/EN', ',', 'SPACE', '.', '_', '⏎']
+  ['=\\<', '*', '"', "'", ':', ';', '!', '?', '=', '⌫'],
+  ['ABC', 'LANG', ',', 'SPACE', '.', '⏎']
 ];
 
 const SYM_ROWS_2: string[][] = [
-  ['~', '`', '|', '•', '√', 'π', '÷', '×', '¶', '∆'],
-  ['°', '±', 'μ', '≤', '≥', '≠', '≈', '∞', '%', '‰'],
-  ['123', '\\', '{', '}', '[', ']', '<', '>', '^', '⌫'],
-  ['ABC', '🌐', 'AR/EN', ',', 'SPACE', '.', '-', '⏎']
+  ['١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '٠'],
+  ['°', '±', 'μ', '≤', '≥', '≠', '≈', '÷', '×', '‰'],
+  ['?123', '~', '`', '|', '{', '}', '[', ']', '^', '⌫'],
+  ['ABC', 'LANG', '،', 'SPACE', '.', '⏎']
 ];
+
+const KEY_CORNER_HINTS: Record<string, string> = {
+  ض: '1',
+  ص: '2',
+  ث: '3',
+  ق: '4',
+  ف: '5',
+  غ: '6',
+  ع: '7',
+  ه: '8',
+  خ: '9',
+  ح: '0',
+  ج: 'چ',
+  ي: 'ى',
+  ب: 'پ',
+  ل: 'لا',
+  ا: 'أ إ آ',
+  ت: 'ة',
+  ن: 'ـ',
+  م: 'μ',
+  ك: 'گ',
+  ط: 'ظ',
+  ذ: 'ّ',
+  ء: 'ئ ؤ',
+  لا: 'لأ',
+  ى: 'ئ',
+  ة: 'ه',
+  و: 'ؤ',
+  ز: 'ژ',
+  د: 'ذ',
+  '،': 'ّ',
+  '.': '؟',
+  ',': "'",
+  q: '1',
+  w: '2',
+  e: '3',
+  r: '4',
+  t: '5',
+  y: '6',
+  u: '7',
+  i: '8',
+  o: '9',
+  p: '0'
+};
+
+const KEY_POPUP_OPTIONS: Record<string, string[]> = {
+  ض: ['1', '١', 'ض'],
+  ص: ['2', '٢', 'ص'],
+  ث: ['3', '٣', 'ث'],
+  ق: ['4', '٤', 'ڤ', 'ق'],
+  ف: ['5', '٥', 'ڤ', 'ف'],
+  غ: ['6', '٦', 'غ'],
+  ع: ['7', '٧', 'ع'],
+  ه: ['8', '٨', 'ة', 'هـ'],
+  خ: ['9', '٩', 'خ'],
+  ح: ['0', '٠', 'ح'],
+  ج: ['چ', 'د', 'ذ', '-'],
+  ي: ['ى', 'ئ', 'ي'],
+  ب: ['پ', 'ب'],
+  ل: ['لا', 'لأ', 'لإ', 'لآ'],
+  ا: ['أ', 'إ', 'آ', 'ٱ', 'لا', 'لأ', 'لإ', 'لآ'],
+  ت: ['ة', 'ت'],
+  ن: ['ـ', 'ن'],
+  م: ['mg', 'mL', 'mmHg', 'μ'],
+  ك: ['گ', 'ك', ':'],
+  ط: ['ظ', 'ط'],
+  ذ: ['ّ', 'ْ', 'َ', 'ُ', 'ِ', 'ذ'],
+  ء: ['أ', 'إ', 'آ', 'ئ', 'ؤ', 'ء'],
+  لا: ['لأ', 'لإ', 'لآ', 'لا'],
+  ى: ['ئ', 'ي', 'ى'],
+  ة: ['ه', 'ة'],
+  و: ['ؤ', 'و'],
+  ز: ['ژ', 'ز'],
+  د: ['ذ', 'د'],
+  '،': ['َ', 'ً', 'ُ', 'ٌ', 'ِ', 'ٍ', 'ّ', 'ْ', '؛', '؟'],
+  '.': ['؟', '!', '؛', ':', '/', '-', '(', ')', '%', '°', '±', 'μ'],
+  ',': ["'", '"', ';', ':', '(', ')', '/', '-', '@', '#'],
+  q: ['1', '%'],
+  w: ['2', '@'],
+  e: ['3', 'é', 'è'],
+  r: ['4', '#'],
+  t: ['5', '$'],
+  y: ['6', '^'],
+  u: ['7', 'μ', '&'],
+  i: ['8', '*'],
+  o: ['9', '°', '('],
+  p: ['0', '±', ')']
+};
 
 export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps> = ({
   isOpen,
@@ -81,18 +160,24 @@ export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps>
   const [simulatedClipboard, setSimulatedClipboard] = useState<string>(() =>
     terms[0]?.term || 'Thrombocytopenia'
   );
+  const [activePopup, setActivePopup] = useState<{
+    type: 'tools' | 'tashkeel' | 'medical' | 'key';
+    title: string;
+    options?: string[];
+  } | null>(null);
+
   const lastShiftTapRef = useRef<number>(0);
   const lastSpaceTapRef = useRef<number>(0);
   const holdTimerRef = useRef<number | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressTriggeredRef = useRef<boolean>(false);
 
-  // Determine current word before cursor for live medical autocomplete
   const currentWordBeforeCursor = useMemo(() => {
     const before = textValue.slice(0, cursorPos);
     const match = before.match(/[\p{L}\p{N}-]+$/u);
     return match ? match[0] : '';
   }, [textValue, cursorPos]);
 
-  // Live dictionary suggestions matching currentWordBeforeCursor
   const liveSuggestions = useMemo(() => {
     const q = currentWordBeforeCursor.trim().toLowerCase();
     if (q.length < 2) return [];
@@ -152,7 +237,6 @@ export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps>
     return results;
   }, [currentWordBeforeCursor, terms, abbreviations]);
 
-  // Match for the current simulated clipboard
   const clipboardMatch = useMemo(() => {
     const q = simulatedClipboard.trim().toLowerCase();
     if (!q) return null;
@@ -210,41 +294,45 @@ export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps>
       : symbolMode === 'sym2'
       ? SYM_ROWS_2
       : arabicLayout
-      ? shiftActive || capsLockActive
-        ? AR_SHIFT_ROWS
-        : AR_ROWS
+      ? AR_ROWS
       : EN_ROWS;
 
   const insertAtCursor = (str: string) => {
-    const before = textValue.slice(0, cursorPos);
-    const after = textValue.slice(cursorPos);
-    const next = `${before}${str}${after}`;
-    setTextValue(next);
-    setCursorPos(before.length + str.length);
+    setTextValue((prev) => {
+      const safePos = Math.max(0, Math.min(prev.length, cursorPos));
+      const before = prev.slice(0, safePos);
+      const after = prev.slice(safePos);
+      const next = `${before}${str}${after}`;
+      setCursorPos(before.length + str.length);
+      return next;
+    });
   };
 
   const handleBackspace = () => {
     setTextValue((prev) => {
-      if (cursorPos <= 0 || prev.length === 0) return prev;
-      const next = `${prev.slice(0, cursorPos - 1)}${prev.slice(cursorPos)}`;
-      setCursorPos((pos) => Math.max(0, pos - 1));
+      if (prev.length === 0) return prev;
+      const safePos = cursorPos > 0 ? Math.min(prev.length, cursorPos) : prev.length;
+      if (safePos <= 0) return prev;
+      const next = `${prev.slice(0, safePos - 1)}${prev.slice(safePos)}`;
+      setCursorPos(Math.max(0, safePos - 1));
       return next;
     });
   };
 
   const handleKeyPress = (label: string) => {
-    if (label === 'AR' || label === 'EN' || label === 'AR/EN') {
+    setActivePopup(null);
+    if (label === 'LANG') {
       setArabicLayout((prev) => !prev);
       setSymbolMode('letters');
       setShiftActive(false);
       setCapsLockActive(false);
       return;
     }
-    if (label === '123') {
+    if (label === '?123') {
       setSymbolMode('sym1');
       return;
     }
-    if (label === '#+=') {
+    if (label === '=\\<') {
       setSymbolMode('sym2');
       return;
     }
@@ -254,7 +342,7 @@ export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps>
     }
     if (label === '⇧') {
       const now = Date.now();
-      if (!arabicLayout && now - lastShiftTapRef.current < 380) {
+      if (now - lastShiftTapRef.current < 380) {
         setCapsLockActive(true);
         setShiftActive(true);
       } else if (capsLockActive) {
@@ -266,18 +354,6 @@ export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps>
       lastShiftTapRef.current = now;
       return;
     }
-    if (label === '🌐') {
-      const bridge = (window as unknown as {
-        UMEDAndroidBridge?: { showUmedtKeyboardPicker?: () => void };
-      }).UMEDAndroidBridge;
-      if (bridge?.showUmedtKeyboardPicker) {
-        bridge.showUmedtKeyboardPicker();
-      } else {
-        setArabicLayout((prev) => !prev);
-        showToast('تم تبديل لغة لوحة مفاتيح UMEDT', 'info');
-      }
-      return;
-    }
     if (label === '⌫') {
       handleBackspace();
       return;
@@ -285,7 +361,7 @@ export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps>
     if (label === 'SPACE') {
       const now = Date.now();
       if (
-        now - lastSpaceTapRef.current < 320 &&
+        now - lastSpaceTapRef.current < 300 &&
         cursorPos >= 2 &&
         textValue[cursorPos - 1] === ' ' &&
         /[\p{L}\p{N}]/u.test(textValue[cursorPos - 2])
@@ -306,8 +382,6 @@ export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps>
       if (match) {
         onShowFloatingCard(match);
         showToast(`تم عرض بطاقة المصطلح: ${match.term}`);
-      } else {
-        insertAtCursor('\n');
       }
       return;
     }
@@ -327,9 +401,35 @@ export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps>
     }
   };
 
-  const quickTokens = arabicLayout
-    ? ['أ', 'إ', 'آ', 'ة', 'ى', '؟', '،', 'mg', 'mL', '%']
-    : ['mg', 'mL', 'mmHg', '°C', 'IV', 'PO', 'bid', 'tid', '/', '%'];
+  const openKeyLongPressPopup = (label: string) => {
+    if (label === '⇧') {
+      setCapsLockActive((prev) => {
+        const next = !prev;
+        setShiftActive(next);
+        return next;
+      });
+      return;
+    }
+    if (label === 'LANG' || label === 'SPACE') {
+      const bridge = (window as unknown as {
+        UMEDAndroidBridge?: { showUmedtKeyboardPicker?: () => void };
+      }).UMEDAndroidBridge;
+      if (bridge?.showUmedtKeyboardPicker) {
+        bridge.showUmedtKeyboardPicker();
+      } else {
+        setArabicLayout((prev) => !prev);
+      }
+      return;
+    }
+    const opts = KEY_POPUP_OPTIONS[label];
+    if (opts && opts.length > 0) {
+      setActivePopup({
+        type: 'key',
+        title: `خيارات الزر «${label}» المنبثقة`,
+        options: opts
+      });
+    }
+  };
 
   return (
     <div
@@ -338,27 +438,27 @@ export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps>
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl max-h-[92dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-4 sm:p-5 space-y-4"
+        className="w-full max-w-xl max-h-[92dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-4 sm:p-5 space-y-3.5"
       >
         {/* Header */}
-        <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
               <Keyboard className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-                فحص ومعاينة لوحة مفاتيح UMEDT الطبية الكاملة
+                لوحة مفاتيح UMEDT العالمية المدمجة (مع الأزرار المنبثقة)
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                جرّب جميع الأزرار (العربية الكاملة 28 حرفًا + الهمزات والتشكيل + الإنجليزية + الأرقام + الرموز الطبية + الإكمال التلقائي)
+                تصميم مدمج من 4 صفوف متناسقة · اضغط مطولًا على أي زر أو استخدم أزرار (⊞ / ّ أ / ⚕️) المنبثقة
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white"
+            className="min-h-[34px] min-w-[34px] rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white"
           >
             <X className="w-4 h-4" />
           </button>
@@ -368,7 +468,7 @@ export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps>
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
-              حقل اختبار الكتابة المباشر والإكمال التلقائي:
+              حقل اختبار الكتابة والحذف والأزرار المنبثقة:
             </span>
             <div className="flex items-center gap-1.5">
               <button
@@ -384,7 +484,7 @@ export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps>
                 className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-[11px] font-extrabold flex items-center gap-1"
               >
                 <Copy className="w-3 h-3" />
-                <span>نسخ النص واختبار البطاقة العائمة</span>
+                <span>اختبار البطاقة العائمة</span>
               </button>
               <button
                 type="button"
@@ -394,7 +494,7 @@ export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps>
                 }}
                 className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[11px] font-bold"
               >
-                مسح
+                مسح الكل
               </button>
             </div>
           </div>
@@ -405,150 +505,213 @@ export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps>
               setTextValue(nextVal);
               setCursorPos(nextVal.length);
             }}
-            placeholder="اضغط على أزرار لوحة مفاتيح UMEDT بالأسفل للكتابة أو اختبار الإكمال الطبي..."
-            className="w-full min-h-[46px] px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border-2 border-emerald-500/40 text-sm font-bold text-slate-900 dark:text-white focus:outline-none"
+            placeholder="جرّب الكتابة، زر الحذف (⌫)، أو الضغط المطول لإظهار الأزرار المنبثقة..."
+            className="w-full min-h-[44px] px-3.5 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border-2 border-emerald-500/40 text-sm font-bold text-slate-900 dark:text-white focus:outline-none"
           />
         </div>
 
         {/* ====================================================================
-            EXACT UMEDT NATIVE KEYBOARD REPLICA & LIVE TESTER
+            COMPACT 4-ROW GLOBAL KEYBOARD REPLICA WITH POPUP OVERLAYS
            ==================================================================== */}
         <div
           dir="ltr"
-          className="rounded-2xl bg-[#0B1320] p-2 sm:p-2.5 border border-slate-800 shadow-inner space-y-1.5 select-none"
+          className="relative rounded-2xl bg-[#111827] p-2 border border-slate-800 shadow-inner space-y-1.5 select-none overflow-hidden"
         >
-          {/* 1. Top Smart Medical Toolbar */}
-          <div dir="rtl" className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                if (clipboardMatch) {
-                  onShowFloatingCard(clipboardMatch);
-                }
-              }}
-              className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-[#064E3B] border border-[#10B981] text-[#A7F3D0] text-[11px] font-extrabold truncate text-right hover:bg-emerald-900 transition-colors"
-            >
-              ⚡ {clipboardMatch?.term} ← {clipboardMatch?.translation} (اضغط للبطاقة)
-            </button>
-
-            <button
-              type="button"
-              onClick={() => insertAtCursor(simulatedClipboard)}
-              className="px-2 py-1.5 rounded-lg bg-[#1E293B] border border-[#334155] text-[#E2E8F0] text-[11px] font-extrabold hover:bg-slate-700"
-              title="لصق من الحافظة"
-            >
-              📋 لصق
-            </button>
-
+          {/* 1. Single Slim 36px Smart Header */}
+          <div className="flex items-center gap-1 h-9">
+            {/* Popup Tools Button (⊞) */}
             <button
               type="button"
               onClick={() =>
-                onTriggerTTS(
-                  currentWordBeforeCursor || clipboardMatch?.term || 'Thrombocytopenia',
-                  'kb-preview-tts'
+                setActivePopup((prev) =>
+                  prev?.type === 'tools'
+                    ? null
+                    : { type: 'tools', title: 'أدوات لوحة مفاتيح UMEDT المنبثقة' }
                 )
               }
-              className="px-2 py-1.5 rounded-lg bg-[#1E293B] border border-[#334155] text-[#34D399] text-[11px] font-extrabold hover:bg-slate-700"
-              title="نطق صوتي"
+              className={`h-8 px-2.5 rounded-lg border text-xs font-extrabold transition-colors ${
+                activePopup?.type === 'tools'
+                  ? 'bg-emerald-600 border-emerald-400 text-white'
+                  : 'bg-[#1F2937] border-[#374151] text-[#34D399]'
+              }`}
+              title="الأدوات المنبثقة"
             >
-              🔊
+              ⊞
             </button>
 
+            {/* Popup Tashkeel & Hamzas Button (ّ أ) */}
             <button
               type="button"
-              onClick={() => setCursorPos((p) => Math.max(0, p - 1))}
-              className="px-2 py-1.5 rounded-lg bg-[#1E293B] border border-[#334155] text-[#CBD5E1] text-[11px] font-extrabold hover:bg-slate-700"
-              title="تحريك المؤشر لليسار"
+              onClick={() =>
+                setActivePopup((prev) =>
+                  prev?.type === 'tashkeel'
+                    ? null
+                    : {
+                        type: 'tashkeel',
+                        title: 'التشكيل والهمزات المنبثقة',
+                        options: [
+                          'أ',
+                          'إ',
+                          'آ',
+                          'لأ',
+                          'لإ',
+                          'لآ',
+                          'ء',
+                          'ئ',
+                          'ؤ',
+                          'َ',
+                          'ً',
+                          'ُ',
+                          'ٌ',
+                          'ِ',
+                          'ٍ',
+                          'ّ',
+                          'ْ',
+                          'ـ'
+                        ]
+                      }
+                )
+              }
+              className={`h-8 px-2.5 rounded-lg border text-xs font-extrabold transition-colors ${
+                activePopup?.type === 'tashkeel'
+                  ? 'bg-emerald-600 border-emerald-400 text-white'
+                  : 'bg-[#1F2937] border-[#374151] text-[#FDE68A]'
+              }`}
+              title="التشكيل والهمزات المنبثقة"
             >
-              ◀
+              ّ أ
             </button>
 
+            {/* Popup Medical Units Button (⚕️) */}
             <button
               type="button"
-              onClick={() => setCursorPos((p) => Math.min(textValue.length, p + 1))}
-              className="px-2 py-1.5 rounded-lg bg-[#1E293B] border border-[#334155] text-[#CBD5E1] text-[11px] font-extrabold hover:bg-slate-700"
-              title="تحريك المؤشر لليمين"
+              onClick={() =>
+                setActivePopup((prev) =>
+                  prev?.type === 'medical'
+                    ? null
+                    : {
+                        type: 'medical',
+                        title: 'الوحدات والرموز الطبية المنبثقة',
+                        options: [
+                          'mg',
+                          'mL',
+                          'mmHg',
+                          '°C',
+                          'μg',
+                          'mmol/L',
+                          'g/dL',
+                          'bpm',
+                          'IV',
+                          'PO',
+                          'IM',
+                          '±',
+                          '≤',
+                          '≥',
+                          '°',
+                          'μ',
+                          '%',
+                          '‰'
+                        ]
+                      }
+                )
+              }
+              className={`h-8 px-2.5 rounded-lg border text-xs font-extrabold transition-colors ${
+                activePopup?.type === 'medical'
+                  ? 'bg-emerald-600 border-emerald-400 text-white'
+                  : 'bg-[#1F2937] border-[#374151] text-[#38BDF8]'
+              }`}
+              title="الوحدات الطبية المنبثقة"
             >
-              ▶
+              ⚕️
             </button>
 
-            <button
-              type="button"
-              onClick={() => handleKeyPress('🌐')}
-              className="px-2 py-1.5 rounded-lg bg-[#1E293B] border border-[#334155] text-[#38BDF8] text-[11px] font-extrabold hover:bg-slate-700"
-              title="تبديل الكيبورد"
-            >
-              🌐
-            </button>
+            {/* Center Scrollable Live Suggestions / Clipboard Match Strip */}
+            <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto no-scrollbar px-0.5">
+              {clipboardMatch && (
+                <button
+                  type="button"
+                  onClick={() => onShowFloatingCard(clipboardMatch)}
+                  className="shrink-0 h-7 px-2.5 rounded-md bg-[#064E3B] border border-[#10B981] text-[#A7F3D0] text-[11px] font-extrabold"
+                >
+                  ⚡ {clipboardMatch.term} ← {clipboardMatch.translation}
+                </button>
+              )}
 
+              {liveSuggestions.map((item, idx) => (
+                <button
+                  key={`${item.term}-${idx}`}
+                  type="button"
+                  onClick={() => {
+                    const beforeWordStart = cursorPos - currentWordBeforeCursor.length;
+                    const isAr = /[\u0600-\u06FF]/.test(currentWordBeforeCursor);
+                    const replacement = `${isAr ? item.translation : item.term} `;
+                    const next = `${textValue.slice(0, beforeWordStart)}${replacement}${textValue.slice(cursorPos)}`;
+                    setTextValue(next);
+                    setCursorPos(beforeWordStart + replacement.length);
+                    onShowFloatingCard(item);
+                  }}
+                  className="shrink-0 h-7 px-2.5 rounded-md bg-[#1E293B] border border-[#10B981] text-[#F8FAFC] text-[11px] font-extrabold"
+                >
+                  📖 {item.term} · {item.translation}
+                </button>
+              ))}
+
+              {liveSuggestions.length === 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => insertAtCursor(simulatedClipboard)}
+                    className="shrink-0 h-7 px-2.5 rounded-md bg-[#1F2937] border border-[#374151] text-[#E2E8F0] text-[11px] font-bold"
+                  >
+                    📋 لصق
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onTriggerTTS(
+                        currentWordBeforeCursor || clipboardMatch?.term || 'Thrombocytopenia',
+                        'kb-preview-tts'
+                      )
+                    }
+                    className="shrink-0 h-7 px-2.5 rounded-md bg-[#1F2937] border border-[#374151] text-[#34D399] text-[11px] font-bold"
+                  >
+                    🔊 نطق
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Hide Keyboard Button (⌄) */}
             <button
               type="button"
               onClick={onClose}
-              className="px-2 py-1.5 rounded-lg bg-[#1E293B] border border-[#334155] text-[#94A3B8] text-[11px] font-extrabold hover:bg-slate-700"
+              className="h-8 px-2.5 rounded-lg bg-[#1F2937] border border-[#374151] text-[#94A3B8] text-xs font-extrabold"
               title="إخفاء الكيبورد"
             >
               ⌄
             </button>
           </div>
 
-          {/* 2. Live Autocomplete & Medical Quick Tokens Strip */}
-          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar">
-            {liveSuggestions.length > 0
-              ? liveSuggestions.map((item, idx) => (
-                  <button
-                    key={`${item.term}-${idx}`}
-                    type="button"
-                    onClick={() => {
-                      const beforeWordStart = cursorPos - currentWordBeforeCursor.length;
-                      const isAr = /[\u0600-\u06FF]/.test(currentWordBeforeCursor);
-                      const replacement = `${isAr ? item.translation : item.term} `;
-                      const next = `${textValue.slice(0, beforeWordStart)}${replacement}${textValue.slice(cursorPos)}`;
-                      setTextValue(next);
-                      setCursorPos(beforeWordStart + replacement.length);
-                      onShowFloatingCard(item);
-                    }}
-                    className="shrink-0 px-2.5 py-1 rounded-lg bg-[#1E293B] border border-[#10B981] text-[#E2E8F0] text-[11px] font-extrabold hover:bg-emerald-950 transition-colors"
-                  >
-                    📖 {item.term} · {item.translation}
-                  </button>
-                ))
-              : quickTokens.map((tok) => (
-                  <button
-                    key={tok}
-                    type="button"
-                    onClick={() => insertAtCursor(tok.length > 1 ? `${tok} ` : tok)}
-                    className="shrink-0 px-2.5 py-1 rounded-lg bg-[#162032] border border-[#26354D] text-[#CBD5E1] text-[11px] font-extrabold hover:bg-slate-700 transition-colors"
-                  >
-                    {tok}
-                  </button>
-                ))}
-          </div>
-
-          {/* 3. Keyboard Key Rows */}
-          <div className="space-y-1.5 pt-0.5">
+          {/* 2. 4 Compact, Symmetrical Global Keyboard Rows (42px height each) */}
+          <div className="space-y-1">
             {activeRows.map((row, rIdx) => {
-              const isNumberRow = rIdx === 0 && symbolMode === 'letters';
+              const isEnglishSecondRow =
+                !arabicLayout && symbolMode === 'letters' && rIdx === 1;
               return (
-                <div key={rIdx} className="flex items-center justify-center gap-1">
+                <div
+                  key={rIdx}
+                  className={`flex items-center justify-center gap-1 ${
+                    isEnglishSecondRow ? 'px-3' : ''
+                  }`}
+                >
                   {row.map((label, kIdx) => {
                     let displayLabel = label;
                     if (label === 'SPACE') {
-                      displayLabel =
-                        symbolMode !== 'letters'
-                          ? arabicLayout
-                            ? 'مسافة · ١٢٣'
-                            : 'SPACE · 123'
-                          : arabicLayout
-                          ? 'مسافة · UMEDT الطبية'
-                          : 'UMEDT Medical · Space';
+                      displayLabel = arabicLayout ? 'العربية' : 'English';
+                    } else if (label === 'LANG') {
+                      displayLabel = arabicLayout ? '🌐 EN' : '🌐 AR';
                     } else if (label === '⇧') {
-                      displayLabel = arabicLayout
-                        ? shiftActive || capsLockActive
-                          ? 'أ ب ت'
-                          : 'أ إ ّ'
-                        : capsLockActive
-                        ? '⇪'
-                        : '⇧';
+                      displayLabel = capsLockActive ? '⇪' : '⇧';
                     } else if (
                       symbolMode === 'letters' &&
                       !arabicLayout &&
@@ -561,53 +724,74 @@ export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps>
                           : label.toLowerCase();
                     }
 
-                    const isAccent =
-                      label === '⏎' || label === 'AR' || label === 'EN' || label === 'AR/EN';
-                    const isShift = label === '⇧';
-                    const isMod =
-                      label === '⌫' ||
-                      label === '123' ||
-                      label === 'ABC' ||
-                      label === '#+=' ||
-                      label === '🌐';
+                    const hint =
+                      symbolMode === 'letters' ? KEY_CORNER_HINTS[label] : undefined;
 
                     let bgClass = 'bg-[#1E293B] hover:bg-emerald-600/80';
-                    if (isNumberRow) {
-                      bgClass = 'bg-[#152033] hover:bg-emerald-600/80';
-                    } else if (isAccent) {
+                    if (label === '⏎') {
                       bgClass = 'bg-[#059669] hover:bg-emerald-500';
-                    } else if (isShift) {
+                    } else if (label === 'LANG') {
+                      bgClass = 'bg-[#0F766E] hover:bg-teal-600';
+                    } else if (label === '⇧') {
                       bgClass = capsLockActive
                         ? 'bg-[#059669]'
                         : shiftActive
                         ? 'bg-[#0284C7]'
                         : 'bg-[#334155] hover:bg-slate-600';
-                    } else if (isMod) {
+                    } else if (
+                      label === '⌫' ||
+                      label === '?123' ||
+                      label === 'ABC' ||
+                      label === '=\\<'
+                    ) {
                       bgClass = 'bg-[#334155] hover:bg-slate-600';
                     }
 
                     let flexStyle = 'flex-1';
                     if (label === 'SPACE') {
-                      flexStyle = 'flex-[3.8]';
+                      flexStyle = 'flex-[3.9]';
                     } else if (
                       label === '⌫' ||
                       label === '⏎' ||
-                      label === '⇧' ||
-                      label === '123' ||
-                      label === 'ABC' ||
-                      label === '#+='
+                      label === '⇧'
                     ) {
-                      flexStyle = 'flex-[1.35]';
+                      flexStyle = 'flex-[1.4]';
+                    } else if (
+                      label === '?123' ||
+                      label === 'ABC' ||
+                      label === '=\\<'
+                    ) {
+                      flexStyle = 'flex-[1.25]';
+                    } else if (label === 'LANG') {
+                      flexStyle = 'flex-[1.1]';
                     }
 
                     return (
                       <button
                         key={`${rIdx}-${kIdx}-${label}`}
                         type="button"
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          openKeyLongPressPopup(label);
+                        }}
                         onMouseDown={() => {
+                          longPressTriggeredRef.current = false;
                           if (label === '⌫') {
-                            if (holdTimerRef.current) window.clearInterval(holdTimerRef.current);
-                            holdTimerRef.current = window.setInterval(handleBackspace, 75);
+                            if (holdTimerRef.current)
+                              window.clearInterval(holdTimerRef.current);
+                            holdTimerRef.current = window.setInterval(
+                              handleBackspace,
+                              75
+                            );
+                            return;
+                          }
+                          if (KEY_POPUP_OPTIONS[label] || label === '⇧' || label === 'LANG') {
+                            if (longPressTimerRef.current)
+                              window.clearTimeout(longPressTimerRef.current);
+                            longPressTimerRef.current = window.setTimeout(() => {
+                              longPressTriggeredRef.current = true;
+                              openKeyLongPressPopup(label);
+                            }, 420);
                           }
                         }}
                         onMouseUp={() => {
@@ -615,19 +799,49 @@ export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps>
                             window.clearInterval(holdTimerRef.current);
                             holdTimerRef.current = null;
                           }
+                          if (longPressTimerRef.current) {
+                            window.clearTimeout(longPressTimerRef.current);
+                            longPressTimerRef.current = null;
+                          }
                         }}
                         onMouseLeave={() => {
                           if (holdTimerRef.current) {
                             window.clearInterval(holdTimerRef.current);
                             holdTimerRef.current = null;
                           }
+                          if (longPressTimerRef.current) {
+                            window.clearTimeout(longPressTimerRef.current);
+                            longPressTimerRef.current = null;
+                          }
                         }}
-                        onClick={() => handleKeyPress(label)}
-                        className={`${flexStyle} ${bgClass} ${
-                          isNumberRow ? 'min-h-[32px] text-xs' : 'min-h-[40px] text-sm'
-                        } rounded-lg border border-[#334155] text-white font-extrabold flex items-center justify-center transition-colors active:scale-95`}
+                        onClick={() => {
+                          if (longPressTriggeredRef.current) {
+                            longPressTriggeredRef.current = false;
+                            return;
+                          }
+                          handleKeyPress(label);
+                        }}
+                        className={`relative ${flexStyle} ${bgClass} h-[42px] rounded-md border border-[#334155] text-white font-extrabold flex items-center justify-center transition-colors active:scale-95 overflow-hidden`}
                       >
-                        {displayLabel}
+                        {hint && (
+                          <span className="absolute top-0.5 right-1 text-[8.5px] font-bold text-slate-400 leading-none pointer-events-none">
+                            {hint}
+                          </span>
+                        )}
+                        <span
+                          className={`truncate ${
+                            label === 'SPACE'
+                              ? 'text-xs text-slate-300'
+                              : label === '?123' ||
+                                label === 'ABC' ||
+                                label === '=\\<' ||
+                                label === 'LANG'
+                              ? 'text-xs'
+                              : 'text-[15px]'
+                          }`}
+                        >
+                          {displayLabel}
+                        </span>
                       </button>
                     );
                   })}
@@ -635,33 +849,138 @@ export const UmedtKeyboardPreviewModal: React.FC<UmedtKeyboardPreviewModalProps>
               );
             })}
           </div>
+
+          {/* 3. FLOATING POPUP OVERLAY (الأزرار المنبثقة) */}
+          {activePopup && (
+            <div
+              onClick={() => setActivePopup(null)}
+              className="absolute inset-0 top-10 bg-slate-950/80 backdrop-blur-[2px] p-2.5 flex items-start justify-center z-20"
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                dir="rtl"
+                className="w-full rounded-xl bg-[#1E293B] border-2 border-emerald-500 p-2.5 shadow-2xl space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-emerald-300">
+                    {activePopup.title}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActivePopup(null)}
+                    className="px-2 py-0.5 rounded-md bg-slate-700 text-white text-[11px] font-bold"
+                  >
+                    ✕ إغلاق
+                  </button>
+                </div>
+
+                {activePopup.type === 'tools' ? (
+                  <div className="grid grid-cols-3 gap-1.5" dir="rtl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        insertAtCursor(simulatedClipboard);
+                        setActivePopup(null);
+                      }}
+                      className="h-9 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-xs font-extrabold"
+                    >
+                      📋 لصق
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onTriggerTTS(
+                          currentWordBeforeCursor ||
+                            clipboardMatch?.term ||
+                            'Thrombocytopenia',
+                          'kb-popup-tts'
+                        );
+                        setActivePopup(null);
+                      }}
+                      className="h-9 rounded-lg bg-slate-900 border border-slate-700 text-emerald-400 text-xs font-extrabold"
+                    >
+                      🔊 نطق
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (clipboardMatch) onShowFloatingCard(clipboardMatch);
+                        setActivePopup(null);
+                      }}
+                      className="h-9 rounded-lg bg-emerald-950 border border-emerald-500 text-emerald-200 text-xs font-extrabold"
+                    >
+                      ⚡ ترجمة المنسوخ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCursorPos((p) => Math.min(textValue.length, p + 1))
+                      }
+                      className="h-9 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 text-xs font-extrabold"
+                    >
+                      ▶ مؤشر يمين
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCursorPos((p) => Math.max(0, p - 1))}
+                      className="h-9 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 text-xs font-extrabold"
+                    >
+                      ◀ مؤشر يسار
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        openKeyLongPressPopup('LANG');
+                        setActivePopup(null);
+                      }}
+                      className="h-9 rounded-lg bg-slate-900 border border-slate-700 text-sky-400 text-xs font-extrabold"
+                    >
+                      🌐 تغيير الكيبورد
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-6 gap-1.5" dir="ltr">
+                    {(activePopup.options || []).map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => {
+                          insertAtCursor(
+                            opt.length > 1 && /^[a-zA-Z°μ]/.test(opt)
+                              ? `${opt} `
+                              : opt
+                          );
+                          setActivePopup(null);
+                        }}
+                        className="h-9 rounded-lg bg-slate-900 border border-emerald-500/70 text-white text-sm font-extrabold hover:bg-emerald-600 transition-colors"
+                      >
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Checklist of Verified Keyboard Features */}
+        {/* Checklist of Verified Keyboard Improvements */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950/70 p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-            <span>جميع الحروف العربية 28 حرفًا (بما فيها د، ذ، لا، ة، ى، ء، ئ، ؤ)</span>
+            <span>تصميم عالمي مدمج (4 صفوف متساوية الارتفاع 42dp بدون تمدد)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-            <span>طبقة الهمزات والتشكيل الكاملة (أ، إ، آ، لأ، لإ، لآ، َ ً ُ ٌ ِ ٍ ْ ّ)</span>
+            <span>أزرار منبثقة (Popup) للأرقام والهمزات والتشكيل والوحدات الطبية</span>
           </div>
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-            <span>صف أرقام علوي دائم (1-0 و ١-٠) + صفحتا رموز طبية (°، ±، μ، ≤، ≥)</span>
+            <span>حماية كاملة من تداخل شريط تنقل الأندرويد السفلي (WindowInsets)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-            <span>حذف مستمر عند الضغط المطوّل (⌫) + أسهم تنقل المؤشر (◀ / ▶)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-            <span>إكمال تلقائي طبي حيّ مع عرض بطاقة الترجمة العائمة بضغطة واحدة</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-            <span>زر لصق فوري (📋) + نطق صوتي (🔊) + تبديل الكيبورد (🌐) + إخفاء (⌄)</span>
+            <span>زر حذف (⌫) فوري وموثوق 100% مع دعم الضغط المطول للحذف السريع</span>
           </div>
         </div>
       </div>

@@ -111,8 +111,8 @@ public class UMEDTPopupCardActivity extends Activity {
         waitingForClipboardFocus = false;
 
         String copied = readCurrentClipboardText();
-        if (copied.isEmpty()) {
-            if (forceFeedbackOnMiss) {
+        if (copied.isEmpty() || UMEDTDictionaryPopupEngine.shouldIgnoreText(copied)) {
+            if (forceFeedbackOnMiss && copied.isEmpty()) {
                 Toast.makeText(getApplicationContext(), "الحافظة فارغة حاليًا", Toast.LENGTH_SHORT).show();
             }
             closeSilently();
@@ -123,6 +123,10 @@ public class UMEDTPopupCardActivity extends Activity {
     }
 
     private void processDirectTextLookup(String rawText, boolean notifyIfMissing) {
+        if (UMEDTDictionaryPopupEngine.shouldIgnoreText(rawText)) {
+            closeSilently();
+            return;
+        }
         JSONObject matched = UMEDTDictionaryPopupEngine.findTerm(getApplicationContext(), rawText);
         if (matched == null) {
             if (notifyIfMissing) {
@@ -138,7 +142,7 @@ public class UMEDTPopupCardActivity extends Activity {
 
         // If SYSTEM_ALERT_WINDOW permission is granted, render via system overlay and close Activity in 0ms
         if (UMEDTDictionaryPopupEngine.canDrawOverlays(getApplicationContext())) {
-            UMEDTDictionaryPopupEngine.showFloatingCard(getApplicationContext(), matched, notifyIfMissing);
+            UMEDTDictionaryPopupEngine.showFloatingCard(getApplicationContext(), matched, true);
             closeSilently();
             return;
         }
@@ -155,8 +159,8 @@ public class UMEDTPopupCardActivity extends Activity {
         backdrop.setOnClickListener(v -> closeSilently());
 
         int screenWidth = getResources().getDisplayMetrics().widthPixels;
-        int density = Math.round(getResources().getDisplayMetrics().density);
-        int cardWidth = Math.min(screenWidth - (24 * density), 460 * density);
+        float density = getResources().getDisplayMetrics().density;
+        int cardWidth = Math.min(screenWidth - Math.round(24 * density), Math.round(460 * density));
 
         View cardView = UMEDTDictionaryPopupEngine.buildTranslationCardView(
                 this,
@@ -174,7 +178,7 @@ public class UMEDTPopupCardActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.TOP | Gravity.CENTER_HORIZONTAL
         );
-        cardParams.topMargin = 48 * density;
+        cardParams.topMargin = Math.round(48 * density);
 
         backdrop.addView(cardView, cardParams);
         setContentView(backdrop);

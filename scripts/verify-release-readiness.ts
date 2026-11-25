@@ -287,7 +287,9 @@ async function main() {
     'UMEDTKeyboardService.java',
     'UMEDTDictionaryPopupEngine.java',
     'UMEDTPopupCardActivity.java',
-    'UMEDTClipboardMonitorService.java'
+    'UMEDTClipboardMonitorService.java',
+    'UMEDTAutoTranslateAccessibilityService.java',
+    'UMEDTQuickTranslateTileService.java'
   ];
   for (const javaFile of requiredJavaFiles) {
     const fullJavaPath = path.join(javaDir, javaFile);

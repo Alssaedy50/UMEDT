@@ -43,6 +43,7 @@ public final class UMEDTDictionaryPopupEngine {
     public static final String KEY_TERMS_JSON = "terms_json";
     public static final String KEY_TERMS_COUNT = "terms_count";
     public static final String KEY_MONITOR_ENABLED = "clipboard_monitor_enabled";
+    public static final String KEY_AUTO_TRANSLATE_ON_SELECT = "auto_translate_on_select";
     public static final String KEY_LAST_SYNC_TS = "last_sync_ts";
 
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
@@ -58,6 +59,7 @@ public final class UMEDTDictionaryPopupEngine {
 
     private static String lastShownTermKey = "";
     private static long lastShownTimestampMs = 0L;
+    private static String lastAutoClipboardValue = "";
     private static volatile String ignoreClipboardText = "";
 
     private static TextToSpeech ttsEngine = null;
@@ -107,6 +109,24 @@ public final class UMEDTDictionaryPopupEngine {
         if (context == null) return;
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         prefs.edit().putBoolean(KEY_MONITOR_ENABLED, enabled).apply();
+    }
+
+    public static boolean isAutoTranslateOnSelectEnabled(Context context) {
+        if (context == null) return false;
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        return prefs.getBoolean(KEY_AUTO_TRANSLATE_ON_SELECT, false);
+    }
+
+    public static void setAutoTranslateOnSelectEnabled(Context context, boolean enabled) {
+        if (context == null) return;
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit().putBoolean(KEY_AUTO_TRANSLATE_ON_SELECT, enabled).apply();
+    }
+
+    public static boolean shouldIgnoreText(String rawText) {
+        if (rawText == null) return true;
+        String trimmed = rawText.trim();
+        return trimmed.isEmpty() || trimmed.equals(ignoreClipboardText);
     }
 
     private static synchronized void ensureIndexLoaded(Context context) {
@@ -470,12 +490,15 @@ public final class UMEDTDictionaryPopupEngine {
             CharSequence textSeq = clip.getItemAt(0).coerceToText(context);
             if (textSeq == null) return null;
             String copied = textSeq.toString().trim();
-            if (copied.isEmpty()) return null;
-            if (copied.equals(ignoreClipboardText)) {
+            if (copied.isEmpty() || shouldIgnoreText(copied)) {
+                return null;
+            }
+            if (!forceShow && copied.equals(lastAutoClipboardValue)) {
                 return null;
             }
             JSONObject matched = findTerm(context, copied);
             if (matched != null) {
+                lastAutoClipboardValue = copied;
                 showFloatingCard(context.getApplicationContext(), matched, forceShow);
             }
             return matched;
