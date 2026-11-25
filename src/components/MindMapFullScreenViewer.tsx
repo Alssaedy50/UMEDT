@@ -36,6 +36,33 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   const pointersRef = useRef<Map<number, PointerPoint>>(new Map());
   const gestureRef = useRef<Gesture>(null);
   const [zoom, setZoom] = useState(1);
+  const onCloseRef = useRef(onClose);
+  const historyEntryRef = useRef(false);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  useEffect(() => {
+    const overlayWindow = window as Window & { __umedtMindMapViewerOpen?: boolean };
+    overlayWindow.__umedtMindMapViewerOpen = true;
+    window.history.pushState({ ...(window.history.state || {}), umedtMindMapViewer: true }, '', window.location.href);
+    historyEntryRef.current = true;
+    const handlePopState = () => {
+      historyEntryRef.current = false;
+      overlayWindow.__umedtMindMapViewerOpen = false;
+      onCloseRef.current();
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      overlayWindow.__umedtMindMapViewerOpen = false;
+    };
+  }, []);
+  const requestClose = useCallback(() => {
+    if (historyEntryRef.current) {
+      historyEntryRef.current = false;
+      window.history.back();
+    } else {
+      onCloseRef.current();
+    }
+  }, []);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isSequentialMode, setIsSequentialMode] = useState(false);
@@ -431,7 +458,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
           <button type="button" onClick={fitToView} className={`min-h-10 shrink-0 rounded-xl border px-3 text-xs font-bold whitespace-nowrap ${isDark ? "border-white/15 bg-white/5 text-white hover:bg-white/10" : "border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200"}`} title="ملاءمة الخريطة للشاشة">ملاءمة</button>
           <button type="button" onClick={() => void handleShare()} className="flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 hover:bg-emerald-300" title="مشاركة HTML تفاعلي"><Share2 className="h-4 w-4" /><span className="hidden sm:inline">مشاركة HTML</span></button>
           <button type="button" onClick={() => void toggleBrowserFullscreen()} className={`flex min-h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${isDark ? "border-white/15 bg-white/5 text-white" : "border-slate-300 bg-slate-100 text-slate-800"}`} title="ملء الشاشة"><Maximize2 className="h-4 w-4" /></button>
-          <button type="button" onClick={onClose} className={`flex min-h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${isDark ? "border-white/15 bg-white/5 text-white hover:bg-rose-500/20" : "border-slate-300 bg-slate-100 text-slate-800 hover:bg-rose-100"}`} title="إغلاق"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={requestClose} className={`flex min-h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${isDark ? "border-white/15 bg-white/5 text-white hover:bg-rose-500/20" : "border-slate-300 bg-slate-100 text-slate-800 hover:bg-rose-100"}`} title="إغلاق"><X className="h-4 w-4" /></button>
         </div>
       </header>
       <main
