@@ -1,7 +1,5 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import {
-  ZoomIn,
-  ZoomOut,
   Maximize2,
   RotateCcw,
   Plus,
@@ -178,18 +176,6 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
     () => doc.nodes.some((n) => Boolean(n.position)),
     [doc.nodes]
   );
-
-  const zoomAroundCenter = useCallback((nextZoom: number) => {
-    const el = containerRef.current;
-    if (!el) { setZoom(nextZoom); return; }
-    const rect = el.getBoundingClientRect();
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-    const worldX = (centerX - pan.x) / zoom;
-    const worldY = (centerY - pan.y) / zoom;
-    setZoom(nextZoom);
-    setPan({ x: centerX - worldX * nextZoom, y: centerY - worldY * nextZoom });
-  }, [pan, zoom]);
 
   const fitToView = useCallback(() => {
     const el = containerRef.current;
@@ -587,37 +573,8 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
           })}
         </div>
 
-        {/* Zoom, Fit, Search & Export Controls */}
+        {/* Fit, Search & Export Controls */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-0.5">
-            <button
-              type="button"
-              onClick={() =>
-                zoomAroundCenter(Number(Math.max(0.4, zoom - 0.15).toFixed(2)))
-              }
-              className="min-h-[32px] min-w-[32px] rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300"
-              title="تصغير"
-            >
-              <ZoomOut className="w-3.5 h-3.5" />
-            </button>
-            <span
-              dir="ltr"
-              className="px-1.5 text-[11px] font-mono tabular-nums font-bold text-slate-600 dark:text-slate-300"
-            >
-              {Math.round(zoom * 100)}%
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                zoomAroundCenter(Number(Math.min(2.3, zoom + 0.15).toFixed(2)))
-              }
-              className="min-h-[32px] min-w-[32px] rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300"
-              title="تكبير"
-            >
-              <ZoomIn className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
           <button
             type="button"
             onClick={handleResetAutoLayout}
