@@ -84,7 +84,6 @@ import {
 import { SearchHub } from './components/SearchHub';
 import { TopicsHub } from './components/TopicsHub';
 import { MindMapStudioModal } from './components/MindMapStudioModal';
-import { UmedtKeyboardPreviewModal } from './components/UmedtKeyboardPreviewModal';
 import { TermDetailSheet } from './components/TermDetailSheet';
 import { LibraryView, LibrarySubMode, StagedTermItem } from './components/LibraryView';
 import { SettingsView } from './components/SettingsView';
@@ -256,7 +255,6 @@ export default function App() {
     topicId?: string;
   }>({});
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-  const [isKeyboardPreviewOpen, setIsKeyboardPreviewOpen] = useState(false);
   const [terms, setTerms] = useState<DictionaryTerm[]>(initialPersisted.terms);
   const [sentences, setSentences] = useState<LinkedSentence[]>(initialPersisted.sentences);
   const [topics, setTopics] = useState<TopicArticle[]>(initialPersisted.topics);
@@ -293,8 +291,6 @@ export default function App() {
     canDrawOverlays: boolean;
     isAccessibilityEnabled: boolean;
     autoTranslateOnSelectEnabled: boolean;
-    isKeyboardEnabled: boolean;
-    isDefaultKeyboard: boolean;
     clipboardMonitorEnabled: boolean;
     syncedCount: number;
   }>({
@@ -302,8 +298,6 @@ export default function App() {
     canDrawOverlays: false,
     isAccessibilityEnabled: false,
     autoTranslateOnSelectEnabled: false,
-    isKeyboardEnabled: false,
-    isDefaultKeyboard: false,
     clipboardMonitorEnabled: true,
     syncedCount: 0
   });
@@ -317,8 +311,6 @@ export default function App() {
           canUmedtDrawOverlays?: () => boolean;
           isUmedtAccessibilityEnabled?: () => boolean;
           isAutoTranslateOnSelectEnabled?: () => boolean;
-          isUmedtKeyboardEnabled?: () => boolean;
-          isUmedtDefaultKeyboard?: () => boolean;
           isClipboardMonitorEnabled?: () => boolean;
           getSyncedDictionaryCount?: () => number;
         };
@@ -329,8 +321,6 @@ export default function App() {
         canDrawOverlays: Boolean(bridge.canUmedtDrawOverlays?.()),
         isAccessibilityEnabled: Boolean(bridge.isUmedtAccessibilityEnabled?.()),
         autoTranslateOnSelectEnabled: Boolean(bridge.isAutoTranslateOnSelectEnabled?.()),
-        isKeyboardEnabled: Boolean(bridge.isUmedtKeyboardEnabled?.()),
-        isDefaultKeyboard: Boolean(bridge.isUmedtDefaultKeyboard?.()),
         clipboardMonitorEnabled:
           typeof bridge.isClipboardMonitorEnabled === 'function'
             ? Boolean(bridge.isClipboardMonitorEnabled())
@@ -4084,31 +4074,6 @@ export default function App() {
                 ⚡ معاينة البطاقة العائمة
               </button>
 
-              {/* Optional UMEDT Keyboard Controls */}
-              <button
-                type="button"
-                onClick={() => {
-                  const bridge = (window as unknown as {
-                    UMEDAndroidBridge?: { openUmedtKeyboardSettings?: () => void };
-                  }).UMEDAndroidBridge;
-                  if (bridge?.openUmedtKeyboardSettings) {
-                    bridge.openUmedtKeyboardSettings();
-                  } else {
-                    showToast('إعدادات لوحة مفاتيح أندرويد متاحة داخل تطبيق الهاتف (APK)', 'info');
-                  }
-                }}
-                className="min-h-[42px] rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 px-3.5 text-xs font-extrabold text-slate-200 border border-slate-700 transition-colors"
-              >
-                ⌨️ لوحة UMEDT (اختياري)
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsKeyboardPreviewOpen(true)}
-                className="min-h-[42px] rounded-xl border border-sky-500/40 bg-sky-500/10 hover:bg-sky-500/20 px-3.5 text-xs font-extrabold text-sky-700 dark:text-sky-300 transition-colors"
-              >
-                معاينة الكيبورد
-              </button>
             </div>
 
             <div className="pt-2 border-t border-emerald-500/15 text-[11px] leading-5 text-slate-600 dark:text-slate-400 grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -4126,15 +4091,6 @@ export default function App() {
               </div>
             </div>
 
-            <UmedtKeyboardPreviewModal
-              isOpen={isKeyboardPreviewOpen}
-              onClose={() => setIsKeyboardPreviewOpen(false)}
-              terms={terms}
-              abbreviations={customAbbreviations}
-              onTriggerTTS={(text, key) => triggerTTS(text, key)}
-              onShowFloatingCard={(card) => showFloatingCopiedTranslationCard(card)}
-              showToast={showToast}
-            />
           </div>
         )}
 
