@@ -63,10 +63,26 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     mapDocument.nodes.forEach((node) => visit(node.id));
     return ordered;
   }, [mapDocument]);
-  const sequentialVisibleIds = useMemo(
-    () => new Set(sequenceNodes.slice(0, Math.max(1, sequenceIndex + 1)).map((node) => node.id)),
-    [sequenceNodes, sequenceIndex]
-  );
+  const sequentialVisibleIds = useMemo(() => {
+    const current = sequenceNodes[Math.min(sequenceIndex, Math.max(0, sequenceNodes.length - 1))];
+    if (!current) return new Set<string>();
+    const visible = new Set<string>([current.id]);
+    const nodeById = new Map(mapDocument.nodes.map((node) => [node.id, node]));
+    let parentId = current.parentId;
+    while (parentId && nodeById.has(parentId) && !visible.has(parentId)) {
+      visible.add(parentId);
+      parentId = nodeById.get(parentId)?.parentId || null;
+    }
+    if (current.parentId) {
+      mapDocument.nodes
+        .filter((node) => node.parentId === current.parentId)
+        .forEach((node) => visible.add(node.id));
+    }
+    mapDocument.nodes
+      .filter((node) => node.parentId === current.id)
+      .forEach((node) => visible.add(node.id));
+    return visible;
+  }, [mapDocument.nodes, sequenceNodes, sequenceIndex]);
   const displayDocument = useMemo(() => {
     if (!isSequentialMode) return mapDocument;
     const nodes = mapDocument.nodes.filter((node) => sequentialVisibleIds.has(node.id));
@@ -90,6 +106,19 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     () => mapDocument.nodes.find((node) => node.id === selectedNodeId) || null,
     [mapDocument.nodes, selectedNodeId]
   );
+  const selectedNodePath = useMemo(() => {
+    if (!selectedNode) return [];
+    const byId = new Map(mapDocument.nodes.map((node) => [node.id, node]));
+    const path: typeof mapDocument.nodes = [];
+    const seen = new Set<string>();
+    let current: typeof selectedNode | undefined = selectedNode;
+    while (current && !seen.has(current.id)) {
+      seen.add(current.id);
+      path.unshift(current);
+      current = current.parentId ? byId.get(current.parentId) : undefined;
+    }
+    return path;
+  }, [mapDocument.nodes, selectedNode]);
 
   const applyTransform = useCallback((nextZoom: number, nextPan: { x: number; y: number }) => {
     setZoom(nextZoom);
@@ -179,12 +208,14 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     if (pointersRef.current.size >= 2) {
       const points = Array.from(pointersRef.current.values()).slice(0, 2);
       const center = midpoint(points[0], points[1]);
+      const rect = viewportRef.current?.getBoundingClientRect();
+      const localCenter = { x: center.x - (rect?.left || 0), y: center.y - (rect?.top || 0) };
       gestureRef.current = {
         type: 'pinch',
         startDistance: Math.max(1, distance(points[0], points[1])),
         startScale: zoom,
-        worldX: (center.x - pan.x) / zoom,
-        worldY: (center.y - pan.y) / zoom,
+        worldX: (localCenter.x - pan.x) / zoom,
+        worldY: (localCenter.y - pan.y) / zoom,
         moved: false
       };
       return;
@@ -210,11 +241,13 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     const gesture = gestureRef.current;
     if (points.length >= 2 && gesture?.type === 'pinch') {
       const center = midpoint(points[0], points[1]);
+      const rect = viewportRef.current?.getBoundingClientRect();
+      const localCenter = { x: center.x - (rect?.left || 0), y: center.y - (rect?.top || 0) };
       const nextZoom = Math.max(0.18, Math.min(3.2, gesture.startScale * distance(points[0], points[1]) / gesture.startDistance));
       gesture.moved = true;
       applyTransform(nextZoom, {
-        x: center.x - gesture.worldX * nextZoom,
-        y: center.y - gesture.worldY * nextZoom
+        x: localCenter.x - gesture.worldX * nextZoom,
+        y: localCenter.y - gesture.worldY * nextZoom
       });
       return;
     }
@@ -290,12 +323,16 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
           <div className="truncate text-sm font-black tracking-wide sm:text-base">{mapDocument.title || 'الخريطة الذهنية'}</div>
           <div className="text-[10px] font-semibold text-slate-400">اسحب للتحريك · استخدم إصبعين للتكبير والتصغير</div>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <button type="button" onClick={() => { const next = !isSequentialMode; setIsSequentialMode(next); if (next && sequenceNodes.length) { setSequenceIndex(0); setSelectedNodeId(sequenceNodes[0].id); } else { setCollapsedIds(new Set()); } }} className={`min-h-10 rounded-xl border px-3 text-xs font-bold ${isSequentialMode ? 'border-emerald-400 bg-emerald-400 text-slate-950' : 'border-white/15 bg-white/5 hover:bg-white/10'}`} title="العرض التسلسلي">{isSequentialMode ? 'العرض الحر' : 'عرض تسلسلي'}</button>
-          <button type="button" onClick={fitToView} className="min-h-10 rounded-xl border border-white/15 bg-white/5 px-3 text-xs font-bold hover:bg-white/10" title="ملاءمة الخريطة للشاشة">ملاءمة</button>
-          <button type="button" onClick={() => void handleShare()} className="flex min-h-10 items-center gap-1.5 rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 hover:bg-emerald-300" title="مشاركة HTML تفاعلي"><Share2 className="h-4 w-4" /><span className="hidden sm:inline">مشاركة HTML</span></button>
-          <button type="button" onClick={() => void toggleBrowserFullscreen()} className="hidden min-h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/5 sm:flex" title="ملء الشاشة"><Maximize2 className="h-4 w-4" /></button>
-          <button type="button" onClick={onClose} className="flex min-h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/5 hover:bg-rose-500/20" title="إغلاق"><X className="h-4 w-4" /></button>
+        <div className="flex shrink-0 max-w-full items-center gap-1.5 overflow-x-auto pb-1">
+          <button type="button" onClick={() => { const next = !isSequentialMode; setIsSequentialMode(next); if (next && sequenceNodes.length) { setSequenceIndex(0); setSelectedNodeId(sequenceNodes[0].id); } else { setCollapsedIds(new Set()); } }} className={`min-h-10 shrink-0 rounded-xl border px-3 text-xs font-bold whitespace-nowrap ${isSequentialMode ? 'border-emerald-400 bg-emerald-400 text-slate-950' : 'border-white/15 bg-white/5 hover:bg-white/10'}`} title="العرض التسلسلي">{isSequentialMode ? 'العرض الحر' : 'عرض تسلسلي'}</button>
+          {!isSequentialMode && <>
+            <button type="button" onClick={() => setCollapsedIds(new Set(mapDocument.nodes.filter((node) => mapDocument.nodes.some((child) => child.parentId === node.id)).map((node) => node.id)))} className="min-h-10 shrink-0 rounded-xl border border-white/15 bg-white/5 px-3 text-xs font-bold whitespace-nowrap hover:bg-white/10" title="طي جميع الفروع">طي الفروع</button>
+            <button type="button" onClick={() => setCollapsedIds(new Set())} className="min-h-10 shrink-0 rounded-xl border border-white/15 bg-white/5 px-3 text-xs font-bold whitespace-nowrap hover:bg-white/10" title="توسيع جميع الفروع">توسيع الكل</button>
+          </>}
+          <button type="button" onClick={fitToView} className="min-h-10 shrink-0 rounded-xl border border-white/15 bg-white/5 px-3 text-xs font-bold whitespace-nowrap hover:bg-white/10" title="ملاءمة الخريطة للشاشة">ملاءمة</button>
+          <button type="button" onClick={() => void handleShare()} className="flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 hover:bg-emerald-300" title="مشاركة HTML تفاعلي"><Share2 className="h-4 w-4" /><span className="hidden sm:inline">مشاركة HTML</span></button>
+          <button type="button" onClick={() => void toggleBrowserFullscreen()} className="flex min-h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/5" title="ملء الشاشة"><Maximize2 className="h-4 w-4" /></button>
+          <button type="button" onClick={onClose} className="flex min-h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/5 hover:bg-rose-500/20" title="إغلاق"><X className="h-4 w-4" /></button>
         </div>
       </header>
       <main
@@ -318,6 +355,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
         )}
         {selectedNode && (
           <div className="absolute bottom-3 left-3 right-3 z-10 mx-auto max-h-[42%] max-w-2xl overflow-y-auto rounded-2xl border border-white/15 bg-slate-900/95 p-3 shadow-2xl backdrop-blur-xl sm:bottom-5 sm:p-4">
+            {selectedNodePath.length > 1 && <div className="mb-1 flex flex-wrap items-center gap-1 text-[10px] text-slate-400">{selectedNodePath.map((node, index) => <React.Fragment key={node.id}>{index > 0 && <span aria-hidden="true">‹</span>}<span className={index === selectedNodePath.length - 1 ? 'font-black text-emerald-300' : ''}>{node.label}</span></React.Fragment>)}</div>}
             <div className="text-sm font-black text-emerald-300">{selectedNode.label}</div>
             {(selectedNode.sublabel || selectedNode.note) && <p className="mt-1 max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-6 text-slate-200">{[selectedNode.sublabel, selectedNode.note].filter(Boolean).join(' · ')}</p>}
             <button type="button" onClick={() => setSelectedNodeId(null)} className="mt-2 text-[10px] font-bold text-slate-400 hover:text-white">إخفاء التفاصيل</button>
