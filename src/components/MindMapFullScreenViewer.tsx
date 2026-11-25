@@ -157,9 +157,9 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     const node = svg?.querySelector(`.mm-node[data-node-id="${CSS.escape(nodeId)}"]`) as SVGGElement | null;
     if (!viewport || !node) return;
     const bounds = node.getBBox();
-    const scale = Math.max(0.82, Math.min(2.45, Math.min(
-      (viewport.clientWidth * 0.72) / Math.max(1, bounds.width),
-      (viewport.clientHeight * 0.48) / Math.max(1, bounds.height)
+    const scale = Math.max(0.72, Math.min(1.85, Math.min(
+      (viewport.clientWidth * 0.62) / Math.max(1, bounds.width),
+      (viewport.clientHeight * 0.34) / Math.max(1, bounds.height)
     )));
     applyTransform(scale, {
       x: viewport.clientWidth / 2 - (bounds.x + bounds.width / 2) * scale,
@@ -176,7 +176,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     const minY = values[1] || 0;
     const width = Math.max(1, values[2] || 900);
     const height = Math.max(1, values[3] || 600);
-    const scale = Math.max(0.18, Math.min(1.45, Math.min(viewport.clientWidth / width, viewport.clientHeight / height) * 0.92));
+    const scale = Math.max(0.2, Math.min(1.8, Math.min(viewport.clientWidth / width, viewport.clientHeight / height) * 1.04));
     applyTransform(scale, {
       x: (viewport.clientWidth - width * scale) / 2 - minX * scale,
       y: (viewport.clientHeight - height * scale) / 2 - minY * scale
@@ -417,21 +417,21 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
 
   return (
     <div className={`fixed inset-0 z-[120] flex flex-col overflow-hidden ${isDark ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-900"}`} dir="rtl">
-      <header className="relative z-10 flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white/90 px-3 py-2.5 pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-xl sm:px-5">
+      <header className={`relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-3 py-2.5 pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-xl sm:flex-nowrap sm:px-5 ${isDark ? "border-slate-800 bg-slate-950/95 text-white" : "border-slate-200 bg-white/95 text-slate-900"}`}>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-black tracking-wide sm:text-base">{mapDocument.title || 'الخريطة الذهنية'}</div>
           <div className="text-[10px] font-semibold text-slate-400">اسحب للتحريك · استخدم إصبعين للتكبير والتصغير</div>
         </div>
         <div className="flex shrink-0 max-w-full items-center gap-1.5 overflow-x-auto pb-1">
-          <button type="button" onClick={() => { const next = !isSequentialMode; setIsSequentialMode(next); if (next && sequenceNodes.length) { setSequenceIndex(0); setSelectedNodeId(sequenceNodes[0].id); } else { setCollapsedIds(new Set()); } }} className={`min-h-10 shrink-0 rounded-xl border px-3 text-xs font-bold whitespace-nowrap ${isSequentialMode ? 'border-emerald-400 bg-emerald-400 text-slate-950' : 'border-white/15 bg-white/5 hover:bg-white/10'}`} title="العرض التسلسلي">{isSequentialMode ? 'العرض الحر' : 'عرض تسلسلي'}</button>
+          <button type="button" onClick={() => { const next = !isSequentialMode; setIsSequentialMode(next); if (next && sequenceNodes.length) { setSequenceIndex(0); setSelectedNodeId(sequenceNodes[0].id); } else { setCollapsedIds(new Set()); } }} className={`min-h-10 shrink-0 rounded-xl border px-3 text-xs font-bold whitespace-nowrap ${isSequentialMode ? 'border-emerald-400 bg-emerald-400 text-slate-950' : isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'}`} title="العرض التسلسلي">{isSequentialMode ? 'العرض الحر' : 'عرض تسلسلي'}</button>
           {!isSequentialMode && <>
-            <button type="button" onClick={() => setCollapsedIds(new Set(mapDocument.nodes.filter((node) => mapDocument.nodes.some((child) => child.parentId === node.id)).map((node) => node.id)))} className="min-h-10 shrink-0 rounded-xl border border-white/15 bg-white/5 px-3 text-xs font-bold whitespace-nowrap hover:bg-white/10" title="طي جميع الفروع">طي الفروع</button>
-            <button type="button" onClick={() => setCollapsedIds(new Set())} className="min-h-10 shrink-0 rounded-xl border border-white/15 bg-white/5 px-3 text-xs font-bold whitespace-nowrap hover:bg-white/10" title="توسيع جميع الفروع">توسيع الكل</button>
+            <button type="button" onClick={() => setCollapsedIds(new Set(mapDocument.nodes.filter((node) => mapDocument.nodes.some((child) => child.parentId === node.id)).map((node) => node.id)))} className={`min-h-10 shrink-0 rounded-xl border px-3 text-xs font-bold whitespace-nowrap ${isDark ? "border-white/15 bg-white/5 text-white hover:bg-white/10" : "border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200"}`} title="طي جميع الفروع">طي الفروع</button>
+            <button type="button" onClick={() => setCollapsedIds(new Set())} className={`min-h-10 shrink-0 rounded-xl border px-3 text-xs font-bold whitespace-nowrap ${isDark ? "border-white/15 bg-white/5 text-white hover:bg-white/10" : "border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200"}`} title="توسيع جميع الفروع">توسيع الكل</button>
           </>}
-          <button type="button" onClick={fitToView} className="min-h-10 shrink-0 rounded-xl border border-white/15 bg-white/5 px-3 text-xs font-bold whitespace-nowrap hover:bg-white/10" title="ملاءمة الخريطة للشاشة">ملاءمة</button>
+          <button type="button" onClick={fitToView} className={`min-h-10 shrink-0 rounded-xl border px-3 text-xs font-bold whitespace-nowrap ${isDark ? "border-white/15 bg-white/5 text-white hover:bg-white/10" : "border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200"}`} title="ملاءمة الخريطة للشاشة">ملاءمة</button>
           <button type="button" onClick={() => void handleShare()} className="flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 hover:bg-emerald-300" title="مشاركة HTML تفاعلي"><Share2 className="h-4 w-4" /><span className="hidden sm:inline">مشاركة HTML</span></button>
-          <button type="button" onClick={() => void toggleBrowserFullscreen()} className="flex min-h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/5" title="ملء الشاشة"><Maximize2 className="h-4 w-4" /></button>
-          <button type="button" onClick={onClose} className="flex min-h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/5 hover:bg-rose-500/20" title="إغلاق"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={() => void toggleBrowserFullscreen()} className={`flex min-h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${isDark ? "border-white/15 bg-white/5 text-white" : "border-slate-300 bg-slate-100 text-slate-800"}`} title="ملء الشاشة"><Maximize2 className="h-4 w-4" /></button>
+          <button type="button" onClick={onClose} className={`flex min-h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${isDark ? "border-white/15 bg-white/5 text-white hover:bg-rose-500/20" : "border-slate-300 bg-slate-100 text-slate-800 hover:bg-rose-100"}`} title="إغلاق"><X className="h-4 w-4" /></button>
         </div>
       </header>
       <main
@@ -453,14 +453,14 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
           </div>
         )}
         {selectedNode && (
-          <div className="absolute bottom-3 left-3 right-3 z-10 mx-auto max-h-[28%] max-w-3xl overflow-y-auto rounded-3xl border border-emerald-400/30 bg-slate-900/95 p-3 shadow-2xl backdrop-blur-xl sm:bottom-5 sm:p-5">
+          <div className={`absolute bottom-[max(8px,env(safe-area-inset-bottom))] left-2 right-2 z-10 mx-auto max-h-[min(24dvh,220px)] max-w-3xl overflow-y-auto rounded-2xl border p-2.5 shadow-2xl backdrop-blur-xl sm:bottom-4 sm:p-3 ${isDark ? "border-emerald-400/30 bg-slate-900/95 text-white" : "border-slate-300 bg-white/95 text-slate-900"}`}>
             {selectedNodePath.length > 1 && <div className="mb-1 flex flex-wrap items-center gap-1 text-[10px] text-slate-400">{selectedNodePath.map((node, index) => <React.Fragment key={node.id}>{index > 0 && <span aria-hidden="true">‹</span>}<span className={index === selectedNodePath.length - 1 ? 'font-black text-emerald-300' : ''}>{node.label}</span></React.Fragment>)}</div>}
-            <div className="text-lg font-black text-emerald-300 sm:text-xl">{selectedNode.label}</div>
-            {selectedNode.sublabel && <p className="mt-1 text-xs font-semibold text-emerald-200">{selectedNode.sublabel}</p>}
-            {selectedNode.note && <p className="mt-2 max-h-24 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">{selectedNode.note}</p>}
-            {!selectedNode.note && !selectedNode.sublabel && <p className="mt-1 text-xs text-slate-400">لا توجد تفاصيل إضافية لهذه العقدة.</p>}
-            {mapDocument.nodes.filter((node) => node.parentId === selectedNode.id).sort((a,b) => (a.order ?? 0) - (b.order ?? 0)).length > 0 && <div className="mt-2 flex flex-wrap gap-2">{mapDocument.nodes.filter((node) => node.parentId === selectedNode.id).sort((a,b) => (a.order ?? 0) - (b.order ?? 0)).map((child) => <button key={child.id} type="button" onClick={() => selectNodeAndRevealFirstChild(child.id)} className="max-w-full rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-100">{child.label}</button>)}</div>}
-            <button type="button" onClick={() => setSelectedNodeId(null)} className="mt-2 text-[10px] font-bold text-slate-400 hover:text-white">إخفاء التفاصيل</button>
+            <div className={`text-base font-black sm:text-lg ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>{selectedNode.label}</div>
+            {selectedNode.sublabel && <p className={`mt-1 text-xs font-semibold ${isDark ? "text-emerald-200" : "text-emerald-700"}`}>{selectedNode.sublabel}</p>}
+            {selectedNode.note && <p className={`mt-1 max-h-16 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-5 ${isDark ? "text-slate-100" : "text-slate-700"}`}>{selectedNode.note}</p>}
+            {!selectedNode.note && !selectedNode.sublabel && <p className={`mt-1 text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>لا توجد تفاصيل إضافية لهذه العقدة.</p>}
+            {mapDocument.nodes.filter((node) => node.parentId === selectedNode.id).sort((a,b) => (a.order ?? 0) - (b.order ?? 0)).length > 0 && <div className="mt-2 flex flex-wrap gap-2">{mapDocument.nodes.filter((node) => node.parentId === selectedNode.id).sort((a,b) => (a.order ?? 0) - (b.order ?? 0)).map((child) => <button key={child.id} type="button" onClick={() => selectNodeAndRevealFirstChild(child.id)} className={`max-w-full rounded-xl border px-3 py-1.5 text-xs font-bold ${isDark ? "border-white/15 bg-white/5 text-slate-100" : "border-slate-300 bg-slate-100 text-slate-800"}`}>{child.label}</button>)}</div>}
+            <button type="button" onClick={() => setSelectedNodeId(null)} className={`mt-1 text-[10px] font-bold ${isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900"}`}>إخفاء التفاصيل</button>
           </div>
         )}
         {!selectedNode && <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-slate-950/65 px-3 py-1 text-[10px] font-semibold text-slate-400 backdrop-blur sm:bottom-5">
