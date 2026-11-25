@@ -280,6 +280,23 @@ async function main() {
     'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20503, and versionName "2.5.3"'
   );
 
+  // The app must not package or register a custom IME; translation uses Accessibility/overlay services.
+  const androidManifestContent = fs.readFileSync(path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'), 'utf8');
+  const keyboardImeSourcePath = path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'java', 'org', 'umed2', 'dictengine', 'UMEDTKeyboardService.java');
+  assertCondition(
+    !androidManifestContent.includes('UMEDTKeyboardService') && !fs.existsSync(keyboardImeSourcePath),
+    'UMEDT must not declare or compile the removed custom InputMethodService'
+  );
+  assertCondition(
+    !fs.existsSync(path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'res', 'xml', 'umedt_input_method.xml')),
+    'Removed UMEDT input-method metadata must not remain in Android resources'
+  );
+  const appSourceForImeCheck = fs.readFileSync(path.join(ROOT_DIR, 'src', 'App.tsx'), 'utf8');
+  assertCondition(
+    !appSourceForImeCheck.includes('UmedtKeyboardPreviewModal') && !appSourceForImeCheck.includes('openUmedtKeyboardSettings'),
+    'The app UI must not expose removed UMEDT keyboard controls'
+  );
+
   // Verify all Native Android Java files have required imports and balanced braces
   const javaDir = path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'java', 'org.umed2.dictengine'.replace(/\./g, path.sep));
   const requiredJavaFiles = [
