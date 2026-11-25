@@ -403,7 +403,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   };
 
   return (
-    <div className={`fixed inset-0 z-[120] flex flex-col overflow-hidden ${isDark ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-900"}` dir="rtl">
+    <div className={`fixed inset-0 z-[120] flex flex-col overflow-hidden ${isDark ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-900"}`} dir="rtl">
       <header className="relative z-10 flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white/90 px-3 py-2.5 pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-xl sm:px-5">
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-black tracking-wide sm:text-base">{mapDocument.title || 'الخريطة الذهنية'}</div>
