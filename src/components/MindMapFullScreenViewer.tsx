@@ -396,9 +396,8 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex flex-col overflow-hidden bg-slate-950 text-white" dir="rtl">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-900/25 via-slate-950 to-slate-950" />
-      <header className="relative z-10 flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-slate-950/75 px-3 py-2.5 pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-xl sm:px-5">
+    <div className={`fixed inset-0 z-[120] flex flex-col overflow-hidden ${isDark ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-900"}` dir="rtl">
+      <header className="relative z-10 flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white/90 px-3 py-2.5 pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-xl sm:px-5">
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-black tracking-wide sm:text-base">{mapDocument.title || 'الخريطة الذهنية'}</div>
           <div className="text-[10px] font-semibold text-slate-400">اسحب للتحريك · استخدم إصبعين للتكبير والتصغير</div>
@@ -418,7 +417,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       <main
         ref={viewportRef}
         className="relative z-0 min-h-0 flex-1 overflow-hidden touch-none select-none"
-        style={{ backgroundImage: 'radial-gradient(circle, rgba(148,163,184,.16) 1px, transparent 1px)', backgroundSize: '24px 24px' }}
+        style={{ backgroundColor: isDark ? '#0f172a' : '#f8fafc', backgroundImage: isDark ? 'radial-gradient(circle, rgba(148,163,184,.16) 1px, transparent 1px)' : 'radial-gradient(circle, rgba(100,116,139,.12) 1px, transparent 1px)', backgroundSize: '24px 24px' }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
