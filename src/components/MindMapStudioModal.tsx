@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   X,
   Plus,
@@ -50,6 +50,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
   initialTopic = null,
   initialMindMapId = null,
   onEmbedMapInTopic,
+  backLabel,
   showToast
 }) => {
   const [allMaps, setAllMaps] = useState<MindMapDocument[]>(() => loadMindMaps());
@@ -63,6 +64,42 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
   const [preferredStyle, setPreferredStyle] = useState<MindMapStyle | 'auto'>('auto');
   const [copiedPromptKey, setCopiedPromptKey] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  const historyEntryRef = useRef(false);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+  useEffect(() => {
+    if (!isOpen || typeof window === 'undefined') return;
+    const overlayWindow = window as Window & { __umedtMindMapStudioOpen?: boolean; __umedtMindMapViewerOpen?: boolean };
+    overlayWindow.__umedtMindMapStudioOpen = true;
+    window.history.pushState({ ...(window.history.state || {}), umedtMindMapStudio: true }, '', window.location.href);
+    historyEntryRef.current = true;
+    const handlePopState = () => {
+      if (overlayWindow.__umedtMindMapViewerOpen) return;
+      historyEntryRef.current = false;
+      overlayWindow.__umedtMindMapStudioOpen = false;
+      onCloseRef.current();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !overlayWindow.__umedtMindMapViewerOpen) requestClose();
+    };
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('keydown', handleKeyDown);
+      overlayWindow.__umedtMindMapStudioOpen = false;
+    };
+  }, [isOpen]);
+
+  const requestClose = useCallback(() => {
+    if (historyEntryRef.current) {
+      historyEntryRef.current = false;
+      window.history.back();
+    } else {
+      onCloseRef.current();
+    }
+  }, []);
 
   // Sync with storage changes
   useEffect(() => {
@@ -229,7 +266,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
 
   return (
     <div
-      onClick={onClose}
+      onClick={requestClose}
       className="fixed inset-0 z-[65] bg-black/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4"
     >
       <div
@@ -310,9 +347,10 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
 
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center"
-              aria-label="إغلاق"
+              aria-label={backLabel || "العودة"}
+              title={backLabel || "العودة"}
             >
               <X className="w-4 h-4" />
             </button>
