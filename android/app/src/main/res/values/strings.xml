@@ -4,7 +4,7 @@
     <string name="title_activity_main">UMEDT</string>
     <string name="package_name">org.umed2.dictengine</string>
     <string name="custom_url_scheme">org.umed2.dictengine</string>
-    <string name="umedt_instant_translate_label">UMEDT Instant Translate</string>
+    <string name="umedt_instant_translate_label">UMEDT</string>
     <string name="umedt_accessibility_service_label">UMEDT Accessibility Translation</string>
     <string name="umedt_accessibility_service_description">Detects selected text to provide instant medical dictionary translation.</string>
     <string name="umedt_quick_tile_label">UMEDT Quick Translate</string>
