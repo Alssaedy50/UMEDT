@@ -181,11 +181,11 @@ function assertCondition(condition: boolean, message: string): void {
 
 async function main() {
   console.log('================================================================');
-  console.log('UMED-2 — Independent Web, PWA & Android APK Verification Suite');
+  console.log('UMED-2 — Android APK Release Verification Suite');
   console.log('================================================================');
 
-  // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.5.3)
-  assertCondition(APP_VERSION === '2.5.3', `Expected APP_VERSION 2.5.3, got ${APP_VERSION}`);
+  // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.5.4)
+  assertCondition(APP_VERSION === '2.5.4', `Expected APP_VERSION 2.5.4, got ${APP_VERSION}`);
   assertCondition(DB_SCHEMA_VERSION === 2, `Expected DB_SCHEMA_VERSION 2, got ${DB_SCHEMA_VERSION}`);
   assertCondition(
     BUNDLED_DATA_VERSION === '2026.10.0-umd',
@@ -228,7 +228,7 @@ async function main() {
   assertCondition(fs.existsSync(distIndexPath), 'dist/index.html must exist');
   assertCondition(fs.existsSync(distSwPath), 'dist/sw.js PWA service worker must exist');
   assertCondition(fs.existsSync(distManifestPath), 'dist/manifest.webmanifest must exist');
-  console.log('[PASS] 2. package-lock.json & Production Web/PWA Build Assets');
+  console.log('[PASS] 2. package-lock.json & Android WebView Assets');
 
   // 3. Verify Capacitor Android Native Project & APK GitHub Actions Workflow
   const capConfigPath = path.join(ROOT_DIR, 'capacitor.config.ts');
@@ -265,19 +265,19 @@ async function main() {
   assertCondition(
     apkWorkflowContent.includes('assembleDebug') &&
       apkWorkflowContent.includes('assembleRelease') &&
-      apkWorkflowContent.includes('UMED-2-v2.5.3-debug-apk') &&
-      apkWorkflowContent.includes('UMED-2-v2.5.3-release-apk') &&
+      apkWorkflowContent.includes('UMED-2-v2.5.4-debug-apk') &&
+      apkWorkflowContent.includes('UMED-2-v2.5.4-release-apk') &&
       apkWorkflowContent.includes('VITE_UMED_MANIFEST_URL') &&
       apkWorkflowContent.includes('VITE_UMED_PUBLIC_KEY_PEM'),
-    'android-apk-release.yml must build v2.5.3 Debug/Release APKs with Cloud OTA env vars'
+    'android-apk-release.yml must build v2.5.4 Debug/Release APKs with Cloud OTA env vars'
   );
 
   const gradleContent = fs.readFileSync(androidBuildGradlePath, 'utf8');
   assertCondition(
     gradleContent.includes('org.umed2.dictengine') &&
-      gradleContent.includes('versionCode 20503') &&
-      gradleContent.includes('versionName "2.5.3"'),
-    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20503, and versionName "2.5.3"'
+      gradleContent.includes('versionCode 20504') &&
+      gradleContent.includes('versionName "2.5.4"'),
+    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20504, and versionName "2.5.4"'
   );
 
   // The app must not package or register a custom IME; translation uses Accessibility/overlay services.
@@ -337,7 +337,7 @@ async function main() {
       );
     }
   }
-  console.log('[PASS] 3. Capacitor Native Android Project (v2.5.3 / 20503), Java Imports & Bundled Local Web Assets Synced');
+  console.log('[PASS] 3. Capacitor Native Android Project (v2.5.4 / 20504), Java Imports & Bundled Local Web Assets Synced');
 
   // 3b. Verify the two-path AI generator and local-only hierarchy/import contract.
   const aiGeneratorPath = path.join(ROOT_DIR, 'src', 'components', 'AiContentGuideModal.tsx');

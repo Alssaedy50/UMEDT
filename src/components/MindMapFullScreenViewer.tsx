@@ -120,6 +120,29 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     return path;
   }, [mapDocument.nodes, selectedNode]);
 
+  const selectNodeAndRevealFirstChild = useCallback((nodeId: string) => {
+    const firstChild = mapDocument.nodes.filter((node) => node.parentId === nodeId).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0];
+    const targetId = firstChild?.id || nodeId;
+    // Reveal every ancestor so the focused child exists in the rendered SVG.
+    if (!isSequentialMode && firstChild) {
+      const byId = new Map(mapDocument.nodes.map((node) => [node.id, node]));
+      setCollapsedIds((previous) => {
+        const next = new Set(previous);
+        let parentId: string | null = firstChild.parentId;
+        while (parentId) {
+          next.delete(parentId);
+          parentId = byId.get(parentId)?.parentId || null;
+        }
+        return next;
+      });
+    }
+    setSelectedNodeId(targetId);
+    if (isSequentialMode) {
+      const index = sequenceNodes.findIndex((node) => node.id === targetId);
+      if (index >= 0) setSequenceIndex(index);
+    }
+  }, [mapDocument.nodes, isSequentialMode, sequenceNodes]);
+
   const applyTransform = useCallback((nextZoom: number, nextPan: { x: number; y: number }) => {
     setZoom(nextZoom);
     setPan(nextPan);
@@ -127,6 +150,22 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       stageRef.current.style.transform = `translate3d(${nextPan.x}px, ${nextPan.y}px, 0) scale(${nextZoom})`;
     }
   }, []);
+
+  const focusNode = useCallback((nodeId: string) => {
+    const viewport = viewportRef.current;
+    const svg = stageRef.current?.querySelector('svg');
+    const node = svg?.querySelector(`.mm-node[data-node-id="${CSS.escape(nodeId)}"]`) as SVGGElement | null;
+    if (!viewport || !node) return;
+    const bounds = node.getBBox();
+    const scale = Math.max(0.82, Math.min(2.45, Math.min(
+      (viewport.clientWidth * 0.72) / Math.max(1, bounds.width),
+      (viewport.clientHeight * 0.48) / Math.max(1, bounds.height)
+    )));
+    applyTransform(scale, {
+      x: viewport.clientWidth / 2 - (bounds.x + bounds.width / 2) * scale,
+      y: viewport.clientHeight * 0.43 - (bounds.y + bounds.height / 2) * scale
+    });
+  }, [applyTransform]);
 
   const fitToView = useCallback(() => {
     const viewport = viewportRef.current;
@@ -152,10 +191,65 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     svg.style.display = 'block';
     svg.style.maxWidth = 'none';
     svg.style.overflow = 'visible';
+    // Add a dedicated forward/collapse control to every visible node.
+    svg.querySelectorAll<SVGGElement>('.mm-node[data-node-id]').forEach((node) => {
+      if (node.querySelector('.mm-node-action')) return;
+      const box = node.getBBox();
+      const action = window.document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      action.setAttribute('class', 'mm-node-action');
+      action.setAttribute('data-node-id', node.dataset.nodeId || '');
+      action.setAttribute('role', 'button');
+      action.setAttribute('tabindex', '0');
+      action.setAttribute('aria-label', 'عرض الفروع أو الانتقال للأمام');
+      action.style.cursor = 'pointer';
+      const cx = box.x + box.width - 3;
+      const cy = box.y + box.height / 2;
+      const circle = window.document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', String(cx));
+      circle.setAttribute('cy', String(cy));
+      circle.setAttribute('r', '13');
+      circle.setAttribute('fill', '#10b981');
+      circle.setAttribute('stroke', '#ecfdf5');
+      circle.setAttribute('stroke-width', '2');
+      const arrow = window.document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      arrow.setAttribute('d', `M ${cx - 3} ${cy - 5} L ${cx + 3} ${cy} L ${cx - 3} ${cy + 5}`);
+      arrow.setAttribute('fill', 'none');
+      arrow.setAttribute('stroke', '#022c22');
+      arrow.setAttribute('stroke-width', '2.4');
+      arrow.setAttribute('stroke-linecap', 'round');
+      arrow.setAttribute('stroke-linejoin', 'round');
+      action.append(circle, arrow);
+      node.appendChild(action);
+    });
     const handleClick = (event: Event) => {
       const target = event.target as Element | null;
+      const action = target?.closest?.('.mm-node-action[data-node-id]') as SVGGElement | null;
       const node = target?.closest?.('.mm-node[data-node-id]') as SVGGElement | null;
-      if (node?.dataset.nodeId) { setSelectedNodeId(node.dataset.nodeId); if (isSequentialMode) { const index = sequenceNodes.findIndex((item) => item.id === node.dataset.nodeId); if (index >= 0) setSequenceIndex(index); } }
+      const nodeId = action?.dataset.nodeId || node?.dataset.nodeId;
+      if (!nodeId) return;
+      if (action) {
+        setSelectedNodeId(nodeId);
+        event.stopPropagation();
+        const hasChildren = mapDocument.nodes.some((item) => item.parentId === nodeId);
+        if (hasChildren && !isSequentialMode) {
+          setCollapsedIds((previous) => {
+            const next = new Set(previous);
+            if (next.has(nodeId)) next.delete(nodeId);
+            else next.add(nodeId);
+            return next;
+          });
+        } else {
+          const currentIndex = sequenceNodes.findIndex((item) => item.id === nodeId);
+          const nextNode = sequenceNodes[currentIndex + 1];
+          if (nextNode) {
+            setIsSequentialMode(true);
+            setSequenceIndex(currentIndex + 1);
+            setSelectedNodeId(nextNode.id);
+          }
+        }
+        return;
+      }
+      selectNodeAndRevealFirstChild(nodeId);
     };
     const handleDoubleClick = (event: Event) => {
       const target = event.target as Element | null;
@@ -178,7 +272,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       svg.removeEventListener('click', handleClick);
       svg.removeEventListener('dblclick', handleDoubleClick);
     };
-  }, [svgMarkup, mapDocument.nodes, isSequentialMode]);
+  }, [svgMarkup, mapDocument.nodes, isSequentialMode, sequenceNodes, selectNodeAndRevealFirstChild]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => fitToView());
@@ -197,8 +291,10 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     if (selectedNodeId) {
       const selected = Array.from(svg.querySelectorAll('.mm-node')).find((node) => (node as SVGGElement).dataset.nodeId === selectedNodeId);
       selected?.classList.add('selected');
+      const frame = window.requestAnimationFrame(() => focusNode(selectedNodeId));
+      return () => window.cancelAnimationFrame(frame);
     }
-  }, [selectedNodeId, svgMarkup]);
+  }, [selectedNodeId, svgMarkup, focusNode]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -221,6 +317,10 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       return;
     }
     const target = event.target as Element;
+    if (target.closest?.('.mm-node-action')) {
+      gestureRef.current = null;
+      return;
+    }
     const node = target.closest?.('.mm-node[data-node-id]') as SVGGElement | null;
     gestureRef.current = {
       type: 'pan',
@@ -264,7 +364,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
     const gesture = gestureRef.current;
     if (gesture?.type === 'pan' && gesture.pointerId === event.pointerId && !gesture.moved && gesture.nodeId) {
-      setSelectedNodeId(gesture.nodeId);
+      selectNodeAndRevealFirstChild(gesture.nodeId);
     }
     pointersRef.current.delete(event.pointerId);
     const remaining = Array.from(pointersRef.current.entries());
@@ -316,9 +416,8 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex flex-col overflow-hidden bg-slate-950 text-white" dir="rtl">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-900/25 via-slate-950 to-slate-950" />
-      <header className="relative z-10 flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-slate-950/75 px-3 py-2.5 pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-xl sm:px-5">
+    <div className={`fixed inset-0 z-[120] flex flex-col overflow-hidden ${isDark ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-900"}`} dir="rtl">
+      <header className="relative z-10 flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white/90 px-3 py-2.5 pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-xl sm:px-5">
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-black tracking-wide sm:text-base">{mapDocument.title || 'الخريطة الذهنية'}</div>
           <div className="text-[10px] font-semibold text-slate-400">اسحب للتحريك · استخدم إصبعين للتكبير والتصغير</div>
@@ -338,7 +437,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       <main
         ref={viewportRef}
         className="relative z-0 min-h-0 flex-1 overflow-hidden touch-none select-none"
-        style={{ backgroundImage: 'radial-gradient(circle, rgba(148,163,184,.16) 1px, transparent 1px)', backgroundSize: '24px 24px' }}
+        style={{ backgroundColor: isDark ? '#0f172a' : '#f8fafc', backgroundImage: isDark ? 'radial-gradient(circle, rgba(148,163,184,.16) 1px, transparent 1px)' : 'radial-gradient(circle, rgba(100,116,139,.12) 1px, transparent 1px)', backgroundSize: '24px 24px' }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -354,10 +453,13 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
           </div>
         )}
         {selectedNode && (
-          <div className="absolute bottom-3 left-3 right-3 z-10 mx-auto max-h-[42%] max-w-2xl overflow-y-auto rounded-2xl border border-white/15 bg-slate-900/95 p-3 shadow-2xl backdrop-blur-xl sm:bottom-5 sm:p-4">
+          <div className="absolute bottom-3 left-3 right-3 z-10 mx-auto max-h-[28%] max-w-3xl overflow-y-auto rounded-3xl border border-emerald-400/30 bg-slate-900/95 p-3 shadow-2xl backdrop-blur-xl sm:bottom-5 sm:p-5">
             {selectedNodePath.length > 1 && <div className="mb-1 flex flex-wrap items-center gap-1 text-[10px] text-slate-400">{selectedNodePath.map((node, index) => <React.Fragment key={node.id}>{index > 0 && <span aria-hidden="true">‹</span>}<span className={index === selectedNodePath.length - 1 ? 'font-black text-emerald-300' : ''}>{node.label}</span></React.Fragment>)}</div>}
-            <div className="text-sm font-black text-emerald-300">{selectedNode.label}</div>
-            {(selectedNode.sublabel || selectedNode.note) && <p className="mt-1 max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-6 text-slate-200">{[selectedNode.sublabel, selectedNode.note].filter(Boolean).join(' · ')}</p>}
+            <div className="text-lg font-black text-emerald-300 sm:text-xl">{selectedNode.label}</div>
+            {selectedNode.sublabel && <p className="mt-1 text-xs font-semibold text-emerald-200">{selectedNode.sublabel}</p>}
+            {selectedNode.note && <p className="mt-2 max-h-24 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">{selectedNode.note}</p>}
+            {!selectedNode.note && !selectedNode.sublabel && <p className="mt-1 text-xs text-slate-400">لا توجد تفاصيل إضافية لهذه العقدة.</p>}
+            {mapDocument.nodes.filter((node) => node.parentId === selectedNode.id).sort((a,b) => (a.order ?? 0) - (b.order ?? 0)).length > 0 && <div className="mt-2 flex flex-wrap gap-2">{mapDocument.nodes.filter((node) => node.parentId === selectedNode.id).sort((a,b) => (a.order ?? 0) - (b.order ?? 0)).map((child) => <button key={child.id} type="button" onClick={() => selectNodeAndRevealFirstChild(child.id)} className="max-w-full rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-100">{child.label}</button>)}</div>}
             <button type="button" onClick={() => setSelectedNodeId(null)} className="mt-2 text-[10px] font-bold text-slate-400 hover:text-white">إخفاء التفاصيل</button>
           </div>
         )}
