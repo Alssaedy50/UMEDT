@@ -120,6 +120,16 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     return path;
   }, [mapDocument.nodes, selectedNode]);
 
+  const selectNodeAndRevealFirstChild = useCallback((nodeId: string) => {
+    const firstChild = mapDocument.nodes.filter((node) => node.parentId === nodeId).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0];
+    const targetId = firstChild?.id || nodeId;
+    setSelectedNodeId(targetId);
+    if (isSequentialMode) {
+      const index = sequenceNodes.findIndex((node) => node.id === targetId);
+      if (index >= 0) setSequenceIndex(index);
+    }
+  }, [mapDocument.nodes, isSequentialMode, sequenceNodes]);
+
   const applyTransform = useCallback((nextZoom: number, nextPan: { x: number; y: number }) => {
     setZoom(nextZoom);
     setPan(nextPan);
@@ -204,8 +214,8 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       const node = target?.closest?.('.mm-node[data-node-id]') as SVGGElement | null;
       const nodeId = action?.dataset.nodeId || node?.dataset.nodeId;
       if (!nodeId) return;
-      setSelectedNodeId(nodeId);
       if (action) {
+        setSelectedNodeId(nodeId);
         event.stopPropagation();
         const hasChildren = mapDocument.nodes.some((item) => item.parentId === nodeId);
         if (hasChildren && !isSequentialMode) {
@@ -226,10 +236,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
         }
         return;
       }
-      if (isSequentialMode) {
-        const index = sequenceNodes.findIndex((item) => item.id === nodeId);
-        if (index >= 0) setSequenceIndex(index);
-      }
+      selectNodeAndRevealFirstChild(nodeId);
     };
     const handleDoubleClick = (event: Event) => {
       const target = event.target as Element | null;
@@ -252,7 +259,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       svg.removeEventListener('click', handleClick);
       svg.removeEventListener('dblclick', handleDoubleClick);
     };
-  }, [svgMarkup, mapDocument.nodes, isSequentialMode]);
+  }, [svgMarkup, mapDocument.nodes, isSequentialMode, sequenceNodes, selectNodeAndRevealFirstChild]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => fitToView());
@@ -344,7 +351,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
     const gesture = gestureRef.current;
     if (gesture?.type === 'pan' && gesture.pointerId === event.pointerId && !gesture.moved && gesture.nodeId) {
-      setSelectedNodeId(gesture.nodeId);
+      selectNodeAndRevealFirstChild(gesture.nodeId);
     }
     pointersRef.current.delete(event.pointerId);
     const remaining = Array.from(pointersRef.current.entries());
@@ -433,10 +440,13 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
           </div>
         )}
         {selectedNode && (
-          <div className="absolute bottom-3 left-3 right-3 z-10 mx-auto max-h-[38%] max-w-3xl overflow-y-auto rounded-3xl border border-emerald-400/30 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-xl sm:bottom-5 sm:p-5">
+          <div className="absolute bottom-3 left-3 right-3 z-10 mx-auto max-h-[28%] max-w-3xl overflow-y-auto rounded-3xl border border-emerald-400/30 bg-slate-900/95 p-3 shadow-2xl backdrop-blur-xl sm:bottom-5 sm:p-5">
             {selectedNodePath.length > 1 && <div className="mb-1 flex flex-wrap items-center gap-1 text-[10px] text-slate-400">{selectedNodePath.map((node, index) => <React.Fragment key={node.id}>{index > 0 && <span aria-hidden="true">‹</span>}<span className={index === selectedNodePath.length - 1 ? 'font-black text-emerald-300' : ''}>{node.label}</span></React.Fragment>)}</div>}
             <div className="text-lg font-black text-emerald-300 sm:text-xl">{selectedNode.label}</div>
-            {(selectedNode.sublabel || selectedNode.note) && <p className="mt-2 max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-7 text-slate-100">{[selectedNode.sublabel, selectedNode.note].filter(Boolean).join(' · ')}</p>}
+            {selectedNode.sublabel && <p className="mt-1 text-xs font-semibold text-emerald-200">{selectedNode.sublabel}</p>}
+            {selectedNode.note && <p className="mt-2 max-h-24 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">{selectedNode.note}</p>}
+            {!selectedNode.note && !selectedNode.sublabel && <p className="mt-1 text-xs text-slate-400">لا توجد تفاصيل إضافية لهذه العقدة.</p>}
+            {mapDocument.nodes.filter((node) => node.parentId === selectedNode.id).sort((a,b) => (a.order ?? 0) - (b.order ?? 0)).length > 0 && <div className="mt-2 flex flex-wrap gap-2">{mapDocument.nodes.filter((node) => node.parentId === selectedNode.id).sort((a,b) => (a.order ?? 0) - (b.order ?? 0)).map((child) => <button key={child.id} type="button" onClick={() => selectNodeAndRevealFirstChild(child.id)} className="max-w-full rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-100">{child.label}</button>)}</div>}
             <button type="button" onClick={() => setSelectedNodeId(null)} className="mt-2 text-[10px] font-bold text-slate-400 hover:text-white">إخفاء التفاصيل</button>
           </div>
         )}
