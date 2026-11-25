@@ -249,6 +249,7 @@ export default function App() {
     initialPersisted.settings.colorTheme || 'emerald'
   );
   const [activeTab, setActiveTab] = useState<MainTab>(() => resolveInitialTabFromLocation());
+  const mindMapReturnTabRef = useRef<MainTab>('home');
   const [mindMapContext, setMindMapContext] = useState<{
     blockId?: string;
     subjectId?: string;
@@ -3488,6 +3489,7 @@ export default function App() {
                   type="button"
                   onClick={() => {
                     setDetailTermId(null);
+                    if (tabItem.id === 'mindmaps') mindMapReturnTabRef.current = activeTab;
                     setActiveTab(tabItem.id);
                   }}
                   className={`min-h-[36px] px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all ${
@@ -3558,6 +3560,7 @@ export default function App() {
                     type="button"
                     onClick={() => {
                       setDetailTermId(null);
+                      if (item.id === 'mindmaps') mindMapReturnTabRef.current = activeTab;
                       setActiveTab(item.id);
                       setIsSidebarOpen(false);
                     }}
@@ -3664,7 +3667,9 @@ export default function App() {
               triggerTelegramAutoSync(reason);
             }}
             onOpenFullScreenMindMapStudio={(ctx) => {
+              mindMapReturnTabRef.current = 'topics';
               setMindMapContext(ctx || {});
+              if (ctx?.topicId) setTopicsInitialTopicId(ctx.topicId);
               setActiveTab('mindmaps');
             }}
             showToast={showToast}
@@ -3674,7 +3679,7 @@ export default function App() {
         {activeTab === 'mindmaps' && (
           <MindMapStudioModal
             isOpen={true}
-            onClose={() => setActiveTab('topics')}
+            onClose={() => setActiveTab(mindMapReturnTabRef.current || 'home')}
             topics={topics}
             initialTopic={
               mindMapContext.topicId
@@ -4297,6 +4302,7 @@ export default function App() {
               type="button"
               onClick={() => {
                 setDetailTermId(null);
+                if (item.id === 'mindmaps') mindMapReturnTabRef.current = activeTab;
                 setActiveTab(item.id);
               }}
               className={`min-h-[48px] rounded-2xl flex flex-col items-center justify-center gap-0.5 text-[11px] font-extrabold transition-colors ${
