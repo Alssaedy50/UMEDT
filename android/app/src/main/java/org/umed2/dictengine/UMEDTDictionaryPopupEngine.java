@@ -3,6 +3,7 @@ package org.umed2.dictengine;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
@@ -27,6 +28,12 @@ import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -35,7 +42,7 @@ import java.util.Map;
 
 /**
  * Shared offline dictionary lookup and floating overlay translation card engine.
- * Works directly from UMEDTKeyboardService, UMEDTClipboardMonitorService, and UMEDTPopupCardActivity
+ * Works directly from UMEDTAutoTranslateAccessibilityService, UMEDTClipboardMonitorService, and UMEDTPopupCardActivity
  * without opening or loading the main WebView application.
  */
 public final class UMEDTDictionaryPopupEngine {
@@ -45,6 +52,17 @@ public final class UMEDTDictionaryPopupEngine {
     public static final String KEY_MONITOR_ENABLED = "clipboard_monitor_enabled";
     public static final String KEY_AUTO_TRANSLATE_ON_SELECT = "auto_translate_on_select";
     public static final String KEY_LAST_SYNC_TS = "last_sync_ts";
+    private static final String MIRROR_FILE_NAME = "umedt_copy_dictionary.json";
+    private static final String FALLBACK_CORE_JSON = "["
+            + "{\"term\":\"Hypertension\",\"translation\":\"ارتفاع ضغط الدم\",\"category\":\"Cardiology\",\"definitionAr\":\"ارتفاع مستمر في ضغط الدم الشرياني يزيد عن 130/80 ملم زئبقي.\"},"
+            + "{\"term\":\"Atherosclerosis\",\"translation\":\"تصلب الشرايين العصيدي\",\"category\":\"Cardiology\",\"definitionAr\":\"تراكم اللويحات الدهنية والكوليسترول داخل جدران الشرايين.\"},"
+            + "{\"term\":\"Myocardial Infarction\",\"translation\":\"احتشاء عضلة القلب\",\"category\":\"Cardiology\",\"definitionAr\":\"نخر إقفاري في عضلة القلب نتيجة انسداد حاد في الشريان التاجي.\"},"
+            + "{\"term\":\"Tachycardia\",\"translation\":\"تسرع القلب\",\"category\":\"Cardiology\",\"definitionAr\":\"زيادة معدل ضربات القلب عن 100 نبضة في الدقيقة أثناء الراحة.\"},"
+            + "{\"term\":\"Bradycardia\",\"translation\":\"بطء القلب\",\"category\":\"Cardiology\",\"definitionAr\":\"انخفاض معدل ضربات القلب إلى أقل من 60 نبضة في الدقيقة.\"},"
+            + "{\"term\":\"Dyspnea\",\"translation\":\"ضيق التنفس / الزلة التنفسية\",\"category\":\"Pulmonology\",\"definitionAr\":\"إحساس شخصي بصعوبة أو عدم راحة في التنفس.\"},"
+            + "{\"term\":\"Anemia\",\"translation\":\"فقر الدم\",\"category\":\"Hematology\",\"definitionAr\":\"انخفاض تركيز الهيموغلوبين أو عدد كريات الدم الحمراء عن المستوى الطبيعي.\"},"
+            + "{\"term\":\"Pathophysiology\",\"translation\":\"الفيزيولوجيا المرضية\",\"category\":\"Pathology\",\"definitionAr\":\"دراسة التغيرات الوظيفية والحيوية الناتجة عن المرض.\"}"
+            + "]";
 
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
 
@@ -70,7 +88,8 @@ public final class UMEDTDictionaryPopupEngine {
     }
 
     /**
-     * Saves synced dictionary terms JSON from WebView into SharedPreferences and refreshes the in-memory index.
+     * Saves synced dictionary terms JSON from WebView into SharedPreferences and a persistent file mirror,
+     * then refreshes the in-memory index synchronously so background services can access it immediately.
      */
     public static synchronized int saveDictionaryTermsJson(Context context, String json) {
         if (context == null) return 0;
@@ -88,9 +107,42 @@ public final class UMEDTDictionaryPopupEngine {
                 .putString("terms", safeJson)
                 .putInt(KEY_TERMS_COUNT, count)
                 .putLong(KEY_LAST_SYNC_TS, System.currentTimeMillis())
-                .apply();
+                .commit();
+        if (count > 0) {
+            writeMirrorFile(context, safeJson);
+        }
         rebuildMemoryIndex(safeJson);
         return count;
+    }
+
+    private static void writeMirrorFile(Context context, String json) {
+        try {
+            File file = new File(context.getFilesDir(), MIRROR_FILE_NAME);
+            try (FileOutputStream fos = new FileOutputStream(file, false)) {
+                fos.write(json.getBytes(StandardCharsets.UTF_8));
+                fos.flush();
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static String readMirrorFile(Context context) {
+        try {
+            File file = new File(context.getFilesDir(), MIRROR_FILE_NAME);
+            if (!file.exists() || file.length() <= 2) return null;
+            StringBuilder sb = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    sb.append(line);
+                }
+            }
+            String content = sb.toString().trim();
+            return content.isEmpty() ? null : content;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     public static int getSyncedTermsCount(Context context) {
@@ -108,7 +160,7 @@ public final class UMEDTDictionaryPopupEngine {
     public static void setClipboardMonitorEnabled(Context context, boolean enabled) {
         if (context == null) return;
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        prefs.edit().putBoolean(KEY_MONITOR_ENABLED, enabled).apply();
+        prefs.edit().putBoolean(KEY_MONITOR_ENABLED, enabled).commit();
     }
 
     public static boolean isAutoTranslateOnSelectEnabled(Context context) {
@@ -120,7 +172,7 @@ public final class UMEDTDictionaryPopupEngine {
     public static void setAutoTranslateOnSelectEnabled(Context context, boolean enabled) {
         if (context == null) return;
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        prefs.edit().putBoolean(KEY_AUTO_TRANSLATE_ON_SELECT, enabled).apply();
+        prefs.edit().putBoolean(KEY_AUTO_TRANSLATE_ON_SELECT, enabled).commit();
     }
 
     public static boolean shouldIgnoreText(String rawText) {
@@ -134,8 +186,19 @@ public final class UMEDTDictionaryPopupEngine {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         String raw = prefs.getString(KEY_TERMS_JSON, null);
         if (raw == null || raw.equals("[]") || raw.trim().isEmpty()) {
-            String legacy = prefs.getString("terms", "[]");
-            raw = (legacy != null && !legacy.trim().isEmpty()) ? legacy : "[]";
+            String legacy = prefs.getString("terms", null);
+            if (legacy != null && !legacy.equals("[]") && !legacy.trim().isEmpty()) {
+                raw = legacy;
+            }
+        }
+        if (raw == null || raw.equals("[]") || raw.trim().isEmpty()) {
+            String mirrored = readMirrorFile(context);
+            if (mirrored != null && !mirrored.equals("[]")) {
+                raw = mirrored;
+            }
+        }
+        if (raw == null || raw.equals("[]") || raw.trim().isEmpty()) {
+            raw = FALLBACK_CORE_JSON;
         }
         if (!raw.equals(cachedRawJson)) {
             rebuildMemoryIndex(raw);
@@ -499,7 +562,7 @@ public final class UMEDTDictionaryPopupEngine {
             JSONObject matched = findTerm(context, copied);
             if (matched != null) {
                 lastAutoClipboardValue = copied;
-                showFloatingCard(context.getApplicationContext(), matched, forceShow);
+                showFloatingCard(context, matched, forceShow);
             }
             return matched;
         } catch (Exception ignored) {
@@ -533,7 +596,10 @@ public final class UMEDTDictionaryPopupEngine {
     }
 
     /**
-     * Displays the floating dictionary translation card over any running app via WindowManager overlay.
+     * Displays the floating dictionary translation card over any running app.
+     * Priority 1: TYPE_ACCESSIBILITY_OVERLAY on UMEDTAutoTranslateAccessibilityService (works even when the app is completely closed and without SYSTEM_ALERT_WINDOW).
+     * Priority 2: TYPE_APPLICATION_OVERLAY when canDrawOverlays(context) is granted.
+     * Priority 3: Translucent UMEDTPopupCardActivity with EXTRA_MATCHED_TERM_JSON.
      */
     public static void showFloatingCard(final Context context, final JSONObject term, final boolean forceShow) {
         if (context == null || term == null) return;
@@ -546,54 +612,101 @@ public final class UMEDTDictionaryPopupEngine {
             lastShownTermKey = termKey;
             lastShownTimestampMs = now;
 
-            if (!canDrawOverlays(context)) {
-                // Fallback: if overlay permission is not granted yet, show a rich multi-line Toast
-                String title = term.optString("term", "");
-                String tr = term.optString("translation", "");
-                String def = term.optString("definitionAr", "");
-                String msg = "📖 " + title + " : " + tr + (def.isEmpty() ? "" : "\n" + def);
-                Toast.makeText(context, msg, Toast.LENGTH_LONG).show();
-                return;
-            }
-
             dismissFloatingCard();
-
-            WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
-            if (wm == null) return;
-
-            View cardView = buildTranslationCardView(
-                    context,
-                    term,
-                    UMEDTDictionaryPopupEngine::dismissFloatingCard,
-                    () -> scheduleAutoDismiss(11000L)
-            );
-
-            int overlayType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                    ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                    : WindowManager.LayoutParams.TYPE_PHONE;
 
             int screenWidth = context.getResources().getDisplayMetrics().widthPixels;
             int cardWidth = Math.min(screenWidth - dp(context, 24), dp(context, 460));
+            int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                    | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
 
-            WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                    cardWidth,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    overlayType,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                            | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                            | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                    PixelFormat.TRANSLUCENT
-            );
-            params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-            params.y = dp(context, 44);
+            // Priority 1: Try Accessibility Overlay via active UMEDTAutoTranslateAccessibilityService instance
+            UMEDTAutoTranslateAccessibilityService a11y = UMEDTAutoTranslateAccessibilityService.getActiveInstance();
+            if (a11y != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                try {
+                    WindowManager a11yWm = (WindowManager) a11y.getSystemService(Context.WINDOW_SERVICE);
+                    if (a11yWm != null) {
+                        View a11yCard = buildTranslationCardView(
+                                a11y,
+                                term,
+                                UMEDTDictionaryPopupEngine::dismissFloatingCard,
+                                () -> scheduleAutoDismiss(11000L)
+                        );
+                        WindowManager.LayoutParams a11yParams = new WindowManager.LayoutParams(
+                                cardWidth,
+                                WindowManager.LayoutParams.WRAP_CONTENT,
+                                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                                flags,
+                                PixelFormat.TRANSLUCENT
+                        );
+                        a11yParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+                        a11yParams.y = dp(a11y, 44);
+                        a11yWm.addView(a11yCard, a11yParams);
+                        activeFloatingView = a11yCard;
+                        activeWindowManager = a11yWm;
+                        scheduleAutoDismiss(10000L);
+                        return;
+                    }
+                } catch (Exception ignored) {
+                }
+            }
 
+            // Priority 2: Standard TYPE_APPLICATION_OVERLAY if SYSTEM_ALERT_WINDOW is granted
+            if (canDrawOverlays(context)) {
+                try {
+                    Context appCtx = context.getApplicationContext();
+                    WindowManager wm = (WindowManager) appCtx.getSystemService(Context.WINDOW_SERVICE);
+                    if (wm != null) {
+                        View cardView = buildTranslationCardView(
+                                appCtx,
+                                term,
+                                UMEDTDictionaryPopupEngine::dismissFloatingCard,
+                                () -> scheduleAutoDismiss(11000L)
+                        );
+                        int overlayType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                                : WindowManager.LayoutParams.TYPE_PHONE;
+                        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                                cardWidth,
+                                WindowManager.LayoutParams.WRAP_CONTENT,
+                                overlayType,
+                                flags,
+                                PixelFormat.TRANSLUCENT
+                        );
+                        params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+                        params.y = dp(appCtx, 44);
+                        wm.addView(cardView, params);
+                        activeFloatingView = cardView;
+                        activeWindowManager = wm;
+                        scheduleAutoDismiss(10000L);
+                        return;
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+
+            // Priority 3: Fallback to launching UMEDTPopupCardActivity to render the visual card in its translucent window
             try {
-                wm.addView(cardView, params);
-                activeFloatingView = cardView;
-                activeWindowManager = wm;
-                scheduleAutoDismiss(10000L);
+                Context starter = a11y != null ? a11y : context;
+                Intent popupIntent = new Intent(starter, UMEDTPopupCardActivity.class);
+                popupIntent.putExtra(UMEDTPopupCardActivity.EXTRA_MATCHED_TERM_JSON, term.toString());
+                popupIntent.addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK
+                                | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                | Intent.FLAG_ACTIVITY_SINGLE_TOP
+                                | Intent.FLAG_ACTIVITY_NO_ANIMATION
+                                | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+                );
+                starter.startActivity(popupIntent);
+                return;
             } catch (Exception ignored) {
             }
+
+            String title = term.optString("term", "");
+            String tr = term.optString("translation", "");
+            String def = term.optString("definitionAr", "");
+            String msg = "📖 " + title + " : " + tr + (def.isEmpty() ? "" : "\n" + def);
+            Toast.makeText(context.getApplicationContext(), msg, Toast.LENGTH_LONG).show();
         });
     }
 

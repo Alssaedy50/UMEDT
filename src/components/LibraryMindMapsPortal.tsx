@@ -86,9 +86,10 @@ export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showTo
   };
   const share = async () => {
     if (!activeMap) return;
-    const layout = computeMindMapLayout(activeMap);
-    const safe = activeMap.title.replace(/[^\\w\\u0600-\\u06FF-]+/g, '-').slice(0, 48) || 'mind-map';
-    const result = await shareFileWithVerification({ filename: safe + '.html', content: buildStandaloneMindMapHtmlV2(activeMap, layout), mime: 'text/html;charset=utf-8', title: activeMap.title, text: 'خريطة UMEDT تفاعلية مستقلة' });
+    const layout = computeMindMapLayout(activeMap, new Set());
+    const isDark = typeof window !== 'undefined' && window.document.documentElement.classList.contains('dark');
+    const safe = activeMap.title.replace(/[^\w\u0600-\u06FF-]+/g, '-').slice(0, 48) || 'mind-map';
+    const result = await shareFileWithVerification({ filename: safe + '.html', content: buildStandaloneMindMapHtmlV2(activeMap, layout, isDark), mime: 'text/html;charset=utf-8', title: activeMap.title, text: 'خريطة UMEDT تفاعلية مستقلة' });
     showToast(result.messageAr);
   };
   const copyPrompt = async () => {
@@ -166,7 +167,10 @@ export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showTo
         <main className="min-h-0 overflow-y-auto p-3 sm:p-5 space-y-3">
           {!activeMap || !currentNode ? <div className="h-full min-h-48 grid place-items-center text-center text-slate-500"><div><Network className="w-10 h-10 mx-auto mb-2 opacity-40"/><p className="text-sm font-bold">استورد خريطة لبدء العرض التفاعلي</p></div></div> : <>
             <div className="flex items-center justify-between gap-2"><div className="min-w-0"><h3 className="font-black text-sm sm:text-base truncate">{activeMap.title}</h3><p className="text-[11px] text-slate-500">العقدة {step+1} من {orderedNodes.length} · العرض التسلسلي</p></div><button onClick={()=>{if(window.confirm('حذف الخريطة من مكتبتي؟')){deleteMindMap(activeMap.id);setMaps(loadMindMaps());setActiveId(null);setStep(0);}}} className="text-[11px] font-bold text-rose-600">حذف</button></div>
-            <label className="block text-[11px] font-bold">ارتباط الخريطة بموضوع<select value={activeMap.linkedTopicId || ''} onChange={e=>{const next={...activeMap,linkedTopicId:e.target.value || undefined,updatedAt:new Date().toISOString()};upsertMindMap(next);refresh(next);}} className="mt-1 w-full min-h-10 rounded-lg bg-slate-100 dark:bg-slate-800 p-2"><option value="">غير مرتبطة</option>{topics.map(t=><option key={t.id} value={t.id}>{t.titleAr || t.titleEn || t.title}</option>)}</select></label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block text-[11px] font-bold">طريقة عرض الخريطة<select value={activeMap.style || 'radial'} onChange={e=>{const next={...activeMap,style:e.target.value as MindMapDocument['style'],nodes:activeMap.nodes.map(n=>({...n,position:undefined})),updatedAt:new Date().toISOString()};upsertMindMap(next);refresh(next);}} className="mt-1 w-full min-h-10 rounded-lg bg-slate-100 dark:bg-slate-800 p-2"><option value="radial">شعاعية متوازنة (Radial)</option><option value="hierarchical">شجرة هرمية (Hierarchical)</option><option value="medical_flow">مسار سريري (Medical Flow)</option></select></label>
+              <label className="block text-[11px] font-bold">ارتباط الخريطة بموضوع<select value={activeMap.linkedTopicId || ''} onChange={e=>{const next={...activeMap,linkedTopicId:e.target.value || undefined,updatedAt:new Date().toISOString()};upsertMindMap(next);refresh(next);}} className="mt-1 w-full min-h-10 rounded-lg bg-slate-100 dark:bg-slate-800 p-2"><option value="">غير مرتبطة</option>{topics.map(t=><option key={t.id} value={t.id}>{t.titleAr || t.titleEn || t.title}</option>)}</select></label>
+            </div>
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
               <div className="p-4 sm:p-6 min-h-40" style={{background:`linear-gradient(135deg,${currentNode.color || '#0f766e'}20,transparent)`}}>
                 <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 mb-3"><span className="w-2.5 h-2.5 rounded-full" style={{background:currentNode.color || '#0f766e'}}/>{currentNode.role || 'concept'} · {currentNode.shape || 'rounded'}</div>
@@ -190,6 +194,6 @@ export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showTo
         </main>
       </div>
     </section>
-    {showGraphViewer && activeMap && <MindMapFullScreenViewer mapDocument={activeMap} onClose={()=>setShowGraphViewer(false)} showToast={showToast}/>} 
+    {showGraphViewer && activeMap && <MindMapFullScreenViewer mapDocument={activeMap} onClose={()=>setShowGraphViewer(false)} showToast={showToast} onChangeDocument={next=>{upsertMindMap(next);refresh(next);}}/>} 
   </div>;
 };

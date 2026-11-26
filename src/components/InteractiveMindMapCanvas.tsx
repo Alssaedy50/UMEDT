@@ -131,14 +131,30 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(
-    () => new Set(doc.nodes.filter((node) => node.id !== doc.rootNodeId && doc.nodes.some((child) => child.parentId === node.id)).map((node) => node.id))
+    () =>
+      new Set(
+        doc.nodes
+          .filter(
+            (node) =>
+              node.id !== doc.rootNodeId &&
+              doc.nodes.some((child) => child.parentId === node.id)
+          )
+          .map((node) => node.id)
+      )
   );
+  const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(() => new Set());
+  const [localStyle, setLocalStyle] = useState<MindMapStyle>(doc.style || 'radial');
+  useEffect(() => {
+    setLocalStyle(doc.style || 'radial');
+  }, [doc.id, doc.style]);
+
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(doc.rootNodeId || null);
   const [zoom, setZoom] = useState<number>(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showSearch, setShowSearch] = useState<boolean>(false);
   const [isFullScreenViewerOpen, setIsFullScreenViewerOpen] = useState<boolean>(false);
+  const [pendingFocusNodeId, setPendingFocusNodeId] = useState<string | null>(null);
 
   // Editing states inside Inspector
   const [isEditingNode, setIsEditingNode] = useState<boolean>(false);
@@ -154,7 +170,14 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
   const [pendingEdgeLabel, setPendingEdgeLabel] = useState<string>('');
   const [pendingEdgeDashed, setPendingEdgeDashed] = useState<boolean>(false);
 
-  // Pointer drag state (pan canvas OR drag node)
+  // Pointer drag state (pan canvas, pinch zoom, OR drag node)
+  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchStateRef = useRef<{
+    startDist: number;
+    startZoom: number;
+    worldX: number;
+    worldY: number;
+  } | null>(null);
   const dragStateRef = useRef<{
     kind: 'pan' | 'node';
     nodeId?: string;
@@ -166,10 +189,53 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
     origNodeY: number;
     moved: boolean;
   } | null>(null);
+  const [dragNodeOverride, setDragNodeOverride] = useState<{
+    nodeId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const effectiveHiddenIds = useMemo(() => {
+    if (hiddenNodeIds.size === 0) return new Set<string>();
+    const hidden = new Set<string>();
+    hiddenNodeIds.forEach((id) => {
+      if (id !== doc.rootNodeId) hidden.add(id);
+    });
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const n of doc.nodes) {
+        if (n.parentId && hidden.has(n.parentId) && !hidden.has(n.id)) {
+          hidden.add(n.id);
+          changed = true;
+        }
+      }
+    }
+    return hidden;
+  }, [hiddenNodeIds, doc.nodes, doc.rootNodeId]);
+
+  const effectiveDoc = useMemo(() => {
+    const styleChanged = localStyle !== doc.style;
+    const baseNodes = doc.nodes
+      .filter((n) => !effectiveHiddenIds.has(n.id))
+      .map((n) => {
+        if (dragNodeOverride && n.id === dragNodeOverride.nodeId) {
+          return { ...n, position: { x: dragNodeOverride.x, y: dragNodeOverride.y } };
+        }
+        return styleChanged ? { ...n, position: undefined } : n;
+      });
+    const validIds = new Set(baseNodes.map((n) => n.id));
+    return {
+      ...doc,
+      style: localStyle,
+      nodes: baseNodes,
+      edges: doc.edges.filter((e) => validIds.has(e.sourceId) && validIds.has(e.targetId))
+    };
+  }, [doc, localStyle, effectiveHiddenIds, dragNodeOverride]);
 
   const layout = useMemo(
-    () => computeMindMapLayout(doc, collapsedIds),
-    [doc, collapsedIds]
+    () => computeMindMapLayout(effectiveDoc, collapsedIds),
+    [effectiveDoc, collapsedIds]
   );
 
   const hasCustomPositions = useMemo(
@@ -191,7 +257,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
 
     const scaleX = cw / Math.max(1, width);
     const scaleY = ch / Math.max(1, height);
-    const nextZoom = Math.max(0.42, Math.min(1.15, Math.min(scaleX, scaleY) * 0.92));
+    const nextZoom = Math.max(0.24, Math.min(1.18, Math.min(scaleX, scaleY) * 0.92));
 
     const centerX = minX + width / 2;
     const centerY = minY + height / 2;
@@ -202,23 +268,91 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
     });
   }, [layout.bounds]);
 
+  /**
+   * Frames a target node and all of its currently visible direct child cards
+   * inside the canvas viewport so revealed cards never get clipped off-screen.
+   */
+  const focusNodeCluster = useCallback(
+    (nodeId: string) => {
+      const el = containerRef.current;
+      if (!el) return;
+      const target = layout.nodes.find((n) => n.node.id === nodeId);
+      if (!target) return;
+      const cluster = [target, ...layout.nodes.filter((n) => n.node.parentId === nodeId)];
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const pn of cluster) {
+        const l = pn.x - pn.width / 2;
+        const t = pn.y - pn.height / 2;
+        const r = pn.x + pn.width / 2;
+        const b = pn.y + pn.height / 2 + 16;
+        if (l < minX) minX = l;
+        if (t < minY) minY = t;
+        if (r > maxX) maxX = r;
+        if (b > maxY) maxY = b;
+      }
+      const rect = el.getBoundingClientRect();
+      const cw = Math.max(260, rect.width - 24);
+      const ch = Math.max(200, rect.height - 40);
+      const clusterW = Math.max(150, maxX - minX + 56);
+      const clusterH = Math.max(100, maxY - minY + 56);
+      const fitScale = Math.min(cw / clusterW, ch / clusterH);
+      const nextZoom = Number(
+        (cluster.length > 1
+          ? Math.max(0.26, Math.min(1.12, fitScale))
+          : Math.max(0.68, Math.min(1.14, Math.min(zoom < 0.68 ? 0.92 : zoom, fitScale)))
+        ).toFixed(2)
+      );
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      setZoom(nextZoom);
+      setPan({
+        x: rect.width / 2 - cx * nextZoom,
+        y: (rect.height - 16) / 2 - cy * nextZoom
+      });
+    },
+    [layout.nodes, zoom]
+  );
+
+  useEffect(() => {
+    if (!pendingFocusNodeId) return;
+    const id = pendingFocusNodeId;
+    setPendingFocusNodeId(null);
+    const frame = window.requestAnimationFrame(() => focusNodeCluster(id));
+    return () => window.cancelAnimationFrame(frame);
+  }, [pendingFocusNodeId, layout, focusNodeCluster]);
+
   // Auto-fit on document switch or style change
   const lastFitKeyRef = useRef<string>('');
   useEffect(() => {
-    const key = `${doc.id}::${doc.style}`;
+    const key = `${doc.id}::${localStyle}`;
     if (lastFitKeyRef.current !== key) {
       lastFitKeyRef.current = key;
       const timer = window.setTimeout(() => fitToView(), 30);
       return () => window.clearTimeout(timer);
     }
-  }, [doc.id, doc.style, fitToView]);
+  }, [doc.id, localStyle, fitToView]);
 
-  // Reset selected node when switching documents
+  // Reset selected node when switching documents (keep root expanded so first-level branches are visible)
   useEffect(() => {
     setSelectedNodeId(doc.rootNodeId || doc.nodes[0]?.id || null);
-    setCollapsedIds(new Set(doc.nodes.filter((node) => doc.nodes.some((child) => child.parentId === node.id)).map((node) => node.id)));
+    setHiddenNodeIds(new Set());
+    setCollapsedIds(
+      new Set(
+        doc.nodes
+          .filter(
+            (node) =>
+              node.id !== doc.rootNodeId &&
+              doc.nodes.some((child) => child.parentId === node.id)
+          )
+          .map((node) => node.id)
+      )
+    );
     setIsEditingNode(false);
     setLinkSourceId(null);
+    setDragNodeOverride(null);
   }, [doc.id, doc.rootNodeId]);
 
   const selectedNode = useMemo(
@@ -250,6 +384,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
 
   const toggleCollapseNode = (nodeId: string, e?: React.MouseEvent | React.PointerEvent) => {
     e?.stopPropagation();
+    setSelectedNodeId(nodeId);
     setCollapsedIds((prev) => {
       const next = new Set(prev);
       if (next.has(nodeId)) {
@@ -259,17 +394,41 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
       }
       return next;
     });
+    setPendingFocusNodeId(nodeId);
+  };
+
+  const handleExpandAllBranches = () => {
+    setHiddenNodeIds(new Set());
+    setCollapsedIds(new Set());
+    window.setTimeout(() => fitToView(), 40);
+  };
+
+  const handleCollapseSubBranches = () => {
+    setCollapsedIds(
+      new Set(
+        doc.nodes
+          .filter(
+            (node) =>
+              node.id !== doc.rootNodeId &&
+              doc.nodes.some((child) => child.parentId === node.id)
+          )
+          .map((node) => node.id)
+      )
+    );
+    window.setTimeout(() => fitToView(), 40);
   };
 
   const handleStyleChange = (nextStyle: MindMapStyle) => {
-    if (!onChangeDocument || doc.style === nextStyle) return;
-    // Clear manual positions when switching styles so layout engine arranges cleanly
-    onChangeDocument({
-      ...doc,
-      style: nextStyle,
-      nodes: doc.nodes.map((n) => ({ ...n, position: undefined })),
-      updatedAt: new Date().toISOString()
-    });
+    if (localStyle === nextStyle) return;
+    setLocalStyle(nextStyle);
+    if (onChangeDocument) {
+      onChangeDocument({
+        ...doc,
+        style: nextStyle,
+        nodes: doc.nodes.map((n) => ({ ...n, position: undefined })),
+        updatedAt: new Date().toISOString()
+      });
+    }
   };
 
   const handleResetAutoLayout = () => {
@@ -408,10 +567,38 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
     }
 
     setSelectedNodeId(pNode.node.id);
+    if (pNode.hasChildren && pNode.isCollapsed) {
+      setCollapsedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(pNode.node.id);
+        return next;
+      });
+    }
+    setPendingFocusNodeId(pNode.node.id);
   };
 
-  // Pointer handlers for smooth pan & node drag
+  // Pointer handlers for smooth pan, two-finger pinch zoom & node drag
   const handleCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+
+    if (pointersRef.current.size >= 2) {
+      const pts = Array.from(pointersRef.current.values()).slice(0, 2);
+      const dist = Math.max(1, Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y));
+      const rect = containerRef.current?.getBoundingClientRect();
+      const midX = (pts[0].x + pts[1].x) / 2 - (rect?.left || 0);
+      const midY = (pts[0].y + pts[1].y) / 2 - (rect?.top || 0);
+      pinchStateRef.current = {
+        startDist: dist,
+        startZoom: zoom,
+        worldX: (midX - pan.x) / zoom,
+        worldY: (midY - pan.y) / zoom
+      };
+      dragStateRef.current = null;
+      return;
+    }
+
     if ((e.target as HTMLElement).closest('[data-mm-interactive="true"]')) return;
     dragStateRef.current = {
       kind: 'pan',
@@ -423,13 +610,15 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
       origNodeY: 0,
       moved: false
     };
-    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
   };
 
   const handleNodePointerDown = (
     pNode: PositionedMindMapNode,
     e: React.PointerEvent<HTMLDivElement>
   ) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointersRef.current.size >= 2) return;
     e.stopPropagation();
     dragStateRef.current = {
       kind: editable && onChangeDocument ? 'node' : 'pan',
@@ -445,6 +634,28 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
   };
 
   const handleCanvasPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (pointersRef.current.has(e.pointerId)) {
+      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+
+    if (pointersRef.current.size >= 2 && pinchStateRef.current) {
+      const pts = Array.from(pointersRef.current.values()).slice(0, 2);
+      const dist = Math.max(1, Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y));
+      const rect = containerRef.current?.getBoundingClientRect();
+      const midX = (pts[0].x + pts[1].x) / 2 - (rect?.left || 0);
+      const midY = (pts[0].y + pts[1].y) / 2 - (rect?.top || 0);
+      const ps = pinchStateRef.current;
+      const nextZoom = Number(
+        Math.max(0.28, Math.min(2.6, (ps.startZoom * dist) / ps.startDist)).toFixed(2)
+      );
+      setZoom(nextZoom);
+      setPan({
+        x: midX - ps.worldX * nextZoom,
+        y: midY - ps.worldY * nextZoom
+      });
+      return;
+    }
+
     const st = dragStateRef.current;
     if (!st) return;
     const dx = e.clientX - st.startClientX;
@@ -459,17 +670,31 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
     } else if (st.kind === 'node' && st.nodeId && onChangeDocument) {
       const nextX = Math.round(st.origNodeX + dx / zoom);
       const nextY = Math.round(st.origNodeY + dy / zoom);
-      onChangeDocument({
-        ...doc,
-        nodes: doc.nodes.map((n) =>
-          n.id === st.nodeId ? { ...n, position: { x: nextX, y: nextY } } : n
-        )
-      });
+      setDragNodeOverride({ nodeId: st.nodeId, x: nextX, y: nextY });
     }
   };
 
-  const handleCanvasPointerUp = () => {
-    dragStateRef.current = null;
+  const handleCanvasPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    pointersRef.current.delete(e.pointerId);
+    if (pointersRef.current.size < 2) {
+      pinchStateRef.current = null;
+    }
+    if (dragNodeOverride && onChangeDocument) {
+      const committed = dragNodeOverride;
+      setDragNodeOverride(null);
+      onChangeDocument({
+        ...doc,
+        nodes: doc.nodes.map((n) =>
+          n.id === committed.nodeId
+            ? { ...n, position: { x: committed.x, y: committed.y } }
+            : n
+        ),
+        updatedAt: new Date().toISOString()
+      });
+    }
+    window.setTimeout(() => {
+      dragStateRef.current = null;
+    }, 0);
   };
 
   const handleWheelZoom = (e: React.WheelEvent<HTMLDivElement>) => {
@@ -479,7 +704,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
     const rect = e.currentTarget.getBoundingClientRect();
     const cursorX = e.clientX - rect.left;
     const cursorY = e.clientY - rect.top;
-    const nextZoom = Number(Math.max(0.4, Math.min(2.3, zoom * (e.deltaY < 0 ? 1.1 : 0.9))).toFixed(2));
+    const nextZoom = Number(Math.max(0.28, Math.min(2.5, zoom * (e.deltaY < 0 ? 1.1 : 0.9))).toFixed(2));
     const worldX = (cursorX - pan.x) / zoom;
     const worldY = (cursorY - pan.y) / zoom;
     setZoom(nextZoom);
@@ -490,7 +715,8 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
     const isDarkMode =
       typeof window !== 'undefined' &&
       window.document.documentElement.classList.contains('dark');
-    const svg = buildStandaloneMindMapSvg(doc, layout, isDarkMode);
+    const fullLayout = computeMindMapLayout(doc, new Set());
+    const svg = buildStandaloneMindMapSvg(doc, fullLayout, isDarkMode);
     const safeName = (doc.title || 'mind-map')
       .replace(/[^\w\u0600-\u06FF-]+/g, '-')
       .slice(0, 48);
@@ -516,7 +742,8 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
 
   const createStandaloneHtml = () => {
     const dark = typeof window !== 'undefined' && window.document.documentElement.classList.contains('dark');
-    return buildStandaloneMindMapHtml(doc, layout, dark);
+    const fullLayout = computeMindMapLayout(doc, new Set());
+    return buildStandaloneMindMapHtml(doc, fullLayout, dark);
   };
   const getHtmlFilename = () => {
     const safe = (doc.title || 'mind-map').replace(/[^\w\u0600-\u06FF-]+/g, '-').slice(0, 48);
@@ -554,12 +781,11 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
         {/* Style Switcher */}
         <div className="flex items-center gap-1 p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
           {STYLE_LABELS.map((st) => {
-            const active = doc.style === st.id;
+            const active = localStyle === st.id;
             return (
               <button
                 key={st.id}
                 type="button"
-                disabled={!onChangeDocument}
                 onClick={() => handleStyleChange(st.id)}
                 className={`px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold whitespace-nowrap transition-colors ${
                   active
@@ -573,7 +799,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
           })}
         </div>
 
-        {/* Fit, Search & Export Controls */}
+        {/* Fit, Expand/Collapse, Search & Export Controls */}
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
@@ -585,6 +811,16 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
             <span className="hidden sm:inline">
               {hasCustomPositions ? 'ترتيب تلقائي' : 'توسيط'}
             </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={collapsedIds.size > 0 ? handleExpandAllBranches : handleCollapseSubBranches}
+            className="min-h-[34px] px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1 hover:border-emerald-500/60"
+            title={collapsedIds.size > 0 ? 'توسيع جميع الفروع' : 'طي الفروع الفرعية'}
+          >
+            <GitBranch className="w-3.5 h-3.5 text-emerald-500" />
+            <span>{collapsedIds.size > 0 ? 'توسيع الكل' : 'طي الفروع'}</span>
           </button>
 
           <button
@@ -798,6 +1034,16 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
             const isLinkSource = linkSourceId === pNode.node.id;
             const isSearchMatch = searchMatches.has(pNode.node.id);
             const isDimmed = searchMatches.size > 0 && !isSearchMatch;
+            const customColor = pNode.node.color;
+            const shape = pNode.node.shape || 'rounded';
+            const radiusClass =
+              shape === 'pill' || shape === 'circle'
+                ? 'rounded-full'
+                : shape === 'diamond'
+                  ? 'rounded-lg'
+                  : shape === 'hexagon'
+                    ? 'rounded-xl'
+                    : 'rounded-2xl';
 
             return (
               <div
@@ -813,10 +1059,17 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                   width: `${pNode.width}px`,
                   minHeight: `${pNode.height}px`,
                   left: `${pNode.x - pNode.width / 2}px`,
-                  top: `${pNode.y - pNode.height / 2}px`
+                  top: `${pNode.y - pNode.height / 2}px`,
+                  ...(customColor
+                    ? {
+                        backgroundColor: customColor,
+                        borderColor: customColor,
+                        color: '#ffffff'
+                      }
+                    : {})
                 }}
-                className={`absolute rounded-2xl border-2 px-3 py-2 flex flex-col items-center justify-center text-center transition-shadow cursor-pointer select-none ${
-                  roleMeta.cardClass
+                className={`absolute ${radiusClass} border-2 px-3 py-2 flex flex-col items-center justify-center text-center transition-shadow cursor-pointer select-none ${
+                  customColor ? 'text-white shadow-sm' : roleMeta.cardClass
                 } ${
                   isSelected
                     ? 'ring-3 ring-emerald-500/45 shadow-lg z-20'
@@ -875,17 +1128,56 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
           })}
         </div>
 
-        {/* Bottom Canvas Info & Role Legend */}
+        {/* Bottom Canvas Info & Quick Zoom Controls */}
         <div className="absolute bottom-2 right-2 left-2 pointer-events-none flex flex-wrap items-center justify-between gap-2">
           <div className="px-2.5 py-1 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xs border border-slate-200/80 dark:border-slate-800/80 text-[10px] font-bold text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-2 pointer-events-auto">
             <span className="font-mono tabular-nums">
-              {doc.nodes.length} عقدة · {doc.edges.length} علاقة
+              {effectiveDoc.nodes.length} عقدة · {effectiveDoc.edges.length} علاقة
             </span>
+            {hiddenNodeIds.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setHiddenNodeIds(new Set())}
+                className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold"
+              >
+                إظهار العقد المخفية ({hiddenNodeIds.size})
+              </button>
+            )}
             {!compact && (
               <span className="hidden sm:inline text-slate-400">
-                اسحب الخلفية للتحريك · انقر على أي عقدة للتفاصيل
+                اسحب الخلفية للتحريك · انقر على أي عقدة لإظهار فروعها وتفاصيلها
               </span>
             )}
+          </div>
+          <div
+            data-mm-interactive="true"
+            onPointerDown={(e) => e.stopPropagation()}
+            className="flex items-center gap-1 rounded-xl bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 p-1 shadow-sm pointer-events-auto"
+          >
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Number(Math.max(0.22, z * 0.84).toFixed(2)))}
+              className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-black text-xs flex items-center justify-center"
+              title="تصغير الشاشة"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              onClick={fitToView}
+              className="px-2 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-mono text-[10px] font-extrabold"
+              title="ملاءمة جميع البطائق"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Number(Math.min(2.6, z * 1.18).toFixed(2)))}
+              className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-black text-xs flex items-center justify-center"
+              title="تكبير الشاشة"
+            >
+              +
+            </button>
           </div>
         </div>
       </div>
@@ -1140,9 +1432,10 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
       )}
       {isFullScreenViewerOpen && (
         <MindMapFullScreenViewer
-          mapDocument={doc}
+          mapDocument={effectiveDoc}
           onClose={() => setIsFullScreenViewerOpen(false)}
           showToast={showToast}
+          onChangeDocument={onChangeDocument}
         />
       )}
     </div>

@@ -17,7 +17,7 @@ import java.util.Locale;
  * Zero-Keyboard Automatic Translation Accessibility Service for UMEDT.
  * Allows automatic floating translation cards on Copy or Text Selection across ALL apps
  * (PDF readers, Chrome, Telegram, WhatsApp, Notes) while letting the user keep using
- * ANY keyboard (Gboard, Samsung Keyboard, SwiftKey, Xiaomi Keyboard) — without setting UMEDT as keyboard.
+ * ANY keyboard (Gboard, Samsung Keyboard, SwiftKey, Xiaomi Keyboard) — even when UMEDT is completely closed.
  *
  * Privacy guarantee:
  * - Does NOT subscribe to TYPE_VIEW_TEXT_CHANGED (zero keystroke logging).
@@ -26,32 +26,47 @@ import java.util.Locale;
 public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService {
 
     private static volatile boolean serviceConnected = false;
+    private static volatile UMEDTAutoTranslateAccessibilityService activeInstance = null;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private String lastSelectedText = "";
-    private long lastSelectedTimestampMs = 0L;
+    private volatile String lastSelectedText = "";
+    private volatile long lastSelectedTimestampMs = 0L;
     private String lastHandledTermKey = "";
     private long lastHandledTimestampMs = 0L;
     private long lastCopyTriggerTimestampMs = 0L;
 
     public static boolean isServiceConnected() {
-        return serviceConnected;
+        return serviceConnected && activeInstance != null;
+    }
+
+    public static UMEDTAutoTranslateAccessibilityService getActiveInstance() {
+        return activeInstance;
+    }
+
+    public String getRecentSelectedText(long maxAgeMs) {
+        if (lastSelectedText == null || lastSelectedText.isEmpty()) return "";
+        if (System.currentTimeMillis() - lastSelectedTimestampMs <= maxAgeMs) {
+            return lastSelectedText;
+        }
+        return "";
     }
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
+        activeInstance = this;
         serviceConnected = true;
 
-        // The Accessibility service is managed by Android and can remain active
-        // after the UMEDT activity is dismissed. Ensure clipboard monitoring is
-        // started whenever this persistent service reconnects.
+        // The Accessibility service is managed by Android and remains active even when
+        // the UMEDT app is completely closed. Ensure clipboard monitoring is started.
         UMEDTClipboardMonitorService.startMonitorIfEnabled(getApplicationContext());
     }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event == null) return;
+        activeInstance = this;
+        serviceConnected = true;
 
         CharSequence pkgSeq = event.getPackageName();
         String pkgName = pkgSeq != null ? pkgSeq.toString() : "";
@@ -69,7 +84,7 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
         // 1. Track text selection in any external app (works even without background clipboard access)
         if (eventType == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED) {
             String selected = extractSelectedText(event);
-            if (!selected.isEmpty() && selected.length() <= 160 && !UMEDTDictionaryPopupEngine.shouldIgnoreText(selected)) {
+            if (!selected.isEmpty() && selected.length() <= 180 && !UMEDTDictionaryPopupEngine.shouldIgnoreText(selected)) {
                 lastSelectedText = selected;
                 lastSelectedTimestampMs = System.currentTimeMillis();
 
@@ -96,29 +111,34 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
         }
     }
 
-    private void triggerCopyLookup() {
+    public void triggerCopyLookup() {
         long now = System.currentTimeMillis();
-        if (now - lastCopyTriggerTimestampMs < 550L) {
+        if (now - lastCopyTriggerTimestampMs < 400L) {
             return;
         }
         lastCopyTriggerTimestampMs = now;
 
         // Priority 1: If we just captured the highlighted text before the user tapped Copy, look it up directly in 0ms!
-        if (!lastSelectedText.isEmpty() && (now - lastSelectedTimestampMs) < 12000L) {
+        if (!lastSelectedText.isEmpty() && (now - lastSelectedTimestampMs) < 20000L) {
             if (tryShowTranslationForText(lastSelectedText, false)) {
                 return;
             }
         }
 
-        // Priority 2: Direct clipboard inspection (works on Android <= 9 or when OEM allows)
+        // Priority 1b: Try scanning active window root for any active text selection
+        String windowSelected = extractActiveWindowSelection();
+        if (!windowSelected.isEmpty() && tryShowTranslationForText(windowSelected, false)) {
+            return;
+        }
+
+        // Priority 2: Direct clipboard inspection (works on Android <= 9 or when OEM allows AccessibilityService)
         JSONObject direct = UMEDTDictionaryPopupEngine.inspectClipboardAndShowIfMatched(this, false);
         if (direct != null) {
             return;
         }
 
-        // Priority 3: On Android 10+, an active AccessibilityService can launch our zero-flicker
-        // translucent UMEDTPopupCardActivity briefly to read clipboard legally when Copy was pressed
-        // (e.g., Telegram "Copy Message" button without prior selection), show overlay if matched, and exit in ~25ms.
+        // Priority 3: On Android 10+, an active AccessibilityService is explicitly permitted by Android OS
+        // to start an Activity from the background even when the main UMEDT app is completely closed!
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             mainHandler.postDelayed(() -> {
                 try {
@@ -135,7 +155,7 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
                     startActivity(popupIntent);
                 } catch (Exception ignored) {
                 }
-            }, 90L);
+            }, 70L);
         }
     }
 
@@ -143,18 +163,19 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
         if (rawText == null || rawText.trim().isEmpty()) return false;
         if (UMEDTDictionaryPopupEngine.shouldIgnoreText(rawText)) return false;
 
-        JSONObject matched = UMEDTDictionaryPopupEngine.findTerm(getApplicationContext(), rawText.trim());
+        JSONObject matched = UMEDTDictionaryPopupEngine.findTerm(this, rawText.trim());
         if (matched == null) return false;
 
         String termKey = matched.optString("term", "") + "|" + matched.optString("translation", "");
         long now = System.currentTimeMillis();
-        if (!forceShow && termKey.equals(lastHandledTermKey) && (now - lastHandledTimestampMs) < 1800L) {
+        if (!forceShow && termKey.equals(lastHandledTermKey) && (now - lastHandledTimestampMs) < 1600L) {
             return true;
         }
         lastHandledTermKey = termKey;
         lastHandledTimestampMs = now;
 
-        UMEDTDictionaryPopupEngine.showFloatingCard(getApplicationContext(), matched, forceShow);
+        // Pass 'this' (AccessibilityService context) so showFloatingCard can use TYPE_ACCESSIBILITY_OVERLAY directly!
+        UMEDTDictionaryPopupEngine.showFloatingCard(this, matched, forceShow);
         return true;
     }
 
@@ -166,11 +187,9 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
                     if (source.isPassword()) {
                         return "";
                     }
-                    CharSequence fullText = source.getText();
-                    int start = source.getTextSelectionStart();
-                    int end = source.getTextSelectionEnd();
-                    if (fullText != null && start >= 0 && end > start && end <= fullText.length()) {
-                        return fullText.subSequence(start, end).toString().trim();
+                    String fromNode = extractSelectionFromNode(source, 0);
+                    if (!fromNode.isEmpty()) {
+                        return fromNode;
                     }
                 } finally {
                     source.recycle();
@@ -182,8 +201,74 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
             List<CharSequence> texts = event.getText();
             if (texts != null && !texts.isEmpty() && texts.get(0) != null) {
                 CharSequence t = texts.get(0);
-                if (from >= 0 && to > from && to <= t.length()) {
-                    return t.subSequence(from, to).toString().trim();
+                int len = t.length();
+                if (from >= 0 && to > from) {
+                    if (to <= len) {
+                        return t.subSequence(from, to).toString().trim();
+                    }
+                    // In Chrome, WebViews, and PDF readers, event.getText().get(0) is often ALREADY
+                    // the selected substring while from/to are full-document character offsets!
+                    int selLen = to - from;
+                    if (len == selLen || (len <= 160 && selLen <= 160)) {
+                        return t.toString().trim();
+                    }
+                } else if (len > 0 && len <= 120) {
+                    return t.toString().trim();
+                }
+            }
+
+            CharSequence desc = event.getContentDescription();
+            if (desc != null && desc.length() > 0 && desc.length() <= 120) {
+                if (from >= 0 && to > from && to <= desc.length()) {
+                    return desc.subSequence(from, to).toString().trim();
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return "";
+    }
+
+    private String extractActiveWindowSelection() {
+        try {
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            if (root == null) return "";
+            try {
+                return extractSelectionFromNode(root, 0);
+            } finally {
+                root.recycle();
+            }
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private String extractSelectionFromNode(AccessibilityNodeInfo node, int depth) {
+        if (node == null || depth > 8) return "";
+        try {
+            if (node.isPassword()) return "";
+            CharSequence fullText = node.getText();
+            int start = node.getTextSelectionStart();
+            int end = node.getTextSelectionEnd();
+            if (fullText != null && start >= 0 && end >= 0 && start != end) {
+                int min = Math.min(start, end);
+                int max = Math.max(start, end);
+                if (max <= fullText.length()) {
+                    String sub = fullText.subSequence(min, max).toString().trim();
+                    if (!sub.isEmpty()) return sub;
+                } else if (fullText.length() <= 160) {
+                    return fullText.toString().trim();
+                }
+            }
+            int count = Math.min(node.getChildCount(), 24);
+            for (int i = 0; i < count; i++) {
+                AccessibilityNodeInfo child = node.getChild(i);
+                if (child != null) {
+                    try {
+                        String res = extractSelectionFromNode(child, depth + 1);
+                        if (!res.isEmpty()) return res;
+                    } finally {
+                        child.recycle();
+                    }
                 }
             }
         } catch (Exception ignored) {
@@ -214,7 +299,7 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
                 }
             }
             String s = combined.toString().toLowerCase(Locale.ROOT);
-            return s.contains("copy") || s.contains("نسخ");
+            return s.contains("copy") || s.contains("نسخ") || s.contains("clipboard");
         } catch (Exception ignored) {
             return false;
         }
@@ -229,7 +314,7 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
                 if (c != null) combined.append(c).append(' ');
             }
             String s = combined.toString().toLowerCase(Locale.ROOT);
-            return s.contains("copied") || s.contains("تم النسخ") || s.contains("clipboard");
+            return s.contains("copied") || s.contains("تم النسخ") || s.contains("نسخ النص") || s.contains("clipboard");
         } catch (Exception ignored) {
             return false;
         }
@@ -243,6 +328,18 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
     @Override
     public boolean onUnbind(Intent intent) {
         serviceConnected = false;
+        if (activeInstance == this) {
+            activeInstance = null;
+        }
         return super.onUnbind(intent);
+    }
+
+    @Override
+    public void onDestroy() {
+        serviceConnected = false;
+        if (activeInstance == this) {
+            activeInstance = null;
+        }
+        super.onDestroy();
     }
 }

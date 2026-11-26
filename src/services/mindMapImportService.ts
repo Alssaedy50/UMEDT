@@ -584,7 +584,14 @@ function parseJsonMindMap(
       note: condensed.note,
       parentId,
       role: normalizeRole(rec.role ?? rec.type, condensed.label, depth),
-      order
+      order,
+      shape: ['rounded', 'pill', 'diamond', 'hexagon', 'circle'].includes(String(rec.shape))
+        ? (String(rec.shape) as MindMapNode['shape'])
+        : undefined,
+      color:
+        typeof rec.color === 'string' && /^#[0-9a-f]{6}$/i.test(rec.color.trim())
+          ? rec.color.trim()
+          : undefined
     });
 
     if (parentId && typeof rec.edgeLabel === 'string' && rec.edgeLabel.trim()) {

@@ -1,5 +1,6 @@
 package org.umed2.dictengine;
 
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -11,13 +12,14 @@ import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.SystemClock;
 
 import org.json.JSONObject;
 
 /**
  * Persistent background/foreground clipboard watcher service for UMEDT.
  * Listens for copy events across all apps and triggers the floating translation card
- * immediately when a copied word exists in the local medical dictionary, without opening MainActivity.
+ * immediately when a copied word exists in the local medical dictionary, even when MainActivity is completely closed.
  */
 public class UMEDTClipboardMonitorService extends Service {
     public static final String ACTION_START_MONITOR = "org.umed2.dictengine.ACTION_START_CLIPBOARD_MONITOR";
@@ -30,7 +32,7 @@ public class UMEDTClipboardMonitorService extends Service {
 
     private final ClipboardManager.OnPrimaryClipChangedListener clipListener = () -> {
         long now = System.currentTimeMillis();
-        if (now - lastClipEventMs < 450L) {
+        if (now - lastClipEventMs < 380L) {
             return;
         }
         lastClipEventMs = now;
@@ -89,15 +91,50 @@ public class UMEDTClipboardMonitorService extends Service {
         return START_STICKY;
     }
 
+    /**
+     * Critical fix: When the user swipes UMEDT away from Recent Apps (so the app is not in the background),
+     * schedule an immediate restart of UMEDTClipboardMonitorService so instant copy translation stays alive.
+     */
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        if (!UMEDTDictionaryPopupEngine.isClipboardMonitorEnabled(this)) {
+            return;
+        }
+        try {
+            Context appCtx = getApplicationContext();
+            Intent restartIntent = new Intent(appCtx, UMEDTClipboardMonitorService.class);
+            restartIntent.setAction(ACTION_START_MONITOR);
+            int pendingFlags = PendingIntent.FLAG_ONE_SHOT
+                    | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0);
+            PendingIntent pendingIntent = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                    ? PendingIntent.getForegroundService(appCtx, 20509, restartIntent, pendingFlags)
+                    : PendingIntent.getService(appCtx, 20509, restartIntent, pendingFlags);
+            AlarmManager alarmManager = (AlarmManager) appCtx.getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager != null && pendingIntent != null) {
+                alarmManager.set(
+                        AlarmManager.ELAPSED_REALTIME,
+                        SystemClock.elapsedRealtime() + 350L,
+                        pendingIntent
+                );
+            }
+            startMonitorIfEnabled(appCtx);
+        } catch (Exception ignored) {
+        }
+    }
+
     private void registerClipboardListener() {
         if (clipboardManager == null) {
             clipboardManager = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            if (clipboardManager != null) {
-                try {
-                    clipboardManager.removePrimaryClipChangedListener(clipListener);
-                } catch (Exception ignored) {
-                }
+        }
+        if (clipboardManager != null) {
+            try {
+                clipboardManager.removePrimaryClipChangedListener(clipListener);
+            } catch (Exception ignored) {
+            }
+            try {
                 clipboardManager.addPrimaryClipChangedListener(clipListener);
+            } catch (Exception ignored) {
             }
         }
     }
@@ -107,18 +144,34 @@ public class UMEDTClipboardMonitorService extends Service {
             return;
         }
 
-        // 1. Try direct clipboard inspection first (succeeds on Android <= 9 or when app/IME has focus)
-        JSONObject directMatch = UMEDTDictionaryPopupEngine.inspectClipboardAndShowIfMatched(this, false);
+        // 0. If UMEDTAutoTranslateAccessibilityService is active, let it check its captured selection or trigger lookup!
+        UMEDTAutoTranslateAccessibilityService a11y = UMEDTAutoTranslateAccessibilityService.getActiveInstance();
+        if (a11y != null) {
+            String recentSel = a11y.getRecentSelectedText(15000L);
+            if (!recentSel.isEmpty()) {
+                JSONObject matched = UMEDTDictionaryPopupEngine.findTerm(a11y, recentSel);
+                if (matched != null) {
+                    UMEDTDictionaryPopupEngine.showFloatingCard(a11y, matched, false);
+                    return;
+                }
+            }
+        }
+
+        // 1. Try direct clipboard inspection first (succeeds on Android <= 9 or when app/IME/Accessibility has focus)
+        Context lookupCtx = a11y != null ? a11y : this;
+        JSONObject directMatch = UMEDTDictionaryPopupEngine.inspectClipboardAndShowIfMatched(lookupCtx, false);
         if (directMatch != null) {
             return;
         }
 
         // 2. On Android 10+ (API 29+), background services cannot read getPrimaryClip() directly unless focused.
-        // If SYSTEM_ALERT_WINDOW permission is granted, launch the zero-UI translucent UMEDTPopupCardActivity
-        // which gains focus for ~15ms, reads clipboard, shows the overlay card if found in dictionary, and exits.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && UMEDTDictionaryPopupEngine.canDrawOverlays(this)) {
+        // Launch the zero-UI translucent UMEDTPopupCardActivity (which has its own taskAffinity="") to gain focus
+        // for ~20ms, read clipboard, show the floating card if found in dictionary, and exit.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                && (UMEDTDictionaryPopupEngine.canDrawOverlays(this) || a11y != null)) {
             try {
-                Intent popupIntent = new Intent(this, UMEDTPopupCardActivity.class);
+                Context starter = a11y != null ? a11y : this;
+                Intent popupIntent = new Intent(starter, UMEDTPopupCardActivity.class);
                 popupIntent.setAction(UMEDTPopupCardActivity.ACTION_CLIPBOARD_CHECK);
                 popupIntent.putExtra(UMEDTPopupCardActivity.EXTRA_FORCE_FEEDBACK, false);
                 popupIntent.addFlags(
@@ -128,7 +181,7 @@ public class UMEDTClipboardMonitorService extends Service {
                                 | Intent.FLAG_ACTIVITY_NO_ANIMATION
                                 | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
                 );
-                startActivity(popupIntent);
+                starter.startActivity(popupIntent);
             } catch (Exception ignored) {
             }
         }

@@ -52,6 +52,13 @@ export function normalizeMindMapDocument(raw: unknown): MindMapDocument | null {
             : 'concept'
       ) as MindMapNodeRole,
       order: typeof n.order === 'number' ? n.order : idx,
+      shape: ['rounded', 'pill', 'diamond', 'hexagon', 'circle'].includes(String(n.shape || ''))
+        ? (String(n.shape) as MindMapNode['shape'])
+        : undefined,
+      color:
+        typeof n.color === 'string' && /^#[0-9a-f]{6}$/i.test(n.color.trim())
+          ? n.color.trim()
+          : undefined,
       position:
         n.position &&
         typeof n.position === 'object' &&
@@ -605,9 +612,10 @@ export function buildStandaloneMindMapSvg(
     .map((e) => {
       const dash = e.lineStyle === 'dashed' ? ' stroke-dasharray="6 4"' : '';
       const marker = e.directed ? ' marker-end="url(#mm-arrow)"' : '';
+      const labelWidth = e.label ? Math.max(64, Math.min(220, Math.round(e.label.length * 7.2 + 22))) : 84;
       const edgeLabel = e.label
         ? `<g transform="translate(${e.labelX}, ${e.labelY})">
-             <rect x="-42" y="-11" width="84" height="20" rx="6" fill="${labelBg}" stroke="${edgeStroke}" stroke-width="1"/>
+             <rect x="${-Math.round(labelWidth / 2)}" y="-11" width="${labelWidth}" height="20" rx="6" fill="${labelBg}" stroke="${edgeStroke}" stroke-width="1"/>
              <text x="0" y="3" text-anchor="middle" font-family="Cairo, sans-serif" font-size="10" font-weight="700" fill="${labelText}">${escapeXml(e.label)}</text>
            </g>`
         : '';

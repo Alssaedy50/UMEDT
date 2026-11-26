@@ -1,8 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize2, Share2, X } from 'lucide-react';
-import { MindMapDocument } from '../types/mindMap';
+import {
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
+  GitBranch,
+  Layers,
+  Maximize2,
+  Minus,
+  Plus,
+  Share2,
+  X
+} from 'lucide-react';
+import { MindMapDocument, MindMapStyle } from '../types/mindMap';
 import { computeMindMapLayout } from '../services/mindMapLayoutEngine';
-import { buildStandaloneMindMapSvg } from '../services/mindMapStorageService';
+import { buildStandaloneMindMapSvg, upsertMindMap } from '../services/mindMapStorageService';
 import { buildStandaloneMindMapHtmlV2 as buildStandaloneMindMapHtml } from '../services/mindMapStandaloneExportServiceV2';
 import { shareFileWithVerification } from '../utils/downloadHelper';
 
@@ -10,13 +22,37 @@ interface MindMapFullScreenViewerProps {
   mapDocument: MindMapDocument;
   onClose: () => void;
   showToast?: (message: string, type?: string) => void;
+  onChangeDocument?: (nextDoc: MindMapDocument) => void;
 }
 
 type PointerPoint = { x: number; y: number };
 type Gesture =
-  | { type: 'pan'; pointerId: number; startX: number; startY: number; originX: number; originY: number; nodeId?: string; moved: boolean }
-  | { type: 'pinch'; startDistance: number; startScale: number; worldX: number; worldY: number; moved: boolean }
+  | {
+      type: 'pan';
+      pointerId: number;
+      startX: number;
+      startY: number;
+      originX: number;
+      originY: number;
+      nodeId?: string;
+      actionNodeId?: string;
+      moved: boolean;
+    }
+  | {
+      type: 'pinch';
+      startDistance: number;
+      startScale: number;
+      worldX: number;
+      worldY: number;
+      moved: boolean;
+    }
   | null;
+
+const STYLE_OPTIONS: Array<{ id: MindMapStyle; labelAr: string }> = [
+  { id: 'radial', labelAr: 'شعاعية' },
+  { id: 'hierarchical', labelAr: 'هرمية' },
+  { id: 'medical_flow', labelAr: 'مسار سريري' }
+];
 
 function distance(a: PointerPoint, b: PointerPoint): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
@@ -29,20 +65,42 @@ function midpoint(a: PointerPoint, b: PointerPoint): PointerPoint {
 export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = ({
   mapDocument,
   onClose,
-  showToast
+  showToast,
+  onChangeDocument
 }) => {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const pointersRef = useRef<Map<number, PointerPoint>>(new Map());
   const gestureRef = useRef<Gesture>(null);
   const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isAnimatingTransform, setIsAnimatingTransform] = useState(false);
+  const transformRef = useRef({ zoom: 1, pan: { x: 0, y: 0 } });
   const onCloseRef = useRef(onClose);
   const historyEntryRef = useRef(false);
-  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+  // Active style (user can freely switch between radial, hierarchical, medical_flow)
+  const [activeStyle, setActiveStyle] = useState<MindMapStyle>(mapDocument.style || 'radial');
+  useEffect(() => {
+    setActiveStyle(mapDocument.style || 'radial');
+  }, [mapDocument.id, mapDocument.style]);
+
+  // Individual node show/hide control (allows hiding any main or sub-node)
+  const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(() => new Set());
+  const [showNodesPanel, setShowNodesPanel] = useState(false);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     const overlayWindow = window as Window & { __umedtMindMapViewerOpen?: boolean };
     overlayWindow.__umedtMindMapViewerOpen = true;
-    window.history.pushState({ ...(window.history.state || {}), umedtMindMapViewer: true }, '', window.location.href);
+    window.history.pushState(
+      { ...(window.history.state || {}), umedtMindMapViewer: true },
+      '',
+      window.location.href
+    );
     historyEntryRef.current = true;
     const handlePopState = () => {
       historyEntryRef.current = false;
@@ -55,6 +113,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       overlayWindow.__umedtMindMapViewerOpen = false;
     };
   }, []);
+
   const requestClose = useCallback(() => {
     if (historyEntryRef.current) {
       historyEntryRef.current = false;
@@ -63,81 +122,171 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       onCloseRef.current();
     }
   }, []);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const selectedNodeIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedNodeIdRef.current = selectedNodeId;
+  }, [selectedNodeId]);
+
+  const [isNoteExpanded, setIsNoteExpanded] = useState(false);
   const [isSequentialMode, setIsSequentialMode] = useState(false);
   const [sequenceIndex, setSequenceIndex] = useState(0);
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(
-    // Mobile-first overview: show the root and its first-level branches; keep deeper branches folded.
-    () => new Set(mapDocument.nodes.filter((node) => node.id !== mapDocument.rootNodeId && mapDocument.nodes.some((child) => child.parentId === node.id)).map((node) => node.id))
+
+  const buildDefaultCollapsedSet = useCallback(
+    () =>
+      new Set(
+        mapDocument.nodes
+          .filter(
+            (node) =>
+              node.id !== mapDocument.rootNodeId &&
+              mapDocument.nodes.some((child) => child.parentId === node.id)
+          )
+          .map((node) => node.id)
+      ),
+    [mapDocument.nodes, mapDocument.rootNodeId]
   );
-  const isDark = typeof window !== 'undefined' && window.document.documentElement.classList.contains('dark');
+
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() =>
+    buildDefaultCollapsedSet()
+  );
+
+  const isDark =
+    typeof window !== 'undefined' &&
+    window.document.documentElement.classList.contains('dark');
+
+  // Compute all nodes hidden by explicit user hide (including their descendants)
+  const effectiveHiddenIds = useMemo(() => {
+    if (hiddenNodeIds.size === 0) return new Set<string>();
+    const hidden = new Set<string>();
+    hiddenNodeIds.forEach((id) => {
+      if (id !== mapDocument.rootNodeId) hidden.add(id);
+    });
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const n of mapDocument.nodes) {
+        if (n.parentId && hidden.has(n.parentId) && !hidden.has(n.id)) {
+          hidden.add(n.id);
+          changed = true;
+        }
+      }
+    }
+    return hidden;
+  }, [hiddenNodeIds, mapDocument.nodes, mapDocument.rootNodeId]);
+
+  const styledDocument = useMemo<MindMapDocument>(() => {
+    const styleChanged = activeStyle !== mapDocument.style;
+    const filteredNodes = mapDocument.nodes
+      .filter((n) => !effectiveHiddenIds.has(n.id))
+      .map((n) => (styleChanged ? { ...n, position: undefined } : n));
+    const validIds = new Set(filteredNodes.map((n) => n.id));
+    return {
+      ...mapDocument,
+      style: activeStyle,
+      nodes: filteredNodes,
+      edges: mapDocument.edges.filter(
+        (e) => validIds.has(e.sourceId) && validIds.has(e.targetId)
+      )
+    };
+  }, [mapDocument, activeStyle, effectiveHiddenIds]);
+
+  const childCountMap = useMemo(() => {
+    const counts = new Map<string, number>();
+    styledDocument.nodes.forEach((n) => {
+      if (n.parentId) {
+        counts.set(n.parentId, (counts.get(n.parentId) || 0) + 1);
+      }
+    });
+    return counts;
+  }, [styledDocument.nodes]);
+
   const sequenceNodes = useMemo(() => {
-    const byParent = new Map<string, typeof mapDocument.nodes>();
-    mapDocument.nodes.forEach((node) => {
+    const byParent = new Map<string, typeof styledDocument.nodes>();
+    styledDocument.nodes.forEach((node) => {
       const key = node.parentId || '__root__';
       byParent.set(key, [...(byParent.get(key) || []), node]);
     });
-    const ordered: typeof mapDocument.nodes = [];
+    const ordered: typeof styledDocument.nodes = [];
     const visited = new Set<string>();
     const visit = (id: string) => {
-      const node = mapDocument.nodes.find((item) => item.id === id);
+      const node = styledDocument.nodes.find((item) => item.id === id);
       if (!node || visited.has(id)) return;
       visited.add(id);
       ordered.push(node);
-      (byParent.get(id) || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).forEach((child) => visit(child.id));
+      (byParent.get(id) || [])
+        .slice()
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        .forEach((child) => visit(child.id));
     };
-    visit(mapDocument.rootNodeId);
-    mapDocument.nodes.forEach((node) => visit(node.id));
+    visit(styledDocument.rootNodeId);
+    styledDocument.nodes.forEach((node) => visit(node.id));
     return ordered;
-  }, [mapDocument]);
+  }, [styledDocument]);
+
   const sequentialVisibleIds = useMemo(() => {
-    const current = sequenceNodes[Math.min(sequenceIndex, Math.max(0, sequenceNodes.length - 1))];
+    const current =
+      sequenceNodes[Math.min(sequenceIndex, Math.max(0, sequenceNodes.length - 1))];
     if (!current) return new Set<string>();
     const visible = new Set<string>([current.id]);
-    const nodeById = new Map(mapDocument.nodes.map((node) => [node.id, node]));
+    const nodeById = new Map(styledDocument.nodes.map((node) => [node.id, node]));
     let parentId = current.parentId;
     while (parentId && nodeById.has(parentId) && !visible.has(parentId)) {
       visible.add(parentId);
       parentId = nodeById.get(parentId)?.parentId || null;
     }
     if (current.parentId) {
-      mapDocument.nodes
+      styledDocument.nodes
         .filter((node) => node.parentId === current.parentId)
         .forEach((node) => visible.add(node.id));
     }
-    mapDocument.nodes
+    styledDocument.nodes
       .filter((node) => node.parentId === current.id)
       .forEach((node) => visible.add(node.id));
     return visible;
-  }, [mapDocument.nodes, sequenceNodes, sequenceIndex]);
+  }, [styledDocument.nodes, sequenceNodes, sequenceIndex]);
+
   const displayDocument = useMemo(() => {
-    if (!isSequentialMode) return mapDocument;
-    const nodes = mapDocument.nodes.filter((node) => sequentialVisibleIds.has(node.id));
+    if (!isSequentialMode) return styledDocument;
+    const nodes = styledDocument.nodes.filter((node) => sequentialVisibleIds.has(node.id));
     const visibleIds = new Set(nodes.map((node) => node.id));
     return {
-      ...mapDocument,
+      ...styledDocument,
       nodes,
-      edges: mapDocument.edges.filter((edge) => visibleIds.has(edge.sourceId) && visibleIds.has(edge.targetId))
+      edges: styledDocument.edges.filter(
+        (edge) => visibleIds.has(edge.sourceId) && visibleIds.has(edge.targetId)
+      )
     };
-  }, [mapDocument, isSequentialMode, sequentialVisibleIds]);
+  }, [styledDocument, isSequentialMode, sequentialVisibleIds]);
+
   const layout = useMemo(
     () => computeMindMapLayout(displayDocument, isSequentialMode ? new Set() : collapsedIds),
     [displayDocument, isSequentialMode, collapsedIds]
   );
-  const fullLayout = useMemo(() => computeMindMapLayout(mapDocument, new Set()), [mapDocument]);
+
+  const fullLayout = useMemo(
+    () => computeMindMapLayout(styledDocument, new Set()),
+    [styledDocument]
+  );
+
   const svgMarkup = useMemo(
-    () => buildStandaloneMindMapSvg(displayDocument, layout, isDark).replace(/^<\?xml[^>]*>\s*/, ''),
+    () =>
+      buildStandaloneMindMapSvg(displayDocument, layout, isDark).replace(
+        /^<\?xml[^>]*>\s*/,
+        ''
+      ),
     [displayDocument, layout, isDark]
   );
+
   const selectedNode = useMemo(
-    () => mapDocument.nodes.find((node) => node.id === selectedNodeId) || null,
-    [mapDocument.nodes, selectedNodeId]
+    () => styledDocument.nodes.find((node) => node.id === selectedNodeId) || null,
+    [styledDocument.nodes, selectedNodeId]
   );
+
   const selectedNodePath = useMemo(() => {
     if (!selectedNode) return [];
-    const byId = new Map(mapDocument.nodes.map((node) => [node.id, node]));
-    const path: typeof mapDocument.nodes = [];
+    const byId = new Map(styledDocument.nodes.map((node) => [node.id, node]));
+    const path: typeof styledDocument.nodes = [];
     const seen = new Set<string>();
     let current: typeof selectedNode | undefined = selectedNode;
     while (current && !seen.has(current.id)) {
@@ -146,81 +295,237 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       current = current.parentId ? byId.get(current.parentId) : undefined;
     }
     return path;
-  }, [mapDocument.nodes, selectedNode]);
+  }, [styledDocument.nodes, selectedNode]);
 
-  const selectNodeAndRevealFirstChild = useCallback((nodeId: string) => {
-    const targetId = nodeId;
-    // Reveal every ancestor so the focused child exists in the rendered SVG.
-    if (!isSequentialMode) {
-      const byId = new Map(mapDocument.nodes.map((node) => [node.id, node]));
-      setCollapsedIds((previous) => {
-        const next = new Set(previous);
-        let parentId: string | null = byId.get(targetId)?.parentId || null;
-        while (parentId) {
-          next.delete(parentId);
-          parentId = byId.get(parentId)?.parentId || null;
+  const applyTransform = useCallback(
+    (nextZoom: number, nextPan: { x: number; y: number }, animate = false) => {
+      transformRef.current = { zoom: nextZoom, pan: nextPan };
+      setIsAnimatingTransform(animate);
+      setZoom(nextZoom);
+      setPan(nextPan);
+      if (stageRef.current) {
+        stageRef.current.style.transition = animate
+          ? 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1)'
+          : 'none';
+        stageRef.current.style.transform = `translate3d(${nextPan.x}px, ${nextPan.y}px, 0) scale(${nextZoom})`;
+      }
+    },
+    []
+  );
+
+  /**
+   * Frames a target node AND all of its currently visible direct child cards
+   * inside the visible viewport area (above the bottom details sheet).
+   * Notice that SVG viewBox="${layout.bounds.minX} ${layout.bounds.minY} ${width} ${height}"
+   * ALREADY shifts user-space coordinates by (-layout.bounds.minX, -layout.bounds.minY),
+   * so any user-space point (ux, uy) is located at CSS pixel (ux - minX, uy - minY) inside stageRef!
+   */
+  const focusNodeCluster = useCallback(
+    (nodeId: string, includeParent = false) => {
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+      const targetPositioned = layout.nodes.find((n) => n.node.id === nodeId);
+      if (!targetPositioned) return;
+
+      const clusterNodes = [targetPositioned];
+      // Always include currently visible direct child cards so revealed cards never get clipped off-screen
+      layout.nodes.forEach((n) => {
+        if (n.node.parentId === nodeId) {
+          clusterNodes.push(n);
         }
-        return next;
       });
-    }
-    setSelectedNodeId(targetId);
-    if (isSequentialMode) {
-      const index = sequenceNodes.findIndex((node) => node.id === targetId);
-      if (index >= 0) setSequenceIndex(index);
-    }
-  }, [mapDocument.nodes, isSequentialMode, sequenceNodes]);
+      if ((includeParent || isSequentialMode) && targetPositioned.node.parentId) {
+        const parentPositioned = layout.nodes.find(
+          (n) => n.node.id === targetPositioned.node.parentId
+        );
+        if (parentPositioned) clusterNodes.push(parentPositioned);
+      }
 
-  const applyTransform = useCallback((nextZoom: number, nextPan: { x: number; y: number }) => {
-    setZoom(nextZoom);
-    setPan(nextPan);
-    if (stageRef.current) {
-      stageRef.current.style.transform = `translate3d(${nextPan.x}px, ${nextPan.y}px, 0) scale(${nextZoom})`;
-    }
-  }, []);
+      const vbMinX = layout.bounds.minX;
+      const vbMinY = layout.bounds.minY;
 
-  const focusNode = useCallback((nodeId: string) => {
-    const viewport = viewportRef.current;
-    const svg = stageRef.current?.querySelector('svg');
-    const node = svg?.querySelector(`.mm-node[data-node-id="${CSS.escape(nodeId)}"]`) as SVGGElement | null;
-    if (!viewport || !node) return;
-    const bounds = node.getBBox();
-    // Keep the focused node inside the unobstructed canvas area when the details sheet is open.
-    const reservedBottom = selectedNodeId
-      ? Math.min(164, viewport.clientHeight * 0.18)
-      : 0;
-    const usableHeight = Math.max(160, viewport.clientHeight - reservedBottom - 16);
-    // Keep context around the selected node instead of zooming into a single card.
-    const scale = Math.max(0.72, Math.min(1.25, zoom));
-    applyTransform(scale, {
-      x: viewport.clientWidth / 2 - (bounds.x + bounds.width / 2) * scale,
-      y: usableHeight * 0.48 - (bounds.y + bounds.height / 2) * scale
-    });
-  }, [applyTransform, selectedNodeId, zoom]);
+      let minLocalX = Infinity;
+      let minLocalY = Infinity;
+      let maxLocalX = -Infinity;
+      let maxLocalY = -Infinity;
+
+      for (const pn of clusterNodes) {
+        const localLeft = pn.x - pn.width / 2 - vbMinX;
+        const localTop = pn.y - pn.height / 2 - vbMinY;
+        const localRight = pn.x + pn.width / 2 - vbMinX;
+        const localBottom = pn.y + pn.height / 2 + 16 - vbMinY;
+        if (localLeft < minLocalX) minLocalX = localLeft;
+        if (localTop < minLocalY) minLocalY = localTop;
+        if (localRight > maxLocalX) maxLocalX = localRight;
+        if (localBottom > maxLocalY) maxLocalY = localBottom;
+      }
+
+      const padX = 28;
+      const padY = 28;
+      const clusterW = Math.max(140, maxLocalX - minLocalX + padX * 2);
+      const clusterH = Math.max(90, maxLocalY - minLocalY + padY * 2);
+      const localCenterX = (minLocalX + maxLocalX) / 2;
+      const localCenterY = (minLocalY + maxLocalY) / 2;
+
+      const topInset = isSequentialMode ? 68 : 14;
+      const reservedBottom = Math.min(215, viewport.clientHeight * 0.29) + 14;
+      const usableWidth = Math.max(200, viewport.clientWidth - 20);
+      const usableHeight = Math.max(150, viewport.clientHeight - topInset - reservedBottom);
+
+      const fitScale = Math.min(usableWidth / clusterW, usableHeight / clusterH);
+      const currentZoom = transformRef.current.zoom;
+      const nextScale =
+        clusterNodes.length > 1
+          ? Math.max(0.22, Math.min(1.12, fitScale))
+          : Math.max(0.68, Math.min(1.15, Math.min(currentZoom < 0.68 ? 0.92 : currentZoom, fitScale)));
+
+      const targetScreenX = viewport.clientWidth / 2;
+      const targetScreenY = topInset + usableHeight / 2;
+
+      applyTransform(
+        nextScale,
+        {
+          x: targetScreenX - localCenterX * nextScale,
+          y: targetScreenY - localCenterY * nextScale
+        },
+        true
+      );
+    },
+    [layout, isSequentialMode, applyTransform]
+  );
 
   const fitToView = useCallback(() => {
     const viewport = viewportRef.current;
-    const svg = stageRef.current?.querySelector('svg');
-    if (!viewport || !svg) return;
-    const values = (svg.getAttribute('viewBox') || '0 0 900 600').trim().split(/[ ,]+/).map(Number);
-    const minX = values[0] || 0;
-    const minY = values[1] || 0;
-    const width = Math.max(1, values[2] || 900);
-    const height = Math.max(1, values[3] || 600);
-    // Reserve the bottom details-sheet area so nodes are fitted to the visible canvas,
-    // rather than being placed underneath the card on short Android screens.
-    const reservedBottom = selectedNodeId
-      ? Math.min(164, viewport.clientHeight * 0.18)
-      : 0;
-    const usableHeight = Math.max(160, viewport.clientHeight - reservedBottom - 16);
-    const scale = Math.max(0.2, Math.min(1.8, Math.min(
-      viewport.clientWidth / width,
-      usableHeight / height
-    ) * 1.02));
-    applyTransform(scale, {
-      x: (viewport.clientWidth - width * scale) / 2 - minX * scale,
-      y: (usableHeight - height * scale) / 2 - minY * scale
-    });
-  }, [applyTransform, svgMarkup, selectedNodeId]);
+    if (!viewport) return;
+    const width = Math.max(1, layout.bounds.width || 900);
+    const height = Math.max(1, layout.bounds.height || 600);
+    const topInset = isSequentialMode ? 64 : 10;
+    const reservedBottom = selectedNodeIdRef.current
+      ? Math.min(190, viewport.clientHeight * 0.25)
+      : 16;
+    const usableWidth = Math.max(200, viewport.clientWidth - 16);
+    const usableHeight = Math.max(150, viewport.clientHeight - topInset - reservedBottom);
+    const scale = Math.max(
+      0.16,
+      Math.min(1.5, Math.min(usableWidth / width, usableHeight / height) * 0.95)
+    );
+    // Because <svg viewBox="minX minY width height" width="width" height="height"> already maps
+    // (minX, minY) to CSS pixel (0, 0), the SVG's local pixel box is strictly [0..width, 0..height].
+    applyTransform(
+      scale,
+      {
+        x: (viewport.clientWidth - width * scale) / 2,
+        y: topInset + (usableHeight - height * scale) / 2
+      },
+      true
+    );
+  }, [layout.bounds.width, layout.bounds.height, isSequentialMode, applyTransform]);
+
+  const zoomByFactor = useCallback(
+    (factor: number) => {
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+      const current = transformRef.current;
+      const nextZoom = Math.max(0.16, Math.min(3.2, current.zoom * factor));
+      const cx = viewport.clientWidth / 2;
+      const cy = viewport.clientHeight * 0.42;
+      const worldX = (cx - current.pan.x) / current.zoom;
+      const worldY = (cy - current.pan.y) / current.zoom;
+      applyTransform(
+        nextZoom,
+        {
+          x: cx - worldX * nextZoom,
+          y: cy - worldY * nextZoom
+        },
+        true
+      );
+    },
+    [applyTransform]
+  );
+
+  const selectNodeAndRevealChildren = useCallback(
+    (nodeId: string) => {
+      const targetId = nodeId;
+      if (!isSequentialMode) {
+        const byId = new Map(styledDocument.nodes.map((node) => [node.id, node]));
+        const hasChildren = (childCountMap.get(targetId) || 0) > 0;
+        setCollapsedIds((previous) => {
+          const next = new Set(previous);
+          // Uncollapse all ancestors of targetId
+          let parentId: string | null = byId.get(targetId)?.parentId || null;
+          while (parentId) {
+            next.delete(parentId);
+            parentId = byId.get(parentId)?.parentId || null;
+          }
+          // If the tapped node itself has collapsed children, reveal its direct children
+          if (hasChildren && next.has(targetId)) {
+            next.delete(targetId);
+          }
+          return next;
+        });
+      }
+      setSelectedNodeId(targetId);
+      setIsNoteExpanded(false);
+      if (isSequentialMode) {
+        const index = sequenceNodes.findIndex((node) => node.id === targetId);
+        if (index >= 0) setSequenceIndex(index);
+      }
+    },
+    [styledDocument.nodes, childCountMap, isSequentialMode, sequenceNodes]
+  );
+
+  const toggleNodeBranchCollapse = useCallback(
+    (nodeId: string) => {
+      const hasChildren = (childCountMap.get(nodeId) || 0) > 0;
+      if (!hasChildren || isSequentialMode) return;
+      setSelectedNodeId(nodeId);
+      setCollapsedIds((previous) => {
+        const next = new Set(previous);
+        if (next.has(nodeId)) next.delete(nodeId);
+        else next.add(nodeId);
+        return next;
+      });
+    },
+    [childCountMap, isSequentialMode]
+  );
+
+  const toggleHideNode = useCallback(
+    (nodeId: string) => {
+      if (nodeId === mapDocument.rootNodeId) return;
+      setHiddenNodeIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(nodeId)) {
+          next.delete(nodeId);
+        } else {
+          next.add(nodeId);
+          if (selectedNodeIdRef.current === nodeId) {
+            const node = mapDocument.nodes.find((n) => n.id === nodeId);
+            setSelectedNodeId(node?.parentId || null);
+          }
+        }
+        return next;
+      });
+    },
+    [mapDocument.rootNodeId, mapDocument.nodes]
+  );
+
+  const handleStyleSwitch = useCallback(
+    (nextStyle: MindMapStyle) => {
+      setActiveStyle(nextStyle);
+      const updatedDoc: MindMapDocument = {
+        ...mapDocument,
+        style: nextStyle,
+        nodes: mapDocument.nodes.map((n) => ({ ...n, position: undefined })),
+        updatedAt: new Date().toISOString()
+      };
+      if (onChangeDocument) {
+        onChangeDocument(updatedDoc);
+      } else {
+        upsertMindMap(updatedDoc);
+      }
+    },
+    [mapDocument, onChangeDocument]
+  );
 
   useEffect(() => {
     if (!stageRef.current) return;
@@ -230,137 +535,190 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     svg.style.display = 'block';
     svg.style.maxWidth = 'none';
     svg.style.overflow = 'visible';
-    // Add a dedicated forward/collapse control to every visible node.
-    svg.querySelectorAll<SVGGElement>('.mm-node[data-node-id]').forEach((node) => {
-      if (node.querySelector('.mm-node-action')) return;
-      const box = node.getBBox();
-      const action = window.document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      action.setAttribute('class', 'mm-node-action');
-      action.setAttribute('data-node-id', node.dataset.nodeId || '');
-      action.setAttribute('role', 'button');
-      action.setAttribute('tabindex', '0');
-      action.setAttribute('aria-label', 'عرض الفروع أو الانتقال للأمام');
-      action.style.cursor = 'pointer';
-      const cx = box.x + box.width - 3;
-      const cy = box.y + box.height / 2;
-      const circle = window.document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      circle.setAttribute('cx', String(cx));
-      circle.setAttribute('cy', String(cy));
-      circle.setAttribute('r', '13');
-      circle.setAttribute('fill', '#10b981');
-      circle.setAttribute('stroke', '#ecfdf5');
-      circle.setAttribute('stroke-width', '2');
-      const arrow = window.document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      arrow.setAttribute('d', `M ${cx - 3} ${cy - 5} L ${cx + 3} ${cy} L ${cx - 3} ${cy + 5}`);
-      arrow.setAttribute('fill', 'none');
-      arrow.setAttribute('stroke', '#022c22');
-      arrow.setAttribute('stroke-width', '2.4');
-      arrow.setAttribute('stroke-linecap', 'round');
-      arrow.setAttribute('stroke-linejoin', 'round');
-      action.append(circle, arrow);
-      node.appendChild(action);
-    });
-    const handleClick = (event: Event) => {
-      const target = event.target as Element | null;
-      const action = target?.closest?.('.mm-node-action[data-node-id]') as SVGGElement | null;
-      const node = target?.closest?.('.mm-node[data-node-id]') as SVGGElement | null;
-      const nodeId = action?.dataset.nodeId || node?.dataset.nodeId;
-      if (!nodeId) return;
-      if (action) {
-        setSelectedNodeId(nodeId);
-        event.stopPropagation();
-        const hasChildren = mapDocument.nodes.some((item) => item.parentId === nodeId);
-        if (hasChildren && !isSequentialMode) {
-          setCollapsedIds((previous) => {
-            const next = new Set(previous);
-            if (next.has(nodeId)) next.delete(nodeId);
-            else next.add(nodeId);
-            return next;
-          });
-        }
-        return;
-      }
-      selectNodeAndRevealFirstChild(nodeId);
-    };
+
+    // Add expand/collapse badge ONLY to nodes that actually have child branches
+    if (!isSequentialMode) {
+      svg.querySelectorAll<SVGGElement>('.mm-node[data-node-id]').forEach((node) => {
+        if (node.querySelector('.mm-node-action')) return;
+        const nodeId = node.dataset.nodeId || '';
+        const childCount = childCountMap.get(nodeId) || 0;
+        if (childCount <= 0 || nodeId === styledDocument.rootNodeId) return;
+
+        const isCollapsed = collapsedIds.has(nodeId);
+        const box = node.getBBox();
+        const action = window.document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        action.setAttribute('class', 'mm-node-action');
+        action.setAttribute('data-node-id', nodeId);
+        action.setAttribute('role', 'button');
+        action.setAttribute('tabindex', '0');
+        action.setAttribute(
+          'aria-label',
+          isCollapsed ? `توسيع ${childCount} فروع` : 'طي الفرع'
+        );
+        action.style.cursor = 'pointer';
+
+        const cx = box.x + box.width / 2;
+        const cy = box.y + box.height + 2;
+        const pillW = isCollapsed ? 36 : 26;
+        const pillH = 20;
+
+        const badgeRect = window.document.createElementNS(
+          'http://www.w3.org/2000/svg',
+          'rect'
+        );
+        badgeRect.setAttribute('x', String(cx - pillW / 2));
+        badgeRect.setAttribute('y', String(cy - pillH / 2));
+        badgeRect.setAttribute('width', String(pillW));
+        badgeRect.setAttribute('height', String(pillH));
+        badgeRect.setAttribute('rx', '10');
+        badgeRect.setAttribute('fill', isCollapsed ? '#10b981' : isDark ? '#1e293b' : '#ffffff');
+        badgeRect.setAttribute('stroke', isCollapsed ? '#047857' : '#10b981');
+        badgeRect.setAttribute('stroke-width', '1.8');
+
+        const badgeText = window.document.createElementNS(
+          'http://www.w3.org/2000/svg',
+          'text'
+        );
+        badgeText.setAttribute('x', String(cx));
+        badgeText.setAttribute('y', String(cy + 3.5));
+        badgeText.setAttribute('text-anchor', 'middle');
+        badgeText.setAttribute('font-family', 'Cairo, system-ui, sans-serif');
+        badgeText.setAttribute('font-size', '10.5');
+        badgeText.setAttribute('font-weight', '900');
+        badgeText.setAttribute(
+          'fill',
+          isCollapsed ? '#022c22' : isDark ? '#34d399' : '#047857'
+        );
+        badgeText.textContent = isCollapsed ? `+${childCount}` : '−';
+
+        action.append(badgeRect, badgeText);
+        node.appendChild(action);
+      });
+    }
+
+    // Highlight selected node immediately after SVG render
+    if (selectedNodeIdRef.current) {
+      const selected = Array.from(svg.querySelectorAll('.mm-node')).find(
+        (node) => (node as SVGGElement).dataset.nodeId === selectedNodeIdRef.current
+      );
+      selected?.classList.add('selected');
+    }
+
     const handleDoubleClick = (event: Event) => {
       const target = event.target as Element | null;
       const node = target?.closest?.('.mm-node[data-node-id]') as SVGGElement | null;
       const nodeId = node?.dataset.nodeId;
       if (!nodeId) return;
-      const hasChildren = mapDocument.nodes.some((item) => item.parentId === nodeId);
-      if (!hasChildren || isSequentialMode) return;
       event.preventDefault();
-      setCollapsedIds((previous) => {
-        const next = new Set(previous);
-        if (next.has(nodeId)) next.delete(nodeId);
-        else next.add(nodeId);
-        return next;
-      });
+      toggleNodeBranchCollapse(nodeId);
     };
-    svg.addEventListener('click', handleClick);
-    svg.addEventListener('dblclick', handleDoubleClick);
-    return () => {
-      svg.removeEventListener('click', handleClick);
-      svg.removeEventListener('dblclick', handleDoubleClick);
-    };
-  }, [svgMarkup, mapDocument.nodes, isSequentialMode, sequenceNodes, selectNodeAndRevealFirstChild]);
 
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const target = event.target as Element | null;
+      const action = target?.closest?.('.mm-node-action[data-node-id]') as SVGGElement | null;
+      if (action?.dataset.nodeId) {
+        event.preventDefault();
+        toggleNodeBranchCollapse(action.dataset.nodeId);
+        return;
+      }
+      const node = target?.closest?.('.mm-node[data-node-id]') as SVGGElement | null;
+      if (node?.dataset.nodeId) {
+        event.preventDefault();
+        selectNodeAndRevealChildren(node.dataset.nodeId);
+      }
+    };
+
+    svg.addEventListener('dblclick', handleDoubleClick);
+    svg.addEventListener('keydown', handleKeyDown);
+    return () => {
+      svg.removeEventListener('dblclick', handleDoubleClick);
+      svg.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [
+    svgMarkup,
+    styledDocument.rootNodeId,
+    childCountMap,
+    collapsedIds,
+    isSequentialMode,
+    isDark,
+    selectNodeAndRevealChildren,
+    toggleNodeBranchCollapse
+  ]);
+
+  // Unified camera framing effect: frames selected node + its visible children, or fits entire map
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => fitToView());
-    const handleResize = () => fitToView();
+    const svg = stageRef.current?.querySelector('svg');
+    if (svg) {
+      svg.querySelectorAll('.mm-node').forEach((node) => node.classList.remove('selected'));
+      if (selectedNodeId) {
+        const selected = Array.from(svg.querySelectorAll('.mm-node')).find(
+          (node) => (node as SVGGElement).dataset.nodeId === selectedNodeId
+        );
+        selected?.classList.add('selected');
+      }
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      if (selectedNodeId) {
+        focusNodeCluster(selectedNodeId);
+      } else {
+        fitToView();
+      }
+    });
+
+    const handleResize = () => {
+      if (selectedNodeIdRef.current) {
+        focusNodeCluster(selectedNodeIdRef.current);
+      } else {
+        fitToView();
+      }
+    };
     window.addEventListener('resize', handleResize);
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener('resize', handleResize);
     };
-  }, [fitToView]);
-
-  useEffect(() => {
-    const svg = stageRef.current?.querySelector('svg');
-    if (!svg) return;
-    svg.querySelectorAll('.mm-node').forEach((node) => node.classList.remove('selected'));
-    if (selectedNodeId) {
-      const selected = Array.from(svg.querySelectorAll('.mm-node')).find((node) => (node as SVGGElement).dataset.nodeId === selectedNodeId);
-      selected?.classList.add('selected');
-      const frame = window.requestAnimationFrame(() => focusNode(selectedNodeId));
-      return () => window.cancelAnimationFrame(frame);
-    }
-  }, [selectedNodeId, svgMarkup, focusNode]);
+  }, [selectedNodeId, svgMarkup, focusNodeCluster, fitToView]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     const point = { x: event.clientX, y: event.clientY };
     pointersRef.current.set(event.pointerId, point);
+    const currentTransform = transformRef.current;
+
     if (pointersRef.current.size >= 2) {
       const points = Array.from(pointersRef.current.values()).slice(0, 2);
       const center = midpoint(points[0], points[1]);
       const rect = viewportRef.current?.getBoundingClientRect();
-      const localCenter = { x: center.x - (rect?.left || 0), y: center.y - (rect?.top || 0) };
+      const localCenter = {
+        x: center.x - (rect?.left || 0),
+        y: center.y - (rect?.top || 0)
+      };
       gestureRef.current = {
         type: 'pinch',
         startDistance: Math.max(1, distance(points[0], points[1])),
-        startScale: zoom,
-        worldX: (localCenter.x - pan.x) / zoom,
-        worldY: (localCenter.y - pan.y) / zoom,
+        startScale: currentTransform.zoom,
+        worldX: (localCenter.x - currentTransform.pan.x) / currentTransform.zoom,
+        worldY: (localCenter.y - currentTransform.pan.y) / currentTransform.zoom,
         moved: false
       };
       return;
     }
+
     const target = event.target as Element;
-    if (target.closest?.('.mm-node-action')) {
-      gestureRef.current = null;
-      return;
-    }
+    const action = target.closest?.('.mm-node-action[data-node-id]') as SVGGElement | null;
     const node = target.closest?.('.mm-node[data-node-id]') as SVGGElement | null;
     gestureRef.current = {
       type: 'pan',
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      originX: pan.x,
-      originY: pan.y,
-      nodeId: node?.dataset.nodeId,
+      originX: currentTransform.pan.x,
+      originY: currentTransform.pan.y,
+      nodeId: action ? undefined : node?.dataset.nodeId,
+      actionNodeId: action?.dataset.nodeId,
       moved: false
     };
   };
@@ -370,32 +728,58 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     const points = Array.from(pointersRef.current.values());
     const gesture = gestureRef.current;
+
     if (points.length >= 2 && gesture?.type === 'pinch') {
       const center = midpoint(points[0], points[1]);
       const rect = viewportRef.current?.getBoundingClientRect();
-      const localCenter = { x: center.x - (rect?.left || 0), y: center.y - (rect?.top || 0) };
-      const nextZoom = Math.max(0.18, Math.min(3.2, gesture.startScale * distance(points[0], points[1]) / gesture.startDistance));
+      const localCenter = {
+        x: center.x - (rect?.left || 0),
+        y: center.y - (rect?.top || 0)
+      };
+      const nextZoom = Math.max(
+        0.16,
+        Math.min(
+          3.2,
+          (gesture.startScale * distance(points[0], points[1])) / gesture.startDistance
+        )
+      );
       gesture.moved = true;
-      applyTransform(nextZoom, {
-        x: localCenter.x - gesture.worldX * nextZoom,
-        y: localCenter.y - gesture.worldY * nextZoom
-      });
+      applyTransform(
+        nextZoom,
+        {
+          x: localCenter.x - gesture.worldX * nextZoom,
+          y: localCenter.y - gesture.worldY * nextZoom
+        },
+        false
+      );
       return;
     }
+
     if (points.length === 1 && gesture?.type === 'pan') {
       const dx = event.clientX - gesture.startX;
       const dy = event.clientY - gesture.startY;
-      if (Math.hypot(dx, dy) > 5) gesture.moved = true;
-      if (gesture.moved && !gesture.nodeId) {
-        applyTransform(zoom, { x: gesture.originX + dx, y: gesture.originY + dy });
+      if (Math.hypot(dx, dy) > 6) gesture.moved = true;
+      if (gesture.moved) {
+        applyTransform(
+          transformRef.current.zoom,
+          {
+            x: gesture.originX + dx,
+            y: gesture.originY + dy
+          },
+          false
+        );
       }
     }
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
     const gesture = gestureRef.current;
-    if (gesture?.type === 'pan' && gesture.pointerId === event.pointerId && !gesture.moved && gesture.nodeId) {
-      selectNodeAndRevealFirstChild(gesture.nodeId);
+    if (gesture?.type === 'pan' && gesture.pointerId === event.pointerId && !gesture.moved) {
+      if (gesture.actionNodeId) {
+        toggleNodeBranchCollapse(gesture.actionNodeId);
+      } else if (gesture.nodeId) {
+        selectNodeAndRevealChildren(gesture.nodeId);
+      }
     }
     pointersRef.current.delete(event.pointerId);
     const remaining = Array.from(pointersRef.current.entries());
@@ -406,8 +790,8 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
         pointerId,
         startX: point.x,
         startY: point.y,
-        originX: pan.x,
-        originY: pan.y,
+        originX: transformRef.current.pan.x,
+        originY: transformRef.current.pan.y,
         moved: true
       };
     } else {
@@ -419,20 +803,33 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
     const cursor = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-    const nextZoom = Math.max(0.18, Math.min(3.2, zoom * (event.deltaY < 0 ? 1.12 : 0.89)));
-    const worldX = (cursor.x - pan.x) / zoom;
-    const worldY = (cursor.y - pan.y) / zoom;
-    applyTransform(nextZoom, { x: cursor.x - worldX * nextZoom, y: cursor.y - worldY * nextZoom });
+    const current = transformRef.current;
+    const nextZoom = Math.max(
+      0.16,
+      Math.min(3.2, current.zoom * (event.deltaY < 0 ? 1.12 : 0.89))
+    );
+    const worldX = (cursor.x - current.pan.x) / current.zoom;
+    const worldY = (cursor.y - current.pan.y) / current.zoom;
+    applyTransform(
+      nextZoom,
+      {
+        x: cursor.x - worldX * nextZoom,
+        y: cursor.y - worldY * nextZoom
+      },
+      false
+    );
   };
 
   const handleShare = async () => {
-    const safeName = (mapDocument.title || 'mind-map').replace(/[^\w\u0600-\u06FF-]+/g, '-').slice(0, 48);
+    const safeName = (styledDocument.title || 'mind-map')
+      .replace(/[^\w\u0600-\u06FF-]+/g, '-')
+      .slice(0, 48);
     const result = await shareFileWithVerification({
       filename: `${safeName || 'mind-map'}.html`,
-      content: buildStandaloneMindMapHtml(mapDocument, fullLayout, isDark),
+      content: buildStandaloneMindMapHtml(styledDocument, fullLayout, isDark),
       mime: 'text/html;charset=utf-8',
-      title: mapDocument.title || 'UMEDT Mind Map',
-      text: `خريطة ذهنية تفاعلية مستقلة: ${mapDocument.title || 'UMEDT Mind Map'}`
+      title: styledDocument.title || 'UMEDT Mind Map',
+      text: `خريطة ذهنية تفاعلية مستقلة: ${styledDocument.title || 'UMEDT Mind Map'}`
     });
     showToast?.(result.messageAr);
   };
@@ -446,57 +843,633 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     }
   };
 
+  const selectedChildNodes = useMemo(() => {
+    if (!selectedNode) return [];
+    return styledDocument.nodes
+      .filter((node) => node.parentId === selectedNode.id)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [styledDocument.nodes, selectedNode]);
+
+  // Hierarchy tree list for the Nodes & Branches Visibility Panel
+  const treeRows = useMemo(() => {
+    const byParent = new Map<string, typeof mapDocument.nodes>();
+    mapDocument.nodes.forEach((n) => {
+      const k = n.parentId || '__root__';
+      byParent.set(k, [...(byParent.get(k) || []), n]);
+    });
+    const rows: Array<{ node: (typeof mapDocument.nodes)[number]; depth: number; childCount: number }> = [];
+    const seen = new Set<string>();
+    const walk = (id: string, depth: number) => {
+      const node = mapDocument.nodes.find((n) => n.id === id);
+      if (!node || seen.has(id)) return;
+      seen.add(id);
+      const children = (byParent.get(id) || [])
+        .slice()
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      rows.push({ node, depth, childCount: children.length });
+      children.forEach((c) => walk(c.id, depth + 1));
+    };
+    walk(mapDocument.rootNodeId, 0);
+    mapDocument.nodes.forEach((n) => walk(n.id, 1));
+    return rows;
+  }, [mapDocument.nodes, mapDocument.rootNodeId]);
+
   return (
-    <div className={`fixed inset-0 z-[120] flex flex-col overflow-hidden ${isDark ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-900"}`} dir="rtl">
-      <header className={`relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-3 py-2.5 pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-xl sm:flex-nowrap sm:px-5 ${isDark ? "border-slate-800 bg-slate-950/95 text-white" : "border-slate-200 bg-white/95 text-slate-900"}`}>
+    <div
+      className={`fixed inset-0 z-[120] flex flex-col overflow-hidden ${
+        isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
+      }`}
+      dir="rtl"
+    >
+      <style>{`
+        .mm-node { cursor: pointer; outline: none; }
+        .mm-node:focus rect, .mm-node.selected rect,
+        .mm-node:focus polygon, .mm-node.selected polygon,
+        .mm-node:focus ellipse, .mm-node.selected ellipse {
+          stroke: #10b981 !important;
+          stroke-width: 3.5px !important;
+          filter: drop-shadow(0 4px 12px rgba(16, 185, 129, 0.32));
+        }
+      `}</style>
+      <header
+        className={`relative z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-3 py-2 pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-xl sm:flex-nowrap sm:px-5 ${
+          isDark
+            ? 'border-slate-800 bg-slate-950/95 text-white'
+            : 'border-slate-200 bg-white/95 text-slate-900'
+        }`}
+      >
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-black tracking-wide sm:text-base">{mapDocument.title || 'الخريطة الذهنية'}</div>
-          <div className="text-[10px] font-semibold text-slate-400">اسحب للتحريك · استخدم إصبعين للتكبير والتصغير</div>
+          <div className="truncate text-sm font-black tracking-wide sm:text-base">
+            {mapDocument.title || 'الخريطة الذهنية'}
+          </div>
+          <div className="text-[10px] font-semibold text-slate-400">
+            انقر على أي عقدة لإظهار فروعها وتفاصيلها · اسحب للتحريك · إصبعان للتكبير والتصغير
+          </div>
         </div>
         <div className="flex shrink-0 max-w-full items-center gap-1.5 overflow-x-auto pb-1">
-          <button type="button" onClick={() => { const next = !isSequentialMode; setIsSequentialMode(next); if (next && sequenceNodes.length) { setSequenceIndex(0); setSelectedNodeId(sequenceNodes[0].id); } else { setCollapsedIds(new Set(mapDocument.nodes.filter((node) => node.id !== mapDocument.rootNodeId && mapDocument.nodes.some((child) => child.parentId === node.id)).map((node) => node.id))); } }} className={`min-h-10 shrink-0 rounded-xl border px-3 text-xs font-bold whitespace-nowrap ${isSequentialMode ? 'border-emerald-400 bg-emerald-400 text-slate-950' : isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'}`} title="العرض التسلسلي">{isSequentialMode ? 'العرض الحر' : 'عرض تسلسلي'}</button>
-          {!isSequentialMode && <>
-            <button type="button" onClick={() => setCollapsedIds(new Set(mapDocument.nodes.filter((node) => node.id !== mapDocument.rootNodeId && mapDocument.nodes.some((child) => child.parentId === node.id)).map((node) => node.id)))} className={`min-h-10 shrink-0 rounded-xl border px-3 text-xs font-bold whitespace-nowrap ${isDark ? "border-white/15 bg-white/5 text-white hover:bg-white/10" : "border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200"}`} title="طي جميع الفروع">طي الفروع</button>
-            <button type="button" onClick={() => { if (!selectedNodeId) return; setCollapsedIds((previous) => { const next = new Set(previous); next.delete(selectedNodeId); return next; }); }} className={`min-h-10 shrink-0 rounded-xl border px-3 text-xs font-bold whitespace-nowrap ${isDark ? "border-white/15 bg-white/5 text-white hover:bg-white/10" : "border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200"}`} title="إظهار فروع العقدة المحددة فقط">توسيع الفرع المحدد</button>
-          </>}
-          <button type="button" onClick={fitToView} className={`min-h-10 shrink-0 rounded-xl border px-3 text-xs font-bold whitespace-nowrap ${isDark ? "border-white/15 bg-white/5 text-white hover:bg-white/10" : "border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200"}`} title="ملاءمة الخريطة للشاشة">ملاءمة</button>
-          <button type="button" onClick={() => void handleShare()} className="flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 hover:bg-emerald-300" title="مشاركة HTML تفاعلي"><Share2 className="h-4 w-4" /><span className="hidden sm:inline">مشاركة HTML</span></button>
-          <button type="button" onClick={() => void toggleBrowserFullscreen()} className={`flex min-h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${isDark ? "border-white/15 bg-white/5 text-white" : "border-slate-300 bg-slate-100 text-slate-800"}`} title="ملء الشاشة"><Maximize2 className="h-4 w-4" /></button>
-          <button type="button" onClick={requestClose} className={`flex min-h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${isDark ? "border-white/15 bg-white/5 text-white hover:bg-rose-500/20" : "border-slate-300 bg-slate-100 text-slate-800 hover:bg-rose-100"}`} title="إغلاق"><X className="h-4 w-4" /></button>
+          {/* Display Style Switcher */}
+          <div
+            className={`flex shrink-0 items-center gap-0.5 rounded-xl border p-0.5 ${
+              isDark ? 'border-white/15 bg-white/5' : 'border-slate-300 bg-slate-100'
+            }`}
+            title="اختيار طريقة عرض الخريطة"
+          >
+            {STYLE_OPTIONS.map((opt) => {
+              const active = activeStyle === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => handleStyleSwitch(opt.id)}
+                  className={`min-h-8 rounded-lg px-2.5 text-[11px] font-extrabold whitespace-nowrap transition-colors ${
+                    active
+                      ? 'bg-emerald-400 text-slate-950 shadow-xs'
+                      : isDark
+                        ? 'text-slate-300 hover:bg-white/10'
+                        : 'text-slate-700 hover:bg-white'
+                  }`}
+                >
+                  {opt.labelAr}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Sequential Mode Toggle */}
+          <button
+            type="button"
+            onClick={() => {
+              const next = !isSequentialMode;
+              setIsSequentialMode(next);
+              if (next && sequenceNodes.length) {
+                setSequenceIndex(0);
+                setSelectedNodeId(sequenceNodes[0].id);
+              } else {
+                setCollapsedIds(buildDefaultCollapsedSet());
+              }
+            }}
+            className={`min-h-9 shrink-0 rounded-xl border px-3 text-xs font-bold whitespace-nowrap ${
+              isSequentialMode
+                ? 'border-emerald-400 bg-emerald-400 text-slate-950'
+                : isDark
+                  ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
+                  : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+            }`}
+            title="العرض التسلسلي خطوة بخطوة"
+          >
+            {isSequentialMode ? 'العرض الحر' : 'عرض تسلسلي'}
+          </button>
+
+          {/* Nodes & Branches Show/Hide Control Button */}
+          <button
+            type="button"
+            onClick={() => setShowNodesPanel((v) => !v)}
+            className={`flex min-h-9 shrink-0 items-center gap-1 rounded-xl border px-2.5 text-xs font-bold whitespace-nowrap ${
+              showNodesPanel || hiddenNodeIds.size > 0
+                ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300'
+                : isDark
+                  ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
+                  : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+            }`}
+            title="إظهار أو إخفاء أي عقدة رئيسية أو فرعية"
+          >
+            <Layers className="h-3.5 w-3.5" />
+            <span>التحكم بالعقد</span>
+            {hiddenNodeIds.size > 0 && (
+              <span className="rounded-full bg-emerald-400 px-1.5 text-[10px] font-black text-slate-950">
+                {hiddenNodeIds.size}
+              </span>
+            )}
+          </button>
+
+          {!isSequentialMode && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedNodeId(null);
+                  setHiddenNodeIds(new Set());
+                  setCollapsedIds(new Set());
+                }}
+                className={`min-h-9 shrink-0 rounded-xl border px-2.5 text-xs font-bold whitespace-nowrap ${
+                  isDark
+                    ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
+                    : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+                }`}
+                title="إظهار جميع العقد والفروع"
+              >
+                توسيع الكل
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedNodeId(null);
+                  setCollapsedIds(buildDefaultCollapsedSet());
+                }}
+                className={`min-h-9 shrink-0 rounded-xl border px-2.5 text-xs font-bold whitespace-nowrap ${
+                  isDark
+                    ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
+                    : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+                }`}
+                title="طي الفروع الفرعية والإبقاء على العقد الرئيسية"
+              >
+                طي الفروع
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedNodeId(null);
+              window.requestAnimationFrame(() => fitToView());
+            }}
+            className={`min-h-9 shrink-0 rounded-xl border px-2.5 text-xs font-bold whitespace-nowrap ${
+              isDark
+                ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
+                : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+            }`}
+            title="ملاءمة جميع بطائق الخريطة في الشاشة"
+          >
+            ملاءمة الكل
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleShare()}
+            className="flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 hover:bg-emerald-300"
+            title="مشاركة كملف تفاعلي مطابق تماماً"
+          >
+            <Share2 className="h-4 w-4" />
+            <span className="hidden sm:inline">مشاركة تفاعلية</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void toggleBrowserFullscreen()}
+            className={`flex min-h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+              isDark
+                ? 'border-white/15 bg-white/5 text-white'
+                : 'border-slate-300 bg-slate-100 text-slate-800'
+            }`}
+            title="ملء الشاشة"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={requestClose}
+            className={`flex min-h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+              isDark
+                ? 'border-white/15 bg-white/5 text-white hover:bg-rose-500/20'
+                : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-rose-100'
+            }`}
+            title="إغلاق"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       </header>
+
+      {/* Note: dir="ltr" on the canvas viewport ensures (left: 0, top: 0) and transformOrigin: 0 0 are physically anchored to top-left */}
       <main
         ref={viewportRef}
+        dir="ltr"
         className="relative z-0 min-h-0 flex-1 overflow-hidden touch-none select-none"
-        style={{ backgroundColor: isDark ? '#0f172a' : '#f8fafc', backgroundImage: isDark ? 'radial-gradient(circle, rgba(148,163,184,.16) 1px, transparent 1px)' : 'radial-gradient(circle, rgba(100,116,139,.12) 1px, transparent 1px)', backgroundSize: '24px 24px' }}
+        style={{
+          backgroundColor: isDark ? '#0f172a' : '#f8fafc',
+          backgroundImage: isDark
+            ? 'radial-gradient(circle, rgba(148,163,184,.16) 1px, transparent 1px)'
+            : 'radial-gradient(circle, rgba(100,116,139,.12) 1px, transparent 1px)',
+          backgroundSize: '24px 24px'
+        }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onWheel={handleWheel}
       >
-        <div ref={stageRef} className="absolute left-0 top-0 origin-top-left will-change-transform" style={{ transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})` }} />
+        <div
+          ref={stageRef}
+          className="absolute left-0 top-0 origin-top-left will-change-transform"
+          style={{
+            transition: isAnimatingTransform
+              ? 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1)'
+              : 'none',
+            transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`
+          }}
+        />
+
+        {/* Floating Zoom In / Zoom Out / Fit All Controls */}
+        <div
+          dir="rtl"
+          onPointerDown={(e) => e.stopPropagation()}
+          className={`absolute top-3 left-3 z-10 flex flex-col gap-1.5 rounded-2xl border p-1.5 shadow-lg backdrop-blur-xl ${
+            isDark
+              ? 'border-white/15 bg-slate-900/90 text-white'
+              : 'border-slate-300 bg-white/90 text-slate-800'
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => zoomByFactor(1.22)}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-transparent hover:border-emerald-400/40 hover:bg-emerald-500/10"
+            title="تكبير الشاشة"
+            aria-label="تكبير الشاشة"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          <div className="text-center font-mono text-[10px] font-bold opacity-75">
+            {Math.round(zoom * 100)}%
+          </div>
+          <button
+            type="button"
+            onClick={() => zoomByFactor(0.82)}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-transparent hover:border-emerald-400/40 hover:bg-emerald-500/10"
+            title="تصغير الشاشة لإظهار المزيد من البطائق"
+            aria-label="تصغير الشاشة"
+          >
+            <Minus className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Nodes & Branches Visibility Control Drawer (Show/Hide any main or sub-node) */}
+        {showNodesPanel && (
+          <aside
+            dir="rtl"
+            onPointerDown={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            className={`absolute top-3 right-3 z-20 flex max-h-[70dvh] w-[min(340px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-xl ${
+              isDark
+                ? 'border-slate-700 bg-slate-900/95 text-white'
+                : 'border-slate-300 bg-white/95 text-slate-900'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2 border-b border-slate-700/40 px-3.5 py-2.5">
+              <div>
+                <div className="text-xs font-black">التحكم بالعقد الرئيسية والفرعية</div>
+                <div className="text-[10px] text-slate-400">
+                  إظهار أو إخفاء أي عقدة أو طي فروعها
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNodesPanel(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5 border-b border-slate-700/30 px-3 py-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setHiddenNodeIds(new Set());
+                  setCollapsedIds(new Set());
+                }}
+                className="flex-1 rounded-lg bg-emerald-400 py-1.5 text-[11px] font-black text-slate-950"
+              >
+                إظهار وتوسيع الكل
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setHiddenNodeIds(new Set());
+                  setCollapsedIds(buildDefaultCollapsedSet());
+                }}
+                className={`flex-1 rounded-lg border py-1.5 text-[11px] font-bold ${
+                  isDark ? 'border-white/15 bg-white/5' : 'border-slate-300 bg-slate-100'
+                }`}
+              >
+                العقد الرئيسية فقط
+              </button>
+            </div>
+            <div className="flex-1 space-y-1 overflow-y-auto p-2.5">
+              {treeRows.map(({ node, depth, childCount }) => {
+                const isRoot = node.id === mapDocument.rootNodeId;
+                const isHidden = effectiveHiddenIds.has(node.id);
+                const isDirectHidden = hiddenNodeIds.has(node.id);
+                const isFolded = collapsedIds.has(node.id);
+                return (
+                  <div
+                    key={node.id}
+                    style={{ marginRight: `${Math.min(depth * 12, 48)}px` }}
+                    className={`flex items-center justify-between gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs ${
+                      selectedNodeId === node.id
+                        ? 'border-emerald-400 bg-emerald-500/15'
+                        : isDark
+                          ? 'border-white/10 bg-white/5'
+                          : 'border-slate-200 bg-slate-50'
+                    } ${isHidden ? 'opacity-50' : ''}`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isHidden) {
+                          setHiddenNodeIds((prev) => {
+                            const next = new Set(prev);
+                            next.delete(node.id);
+                            return next;
+                          });
+                        }
+                        selectNodeAndRevealChildren(node.id);
+                      }}
+                      className="min-w-0 flex-1 text-right font-bold"
+                    >
+                      <div className="truncate">{node.label}</div>
+                      {node.sublabel && (
+                        <div className="truncate text-[10px] opacity-70">{node.sublabel}</div>
+                      )}
+                    </button>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {childCount > 0 && !isRoot && !isHidden && (
+                        <button
+                          type="button"
+                          onClick={() => toggleNodeBranchCollapse(node.id)}
+                          className={`rounded-lg border px-1.5 py-0.5 text-[10px] font-extrabold ${
+                            isFolded
+                              ? 'border-emerald-400 bg-emerald-400 text-slate-950'
+                              : isDark
+                                ? 'border-white/15 bg-white/5 text-emerald-300'
+                                : 'border-slate-300 bg-white text-emerald-700'
+                          }`}
+                          title={isFolded ? 'فتح الفروع الفرعية' : 'طي الفروع الفرعية'}
+                        >
+                          {isFolded ? `+${childCount}` : 'طي'}
+                        </button>
+                      )}
+                      {!isRoot && (
+                        <button
+                          type="button"
+                          onClick={() => toggleHideNode(node.id)}
+                          className={`flex h-7 w-7 items-center justify-center rounded-lg border ${
+                            isDirectHidden
+                              ? 'border-rose-400/50 bg-rose-500/20 text-rose-300'
+                              : isDark
+                                ? 'border-white/15 bg-white/5 text-slate-200'
+                                : 'border-slate-300 bg-white text-slate-700'
+                          }`}
+                          title={isDirectHidden ? 'إظهار العقدة' : 'إخفاء العقدة وفروعها'}
+                        >
+                          {isDirectHidden ? (
+                            <EyeOff className="h-3.5 w-3.5" />
+                          ) : (
+                            <Eye className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </aside>
+        )}
+
+        {/* Sequential Step-by-Step Navigation Bar */}
         {isSequentialMode && selectedNode && (
-          <div className="absolute top-3 left-3 right-3 z-10 mx-auto flex max-w-xl items-center justify-between gap-3 rounded-2xl border border-emerald-400/30 bg-slate-900/90 p-2.5 text-white shadow-xl backdrop-blur-xl">
-            <button type="button" disabled={sequenceIndex <= 0} onClick={() => { const next = Math.max(0, sequenceIndex - 1); setSequenceIndex(next); setSelectedNodeId(sequenceNodes[next]?.id || null); }} className="min-h-10 rounded-xl border border-white/15 px-3 text-xs font-bold disabled:opacity-40">السابق</button>
-            <div className="min-w-0 flex-1 text-center"><div className="truncate text-xs font-black">{selectedNode.label}</div><div className="mt-0.5 text-[10px] text-slate-400">{sequenceIndex + 1} / {sequenceNodes.length}</div></div>
-            <button type="button" disabled={sequenceIndex >= sequenceNodes.length - 1} onClick={() => { const next = Math.min(sequenceNodes.length - 1, sequenceIndex + 1); setSequenceIndex(next); setSelectedNodeId(sequenceNodes[next]?.id || null); }} className="min-h-10 rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 disabled:opacity-40">التالي</button>
+          <div
+            dir="rtl"
+            onPointerDown={(e) => e.stopPropagation()}
+            className="absolute top-3 left-14 right-3 z-10 mx-auto flex max-w-xl items-center justify-between gap-3 rounded-2xl border border-emerald-400/30 bg-slate-900/90 p-2.5 text-white shadow-xl backdrop-blur-xl"
+          >
+            <button
+              type="button"
+              disabled={sequenceIndex <= 0}
+              onClick={() => {
+                const next = Math.max(0, sequenceIndex - 1);
+                setSequenceIndex(next);
+                setSelectedNodeId(sequenceNodes[next]?.id || null);
+              }}
+              className="min-h-9 rounded-xl border border-white/15 px-3 text-xs font-bold disabled:opacity-40"
+            >
+              السابق
+            </button>
+            <div className="min-w-0 flex-1 text-center">
+              <div className="truncate text-xs font-black">{selectedNode.label}</div>
+              <div className="mt-0.5 text-[10px] text-slate-400">
+                {sequenceIndex + 1} / {sequenceNodes.length}
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={sequenceIndex >= sequenceNodes.length - 1}
+              onClick={() => {
+                const next = Math.min(sequenceNodes.length - 1, sequenceIndex + 1);
+                setSequenceIndex(next);
+                setSelectedNodeId(sequenceNodes[next]?.id || null);
+              }}
+              className="min-h-9 rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 disabled:opacity-40"
+            >
+              التالي
+            </button>
           </div>
         )}
+
+        {/* Selected Node Details & Branch Control Sheet */}
         {selectedNode && (
-          <div className={`absolute bottom-[max(8px,env(safe-area-inset-bottom))] left-2 right-2 z-10 mx-auto max-h-[min(18dvh,164px)] max-w-3xl overflow-y-auto rounded-2xl border p-2.5 shadow-2xl backdrop-blur-xl sm:bottom-4 sm:p-3 ${isDark ? "border-emerald-400/30 bg-slate-900/95 text-white" : "border-slate-300 bg-white/95 text-slate-900"}`}>
-            {selectedNodePath.length > 1 && <div className="mb-1 flex flex-wrap items-center gap-1 text-[10px] text-slate-400">{selectedNodePath.map((node, index) => <React.Fragment key={node.id}>{index > 0 && <span aria-hidden="true">‹</span>}<span className={index === selectedNodePath.length - 1 ? 'font-black text-emerald-300' : ''}>{node.label}</span></React.Fragment>)}</div>}
-            <div className={`text-base font-black sm:text-lg ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>{selectedNode.label}</div>
-            {selectedNode.sublabel && <p className={`mt-1 text-xs font-semibold ${isDark ? "text-emerald-200" : "text-emerald-700"}`}>{selectedNode.sublabel}</p>}
-            {selectedNode.note && <p className={`mt-1 max-h-12 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-5 [display:-webkit-box] [-webkit-line-clamp:3] [-webkit-box-orient:vertical] ${isDark ? "text-slate-100" : "text-slate-700"}`}>{selectedNode.note}</p>}
-            {!selectedNode.note && !selectedNode.sublabel && <p className={`mt-1 text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>لا توجد تفاصيل إضافية لهذه العقدة.</p>}
-            {mapDocument.nodes.filter((node) => node.parentId === selectedNode.id).sort((a,b) => (a.order ?? 0) - (b.order ?? 0)).length > 0 && <div className="mt-2 flex max-w-full gap-2 overflow-x-auto pb-1">{mapDocument.nodes.filter((node) => node.parentId === selectedNode.id).sort((a,b) => (a.order ?? 0) - (b.order ?? 0)).map((child) => <button key={child.id} type="button" onClick={() => selectNodeAndRevealFirstChild(child.id)} className={`max-w-full rounded-xl border px-3 py-1.5 text-xs font-bold ${isDark ? "border-white/15 bg-white/5 text-slate-100" : "border-slate-300 bg-slate-100 text-slate-800"}`}>{child.label}</button>)}</div>}
-            <button type="button" onClick={() => setSelectedNodeId(null)} className={`mt-1 text-[10px] font-bold ${isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900"}`}>إخفاء التفاصيل</button>
+          <div
+            dir="rtl"
+            onPointerDown={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            className={`absolute bottom-[max(8px,env(safe-area-inset-bottom))] left-2 right-2 z-10 mx-auto ${
+              isNoteExpanded ? 'max-h-[58dvh]' : 'max-h-[min(28dvh,220px)]'
+            } max-w-3xl overflow-y-auto rounded-2xl border p-3 shadow-2xl backdrop-blur-xl transition-all sm:bottom-4 sm:p-3.5 ${
+              isDark
+                ? 'border-emerald-400/30 bg-slate-900/95 text-white'
+                : 'border-slate-300 bg-white/95 text-slate-900'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                {selectedNodePath.length > 1 && (
+                  <div className="mb-1 flex flex-wrap items-center gap-1 text-[10px] text-slate-400">
+                    {selectedNodePath.map((node, index) => (
+                      <React.Fragment key={node.id}>
+                        {index > 0 && <span aria-hidden="true">‹</span>}
+                        <button
+                          type="button"
+                          onClick={() => selectNodeAndRevealChildren(node.id)}
+                          className={
+                            index === selectedNodePath.length - 1
+                              ? 'font-black text-emerald-400'
+                              : 'hover:underline'
+                          }
+                        >
+                          {node.label}
+                        </button>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                )}
+                <div
+                  className={`text-sm font-black sm:text-base ${
+                    isDark ? 'text-emerald-300' : 'text-emerald-700'
+                  }`}
+                >
+                  {selectedNode.label}
+                </div>
+                {selectedNode.sublabel && (
+                  <p
+                    className={`mt-0.5 text-xs font-semibold ${
+                      isDark ? 'text-emerald-200' : 'text-emerald-700'
+                    }`}
+                  >
+                    {selectedNode.sublabel}
+                  </p>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {selectedNode.id !== mapDocument.rootNodeId && (
+                  <button
+                    type="button"
+                    onClick={() => toggleHideNode(selectedNode.id)}
+                    className={`inline-flex min-h-8 items-center gap-1 rounded-lg border px-2 text-[11px] font-bold ${
+                      isDark
+                        ? 'border-white/15 bg-white/5 text-slate-300 hover:text-rose-300'
+                        : 'border-slate-300 bg-slate-100 text-slate-700 hover:text-rose-700'
+                    }`}
+                    title="إخفاء هذه العقدة من الخريطة"
+                  >
+                    <EyeOff className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">إخفاء العقدة</span>
+                  </button>
+                )}
+                {selectedNode.note && selectedNode.note.length > 110 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsNoteExpanded((v) => !v)}
+                    className={`inline-flex min-h-8 items-center gap-1 rounded-lg border px-2 text-[11px] font-bold ${
+                      isDark
+                        ? 'border-white/15 bg-white/5 text-emerald-300'
+                        : 'border-slate-300 bg-slate-100 text-emerald-700'
+                    }`}
+                  >
+                    {isNoteExpanded ? (
+                      <>
+                        <ChevronDown className="h-3.5 w-3.5" />
+                        <span>تصغير</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronUp className="h-3.5 w-3.5" />
+                        <span>الشرح الكامل</span>
+                      </>
+                    )}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedNodeId(null)}
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border text-xs font-bold ${
+                    isDark
+                      ? 'border-white/15 bg-white/5 text-slate-300 hover:text-white'
+                      : 'border-slate-300 bg-slate-100 text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="إغلاق بطاقة التفاصيل"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {selectedNode.note && (
+              <p
+                className={`mt-1.5 whitespace-pre-wrap break-words text-xs leading-6 ${
+                  isNoteExpanded
+                    ? ''
+                    : '[display:-webkit-box] [-webkit-line-clamp:3] [-webkit-box-orient:vertical] overflow-hidden'
+                } ${isDark ? 'text-slate-100' : 'text-slate-700'}`}
+              >
+                {selectedNode.note}
+              </p>
+            )}
+
+            {selectedChildNodes.length > 0 && (
+              <div className="mt-2 flex max-w-full items-center gap-1.5 overflow-x-auto pb-1">
+                {!isSequentialMode && (
+                  <button
+                    type="button"
+                    onClick={() => toggleNodeBranchCollapse(selectedNode.id)}
+                    className={`flex shrink-0 items-center gap-1 rounded-xl border px-2.5 py-1 text-[11px] font-extrabold ${
+                      collapsedIds.has(selectedNode.id)
+                        ? 'border-emerald-400 bg-emerald-400 text-slate-950'
+                        : isDark
+                          ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-300'
+                          : 'border-emerald-600/40 bg-emerald-50 text-emerald-800'
+                    }`}
+                  >
+                    <GitBranch className="h-3 w-3" />
+                    <span>
+                      {collapsedIds.has(selectedNode.id)
+                        ? `إظهار الفروع (${selectedChildNodes.length})`
+                        : `إخفاء الفروع (${selectedChildNodes.length})`}
+                    </span>
+                  </button>
+                )}
+                {selectedChildNodes.map((child) => (
+                  <button
+                    key={child.id}
+                    type="button"
+                    onClick={() => selectNodeAndRevealChildren(child.id)}
+                    className={`shrink-0 max-w-[220px] truncate rounded-xl border px-3 py-1 text-xs font-bold ${
+                      isDark
+                        ? 'border-white/15 bg-white/5 text-slate-100 hover:bg-white/10'
+                        : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+                    }`}
+                  >
+                    {child.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
-        {!selectedNode && <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-slate-950/65 px-3 py-1 text-[10px] font-semibold text-slate-400 backdrop-blur sm:bottom-5">
-          انقر على العقدة لعرض تفاصيلها · انقر مرتين لطي الفروع
-        </div>}
+        {!selectedNode && (
+          <div
+            dir="rtl"
+            className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/10 bg-slate-950/75 px-3 py-1 text-[10px] font-semibold text-slate-300 backdrop-blur sm:bottom-5"
+          >
+            انقر على أي عقدة لإظهار فروعها وتفاصيلها · (+عدد) لفتح أو طي الفرع
+          </div>
+        )}
       </main>
     </div>
   );

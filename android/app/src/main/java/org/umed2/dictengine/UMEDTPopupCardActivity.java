@@ -32,6 +32,7 @@ import org.json.JSONObject;
 public class UMEDTPopupCardActivity extends Activity {
     public static final String ACTION_CLIPBOARD_CHECK = "org.umed2.dictengine.ACTION_CLIPBOARD_CHECK";
     public static final String EXTRA_FORCE_FEEDBACK = "extra_force_feedback";
+    public static final String EXTRA_MATCHED_TERM_JSON = "extra_matched_term_json";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable autoCloseRunnable = this::closeSilently;
@@ -68,6 +69,16 @@ public class UMEDTPopupCardActivity extends Activity {
             return;
         }
 
+        String prematchedJson = intent.getStringExtra(EXTRA_MATCHED_TERM_JSON);
+        if (prematchedJson != null && !prematchedJson.trim().isEmpty()) {
+            try {
+                JSONObject matched = new JSONObject(prematchedJson);
+                renderCardInsideTranslucentWindow(matched);
+                return;
+            } catch (Exception ignored) {
+            }
+        }
+
         String action = intent.getAction();
         forceFeedbackOnMiss = intent.getBooleanExtra(EXTRA_FORCE_FEEDBACK, false);
 
@@ -89,7 +100,7 @@ public class UMEDTPopupCardActivity extends Activity {
         // Default or ACTION_CLIPBOARD_CHECK: wait for window focus to read clipboard on Android 10+
         waitingForClipboardFocus = true;
         handledFocusClipboardCheck = false;
-        // Safety timeout in case window focus doesn't arrive within 650ms
+        // Safety timeout in case window focus doesn't arrive within 220ms
         handler.postDelayed(() -> {
             if (!handledFocusClipboardCheck) {
                 performFocusedClipboardInspection();
@@ -140,14 +151,15 @@ public class UMEDTPopupCardActivity extends Activity {
             return;
         }
 
-        // If SYSTEM_ALERT_WINDOW permission is granted, render via system overlay and close Activity in 0ms
-        if (UMEDTDictionaryPopupEngine.canDrawOverlays(getApplicationContext())) {
-            UMEDTDictionaryPopupEngine.showFloatingCard(getApplicationContext(), matched, true);
+        // If SYSTEM_ALERT_WINDOW or AccessibilityService overlay is active, render via system overlay and close Activity in 0ms
+        UMEDTAutoTranslateAccessibilityService a11y = UMEDTAutoTranslateAccessibilityService.getActiveInstance();
+        if (a11y != null || UMEDTDictionaryPopupEngine.canDrawOverlays(getApplicationContext())) {
+            UMEDTDictionaryPopupEngine.showFloatingCard(a11y != null ? a11y : getApplicationContext(), matched, true);
             closeSilently();
             return;
         }
 
-        // Even if SYSTEM_ALERT_WINDOW is NOT granted yet, render the floating card directly inside
+        // Even if neither overlay permission is granted yet, render the floating card directly inside
         // this translucent Activity so the user STILL gets the floating translation card without opening the app!
         renderCardInsideTranslucentWindow(matched);
     }
