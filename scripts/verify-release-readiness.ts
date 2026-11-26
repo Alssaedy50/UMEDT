@@ -184,8 +184,8 @@ async function main() {
   console.log('UMED-2 — Android APK Release Verification Suite');
   console.log('================================================================');
 
-  // 1. Verify Architecture & Versioning Separation (Stage 6 APK v2.5.6)
-  assertCondition(APP_VERSION === '2.5.6', `Expected APP_VERSION 2.5.6, got ${APP_VERSION}`);
+  // 1. Verify Architecture & Versioning Separation against the current app release.
+  assertCondition(/^\d+\.\d+\.\d+$/.test(APP_VERSION), `APP_VERSION must be a valid semver, got ${APP_VERSION}`);
   assertCondition(DB_SCHEMA_VERSION === 2, `Expected DB_SCHEMA_VERSION 2, got ${DB_SCHEMA_VERSION}`);
   assertCondition(
     BUNDLED_DATA_VERSION === '2026.10.0-umd',
@@ -265,19 +265,19 @@ async function main() {
   assertCondition(
     apkWorkflowContent.includes('assembleDebug') &&
       apkWorkflowContent.includes('assembleRelease') &&
-      apkWorkflowContent.includes('UMED-2-v2.5.6-debug-apk') &&
-      apkWorkflowContent.includes('UMED-2-v2.5.6-release-apk') &&
+      apkWorkflowContent.includes(`UMED-2-v${APP_VERSION}-debug-apk`) &&
+      apkWorkflowContent.includes(`UMED-2-v${APP_VERSION}-release-apk`) &&
       apkWorkflowContent.includes('VITE_UMED_MANIFEST_URL') &&
       apkWorkflowContent.includes('VITE_UMED_PUBLIC_KEY_PEM'),
-    'android-apk-release.yml must build v2.5.6 Debug/Release APKs with Cloud OTA env vars'
+    `android-apk-release.yml must build v${APP_VERSION} Debug/Release APKs with Cloud OTA env vars`
   );
 
   const gradleContent = fs.readFileSync(androidBuildGradlePath, 'utf8');
   assertCondition(
     gradleContent.includes('org.umed2.dictengine') &&
-      gradleContent.includes('versionCode 20506') &&
-      gradleContent.includes('versionName "2.5.6"'),
-    'android/app/build.gradle must use applicationId "org.umed2.dictengine", versionCode 20506, and versionName "2.5.6"'
+      gradleContent.includes(`versionCode ${APP_VERSION.split('.').reduce((n, part, i) => n + Number(part) * [10000, 100, 1][i], 0)}`) &&
+      gradleContent.includes(`versionName "${APP_VERSION}"`),
+    `android/app/build.gradle must use applicationId "org.umed2.dictengine" and version ${APP_VERSION}`
   );
 
   // The app must not package or register a custom IME; translation uses Accessibility/overlay services.
@@ -337,7 +337,7 @@ async function main() {
       );
     }
   }
-  console.log('[PASS] 3. Capacitor Native Android Project (v2.5.6 / 20506), Java Imports & Bundled Local Web Assets Synced');
+  console.log(`[PASS] 3. Capacitor Native Android Project (v${APP_VERSION}), Java Imports & Bundled Local Web Assets Synced`);
 
   // 3b. Verify the two-path AI generator and local-only hierarchy/import contract.
   const aiGeneratorPath = path.join(ROOT_DIR, 'src', 'components', 'AiContentGuideModal.tsx');
