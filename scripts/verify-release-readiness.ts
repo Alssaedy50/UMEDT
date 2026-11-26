@@ -276,6 +276,7 @@ async function main() {
   const variablesGradleContent = fs.readFileSync(path.join(ROOT_DIR, 'android', 'variables.gradle'), 'utf8');
   assertCondition(
     gradleContent.includes('org.umed2.dictengine') &&
+      !gradleContent.includes('applicationIdSuffix ".umedt"') &&
       gradleContent.includes(`versionCode ${APP_VERSION.split('.').reduce((n, part, i) => n + Number(part) * [10000, 100, 1][i], 0)}`) &&
       gradleContent.includes(`versionName "${APP_VERSION}"`) &&
       gradleContent.includes('signingConfigs') &&
