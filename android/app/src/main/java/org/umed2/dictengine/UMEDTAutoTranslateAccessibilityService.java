@@ -40,7 +40,7 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
     }
 
     public static UMEDTAutoTranslateAccessibilityService getActiveInstance() {
-        return activeInstance;
+        return serviceConnected ? activeInstance : null;
     }
 
     public String getRecentSelectedText(long maxAgeMs) {
@@ -323,6 +323,9 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
     @Override
     public void onInterrupt() {
         serviceConnected = false;
+        if (activeInstance == this) {
+            activeInstance = null;
+        }
     }
 
     @Override
