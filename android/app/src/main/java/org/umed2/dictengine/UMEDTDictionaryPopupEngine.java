@@ -166,7 +166,7 @@ public final class UMEDTDictionaryPopupEngine {
     public static boolean isAutoTranslateOnSelectEnabled(Context context) {
         if (context == null) return false;
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        return prefs.getBoolean(KEY_AUTO_TRANSLATE_ON_SELECT, false);
+        return prefs.getBoolean(KEY_AUTO_TRANSLATE_ON_SELECT, true);
     }
 
     public static void setAutoTranslateOnSelectEnabled(Context context, boolean enabled) {
