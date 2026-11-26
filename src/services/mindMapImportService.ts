@@ -43,6 +43,15 @@ export const MIND_MAP_AI_PROMPTS = {
       "parentId": "n1",
       "role": "mechanism",
       "order": 1
+    },
+    {
+      "id": "n3",
+      "label": "Clinical Consequences",
+      "sublabel": "النتائج السريرية",
+      "note": "اشرح النتائج السريرية المرتبطة بالآلية.",
+      "parentId": "n1",
+      "role": "diagnosis",
+      "order": 2
     }
   ],
   "edges": [
