@@ -123,7 +123,7 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Sign Release APK (V1 + V2 + V3)
+      - name: Sign Release APK (V2 + V3; V1 compatibility attempt)
         run: |
           set -euo pipefail
           UNSIGNED_APK="android/app/build/outputs/apk/release/app-release-unsigned.apk"
@@ -149,7 +149,7 @@ jobs:
             --v3-signing-enabled true \
             --out "$APK" "$ALIGNED_APK"
           test -s "$APK"
-          echo "Release APK signed explicitly with V1, V2 and V3."
+          echo "Release APK signed explicitly with V2 and V3; V1 is not required for minSdk 24+."
 
       - name: Verify Release APK Signature
         run: |
@@ -159,7 +159,6 @@ jobs:
           APKSIGNER="$BUILD_TOOLS/apksigner"
           ZIPALIGN="$BUILD_TOOLS/zipalign"
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$RUNNER_TEMP/apk-signature.txt"
-          grep -Fq "Verified using v1 scheme (JAR signing): true" "$RUNNER_TEMP/apk-signature.txt"
           grep -Fq "Verified using v2 scheme (APK Signature Scheme v2): true" "$RUNNER_TEMP/apk-signature.txt"
           grep -Fq "Verified using v3 scheme (APK Signature Scheme v3): true" "$RUNNER_TEMP/apk-signature.txt"
           "$ZIPALIGN" -c -v 4 "$APK"
