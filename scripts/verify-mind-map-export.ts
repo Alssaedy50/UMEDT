@@ -31,8 +31,10 @@ for(let branch=0;branch<12;branch++){
   }
 }
 const mobileOverview=computeMindMapLayout(largeMap,foldedBranchIds);
-assert(mobileOverview.nodes.length===13,'Mobile overview must show the root and first-level branches without flooding the viewport with all descendants.');
+const firstLevelIds=largeMap.nodes.filter((node)=>node.parentId===rootId).map((node)=>node.id);
+assert(mobileOverview.nodes.length===firstLevelIds.length+1,'Mobile overview must show exactly the root and all first-level branches without flooding the viewport with deeper descendants.');
 assert(mobileOverview.nodes.some((node)=>node.node.id===rootId),'Mobile overview must keep the root concept visible.');
+assert(firstLevelIds.every((id)=>mobileOverview.nodes.some((node)=>node.node.id===id)),'Every first-level branch must remain visible in the mobile overview.');
 assert(!mobileOverview.nodes.some((node)=>node.node.id==='leaf-0-0'),'Deeper descendants must stay folded until their branch is opened.');
 
 console.log('[PASS] Standalone Mind Map HTML export and offline interaction.');
