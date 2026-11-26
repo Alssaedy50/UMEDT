@@ -18,4 +18,21 @@ const unsafe=createBlankMindMap({title:'<script>alert(1)</script>'});
 const safe=buildStandaloneMindMapHtml(unsafe,computeMindMapLayout(unsafe));
 assert(!safe.includes('<script>alert(1)</script>'),'User title must be escaped.');
 assert(safe.includes('application/json'),'Map data must be embedded as inert JSON.');
+
+const largeMap=createBlankMindMap({title:'Mobile hierarchy',style:'hierarchical'});
+const rootId=largeMap.rootNodeId;
+const foldedBranchIds=new Set<string>();
+for(let branch=0;branch<12;branch++){
+  const branchId=`branch-${branch}`;
+  foldedBranchIds.add(branchId);
+  largeMap.nodes.push({id:branchId,label:`Branch ${branch+1}`,parentId:rootId,role:'concept',order:branch});
+  for(let leaf=0;leaf<3;leaf++){
+    largeMap.nodes.push({id:`leaf-${branch}-${leaf}`,label:`Detail ${branch+1}.${leaf+1}`,parentId:branchId,role:'mechanism',order:leaf});
+  }
+}
+const mobileOverview=computeMindMapLayout(largeMap,foldedBranchIds);
+assert(mobileOverview.nodes.length===13,'Mobile overview must show the root and first-level branches without flooding the viewport with all descendants.');
+assert(mobileOverview.nodes.some((node)=>node.node.id===rootId),'Mobile overview must keep the root concept visible.');
+assert(!mobileOverview.nodes.some((node)=>node.node.id==='leaf-0-0'),'Deeper descendants must stay folded until their branch is opened.');
+
 console.log('[PASS] Standalone Mind Map HTML export and offline interaction.');
