@@ -281,7 +281,7 @@ async function main() {
       gradleContent.includes('signingConfigs') &&
       gradleContent.includes('v1SigningEnabled true') &&
       gradleContent.includes('v2SigningEnabled true') &&
-      gradleContent.includes('v3SigningEnabled true') &&
+      gradleContent.includes('enableV3Signing = true') &&
       gradleContent.includes('useLegacyPackaging = true') &&
       variablesGradleContent.includes('targetSdkVersion = 34'),
     `android/app/build.gradle must use applicationId "org.umed2.dictengine", version ${APP_VERSION}, native signingConfigs (V1+V2+V3), and targetSdkVersion 34`
