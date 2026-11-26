@@ -179,7 +179,7 @@ jobs:
           AAPT="$BUILD_TOOLS/aapt"
           test -x "$AAPT"
           "$AAPT" dump badging "$APK" > "$RUNNER_TEMP/apk-badging.txt"
-          grep -Fq "package: name='org.umed2.dictengine' versionCode='20508' versionName='2.5.8'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -Fq "package: name='org.umed2.dictengine' versionCode='20509' versionName='2.5.9'" "$RUNNER_TEMP/apk-badging.txt"
 
           # Pin the release certificate to the known-good key used by the installed release line.
           EXPECTED_CERT_SHA256="6add2cca8f4afdb2da0fca115eab02e94b53216f2cf4cbd2bb9dc50d1b0906c6"
@@ -199,16 +199,16 @@ jobs:
             echo "ERROR: Debug APK was not found in android/app/build/outputs/apk/debug"
             exit 1
           fi
-          cp "$DEBUG_APK" artifacts/apk/UMED-2-v2.5.8-debug.apk
+          cp "$DEBUG_APK" artifacts/apk/UMED-2-v2.5.9-debug.apk
 
           if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk artifacts/apk/UMED-2-v2.5.8-release-signed.apk
+            cp android/app/build/outputs/apk/release/app-release.apk artifacts/apk/UMED-2-v2.5.9-release-signed.apk
           elif [ -f android/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release-unsigned.apk artifacts/apk/UMED-2-v2.5.8-release-unsigned.apk
+            cp android/app/build/outputs/apk/release/app-release-unsigned.apk artifacts/apk/UMED-2-v2.5.9-release-unsigned.apk
           else
             RELEASE_APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
             if [ -n "$RELEASE_APK" ]; then
-              cp "$RELEASE_APK" artifacts/apk/UMED-2-v2.5.8-release-unsigned.apk
+              cp "$RELEASE_APK" artifacts/apk/UMED-2-v2.5.9-release-unsigned.apk
             else
               echo "ERROR: Release APK was not found in android/app/build/outputs/apk/release"
               exit 1
@@ -217,8 +217,8 @@ jobs:
           ls -lh artifacts/apk/
           echo "### UMED-2 Android APK Artifacts Built Successfully" >> $GITHUB_STEP_SUMMARY
           echo "- **Application ID:** \`org.umed2.dictengine\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version:** \`2.5.8 (versionCode 20508)\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Installable Debug APK:** \`UMED-2-v2.5.8-debug.apk\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** \`2.5.9 (versionCode 20508)\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Installable Debug APK:** \`UMED-2-v2.5.9-debug.apk\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Release APK Signing Status:** \`signed=${{ steps.signing_check.outputs.signed }}\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Clean Up Temporary Keystore
@@ -228,16 +228,16 @@ jobs:
       - name: Upload Installable Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UMED-2-v2.5.8-debug-apk
-          path: artifacts/apk/UMED-2-v2.5.8-debug.apk
+          name: UMED-2-v2.5.9-debug-apk
+          path: artifacts/apk/UMED-2-v2.5.9-debug.apk
           if-no-files-found: error
           retention-days: 90
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UMED-2-v2.5.8-release-apk
-          path: artifacts/apk/UMED-2-v2.5.8-release-*.apk
+          name: UMED-2-v2.5.9-release-apk
+          path: artifacts/apk/UMED-2-v2.5.9-release-*.apk
           if-no-files-found: error
           retention-days: 90
 
@@ -245,16 +245,16 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.5.8
-          name: "UMEDT Android APK v2.5.8 (Latest)"
+          tag_name: v2.5.9
+          name: "UMEDT Android APK v2.5.9 (Latest)"
           body: |
-            ### UMEDT — محرك القاموس والمترجم الطبي الهجين (v2.5.8)
-            - **نسخة التثبيت النهائية الموقّعة (Release APK):** `UMED-2-v2.5.8-release-signed.apk`
-            - **نسخة الفحص (Debug APK):** `UMED-2-v2.5.8-debug.apk`
-            - **أبرز تحديثات v2.5.8:** إصلاح جذري لمشكلة تعذر تثبيت حزمة الـ APK (`App not installed.`) عبر ضبط `targetSdkVersion 34` للتوافق الكامل مع أجهزة أندرويد وXiaomi MIUI/HyperOS، وتفعيل التوقيع الأصلي داخل Gradle (V1 requested; V2 + V3 verified) مع `extractNativeLibs="true"`، وإزالة تعارضات البقايا المخفية وPlay Protect.
+            ### UMEDT — محرك القاموس والمترجم الطبي الهجين (v2.5.9)
+            - **نسخة التثبيت النهائية الموقّعة (Release APK):** `UMED-2-v2.5.9-release-signed.apk`
+            - **نسخة الفحص (Debug APK):** `UMED-2-v2.5.9-debug.apk`
+            - **أبرز تحديثات v2.5.9:** إصلاح جذري لمشكلة تعذر تثبيت حزمة الـ APK (`App not installed.`) عبر ضبط `targetSdkVersion 34` للتوافق الكامل مع أجهزة أندرويد وXiaomi MIUI/HyperOS، وتفعيل التوقيع الأصلي داخل Gradle (V1 requested; V2 + V3 verified) مع `extractNativeLibs="true"`، وإزالة تعارضات البقايا المخفية وPlay Protect.
           files: |
-            artifacts/apk/UMED-2-v2.5.8-release-signed.apk
-            artifacts/apk/UMED-2-v2.5.8-debug.apk
+            artifacts/apk/UMED-2-v2.5.9-release-signed.apk
+            artifacts/apk/UMED-2-v2.5.9-debug.apk
           prerelease: false
           make_latest: true
         env:
