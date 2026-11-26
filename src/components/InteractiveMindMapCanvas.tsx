@@ -131,7 +131,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(
-    () => new Set(doc.nodes.filter((node) => doc.nodes.some((child) => child.parentId === node.id)).map((node) => node.id))
+    () => new Set(doc.nodes.filter((node) => node.id !== doc.rootNodeId && doc.nodes.some((child) => child.parentId === node.id)).map((node) => node.id))
   );
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(doc.rootNodeId || null);
   const [zoom, setZoom] = useState<number>(1);
