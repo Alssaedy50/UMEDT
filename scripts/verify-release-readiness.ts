@@ -291,6 +291,10 @@ async function main() {
   // The app must not package or register a custom IME or sideload-blocked services.
   const androidManifestContent = fs.readFileSync(path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'), 'utf8');
   assertCondition(
+    androidManifestContent.includes('android.permission.SYSTEM_ALERT_WINDOW'),
+    'AndroidManifest.xml must declare SYSTEM_ALERT_WINDOW so UMEDT appears in Android overlay permission settings'
+  );
+  assertCondition(
     androidManifestContent.includes('android:extractNativeLibs="true"'),
     'AndroidManifest.xml must enable android:extractNativeLibs="true" for universal PackageInstaller compatibility'
   );
