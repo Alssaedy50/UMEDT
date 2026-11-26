@@ -172,7 +172,7 @@ jobs:
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
           APKSIGNER="$BUILD_TOOLS/apksigner"
           ZIPALIGN="$BUILD_TOOLS/zipalign"
-          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$RUNNER_TEMP/apk-signature.txt"
+          "$APKSIGNER" verify --min-sdk-version 23 --verbose --print-certs "$APK" | tee "$RUNNER_TEMP/apk-signature.txt"
           grep -Fq "Verified using v1 scheme (JAR signing): true" "$RUNNER_TEMP/apk-signature.txt"
           grep -Fq "Verified using v2 scheme (APK Signature Scheme v2): true" "$RUNNER_TEMP/apk-signature.txt"
           grep -Fq "Verified using v3 scheme (APK Signature Scheme v3): true" "$RUNNER_TEMP/apk-signature.txt"
