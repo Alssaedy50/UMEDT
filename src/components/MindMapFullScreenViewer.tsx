@@ -151,11 +151,11 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   const selectNodeAndRevealFirstChild = useCallback((nodeId: string) => {
     const targetId = nodeId;
     // Reveal every ancestor so the focused child exists in the rendered SVG.
-    if (!isSequentialMode && firstChild) {
+    if (!isSequentialMode) {
       const byId = new Map(mapDocument.nodes.map((node) => [node.id, node]));
       setCollapsedIds((previous) => {
         const next = new Set(previous);
-        let parentId: string | null = firstChild.parentId;
+        let parentId: string | null = byId.get(targetId)?.parentId || null;
         while (parentId) {
           next.delete(parentId);
           parentId = byId.get(parentId)?.parentId || null;
