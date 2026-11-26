@@ -123,28 +123,45 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
+      - name: Sign Release APK (V1 + V2 + V3)
+        run: |
+          set -euo pipefail
+          UNSIGNED_APK="android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          ALIGNED_APK="$RUNNER_TEMP/umedt-release-aligned.apk"
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          if [ ! -s "$UNSIGNED_APK" ]; then
+            echo "::error::Gradle did not produce the expected unsigned APK: $UNSIGNED_APK"
+            find android/app/build/outputs/apk/release -maxdepth 2 -type f -print || true
+            exit 1
+          fi
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          ZIPALIGN="$BUILD_TOOLS/zipalign"
+          APKSIGNER="$BUILD_TOOLS/apksigner"
+          test -x "$ZIPALIGN" && test -x "$APKSIGNER"
+          "$ZIPALIGN" -f -p 4 "$UNSIGNED_APK" "$ALIGNED_APK"
+          "$APKSIGNER" sign \
+            --ks "$ANDROID_KEYSTORE_PATH" \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --key-pass env:ANDROID_KEY_PASSWORD \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out "$APK" "$ALIGNED_APK"
+          test -s "$APK"
+          echo "Release APK signed explicitly with V1, V2 and V3."
+
       - name: Verify Release APK Signature
         run: |
           set -euo pipefail
           APK="android/app/build/outputs/apk/release/app-release.apk"
-          if [ ! -f "$APK" ]; then
-            echo "::error::Expected release APK was not produced: $APK"
-            find android/app/build/outputs/apk/release -maxdepth 2 -type f -print || true
-            exit 1
-          fi
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
-          if [ -z "$APKSIGNER" ]; then
-            echo "::error::Android apksigner tool was not found."
-            exit 1
-          fi
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          APKSIGNER="$BUILD_TOOLS/apksigner"
+          ZIPALIGN="$BUILD_TOOLS/zipalign"
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$RUNNER_TEMP/apk-signature.txt"
           grep -Fq "Verified using v1 scheme (JAR signing): true" "$RUNNER_TEMP/apk-signature.txt"
           grep -Fq "Verified using v2 scheme (APK Signature Scheme v2): true" "$RUNNER_TEMP/apk-signature.txt"
-          ZIPALIGN="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign | sort -V | tail -n 1)"
-          if [ -z "$ZIPALIGN" ]; then
-            echo "::error::Android zipalign tool was not found."
-            exit 1
-          fi
+          grep -Fq "Verified using v3 scheme (APK Signature Scheme v3): true" "$RUNNER_TEMP/apk-signature.txt"
           "$ZIPALIGN" -c -v 4 "$APK"
 
       - name: Collect & Rename APK Outputs for Artifact Upload
