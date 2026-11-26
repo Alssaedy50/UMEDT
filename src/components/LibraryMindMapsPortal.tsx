@@ -23,24 +23,7 @@ const PALETTE = [
   { value: '#475569', label: 'رمادي' }, { value: '#15803d', label: 'أخضر' }
 ];
 const SHAPES = [{ value: 'rounded', label: 'مستطيل مستدير' }, { value: 'pill', label: 'بيضاوي' }, { value: 'diamond', label: 'معيّن' }, { value: 'hexagon', label: 'سداسي' }, { value: 'circle', label: 'دائري' }] as const;
-const PROMPT = `أنشئ خريطة تعليمية تفاعلية متوافقة مع UMEDT حول: [اكتب الموضوع].
-أخرج JSON صالحاً فقط دون Markdown أو مقدمات، بالهيكل التالي:
-{
- "title":"عنوان الخريطة","titleEn":"English title","style":"hierarchical",
- "nodes":[
-  {"id":"root","label":"عنوان العقدة المختصر","sublabel":"ترجمة أو عنوان فرعي","note":"شرح كامل غير محدود للعقدة، ويمكن أن يحتوي فقرات وقوائم وأمثلة","parentId":null,"role":"root","shape":"rounded","color":"#0f766e"},
-  {"id":"n1","label":"العقدة التالية","sublabel":"ترجمتها","note":"شرح تفصيلي كامل","parentId":"root","role":"mechanism","shape":"diamond","color":"#2563eb"}
- ],
- "edges":[{"id":"e1","sourceId":"root","targetId":"n1","label":"العلاقة"}]
-}
-قواعد إلزامية:
-1) اجعل label عنواناً موجزاً فقط، وضع الشرح التفصيلي كاملاً في note دون اختصار أو حد للطول.
-2) أنشئ عقداً هرمية مترابطة، واستخدم parentId الصحيح لكل عقدة.
-3) أضف edges للعلاقات السببية أو التسلسلية المهمة.
-4) استخدم role من: root, concept, mechanism, diagnosis, treatment, warning.
-5) استخدم shape من: rounded, pill, diamond, hexagon, circle، وcolor بصيغة HEX.
-6) حافظ على أسماء المصطلحات الطبية باللغة الإنجليزية، وأضف الترجمة العربية والشرح عند الحاجة.
-7) لا تضع نصاً خارج JSON. لا تستخدم صوراً أو روابط خارجية.`;
+const PROMPT = MIND_MAP_AI_PROMPTS.json;
 
 export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showToast, topics = [] }) => {
   const [maps, setMaps] = useState<MindMapDocument[]>(() => loadMindMaps());
@@ -151,7 +134,7 @@ export const LibraryMindMapsPortal: React.FC<Props> = ({ isOpen, onClose, showTo
           <summary className="cursor-pointer font-extrabold">كيف يكتشف UMEDT الخريطة ويقرأها؟</summary>
           <ol className="mt-2 list-decimal pr-5 space-y-1 text-[11px] leading-6 text-slate-600 dark:text-slate-300">
             <li>يفحص الملف كنص محلياً دون رفعه إلى خادم.</li>
-            <li>يبحث أولاً عن JSON ثم Markdown والعناوين والقوائم المتداخلة.</li>
+            <li>يستخدم محلل UMEDT موحداً؛ يبدأ بالتعرف على JSON الأصلي، ويحتفظ بدعم Markdown وأسهم التدفق والملفات القديمة للتوافق.</li>
             <li>يتعرف على الترقيم والتباعد الهرمي وشجرة ASCII وأسهم التدفق A → B.</li>
             <li>ينشئ العقد والعلاقات، ويعرض معاينة بعدد العقد والروابط والعمق قبل الحفظ.</li>
             <li>ضع الشرح الطويل داخل note؛ يبقى منفصلاً عن عنوان العقدة المختصر.</li>
