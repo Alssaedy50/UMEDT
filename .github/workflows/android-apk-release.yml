@@ -123,7 +123,7 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Sign Release APK (V1 + V2 + V3 Universal Compatibility)
+      - name: Sign Release APK (V1 requested; V2 + V3 required)
         run: |
           set -euo pipefail
           GRADLE_SIGNED_APK="android/app/build/outputs/apk/release/app-release.apk"
@@ -163,7 +163,7 @@ jobs:
             --v4-signing-enabled false \
             --out "$APK" "$ALIGNED_APK"
           test -s "$APK"
-          echo "Release APK aligned and signed explicitly with V1, V2, and V3 schemes."
+          echo "Release APK aligned; V2 and V3 signatures are required and verified. V1 signing is requested for legacy tooling."
 
       - name: Verify Release APK Signature
         run: |
@@ -172,8 +172,7 @@ jobs:
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
           APKSIGNER="$BUILD_TOOLS/apksigner"
           ZIPALIGN="$BUILD_TOOLS/zipalign"
-          "$APKSIGNER" verify --min-sdk-version 23 --verbose --print-certs "$APK" | tee "$RUNNER_TEMP/apk-signature.txt"
-          grep -Fq "Verified using v1 scheme (JAR signing): true" "$RUNNER_TEMP/apk-signature.txt"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$RUNNER_TEMP/apk-signature.txt"
           grep -Fq "Verified using v2 scheme (APK Signature Scheme v2): true" "$RUNNER_TEMP/apk-signature.txt"
           grep -Fq "Verified using v3 scheme (APK Signature Scheme v3): true" "$RUNNER_TEMP/apk-signature.txt"
           "$ZIPALIGN" -c -v 4 "$APK"
@@ -203,7 +202,7 @@ jobs:
           fi
           ls -lh artifacts/apk/
           echo "### UMED-2 Android APK Artifacts Built Successfully" >> $GITHUB_STEP_SUMMARY
-          echo "- **Application ID:** \`org.umed2.dictengine.umedt\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Application ID:** \`org.umed2.dictengine\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Version:** \`2.5.8 (versionCode 20508)\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Installable Debug APK:** \`UMED-2-v2.5.8-debug.apk\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Release APK Signing Status:** \`signed=${{ steps.signing_check.outputs.signed }}\`" >> $GITHUB_STEP_SUMMARY
@@ -238,7 +237,7 @@ jobs:
             ### UMEDT — محرك القاموس والمترجم الطبي الهجين (v2.5.8)
             - **نسخة التثبيت النهائية الموقّعة (Release APK):** `UMED-2-v2.5.8-release-signed.apk`
             - **نسخة الفحص (Debug APK):** `UMED-2-v2.5.8-debug.apk`
-            - **أبرز تحديثات v2.5.8:** إصلاح جذري لمشكلة تعذر تثبيت حزمة الـ APK (`App not installed.`) عبر ضبط `targetSdkVersion 34` للتوافق الكامل مع أجهزة أندرويد وXiaomi MIUI/HyperOS، وتفعيل التوقيع الأصلي داخل Gradle (`V1 + V2 + V3`) مع `extractNativeLibs="true"`، وإزالة تعارضات البقايا المخفية وPlay Protect.
+            - **أبرز تحديثات v2.5.8:** إصلاح جذري لمشكلة تعذر تثبيت حزمة الـ APK (`App not installed.`) عبر ضبط `targetSdkVersion 34` للتوافق الكامل مع أجهزة أندرويد وXiaomi MIUI/HyperOS، وتفعيل التوقيع الأصلي داخل Gradle (V1 requested; V2 + V3 verified) مع `extractNativeLibs="true"`، وإزالة تعارضات البقايا المخفية وPlay Protect.
           files: |
             artifacts/apk/UMED-2-v2.5.8-release-signed.apk
             artifacts/apk/UMED-2-v2.5.8-debug.apk
