@@ -61,6 +61,16 @@
 
 
         <service
+            android:name=".UMEDTClipboardMonitorService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-enabled clipboard monitoring for instant offline dictionary translation." />
+        </service>
+
+        <service
             android:name=".UMEDTAutoTranslateAccessibilityService"
             android:label="@string/umedt_accessibility_service_label"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
@@ -84,6 +94,8 @@
         </provider>
     </application>
 
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
