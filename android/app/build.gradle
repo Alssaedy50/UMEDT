@@ -21,18 +21,6 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-    signingConfigs {
-        if (hasReleaseSigning) {
-            release {
-                storeFile file(keystorePath)
-                storePassword keystorePassword
-                keyAlias keyAliasName
-                keyPassword keyPasswordValue
-                enableV1Signing = true
-                enableV2Signing = true
-            }
-        }
-    }
     buildTypes {
         debug {
             applicationIdSuffix ".debug"
@@ -41,9 +29,6 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            if (hasReleaseSigning) {
-                signingConfig signingConfigs.release
-            }
         }
     }
 }
