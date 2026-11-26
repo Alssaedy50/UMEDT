@@ -123,22 +123,34 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Sign Release APK (V2 + V3; V1 compatibility attempt)
+      - name: Sign Release APK (V1 + V2 + V3 Universal Compatibility)
         run: |
           set -euo pipefail
+          GRADLE_SIGNED_APK="android/app/build/outputs/apk/release/app-release.apk"
           UNSIGNED_APK="android/app/build/outputs/apk/release/app-release-unsigned.apk"
-          ALIGNED_APK="$RUNNER_TEMP/umedt-release-aligned.apk"
-          APK="android/app/build/outputs/apk/release/app-release.apk"
-          if [ ! -s "$UNSIGNED_APK" ]; then
-            echo "::error::Gradle did not produce the expected unsigned APK: $UNSIGNED_APK"
+          SOURCE_APK=""
+          if [ -s "$UNSIGNED_APK" ]; then
+            SOURCE_APK="$UNSIGNED_APK"
+          elif [ -s "$GRADLE_SIGNED_APK" ]; then
+            SOURCE_APK="$GRADLE_SIGNED_APK"
+          else
+            FOUND_APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1 || true)
+            if [ -n "$FOUND_APK" ] && [ -s "$FOUND_APK" ]; then
+              SOURCE_APK="$FOUND_APK"
+            fi
+          fi
+          if [ -z "$SOURCE_APK" ]; then
+            echo "::error::Gradle did not produce any release APK in android/app/build/outputs/apk/release"
             find android/app/build/outputs/apk/release -maxdepth 2 -type f -print || true
             exit 1
           fi
+          ALIGNED_APK="$RUNNER_TEMP/umedt-release-aligned.apk"
+          APK="android/app/build/outputs/apk/release/app-release.apk"
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
           ZIPALIGN="$BUILD_TOOLS/zipalign"
           APKSIGNER="$BUILD_TOOLS/apksigner"
           test -x "$ZIPALIGN" && test -x "$APKSIGNER"
-          "$ZIPALIGN" -f -p 4 "$UNSIGNED_APK" "$ALIGNED_APK"
+          "$ZIPALIGN" -f -p 4 "$SOURCE_APK" "$ALIGNED_APK"
           "$APKSIGNER" sign \
             --ks "$ANDROID_KEYSTORE_PATH" \
             --ks-key-alias "$ANDROID_KEY_ALIAS" \
@@ -147,9 +159,10 @@ jobs:
             --v1-signing-enabled true \
             --v2-signing-enabled true \
             --v3-signing-enabled true \
+            --v4-signing-enabled false \
             --out "$APK" "$ALIGNED_APK"
           test -s "$APK"
-          echo "Release APK signed explicitly with V2 and V3; V1 is not required for minSdk 24+."
+          echo "Release APK aligned and signed explicitly with V1, V2, and V3 schemes."
 
       - name: Verify Release APK Signature
         run: |
@@ -159,6 +172,7 @@ jobs:
           APKSIGNER="$BUILD_TOOLS/apksigner"
           ZIPALIGN="$BUILD_TOOLS/zipalign"
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$RUNNER_TEMP/apk-signature.txt"
+          grep -Fq "Verified using v1 scheme (JAR signing): true" "$RUNNER_TEMP/apk-signature.txt"
           grep -Fq "Verified using v2 scheme (APK Signature Scheme v2): true" "$RUNNER_TEMP/apk-signature.txt"
           grep -Fq "Verified using v3 scheme (APK Signature Scheme v3): true" "$RUNNER_TEMP/apk-signature.txt"
           "$ZIPALIGN" -c -v 4 "$APK"
@@ -171,16 +185,16 @@ jobs:
             echo "ERROR: Debug APK was not found in android/app/build/outputs/apk/debug"
             exit 1
           fi
-          cp "$DEBUG_APK" artifacts/apk/UMED-2-v2.5.7-debug.apk
+          cp "$DEBUG_APK" artifacts/apk/UMED-2-v2.5.8-debug.apk
 
           if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk artifacts/apk/UMED-2-v2.5.7-release-signed.apk
+            cp android/app/build/outputs/apk/release/app-release.apk artifacts/apk/UMED-2-v2.5.8-release-signed.apk
           elif [ -f android/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release-unsigned.apk artifacts/apk/UMED-2-v2.5.7-release-unsigned.apk
+            cp android/app/build/outputs/apk/release/app-release-unsigned.apk artifacts/apk/UMED-2-v2.5.8-release-unsigned.apk
           else
             RELEASE_APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
             if [ -n "$RELEASE_APK" ]; then
-              cp "$RELEASE_APK" artifacts/apk/UMED-2-v2.5.7-release-unsigned.apk
+              cp "$RELEASE_APK" artifacts/apk/UMED-2-v2.5.8-release-unsigned.apk
             else
               echo "ERROR: Release APK was not found in android/app/build/outputs/apk/release"
               exit 1
@@ -188,9 +202,9 @@ jobs:
           fi
           ls -lh artifacts/apk/
           echo "### UMED-2 Android APK Artifacts Built Successfully" >> $GITHUB_STEP_SUMMARY
-          echo "- **Application ID:** \`org.umed2.dictengine\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version:** \`2.5.7 (versionCode 20507)\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Installable Debug APK:** \`UMED-2-v2.5.7-debug.apk\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Application ID:** \`org.umed2.dictengine.umedt\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** \`2.5.8 (versionCode 20508)\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Installable Debug APK:** \`UMED-2-v2.5.8-debug.apk\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Release APK Signing Status:** \`signed=${{ steps.signing_check.outputs.signed }}\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Clean Up Temporary Keystore
@@ -200,16 +214,16 @@ jobs:
       - name: Upload Installable Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UMED-2-v2.5.7-debug-apk
-          path: artifacts/apk/UMED-2-v2.5.7-debug.apk
+          name: UMED-2-v2.5.8-debug-apk
+          path: artifacts/apk/UMED-2-v2.5.8-debug.apk
           if-no-files-found: error
           retention-days: 90
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UMED-2-v2.5.7-release-apk
-          path: artifacts/apk/UMED-2-v2.5.7-release-*.apk
+          name: UMED-2-v2.5.8-release-apk
+          path: artifacts/apk/UMED-2-v2.5.8-release-*.apk
           if-no-files-found: error
           retention-days: 90
 
@@ -217,16 +231,16 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.5.7
-          name: "UMEDT Android APK v2.5.7 (Latest)"
+          tag_name: v2.5.8
+          name: "UMEDT Android APK v2.5.8 (Latest)"
           body: |
-            ### UMEDT — محرك القاموس والمترجم الطبي الهجين (v2.5.7)
-            - **نسخة التثبيت النهائية الموقّعة (Release APK):** `UMED-2-v2.5.7-release-signed.apk`
-            - **نسخة الفحص (Debug APK):** `UMED-2-v2.5.7-debug.apk`
-            - **أبرز تحديثات v2.5.7:** تصدير ومشاركة الخرائط الذهنية كصفحات HTML مستقلة تعمل دون اتصال، مع دعم التفاعل والتوسيع والطي.  موضوع مرتبط ببلوك ومادة محليين، ومصطلحات عامة مستقلة؛ منع استيراد أو تعديل البلوكات والمواد من ملفات AI، وربط الموضوعات بالمراجع المحلية والتحقق من المطابقة، مع جعل استيراد المحتوى محلياً.
+            ### UMEDT — محرك القاموس والمترجم الطبي الهجين (v2.5.8)
+            - **نسخة التثبيت النهائية الموقّعة (Release APK):** `UMED-2-v2.5.8-release-signed.apk`
+            - **نسخة الفحص (Debug APK):** `UMED-2-v2.5.8-debug.apk`
+            - **أبرز تحديثات v2.5.8:** إصلاح جذري لمشكلة تعذر تثبيت حزمة الـ APK (`App not installed.`) عبر ضبط `targetSdkVersion 34` للتوافق الكامل مع أجهزة أندرويد وXiaomi MIUI/HyperOS، وتفعيل التوقيع الأصلي داخل Gradle (`V1 + V2 + V3`) مع `extractNativeLibs="true"`، وإزالة تعارضات البقايا المخفية وPlay Protect.
           files: |
-            artifacts/apk/UMED-2-v2.5.7-release-signed.apk
-            artifacts/apk/UMED-2-v2.5.7-debug.apk
+            artifacts/apk/UMED-2-v2.5.8-release-signed.apk
+            artifacts/apk/UMED-2-v2.5.8-debug.apk
           prerelease: false
           make_latest: true
         env:

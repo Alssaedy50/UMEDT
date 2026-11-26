@@ -56,7 +56,7 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
         CharSequence pkgSeq = event.getPackageName();
         String pkgName = pkgSeq != null ? pkgSeq.toString() : "";
         // Skip our own app window since WebView handles copy/selection translation internally
-        if ("org.umed2.dictengine".equals(pkgName) || "org.umed2.dictengine.debug".equals(pkgName)) {
+        if (pkgName.startsWith("org.umed2.dictengine")) {
             return;
         }
 

@@ -273,15 +273,26 @@ async function main() {
   );
 
   const gradleContent = fs.readFileSync(androidBuildGradlePath, 'utf8');
+  const variablesGradleContent = fs.readFileSync(path.join(ROOT_DIR, 'android', 'variables.gradle'), 'utf8');
   assertCondition(
     gradleContent.includes('org.umed2.dictengine') &&
       gradleContent.includes(`versionCode ${APP_VERSION.split('.').reduce((n, part, i) => n + Number(part) * [10000, 100, 1][i], 0)}`) &&
-      gradleContent.includes(`versionName "${APP_VERSION}"`),
-    `android/app/build.gradle must use applicationId "org.umed2.dictengine" and version ${APP_VERSION}`
+      gradleContent.includes(`versionName "${APP_VERSION}"`) &&
+      gradleContent.includes('signingConfigs') &&
+      gradleContent.includes('v1SigningEnabled true') &&
+      gradleContent.includes('v2SigningEnabled true') &&
+      gradleContent.includes('v3SigningEnabled true') &&
+      gradleContent.includes('useLegacyPackaging = true') &&
+      variablesGradleContent.includes('targetSdkVersion = 34'),
+    `android/app/build.gradle must use applicationId "org.umed2.dictengine", version ${APP_VERSION}, native signingConfigs (V1+V2+V3), and targetSdkVersion 34`
   );
 
-  // The app must not package or register a custom IME; translation uses Accessibility/overlay services.
+  // The app must not package or register a custom IME or sideload-blocked services.
   const androidManifestContent = fs.readFileSync(path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'), 'utf8');
+  assertCondition(
+    androidManifestContent.includes('android:extractNativeLibs="true"'),
+    'AndroidManifest.xml must enable android:extractNativeLibs="true" for universal PackageInstaller compatibility'
+  );
   const keyboardImeSourcePath = path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'java', 'org', 'umed2', 'dictengine', 'UMEDTKeyboardService.java');
   assertCondition(
     !androidManifestContent.includes('UMEDTKeyboardService') && !fs.existsSync(keyboardImeSourcePath),

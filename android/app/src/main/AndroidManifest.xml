@@ -3,6 +3,7 @@
 
     <application
         android:allowBackup="true"
+        android:extractNativeLibs="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -27,8 +28,7 @@
             android:name=".UMEDTPopupCardActivity"
             android:label="@string/umedt_instant_translate_label"
             android:theme="@style/AppTheme.TranslucentPopup"
-            android:launchMode="singleInstance"
-            android:taskAffinity=""
+            android:launchMode="singleTask"
             android:excludeFromRecents="true"
             android:noHistory="true"
             android:exported="true">
@@ -48,39 +48,15 @@
             </intent-filter>
         </activity>
 
-
-        <service
-            android:name=".UMEDTAutoTranslateAccessibilityService"
-            android:label="@string/umedt_accessibility_service_label"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/umedt_accessibility_service" />
-        </service>
-
         <service
             android:name=".UMEDTQuickTranslateTileService"
-            android:icon="@android:drawable/ic_menu_search"
+            android:icon="@mipmap/ic_launcher"
             android:label="@string/umedt_quick_tile_label"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
-        </service>
-
-        <service
-            android:name=".UMEDTClipboardMonitorService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="instant_medical_dictionary_clipboard_lookup" />
         </service>
 
         <provider
@@ -99,9 +75,6 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <queries>
