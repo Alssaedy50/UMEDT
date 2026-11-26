@@ -184,15 +184,20 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     const node = svg?.querySelector(`.mm-node[data-node-id="${CSS.escape(nodeId)}"]`) as SVGGElement | null;
     if (!viewport || !node) return;
     const bounds = node.getBBox();
-    const scale = Math.max(0.72, Math.min(1.85, Math.min(
+    // Keep the focused node inside the unobstructed canvas area when the details sheet is open.
+    const reservedBottom = selectedNodeId
+      ? Math.min(220, viewport.clientHeight * 0.24)
+      : 0;
+    const usableHeight = Math.max(160, viewport.clientHeight - reservedBottom - 16);
+    const scale = Math.max(0.62, Math.min(1.85, Math.min(
       (viewport.clientWidth * 0.62) / Math.max(1, bounds.width),
-      (viewport.clientHeight * 0.34) / Math.max(1, bounds.height)
+      (usableHeight * 0.34) / Math.max(1, bounds.height)
     )));
     applyTransform(scale, {
       x: viewport.clientWidth / 2 - (bounds.x + bounds.width / 2) * scale,
-      y: viewport.clientHeight * 0.43 - (bounds.y + bounds.height / 2) * scale
+      y: usableHeight * 0.48 - (bounds.y + bounds.height / 2) * scale
     });
-  }, [applyTransform]);
+  }, [applyTransform, selectedNodeId]);
 
   const fitToView = useCallback(() => {
     const viewport = viewportRef.current;
@@ -203,12 +208,21 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     const minY = values[1] || 0;
     const width = Math.max(1, values[2] || 900);
     const height = Math.max(1, values[3] || 600);
-    const scale = Math.max(0.2, Math.min(1.8, Math.min(viewport.clientWidth / width, viewport.clientHeight / height) * 1.04));
+    // Reserve the bottom details-sheet area so nodes are fitted to the visible canvas,
+    // rather than being placed underneath the card on short Android screens.
+    const reservedBottom = selectedNodeId
+      ? Math.min(220, viewport.clientHeight * 0.24)
+      : 0;
+    const usableHeight = Math.max(160, viewport.clientHeight - reservedBottom - 16);
+    const scale = Math.max(0.2, Math.min(1.8, Math.min(
+      viewport.clientWidth / width,
+      usableHeight / height
+    ) * 1.02));
     applyTransform(scale, {
       x: (viewport.clientWidth - width * scale) / 2 - minX * scale,
-      y: (viewport.clientHeight - height * scale) / 2 - minY * scale
+      y: (usableHeight - height * scale) / 2 - minY * scale
     });
-  }, [applyTransform, svgMarkup]);
+  }, [applyTransform, svgMarkup, selectedNodeId]);
 
   useEffect(() => {
     if (!stageRef.current) return;
