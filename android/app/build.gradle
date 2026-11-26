@@ -40,7 +40,6 @@ android {
             versionNameSuffix "-debug"
         }
         release {
-            applicationIdSuffix ".umedt"
             minifyEnabled false
             signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
