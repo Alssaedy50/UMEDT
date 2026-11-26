@@ -253,7 +253,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
     }
   };
 
-  const handleCopyPrompt = async (key: 'markdown' | 'flow' | 'json') => {
+  const handleCopyPrompt = async (key: 'json') => {
     try {
       await navigator.clipboard.writeText(MIND_MAP_AI_PROMPTS[key]);
       setCopiedPromptKey(key);
@@ -364,10 +364,10 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                    استيراد خريطة ذهنية ذكي (Markdown / أسهم تدفق / JSON / ChatGPT / Gemini)
+                    استيراد خريطة ذهنية موحد (JSON / ملفات قديمة متوافقة)
                   </h3>
                   <p className="text-xs text-slate-500">
-                    الصق مخرجات الذكاء الاصطناعي أو قائمة نصية متداخلة أو ارفع ملفاً وسيتم تحويلها فوراً إلى خريطة تفاعلية
+                    استخدم برمبت JSON الموحد للمخرجات الجديدة. يمكن استيراد الخرائط القديمة أيضاً عبر نفس مسار التحليل والمعاينة.
                   </p>
                 </div>
                 <button
@@ -385,30 +385,21 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className="text-xs font-extrabold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>قوالب جاهزة للنسخ إلى ChatGPT أو Gemini:</span>
+                    <span>قالب توليد موحد متوافق مع مستورد UMEDT:</span>
                   </span>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    {(
-                      [
-                        { key: 'markdown', label: 'نسخ قالب Markdown' },
-                        { key: 'flow', label: 'نسخ قالب المسار السريري ->' },
-                        { key: 'json', label: 'نسخ قالب JSON' }
-                      ] as const
-                    ).map((tpl) => (
-                      <button
-                        key={tpl.key}
-                        type="button"
-                        onClick={() => void handleCopyPrompt(tpl.key)}
-                        className="min-h-[32px] px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 text-[11px] font-bold flex items-center gap-1"
-                      >
-                        {copiedPromptKey === tpl.key ? (
-                          <Check className="w-3 h-3 text-emerald-500" />
-                        ) : (
-                          <Copy className="w-3 h-3 text-emerald-500" />
-                        )}
-                        <span>{tpl.label}</span>
-                      </button>
-                    ))}
+                    <button
+                      type="button"
+                      onClick={() => void handleCopyPrompt('json')}
+                      className="min-h-[32px] px-3 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 text-[11px] font-bold flex items-center gap-1"
+                    >
+                      {copiedPromptKey === 'json' ? (
+                        <Check className="w-3 h-3 text-emerald-500" />
+                      ) : (
+                        <Copy className="w-3 h-3 text-emerald-500" />
+                      )}
+                      <span>{copiedPromptKey === 'json' ? 'تم نسخ البرمبت الموحد' : 'نسخ برمبت JSON الموحد'}</span>
+                    </button>
                   </div>
                 </div>
               </div>
