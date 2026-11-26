@@ -298,6 +298,13 @@ async function main() {
     androidManifestContent.includes('android:extractNativeLibs="true"'),
     'AndroidManifest.xml must enable android:extractNativeLibs="true" for universal PackageInstaller compatibility'
   );
+  assertCondition(
+    androidManifestContent.includes('android:name=".UMEDTClipboardMonitorService"') &&
+      androidManifestContent.includes('android:foregroundServiceType="specialUse"') &&
+      androidManifestContent.includes('android.permission.FOREGROUND_SERVICE_SPECIAL_USE') &&
+      androidManifestContent.includes('android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE'),
+    'AndroidManifest.xml must register the persistent clipboard monitor as a specialUse foreground service on Android 14+'
+  );
   const keyboardImeSourcePath = path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'java', 'org', 'umed2', 'dictengine', 'UMEDTKeyboardService.java');
   assertCondition(
     !androidManifestContent.includes('UMEDTKeyboardService') && !fs.existsSync(keyboardImeSourcePath),
