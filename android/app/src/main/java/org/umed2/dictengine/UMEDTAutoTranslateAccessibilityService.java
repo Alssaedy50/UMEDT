@@ -137,26 +137,10 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
             return;
         }
 
-        // Priority 3: On Android 10+, an active AccessibilityService is explicitly permitted by Android OS
-        // to start an Activity from the background even when the main UMEDT app is completely closed!
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            mainHandler.postDelayed(() -> {
-                try {
-                    Intent popupIntent = new Intent(this, UMEDTPopupCardActivity.class);
-                    popupIntent.setAction(UMEDTPopupCardActivity.ACTION_CLIPBOARD_CHECK);
-                    popupIntent.putExtra(UMEDTPopupCardActivity.EXTRA_FORCE_FEEDBACK, false);
-                    popupIntent.addFlags(
-                            Intent.FLAG_ACTIVITY_NEW_TASK
-                                    | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                                    | Intent.FLAG_ACTIVITY_SINGLE_TOP
-                                    | Intent.FLAG_ACTIVITY_NO_ANIMATION
-                                    | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
-                    );
-                    startActivity(popupIntent);
-                } catch (Exception ignored) {
-                }
-            }, 70L);
-        }
+        // Do not open UMEDTPopupCardActivity as a background clipboard reader.
+        // Even a transparent Activity takes window focus away from the current IME,
+        // which causes the keyboard to flicker. The selection/copy paths above
+        // already render a matched term directly through the non-focusable overlay.
     }
 
     private boolean tryShowTranslationForText(String rawText, boolean forceShow) {
