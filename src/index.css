@@ -5,7 +5,7 @@
 @layer base {
   :root,
   :root[data-theme="emerald"] {
-    --app-font-family: 'Cairo', 'Inter', system-ui, -apple-system, sans-serif;
+    --app-font-family: 'IBM Plex Sans Arabic', 'Inter', 'Cairo', system-ui, -apple-system, sans-serif;
     --app-font-scale: 1;
     --theme-accent-rgb: 16, 185, 129;
 
