@@ -772,7 +772,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
         <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 text-xs font-extrabold text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
           <span aria-hidden="true">☰</span><span>أدوات الخريطة وإعداداتها</span><span className="text-slate-400 transition-transform group-open:rotate-180">⌄</span>
         </summary>
-        <div className="absolute right-0 top-full mt-2 flex max-h-[min(72dvh,620px)] w-[min(340px,calc(100vw-28px))] flex-col gap-2 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+        <div onClick={(event) => { if ((event.target as HTMLElement).closest("button")) event.currentTarget.closest("details")?.removeAttribute("open"); }} className="absolute right-0 top-full mt-2 flex max-h-[min(72dvh,620px)] w-[min(340px,calc(100vw-28px))] flex-col gap-2 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
         {/* Style Switcher */}
         <div className="flex items-center gap-1 p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
           {STYLE_LABELS.map((st) => {
