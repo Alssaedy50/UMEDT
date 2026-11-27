@@ -605,7 +605,7 @@ export function buildStandaloneMindMapSvg(
       const textLines = pn.lines
         .map(
           (line, idx) =>
-            `<text x="${pn.x}" y="${startY + idx * 16}" text-anchor="middle" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="${
+            `<text x="${pn.x}" y="${startY + idx * 16}" text-anchor="middle" dir="auto" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="${
               pn.node.role === 'root' ? 13 : 12
             }" font-weight="800" fill="${textColor}">${escapeXml(line)}</text>`
         )
