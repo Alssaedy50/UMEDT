@@ -545,60 +545,6 @@ function escapeXml(str: string): string {
     .replace(/'/g, '&apos;');
 }
 
-const SVG_ROLE_PALETTE: Record<
-  MindMapNodeRole,
-  { fillLight: string; strokeLight: string; textLight: string; fillDark: string; strokeDark: string; textDark: string }
-> = {
-  root: {
-    fillLight: '#059669',
-    strokeLight: '#047857',
-    textLight: '#ffffff',
-    fillDark: '#10b981',
-    strokeDark: '#34d399',
-    textDark: '#022c22'
-  },
-  concept: {
-    fillLight: '#ffffff',
-    strokeLight: '#94a3b8',
-    textLight: '#0f172a',
-    fillDark: '#1e293b',
-    strokeDark: '#475569',
-    textDark: '#f8fafc'
-  },
-  mechanism: {
-    fillLight: '#eff6ff',
-    strokeLight: '#3b82f6',
-    textLight: '#1e3a8a',
-    fillDark: '#172554',
-    strokeDark: '#60a5fa',
-    textDark: '#dbeafe'
-  },
-  diagnosis: {
-    fillLight: '#f5f3ff',
-    strokeLight: '#8b5cf6',
-    textLight: '#4c1d95',
-    fillDark: '#2e1065',
-    strokeDark: '#a78bfa',
-    textDark: '#ede9fe'
-  },
-  treatment: {
-    fillLight: '#ecfdf5',
-    strokeLight: '#10b981',
-    textLight: '#065f46',
-    fillDark: '#022c22',
-    strokeDark: '#34d399',
-    textDark: '#d1fae5'
-  },
-  warning: {
-    fillLight: '#fff1f2',
-    strokeLight: '#f43f5e',
-    textLight: '#881337',
-    fillDark: '#4c0519',
-    strokeDark: '#fb7185',
-    textDark: '#ffe4e6'
-  }
-};
-
 export function buildStandaloneMindMapSvg(
   doc: MindMapDocument,
   layout: MindMapLayoutResult,
