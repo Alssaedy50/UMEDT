@@ -111,7 +111,6 @@ export function buildMindMapGenerationPrompt(options: MindMapPromptOptions): str
         '- Keep all labels, notes, and explanations in English.',
         '- Add a concise Arabic translation only in the optional sublabel field for nodes where it adds real value.',
         '- Do not translate or duplicate the explanatory note. Never put Arabic paragraphs inside cards.',
-        '- Add subtitleAr only if the imported schema explicitly supports it; otherwise omit it.'
       ]
     : [
         '- English only: do not generate Arabic translations, Arabic explanations, sublabels, or bilingual duplicates.',
