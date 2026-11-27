@@ -281,7 +281,7 @@ function computeCrossLinkPath(
 
   // Place the pill at t=0.5 of the central external-gutter Bezier segment.
   const labelX = (laneX + targetDetourX) / 2;
-  const labelY = laneY - 10;
+  const labelY = laneY;
   return { path, labelX, labelY };
 }
 
