@@ -37,6 +37,7 @@ type Gesture =
       originY: number;
       nodeId?: string;
       actionNodeId?: string;
+      edgeId?: string;
       moved: boolean;
     }
   | {
@@ -92,6 +93,8 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(() => new Set());
   const [showNodesPanel, setShowNodesPanel] = useState(false);
   const [showToolsMenu, setShowToolsMenu] = useState(false);
+  const [showRelationships, setShowRelationships] = useState(true);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [activeColorMode, setActiveColorMode] = useState<MindMapColorMode>(mapDocument.colorMode || 'branch');
   const [selectedSwatchColor, setSelectedSwatchColor] = useState<string>(MIND_MAP_COLOR_SWATCHES[0].base);
 
@@ -504,6 +507,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
           return next;
         });
       }
+      setSelectedEdgeId(null);
       setSelectedNodeId(targetId);
       setIsNoteExpanded(false);
       if (isSequentialMode) {
@@ -719,6 +723,67 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     toggleNodeBranchCollapse
   ]);
 
+  // Elevate only the selected relationship (or all links attached to the selected node)
+  // into the pointer-transparent overlay above cards.
+  useEffect(() => {
+    const svg = stageRef.current?.querySelector('svg');
+    if (!svg) return;
+    const overlay = svg.querySelector('.mm-active-edge-layer') as SVGGElement | null;
+    if (!overlay) return;
+    overlay.replaceChildren();
+    const edgeGroups = Array.from(svg.querySelectorAll<SVGGElement>('.mm-edge[data-edge-id]'));
+    const labelGroups = Array.from(svg.querySelectorAll<SVGGElement>('.mm-edge-label[data-edge-id]'));
+    const activeEdges = edgeGroups.filter((edge) => {
+      const from = edge.dataset.from || '';
+      const to = edge.dataset.to || '';
+      return selectedEdgeId
+        ? edge.dataset.edgeId === selectedEdgeId
+        : Boolean(selectedNodeId && (from === selectedNodeId || to === selectedNodeId));
+    });
+    const activeIds = new Set(activeEdges.map((edge) => edge.dataset.edgeId || ''));
+    const activeNodeIds = new Set<string>();
+    activeEdges.forEach((edge) => {
+      if (edge.dataset.from) activeNodeIds.add(edge.dataset.from);
+      if (edge.dataset.to) activeNodeIds.add(edge.dataset.to);
+    });
+    edgeGroups.forEach((edge) => {
+      const isActive = activeIds.has(edge.dataset.edgeId || '');
+      const cross = edge.dataset.kind === 'cross-link';
+      edge.style.display = cross && !showRelationships ? 'none' : '';
+      edge.style.opacity = (selectedNodeId || selectedEdgeId) && !isActive ? '0.12' : '';
+      if (isActive && (!cross || showRelationships)) {
+        const clone = edge.cloneNode(true) as SVGGElement;
+        clone.style.opacity = '1';
+        clone.querySelectorAll<SVGPathElement>('.mm-edge-path').forEach((path) => {
+          path.setAttribute('opacity', '1');
+          path.setAttribute('stroke-width', cross ? '4.2' : '4');
+        });
+        overlay.appendChild(clone);
+      }
+    });
+    labelGroups.forEach((label) => {
+      const isActive = activeIds.has(label.dataset.edgeId || '');
+      const edgeId = label.dataset.edgeId || '';
+      const relatedEdge = edgeGroups.find((edge) => edge.dataset.edgeId === edgeId);
+      const cross = relatedEdge?.dataset.kind === 'cross-link';
+      label.style.display = cross && !showRelationships ? 'none' : '';
+      label.style.opacity = (selectedNodeId || selectedEdgeId) && !isActive ? '0.12' : '';
+      if (isActive && (!cross || showRelationships)) {
+        const clone = label.cloneNode(true) as SVGGElement;
+        clone.style.opacity = '1';
+        clone.querySelector('rect')?.setAttribute('stroke-width', '2.4');
+        overlay.appendChild(clone);
+      }
+    });
+    svg.querySelectorAll<SVGGElement>('.mm-node[data-node-id]').forEach((node) => {
+      const id = node.dataset.nodeId || '';
+      node.style.opacity = (selectedNodeId || selectedEdgeId) && !activeNodeIds.has(id) ? '0.38' : '';
+      node.classList.toggle('relationship-focus', activeNodeIds.has(id));
+      node.style.filter = activeNodeIds.has(id) ? 'drop-shadow(0 0 10px rgba(16,185,129,.72))' : ''; 
+    });
+    overlay.setAttribute('pointer-events', 'none');
+  }, [svgMarkup, selectedNodeId, selectedEdgeId, showRelationships]);
+
   // Unified camera framing effect: frames selected node + its visible children, or fits entire map
   useEffect(() => {
     const svg = stageRef.current?.querySelector('svg');
@@ -785,6 +850,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
 
     const target = event.target as Element;
     const action = target.closest?.('.mm-node-action[data-node-id]') as SVGGElement | null;
+    const edge = target.closest?.('.mm-edge[data-edge-id], .mm-edge-label[data-edge-id]') as SVGGElement | null;
     const node = target.closest?.('.mm-node[data-node-id]') as SVGGElement | null;
     gestureRef.current = {
       type: 'pan',
@@ -795,6 +861,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       originY: currentTransform.pan.y,
       nodeId: action ? undefined : node?.dataset.nodeId,
       actionNodeId: action?.dataset.nodeId,
+      edgeId: edge?.dataset.edgeId,
       moved: false
     };
   };
@@ -855,6 +922,13 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
         toggleNodeBranchCollapse(gesture.actionNodeId);
       } else if (gesture.nodeId) {
         selectNodeAndRevealChildren(gesture.nodeId);
+      } else if (gesture.edgeId) {
+        setSelectedNodeId(null);
+        setSelectedEdgeId(gesture.edgeId);
+        setIsNoteExpanded(false);
+      } else {
+        setSelectedNodeId(null);
+        setSelectedEdgeId(null);
       }
     }
     pointersRef.current.delete(event.pointerId);
@@ -1033,6 +1107,19 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
               <div className={`my-1 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`} />
               <button
                 type="button"
+                aria-pressed={showRelationships}
+                onClick={() => {
+                  setShowRelationships((visible) => !visible);
+                  setShowToolsMenu(false);
+                }}
+                className={`min-h-10 rounded-xl px-3 text-right text-xs font-bold ${
+                  showRelationships ? 'bg-violet-500/15 text-violet-500' : isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+                }`}
+              >
+                {showRelationships ? 'إخفاء أسهم العلاقات' : 'إظهار أسهم العلاقات'}
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   const next = !isSequentialMode;
                   setIsSequentialMode(next);
@@ -1094,6 +1181,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
                 type="button"
                 onClick={() => {
                   setSelectedNodeId(null);
+                  setSelectedEdgeId(null);
                   window.requestAnimationFrame(() => fitToView());
                   setShowToolsMenu(false);
                 }}

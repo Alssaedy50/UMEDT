@@ -556,27 +556,38 @@ export function buildStandaloneMindMapSvg(
   const nodeById = new Map(doc.nodes.map((node) => [node.id, node]));
 
   const edgeElements = layout.edges
-    .map((e) => {
-      const dash = e.lineStyle === 'dashed' ? ' stroke-dasharray="6 4"' : '';
-      const marker = e.directed ? ' marker-end="url(#mm-arrow)"' : '';
-      const relationStroke = e.isCrossLink ? '#a78bfa' : '#2dd4bf';
-      const relationWidth = e.isCrossLink ? 2.1 : 3.2;
-      const relationOpacity = e.isCrossLink ? 0.76 : 0.96;
-      return `<g class="mm-edge" data-kind="${e.isCrossLink ? 'cross-link' : 'tree-link'}" data-from="${escapeXml(e.sourceId)}" data-to="${escapeXml(e.targetId)}"><path d="${escapeXml(e.path)}" fill="none" stroke="${relationStroke}" stroke-width="${relationWidth}" opacity="${relationOpacity}"${dash}${marker} /></g>`;
+    .map((edge) => {
+      const sourceNode = nodeById.get(edge.sourceId);
+      const sourceColor = sourceNode ? getMindMapNodeColors(doc, sourceNode).stroke : edgeStroke;
+      const stroke = edge.isCrossLink ? sourceColor : '#2dd4bf';
+      const markerId = `mm-arrow-${String(edge.id).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+      const dash = edge.lineStyle === 'dashed' && !edge.isCrossLink ? ' stroke-dasharray="6 4"' : '';
+      const marker = edge.directed ? ` marker-end="url(#${markerId})"` : '';
+      const width = edge.isCrossLink ? 2.35 : 3.1;
+      const opacity = edge.isCrossLink ? 0.34 : 0.94;
+      const originDot = edge.isCrossLink
+        ? `<circle class="mm-edge-origin" cx="${edge.sourceX ?? 0}" cy="${edge.sourceY ?? 0}" r="3.4" fill="${stroke}" />`
+        : '';
+      return `<g class="mm-edge" data-edge-id="${escapeXml(edge.id)}" data-kind="${edge.isCrossLink ? 'cross-link' : 'tree-link'}" data-from="${escapeXml(edge.sourceId)}" data-to="${escapeXml(edge.targetId)}">
+        <defs><marker id="${markerId}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 1 L 9 5 L 0 9 z" fill="${stroke}" /></marker></defs>
+        <path class="mm-edge-path" d="${escapeXml(edge.path)}" fill="none" stroke="${stroke}" stroke-width="${width}" opacity="${opacity}" stroke-linecap="round" stroke-linejoin="round" pointer-events="stroke"${dash}${marker} />
+        ${originDot}
+      </g>`;
     })
-    .join('\n');
+    .join('\\n');
 
   const edgeLabelElements = layout.edges
     .filter((edge) => Boolean(edge.label))
     .map((edge) => {
+      const sourceNode = nodeById.get(edge.sourceId);
+      const accent = sourceNode ? getMindMapNodeColors(doc, sourceNode).stroke : edgeStroke;
       const labelWidth = Math.max(64, Math.min(220, Math.round((edge.label || '').length * 7.2 + 22)));
-      return `<g class="mm-edge-label" transform="translate(${edge.labelX}, ${edge.labelY})" pointer-events="none">
-        <rect x="${-Math.round(labelWidth / 2)}" y="-11" width="${labelWidth}" height="22" rx="11" fill="#0b1220" stroke="#64748b" stroke-width="1.2" />
-        <text x="0" y="3.5" text-anchor="middle" dir="auto" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="10" font-weight="700" fill="#e2e8f0">${escapeXml(edge.label || '')}</text>
+      return `<g class="mm-edge-label" data-edge-id="${escapeXml(edge.id)}" data-from="${escapeXml(edge.sourceId)}" data-to="${escapeXml(edge.targetId)}" transform="translate(${edge.labelX}, ${edge.labelY})" role="button" tabindex="0" pointer-events="all" style="cursor:pointer">
+        <rect x="${-Math.round(labelWidth / 2)}" y="-11" width="${labelWidth}" height="22" rx="11" fill="#0b1220" fill-opacity=".96" stroke="${accent}" stroke-width="1.5" />
+        <text x="0" y="3.5" text-anchor="middle" dir="auto" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="10" font-weight="800" fill="#e2e8f0">${escapeXml(edge.label || '')}</text>
       </g>`;
     })
-    .join('\n');
-
+    .join('\\n');
   const nodeElements = layout.nodes
     .map((pn) => {
       const colors = getMindMapNodeColors(doc, pn.node);
@@ -638,14 +649,11 @@ export function buildStandaloneMindMapSvg(
     width
   )}" height="${Math.round(height)}">
   <title>${escapeXml(doc.title)}</title>
-  <defs>
-    <marker id="mm-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="${edgeStroke}" />
-    </marker>
-  </defs>
+  <defs />
   <rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="${bg}" />
-  ${edgeElements}
-  ${edgeLabelElements}
+  <g class="mm-edge-layer mm-edge-layer-base">${edgeElements}</g>
+  <g class="mm-edge-label-layer">${edgeLabelElements}</g>
   ${nodeElements}
+  <g class="mm-active-edge-layer" pointer-events="none" aria-hidden="true"></g>
 </svg>`;
 }

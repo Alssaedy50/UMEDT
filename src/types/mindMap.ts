@@ -114,6 +114,9 @@ export interface PositionedMindMapEdge {
   label?: string;
   labelX: number;
   labelY: number;
+  /** Exact outer-right source port for relationship origin markers. */
+  sourceX?: number;
+  sourceY?: number;
   isCrossLink: boolean;
   directed: boolean;
   lineStyle: 'solid' | 'dashed';

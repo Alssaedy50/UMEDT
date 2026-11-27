@@ -161,6 +161,7 @@ button{font:inherit;color:inherit;cursor:pointer}
         </div>
         <button class="action" id="seq-toggle" type="button">عرض تسلسلي</button>
         <button class="action" id="nodes-toggle" type="button">التحكم بالعقد</button>
+        <button class="action" id="relationships-toggle" type="button" aria-pressed="true">إخفاء أسهم العلاقات</button>
         <button class="action" id="expand" type="button">توسيع الكل</button>
         <button class="action" id="collapse" type="button">طي الفروع</button>
         <button class="action" id="fit" type="button">ملاءمة الكل</button>
@@ -215,9 +216,9 @@ var toolsMenu=document.querySelector('.tools-menu');
 var toolsContent=document.querySelector('.tools-content');
 if(toolsContent&&toolsMenu){toolsContent.addEventListener('click',function(e){if(e.target&&e.target.closest&&e.target.closest('button'))toolsMenu.open=false;});document.addEventListener('pointerdown',function(e){if(!toolsMenu.contains(e.target))toolsMenu.open=false;},true);}
 var currentStyle=data.initialStyle||'radial';
-var svg=null,nodeEls=[],edgeEls=[];
+var svg=null,nodeEls=[],edgeEls=[],edgeLabelEls=[];
 var nodes=new Map(),children=new Map(),collapsed=new Set(),userHidden=new Set(),hidden=new Set(),pointers=new Map();
-var scale=1,tx=0,ty=0,gesture=null,selectedId=null,isSequential=false,seqIndex=0,seqOrder=[],noteExpanded=false;
+var scale=1,tx=0,ty=0,gesture=null,selectedId=null,selectedEdgeId=null,showRelationships=true,isSequential=false,seqIndex=0,seqOrder=[],noteExpanded=false;
 
 data.nodes.forEach(function(node){
   nodes.set(node.id,node);
@@ -463,8 +464,15 @@ function refresh(){
     el.classList.toggle('selected',id===selectedId);
   });
   edgeEls.forEach(function(el){
-    el.style.display=hidden.has(el.dataset.from)||hidden.has(el.dataset.to)?'none':'';
+    var cross=el.dataset.kind==='cross-link';
+    el.style.display=hidden.has(el.dataset.from)||hidden.has(el.dataset.to)||(cross&&!showRelationships)?'none':'';
   });
+  edgeLabelEls.forEach(function(el){
+    var linked=edgeEls.find(function(edge){return edge.dataset.edgeId===el.dataset.edgeId;});
+    var cross=linked&&linked.dataset.kind==='cross-link';
+    el.style.display=!linked||hidden.has(el.dataset.from)||hidden.has(el.dataset.to)||(cross&&!showRelationships)?'none':'';
+  });
+  updateEdgeFocus();
   updateActionBadges();
   renderNodesPanel();
 }
@@ -478,8 +486,11 @@ function mountStyle(nextStyle){
   svg=stage.querySelector('svg');
   nodeEls=Array.prototype.slice.call(svg.querySelectorAll('.mm-node'));
   edgeEls=Array.prototype.slice.call(svg.querySelectorAll('.mm-edge'));
+  edgeLabelEls=Array.prototype.slice.call(svg.querySelectorAll('.mm-edge-label'));
   svg.addEventListener('keydown',function(e){
     if(e.key!=='Enter'&&e.key!==' ')return;
+    var label=e.target.closest&&e.target.closest('.mm-edge-label[data-edge-id]');
+    if(label){e.preventDefault();selectEdge(label.dataset.edgeId);return;}
     var node=e.target.closest&&e.target.closest('.mm-node[data-node-id]');
     if(node){e.preventDefault();selectNode(node.dataset.nodeId,true);}
   });
@@ -574,6 +585,7 @@ function renderDetails(){
 
 function selectNode(id,revealChildren){
   if(!nodes.has(id))return;
+  selectedEdgeId=null;
   selectedId=id;
   noteExpanded=false;
   if(!isSequential){
@@ -592,6 +604,58 @@ function selectNode(id,revealChildren){
   refresh();
   renderDetails();
   focusCluster(id);
+}
+
+function selectEdge(id){
+  if(!edgeEls.some(function(edge){return edge.dataset.edgeId===id;}))return;
+  selectedId=null;
+  selectedEdgeId=id;
+  renderDetails();
+  refresh();
+}
+function updateEdgeFocus(){
+  if(!svg)return;
+  var overlay=svg.querySelector('.mm-active-edge-layer');
+  if(!overlay)return;
+  overlay.replaceChildren();
+  var active=edgeEls.filter(function(edge){
+    return selectedEdgeId?edge.dataset.edgeId===selectedEdgeId:
+      Boolean(selectedId&&(edge.dataset.from===selectedId||edge.dataset.to===selectedId));
+  });
+  var ids=new Set(active.map(function(edge){return edge.dataset.edgeId;}));
+  var activeNodes=new Set();
+  active.forEach(function(edge){activeNodes.add(edge.dataset.from);activeNodes.add(edge.dataset.to);});
+  edgeEls.forEach(function(edge){
+    var cross=edge.dataset.kind==='cross-link',isActive=ids.has(edge.dataset.edgeId);
+    edge.style.opacity=(selectedId||selectedEdgeId)&&!isActive?'.12':'';
+    if(isActive&&(!cross||showRelationships)){
+      var clone=edge.cloneNode(true);
+      clone.style.opacity='1';
+      clone.querySelectorAll('.mm-edge-path').forEach(function(path){
+        path.setAttribute('opacity','1');
+        path.setAttribute('stroke-width',cross?'4.2':'4');
+      });
+      overlay.appendChild(clone);
+    }
+  });
+  edgeLabelEls.forEach(function(label){
+    var isActive=ids.has(label.dataset.edgeId);
+    label.style.opacity=(selectedId||selectedEdgeId)&&!isActive?'.12':'';
+    if(isActive){
+      var clone=label.cloneNode(true);
+      clone.style.opacity='1';
+      var rect=clone.querySelector('rect');
+      if(rect)rect.setAttribute('stroke-width','2.4');
+      overlay.appendChild(clone);
+    }
+  });
+  nodeEls.forEach(function(node){
+    var activeNode=activeNodes.has(node.dataset.nodeId);
+    node.style.opacity=(selectedId||selectedEdgeId)&&!activeNode?'.38':'';
+    node.classList.toggle('relationship-focus',activeNode);
+    node.style.filter=activeNode?'drop-shadow(0 0 10px rgba(16,185,129,.72))':'';
+  });
+  overlay.setAttribute('pointer-events','none');
 }
 
 function toggleBranch(id){
@@ -617,8 +681,9 @@ function pointerDown(e){
     return;
   }
   var act=e.target.closest&&e.target.closest('.mm-node-action[data-node-id]');
+  var edge=e.target.closest&&e.target.closest('.mm-edge[data-edge-id],.mm-edge-label[data-edge-id]');
   var node=e.target.closest&&e.target.closest('.mm-node[data-node-id]');
-  gesture={type:'pan',id:e.pointerId,x:e.clientX,y:e.clientY,tx:tx,ty:ty,actionId:act?act.dataset.nodeId:null,nodeId:(!act&&node)?node.dataset.nodeId:null,moved:false};
+  gesture={type:'pan',id:e.pointerId,x:e.clientX,y:e.clientY,tx:tx,ty:ty,actionId:act?act.dataset.nodeId:null,edgeId:edge?edge.dataset.edgeId:null,nodeId:(!act&&!edge&&node)?node.dataset.nodeId:null,moved:false};
 }
 
 function pointerMove(e){
@@ -642,6 +707,8 @@ function pointerUp(e){
   if(g&&g.type==='pan'&&g.id===e.pointerId&&!g.moved){
     if(g.actionId)toggleBranch(g.actionId);
     else if(g.nodeId)selectNode(g.nodeId,true);
+    else if(g.edgeId)selectEdge(g.edgeId);
+    else{selectedId=null;selectedEdgeId=null;renderDetails();refresh();}
   }
   pointers.delete(e.pointerId);
   var rest=Array.from(pointers.entries());
@@ -694,6 +761,13 @@ document.getElementById('nodes-toggle').addEventListener('click',function(){
   var open=nodesPanel.style.display==='flex';
   nodesPanel.style.display=open?'none':'flex';
   this.classList.toggle('active',!open);
+});
+document.getElementById('relationships-toggle').addEventListener('click',function(){
+  showRelationships=!showRelationships;
+  this.classList.toggle('active',!showRelationships);
+  this.textContent=showRelationships?'إخفاء أسهم العلاقات':'إظهار أسهم العلاقات';
+  this.setAttribute('aria-pressed',String(showRelationships));
+  refresh();
 });
 document.getElementById('nodes-close').addEventListener('click',function(){
   nodesPanel.style.display='none';
