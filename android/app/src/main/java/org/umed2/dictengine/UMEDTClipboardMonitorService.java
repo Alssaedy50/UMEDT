@@ -164,27 +164,11 @@ public class UMEDTClipboardMonitorService extends Service {
             return;
         }
 
-        // 2. On Android 10+ (API 29+), background services cannot read getPrimaryClip() directly unless focused.
-        // Launch the zero-UI translucent UMEDTPopupCardActivity (which has its own taskAffinity="") to gain focus
-        // for ~20ms, read clipboard, show the floating card if found in dictionary, and exit.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-                && (UMEDTDictionaryPopupEngine.canDrawOverlays(this) || a11y != null)) {
-            try {
-                Context starter = a11y != null ? a11y : this;
-                Intent popupIntent = new Intent(starter, UMEDTPopupCardActivity.class);
-                popupIntent.setAction(UMEDTPopupCardActivity.ACTION_CLIPBOARD_CHECK);
-                popupIntent.putExtra(UMEDTPopupCardActivity.EXTRA_FORCE_FEEDBACK, false);
-                popupIntent.addFlags(
-                        Intent.FLAG_ACTIVITY_NEW_TASK
-                                | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                                | Intent.FLAG_ACTIVITY_SINGLE_TOP
-                                | Intent.FLAG_ACTIVITY_NO_ANIMATION
-                                | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
-                );
-                starter.startActivity(popupIntent);
-            } catch (Exception ignored) {
-            }
-        }
+        // Never launch a temporary Activity to obtain clipboard focus.
+        // Doing so steals the host app's window focus and makes the soft keyboard
+        // repeatedly hide/show while the user is typing. Background translation
+        // only uses text already captured by Accessibility or clipboard access
+        // that Android permits without changing window focus.
     }
 
     private void startForegroundSafely() {

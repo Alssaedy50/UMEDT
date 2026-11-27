@@ -9,6 +9,7 @@ import {
   Maximize2,
   Minus,
   Plus,
+  MoreVertical,
   Share2,
   X
 } from 'lucide-react';
@@ -88,6 +89,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   // Individual node show/hide control (allows hiding any main or sub-node)
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(() => new Set());
   const [showNodesPanel, setShowNodesPanel] = useState(false);
+  const [showToolsMenu, setShowToolsMenu] = useState(false);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -906,157 +908,152 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
             انقر على أي عقدة لإظهار فروعها وتفاصيلها · اسحب للتحريك · إصبعان للتكبير والتصغير
           </div>
         </div>
-        <div className="flex shrink-0 max-w-full items-center gap-1.5 overflow-x-auto pb-1">
-          {/* Display Style Switcher */}
-          <div
-            className={`flex shrink-0 items-center gap-0.5 rounded-xl border p-0.5 ${
-              isDark ? 'border-white/15 bg-white/5' : 'border-slate-300 bg-slate-100'
+        <div className="relative flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setShowToolsMenu((open) => !open)}
+            aria-expanded={showToolsMenu}
+            aria-label="أدوات الخريطة"
+            className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-extrabold shadow-sm ${
+              showToolsMenu
+                ? 'border-emerald-400 bg-emerald-500/15 text-emerald-500'
+                : isDark
+                  ? 'border-white/15 bg-white/5 text-white'
+                  : 'border-slate-300 bg-slate-100 text-slate-800'
             }`}
-            title="اختيار طريقة عرض الخريطة"
           >
-            {STYLE_OPTIONS.map((opt) => {
-              const active = activeStyle === opt.id;
-              return (
+            <MoreVertical className="h-4 w-4" />
+            <span>الأدوات</span>
+          </button>
+
+          {showToolsMenu && (
+            <div
+              dir="rtl"
+              onPointerDown={(event) => event.stopPropagation()}
+              onWheel={(event) => event.stopPropagation()}
+              className={`absolute right-0 top-full z-[150] mt-2 flex max-h-[min(76dvh,620px)] w-[min(310px,calc(100vw-24px))] flex-col gap-1 overflow-y-auto rounded-2xl border p-2 shadow-2xl backdrop-blur-xl ${
+                isDark
+                  ? 'border-slate-700 bg-slate-900/98 text-white'
+                  : 'border-slate-200 bg-white/98 text-slate-900'
+              }`}
+            >
+              <div className="px-2 pb-1 pt-1 text-[10px] font-black text-slate-400">طريقة العرض</div>
+              {STYLE_OPTIONS.map((opt) => (
                 <button
                   key={opt.id}
                   type="button"
-                  onClick={() => handleStyleSwitch(opt.id)}
-                  className={`min-h-8 rounded-lg px-2.5 text-[11px] font-extrabold whitespace-nowrap transition-colors ${
-                    active
-                      ? 'bg-emerald-400 text-slate-950 shadow-xs'
-                      : isDark
-                        ? 'text-slate-300 hover:bg-white/10'
-                        : 'text-slate-700 hover:bg-white'
+                  onClick={() => {
+                    handleStyleSwitch(opt.id);
+                    setShowToolsMenu(false);
+                  }}
+                  className={`min-h-10 rounded-xl px-3 text-right text-xs font-bold ${
+                    activeStyle === opt.id
+                      ? 'bg-emerald-400 text-slate-950'
+                      : isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'
                   }`}
                 >
-                  {opt.labelAr}
+                  {activeStyle === opt.id ? '✓ ' : ''}{opt.labelAr}
                 </button>
-              );
-            })}
-          </div>
-
-          {/* Sequential Mode Toggle */}
-          <button
-            type="button"
-            onClick={() => {
-              const next = !isSequentialMode;
-              setIsSequentialMode(next);
-              if (next && sequenceNodes.length) {
-                setSequenceIndex(0);
-                setSelectedNodeId(sequenceNodes[0].id);
-              } else {
-                setCollapsedIds(buildDefaultCollapsedSet());
-              }
-            }}
-            className={`min-h-9 shrink-0 rounded-xl border px-3 text-xs font-bold whitespace-nowrap ${
-              isSequentialMode
-                ? 'border-emerald-400 bg-emerald-400 text-slate-950'
-                : isDark
-                  ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
-                  : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
-            }`}
-            title="العرض التسلسلي خطوة بخطوة"
-          >
-            {isSequentialMode ? 'العرض الحر' : 'عرض تسلسلي'}
-          </button>
-
-          {/* Nodes & Branches Show/Hide Control Button */}
-          <button
-            type="button"
-            onClick={() => setShowNodesPanel((v) => !v)}
-            className={`flex min-h-9 shrink-0 items-center gap-1 rounded-xl border px-2.5 text-xs font-bold whitespace-nowrap ${
-              showNodesPanel || hiddenNodeIds.size > 0
-                ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300'
-                : isDark
-                  ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
-                  : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
-            }`}
-            title="إظهار أو إخفاء أي عقدة رئيسية أو فرعية"
-          >
-            <Layers className="h-3.5 w-3.5" />
-            <span>التحكم بالعقد</span>
-            {hiddenNodeIds.size > 0 && (
-              <span className="rounded-full bg-emerald-400 px-1.5 text-[10px] font-black text-slate-950">
-                {hiddenNodeIds.size}
-              </span>
-            )}
-          </button>
-
-          {!isSequentialMode && (
-            <>
+              ))}
+              <div className={`my-1 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`} />
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedNodeId(null);
-                  setHiddenNodeIds(new Set());
-                  setCollapsedIds(new Set());
+                  const next = !isSequentialMode;
+                  setIsSequentialMode(next);
+                  if (next && sequenceNodes.length) {
+                    setSequenceIndex(0);
+                    setSelectedNodeId(sequenceNodes[0].id);
+                  } else {
+                    setCollapsedIds(buildDefaultCollapsedSet());
+                  }
+                  setShowToolsMenu(false);
                 }}
-                className={`min-h-9 shrink-0 rounded-xl border px-2.5 text-xs font-bold whitespace-nowrap ${
-                  isDark
-                    ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
-                    : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+                className={`min-h-10 rounded-xl px-3 text-right text-xs font-bold ${
+                  isSequentialMode ? 'bg-emerald-400 text-slate-950' : isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'
                 }`}
-                title="إظهار جميع العقد والفروع"
               >
-                توسيع الكل
+                {isSequentialMode ? 'إيقاف العرض التسلسلي' : 'عرض تسلسلي خطوة بخطوة'}
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedNodeId(null);
-                  setCollapsedIds(buildDefaultCollapsedSet());
+                  setShowNodesPanel((open) => !open);
+                  setShowToolsMenu(false);
                 }}
-                className={`min-h-9 shrink-0 rounded-xl border px-2.5 text-xs font-bold whitespace-nowrap ${
-                  isDark
-                    ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
-                    : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+                className={`flex min-h-10 items-center justify-between rounded-xl px-3 text-xs font-bold ${
+                  showNodesPanel || hiddenNodeIds.size ? 'bg-emerald-500/15 text-emerald-500' : isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'
                 }`}
-                title="طي الفروع الفرعية والإبقاء على العقد الرئيسية"
               >
-                طي الفروع
+                <span>التحكم بالعقد والفروع</span>
+                {hiddenNodeIds.size > 0 && <span className="rounded-full bg-emerald-400 px-2 py-0.5 text-[10px] font-black text-slate-950">{hiddenNodeIds.size}</span>}
               </button>
-            </>
+              {!isSequentialMode && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedNodeId(null);
+                      setHiddenNodeIds(new Set());
+                      setCollapsedIds(new Set());
+                      setShowToolsMenu(false);
+                    }}
+                    className={`min-h-10 rounded-xl px-3 text-right text-xs font-bold ${isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'}`}
+                  >
+                    إظهار وتوسيع جميع العقد
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedNodeId(null);
+                      setCollapsedIds(buildDefaultCollapsedSet());
+                      setShowToolsMenu(false);
+                    }}
+                    className={`min-h-10 rounded-xl px-3 text-right text-xs font-bold ${isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'}`}
+                  >
+                    طي الفروع الفرعية
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedNodeId(null);
+                  window.requestAnimationFrame(() => fitToView());
+                  setShowToolsMenu(false);
+                }}
+                className={`min-h-10 rounded-xl px-3 text-right text-xs font-bold ${isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'}`}
+              >
+                ملاءمة جميع البطاقات للشاشة
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowToolsMenu(false);
+                  void handleShare();
+                }}
+                className="min-h-10 rounded-xl bg-emerald-400 px-3 text-right text-xs font-black text-slate-950"
+              >
+                مشاركة الخريطة كملف تفاعلي
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowToolsMenu(false);
+                  void toggleBrowserFullscreen();
+                }}
+                className={`min-h-10 rounded-xl px-3 text-right text-xs font-bold ${isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'}`}
+              >
+                ملء الشاشة
+              </button>
+            </div>
           )}
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedNodeId(null);
-              window.requestAnimationFrame(() => fitToView());
-            }}
-            className={`min-h-9 shrink-0 rounded-xl border px-2.5 text-xs font-bold whitespace-nowrap ${
-              isDark
-                ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
-                : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
-            }`}
-            title="ملاءمة جميع بطائق الخريطة في الشاشة"
-          >
-            ملاءمة الكل
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleShare()}
-            className="flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 hover:bg-emerald-300"
-            title="مشاركة كملف تفاعلي مطابق تماماً"
-          >
-            <Share2 className="h-4 w-4" />
-            <span className="hidden sm:inline">مشاركة تفاعلية</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => void toggleBrowserFullscreen()}
-            className={`flex min-h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
-              isDark
-                ? 'border-white/15 bg-white/5 text-white'
-                : 'border-slate-300 bg-slate-100 text-slate-800'
-            }`}
-            title="ملء الشاشة"
-          >
-            <Maximize2 className="h-4 w-4" />
-          </button>
+
           <button
             type="button"
             onClick={requestClose}
-            className={`flex min-h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+            aria-label="إغلاق الخريطة"
+            className={`flex h-10 w-10 items-center justify-center rounded-xl border ${
               isDark
                 ? 'border-white/15 bg-white/5 text-white hover:bg-rose-500/20'
                 : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-rose-100'

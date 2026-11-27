@@ -4,15 +4,15 @@ import {
   Plus,
   Sparkles,
   Upload,
-  FileText,
   Trash2,
   Network,
   Copy,
   Check,
-  Wand2,
   BookOpen,
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  Clock3,
+  CalendarClock
 } from 'lucide-react';
 import { TopicArticle } from '../types/lexicon';
 import { MindMapDocument, MindMapStyle } from '../types/mindMap';
@@ -21,15 +21,15 @@ import {
   upsertMindMap,
   deleteMindMap,
   createBlankMindMap,
-  generateMindMapFromTopic,
   MIND_MAPS_UPDATED_EVENT
 } from '../services/mindMapStorageService';
 import {
   parseMindMapInput,
-  MIND_MAP_AI_PROMPTS
+  buildMindMapGenerationPrompt
 } from '../services/mindMapImportService';
 import { InteractiveMindMapCanvas } from './InteractiveMindMapCanvas';
 import { parseUploadedFile } from '../services/fileParserService';
+import { MobileSafeNumericInput } from './MobileSafeInput';
 
 interface MindMapStudioModalProps {
   isOpen: boolean;
@@ -56,13 +56,23 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
   const [allMaps, setAllMaps] = useState<MindMapDocument[]>(() => loadMindMaps());
   const [scopeTopicId, setScopeTopicId] = useState<string>(initialTopic?.id || 'ALL');
   const [activeMapId, setActiveMapId] = useState<string | null>(initialMindMapId || null);
-  const [studioMode, setStudioMode] = useState<'canvas' | 'import'>('canvas');
+  const [studioMode, setStudioMode] = useState<'list' | 'create' | 'import' | 'canvas'>('list');
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [sortMode, setSortMode] = useState<'updated' | 'created' | 'name'>('updated');
+  const [creationTitle, setCreationTitle] = useState(initialTopic?.titleEn || initialTopic?.title || '');
+  const [creationTopicId, setCreationTopicId] = useState(initialTopic?.id || '');
+  const [creationStyle, setCreationStyle] = useState<MindMapStyle>('hierarchical');
+  const [importLinkedTopicId, setImportLinkedTopicId] = useState(initialTopic?.id || '');
 
   // Importer state
   const [importText, setImportText] = useState<string>('');
   const [importFileName, setImportFileName] = useState<string>('');
   const [preferredStyle, setPreferredStyle] = useState<MindMapStyle | 'auto'>('auto');
   const [copiedPromptKey, setCopiedPromptKey] = useState<string | null>(null);
+  const [promptTopic, setPromptTopic] = useState(initialTopic?.title || '');
+  const [promptNodeCount, setPromptNodeCount] = useState('24');
+  const [promptStyle, setPromptStyle] = useState<MindMapStyle>('hierarchical');
+  const [promptOutputFormat, setPromptOutputFormat] = useState<'text' | 'file'>('text');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const onCloseRef = useRef(onClose);
   const historyEntryRef = useRef(false);
@@ -109,7 +119,10 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
 
     const nextScope = initialTopic?.id || 'ALL';
     setScopeTopicId(nextScope);
-    setStudioMode('canvas');
+    setCreationTopicId(initialTopic?.id || '');
+    setImportLinkedTopicId(initialTopic?.id || '');
+    setCreationTitle(initialTopic?.titleEn || initialTopic?.title || '');
+    setStudioMode(initialMindMapId ? 'canvas' : 'list');
 
     if (initialMindMapId && loaded.some((m) => m.id === initialMindMapId)) {
       setActiveMapId(initialMindMapId);
@@ -153,9 +166,16 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
   );
 
   const visibleMaps = useMemo(() => {
-    if (scopeTopicId === 'ALL') return allMaps;
-    return allMaps.filter((m) => m.linkedTopicId === scopeTopicId);
-  }, [allMaps, scopeTopicId]);
+    const filtered = scopeTopicId === 'ALL'
+      ? [...allMaps]
+      : allMaps.filter((m) => m.linkedTopicId === scopeTopicId);
+    return filtered.sort((a, b) => {
+      if (sortMode === 'name') return a.title.localeCompare(b.title, 'ar', { sensitivity: 'base' });
+      const aTime = Date.parse(sortMode === 'created' ? a.createdAt : a.updatedAt) || 0;
+      const bTime = Date.parse(sortMode === 'created' ? b.createdAt : b.updatedAt) || 0;
+      return bTime - aTime;
+    });
+  }, [allMaps, scopeTopicId, sortMode]);
 
   const activeMap = useMemo(
     () => visibleMaps.find((m) => m.id === activeMapId) || allMaps.find((m) => m.id === activeMapId) || visibleMaps[0] || null,
@@ -167,9 +187,9 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
     return parseMindMapInput(importText, {
       fileName: importFileName || undefined,
       preferredStyle: preferredStyle === 'auto' ? undefined : preferredStyle,
-      linkedTopicId: scopedTopic?.id
+      linkedTopicId: importLinkedTopicId || undefined
     });
-  }, [importText, importFileName, preferredStyle, scopedTopic]);
+  }, [importText, importFileName, preferredStyle, importLinkedTopicId]);
 
   if (!isOpen) return null;
 
@@ -179,25 +199,19 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
   };
 
   const handleCreateBlank = () => {
+    const selectedTopic = topics.find((topic) => topic.id === creationTopicId) || null;
     const created = createBlankMindMap({
-      topic: scopedTopic,
-      style: preferredStyle === 'auto' ? 'radial' : preferredStyle
+      topic: selectedTopic,
+      title: creationTitle.trim() || undefined,
+      style: creationStyle
     });
     const updated = upsertMindMap(created);
     setAllMaps(updated);
     setActiveMapId(created.id);
+    setScopeTopicId('ALL');
     setStudioMode('canvas');
+    setShowAddMenu(false);
     showToast('تم إنشاء خريطة ذهنية جديدة قابلة للتعديل');
-  };
-
-  const handleAutoGenerateFromTopic = (targetTopic: TopicArticle, style: MindMapStyle = 'radial') => {
-    const generated = generateMindMapFromTopic(targetTopic, style);
-    const updated = upsertMindMap(generated);
-    setAllMaps(updated);
-    setScopeTopicId(targetTopic.id);
-    setActiveMapId(generated.id);
-    setStudioMode('canvas');
-    showToast(`تم توليد خريطة ذهنية تفاعلية (${generated.nodes.length} عقدة) من أقسام الموضوع`);
   };
 
   const handleDeleteActiveMap = () => {
@@ -209,6 +223,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
         ? updated
         : updated.filter((m) => m.linkedTopicId === scopeTopicId);
     setActiveMapId(remaining[0]?.id || null);
+    if (remaining.length === 0) setStudioMode('list');
     showToast('تم حذف الخريطة الذهنية');
   };
 
@@ -216,11 +231,12 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
     if (!importPreview?.success || !importPreview.document) return;
     const docToSave: MindMapDocument = {
       ...importPreview.document,
-      linkedTopicId: scopedTopic?.id || importPreview.document.linkedTopicId
+      linkedTopicId: importLinkedTopicId || importPreview.document.linkedTopicId
     };
     const updated = upsertMindMap(docToSave);
     setAllMaps(updated);
     setActiveMapId(docToSave.id);
+    setScopeTopicId('ALL');
     setStudioMode('canvas');
     setImportText('');
     setImportFileName('');
@@ -253,9 +269,16 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
     }
   };
 
-  const handleCopyPrompt = async (key: 'markdown' | 'flow' | 'json') => {
+  const buildConfiguredPrompt = () => buildMindMapGenerationPrompt({
+    topic: promptTopic.trim() || scopedTopic?.title || initialTopic?.title || '',
+    nodeCount: Number(promptNodeCount) || 24,
+    style: promptStyle,
+    outputFormat: promptOutputFormat
+  });
+
+  const handleCopyPrompt = async (key: 'json') => {
     try {
-      await navigator.clipboard.writeText(MIND_MAP_AI_PROMPTS[key]);
+      await navigator.clipboard.writeText(buildConfiguredPrompt());
       setCopiedPromptKey(key);
       window.setTimeout(() => setCopiedPromptKey(null), 1800);
       showToast('تم نسخ قالب الذكاء الاصطناعي');
@@ -299,85 +322,185 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Topic Scope Selector when multiple topics exist */}
-            <select
-              dir="auto"
-              value={scopeTopicId}
-              onChange={(e) => {
-                const nextId = e.target.value;
-                setScopeTopicId(nextId);
-                const nextList =
-                  nextId === 'ALL'
-                    ? allMaps
-                    : allMaps.filter((m) => m.linkedTopicId === nextId);
-                setActiveMapId(nextList[0]?.id || null);
-              }}
-              className="max-w-[200px] min-h-[36px] px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200"
-            >
-              <option value="ALL">كل المواضيع ({allMaps.length})</option>
-              {topics.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.titleAr || t.titleEn || t.title}
-                </option>
-              ))}
-            </select>
-
-            <button
-              type="button"
-              onClick={() => setStudioMode((m) => (m === 'import' ? 'canvas' : 'import'))}
-              className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 border transition-colors ${
-                studioMode === 'import'
-                  ? 'bg-emerald-600 text-white border-emerald-600'
-                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-emerald-500'
-              }`}
-            >
-              <Upload className="w-3.5 h-3.5" />
-              <span>استيراد نص / JSON</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleCreateBlank}
-              className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>خريطة جديدة</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={requestClose}
-              className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center"
-              aria-label={backLabel || "العودة"}
-              title={backLabel || "العودة"}
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+          {studioMode === 'list' ? (
+            <div className="relative flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAddMenu((open) => !open)}
+                aria-expanded={showAddMenu}
+                className="min-h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm"
+                aria-label="إضافة خريطة"
+                title="إضافة خريطة"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+              {showAddMenu && (
+                <div className="absolute left-0 top-full z-30 mt-2 w-52 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 shadow-2xl">
+                  <button type="button" onClick={() => { setCreationTopicId(scopeTopicId === 'ALL' ? '' : scopeTopicId); setCreationTitle(scopedTopic?.titleEn || scopedTopic?.title || ''); setStudioMode('create'); setShowAddMenu(false); }} className="w-full rounded-xl px-3 py-3 text-right text-xs font-extrabold hover:bg-emerald-500/10">إنشاء يدوي</button>
+                  <button type="button" onClick={() => { setImportLinkedTopicId(scopeTopicId === 'ALL' ? '' : scopeTopicId); setStudioMode('import'); setShowAddMenu(false); }} className="w-full rounded-xl px-3 py-3 text-right text-xs font-extrabold hover:bg-emerald-500/10">استيراد خريطة</button>
+                </div>
+              )}
+              <button type="button" onClick={requestClose} className="min-h-10 min-w-10 rounded-xl bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center" aria-label={backLabel || "العودة"} title={backLabel || "العودة"}><X className="w-4 h-4" /></button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setStudioMode('list')} className="min-h-10 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold">العودة إلى قائمة الخرائط</button>
+              <button type="button" onClick={requestClose} className="min-h-10 min-w-10 rounded-xl bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center" aria-label={backLabel || "العودة"}><X className="w-4 h-4" /></button>
+            </div>
+          )}
         </div>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-4">
-          {studioMode === 'import' ? (
+          {studioMode === 'list' ? (
+            <section className="space-y-4">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-black">خرائطي التفاعلية</h3>
+                  <p className="mt-1 text-xs text-slate-500">{allMaps.length} خريطة محفوظة · اختر خريطة لفتح محررها</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <label className="text-[10px] font-bold text-slate-500">ترتيب حسب
+                    <select value={sortMode} onChange={(e) => setSortMode(e.target.value as typeof sortMode)} className="mt-1 block min-h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-xs font-bold">
+                      <option value="updated">آخر تحديث</option>
+                      <option value="created">تاريخ الإنشاء</option>
+                      <option value="name">الاسم</option>
+                    </select>
+                  </label>
+                  <label className="text-[10px] font-bold text-slate-500">الموضوع
+                    <select value={scopeTopicId} onChange={(e) => setScopeTopicId(e.target.value)} className="mt-1 block min-h-9 max-w-[190px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-xs font-bold">
+                      <option value="ALL">كل المواضيع ({allMaps.length})</option>
+                      {topics.map((topic) => <option key={topic.id} value={topic.id}>{topic.titleAr || topic.titleEn || topic.title}</option>)}
+                    </select>
+                  </label>
+                </div>
+              </div>
+              {visibleMaps.length === 0 ? (
+                <div className="rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-8 text-center">
+                  <Network className="mx-auto mb-3 h-10 w-10 text-emerald-500/60" />
+                  <h4 className="text-sm font-black">{scopeTopicId === 'ALL' ? 'لا توجد خرائط محفوظة بعد' : 'لا توجد خرائط مرتبطة بهذا الموضوع'}</h4>
+                  <p className="mt-2 text-xs text-slate-500">استخدم زر الإضافة لإنشاء خريطة يدوياً أو استيراد خريطة موجودة.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {visibleMaps.map((map) => {
+                    const linkedTopic = topics.find((topic) => topic.id === map.linkedTopicId);
+                    return (
+                      <button key={map.id} type="button" onClick={() => { setActiveMapId(map.id); setStudioMode('canvas'); }} className="group rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-4 text-right shadow-sm transition hover:border-emerald-500 hover:shadow-md">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h4 className="truncate text-sm font-black group-hover:text-emerald-600">{map.title}</h4>
+                            <p className="mt-1 text-[10px] text-slate-500">{map.nodes.length} عقدة · {map.edges.length} علاقة</p>
+                          </div>
+                          <Network className="h-5 w-5 shrink-0 text-emerald-500" />
+                        </div>
+                        <div className="mt-4 space-y-1 text-[10px] text-slate-500">
+                          <p>{linkedTopic ? `الموضوع: ${linkedTopic.titleAr || linkedTopic.titleEn || linkedTopic.title}` : 'غير مرتبطة بموضوع'}</p>
+                          <p className="flex items-center gap-1"><CalendarClock className="h-3 w-3" /> أُنشئت: {new Date(map.createdAt).toLocaleString('ar')}</p>
+                          <p className="flex items-center gap-1"><Clock3 className="h-3 w-3" /> آخر تحديث: {new Date(map.updatedAt).toLocaleString('ar')}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          ) : studioMode === 'create' ? (
+            <section className="mx-auto w-full max-w-2xl space-y-5">
+              <div><h3 className="text-base font-black">إنشاء خريطة يدوياً</h3><p className="mt-1 text-xs text-slate-500">حدد بيانات الخريطة الأولية ثم انتقل إلى المحرر لإضافة العقد والروابط وتعديلها.</p></div>
+              <label className="block text-xs font-extrabold">اسم الخريطة
+                <input dir="auto" value={creationTitle} onChange={(e) => setCreationTitle(e.target.value)} placeholder="مثال: Atherosclerosis" className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 text-sm" />
+              </label>
+              <label className="block text-xs font-extrabold">ربط الخريطة بموضوع
+                <select value={creationTopicId} onChange={(e) => { setCreationTopicId(e.target.value); if (!creationTitle.trim()) setCreationTitle(topics.find((topic) => topic.id === e.target.value)?.titleEn || topics.find((topic) => topic.id === e.target.value)?.title || ''); }} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 text-xs">
+                  <option value="">غير مرتبطة بموضوع</option>
+                  {topics.map((topic) => <option key={topic.id} value={topic.id}>{topic.titleAr || topic.titleEn || topic.title}</option>)}
+                </select>
+              </label>
+              <label className="block text-xs font-extrabold">نمط التخطيط
+                <select value={creationStyle} onChange={(e) => setCreationStyle(e.target.value as MindMapStyle)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 text-xs font-bold">
+                  <option value="hierarchical">هرمي</option><option value="radial">شعاعي</option><option value="medical_flow">مسار سريري</option>
+                </select>
+              </label>
+              <div className="flex justify-end gap-2"><button type="button" onClick={() => setStudioMode('list')} className="min-h-10 rounded-xl px-4 text-xs font-bold bg-slate-100 dark:bg-slate-800">إلغاء</button><button type="button" disabled={!creationTitle.trim()} onClick={handleCreateBlank} className="min-h-10 rounded-xl bg-emerald-600 px-5 text-xs font-extrabold text-white disabled:opacity-40">إنشاء وفتح المحرر</button></div>
+            </section>
+          ) : studioMode === 'import' ? (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                    استيراد خريطة ذهنية ذكي (Markdown / أسهم تدفق / JSON / ChatGPT / Gemini)
+                    استيراد خريطة ذهنية موحد (JSON / ملفات قديمة متوافقة)
                   </h3>
                   <p className="text-xs text-slate-500">
-                    الصق مخرجات الذكاء الاصطناعي أو قائمة نصية متداخلة أو ارفع ملفاً وسيتم تحويلها فوراً إلى خريطة تفاعلية
+                    استخدم برمبت JSON الموحد للمخرجات الجديدة. يمكن استيراد الخرائط القديمة أيضاً عبر نفس مسار التحليل والمعاينة.
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setStudioMode('canvas')}
+                  onClick={() => setStudioMode('list')}
                   className="min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold flex items-center gap-1"
                 >
                   <ArrowRight className="w-3.5 h-3.5" />
-                  <span>العودة للخريطة</span>
+                  <span>العودة إلى قائمة الخرائط</span>
                 </button>
+              </div>
+
+              <label className="block text-xs font-extrabold">ربط الخريطة بموضوع محدد
+                <select value={importLinkedTopicId} onChange={(e) => setImportLinkedTopicId(e.target.value)} className="mt-1 min-h-10 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs">
+                  <option value="">غير مرتبطة بموضوع</option>
+                  {topics.map((topic) => <option key={topic.id} value={topic.id}>{topic.titleAr || topic.titleEn || topic.title}</option>)}
+                </select>
+              </label>
+
+              <div className="grid grid-cols-1 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950 sm:grid-cols-2">
+                <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                  موضوع الخريطة
+                  <input
+                    type="text"
+                    value={promptTopic}
+                    onChange={(e) => setPromptTopic(e.target.value)}
+                    placeholder={scopedTopic?.title || 'مثال: Atherosclerosis'}
+                    className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                  العدد المستهدف للعقد (بما فيها الجذر)
+                  <MobileSafeNumericInput
+                    value={promptNodeCount}
+                    onRawChange={setPromptNodeCount}
+                    min={3}
+                    max={80}
+                    fallbackOnBlur={24}
+                    aria-label="العدد المستهدف للعقد"
+                    className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                  نمط الخريطة
+                  <select
+                    value={promptStyle}
+                    onChange={(e) => setPromptStyle(e.target.value as MindMapStyle)}
+                    className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  >
+                    <option value="hierarchical">هرمية واضحة</option>
+                    <option value="radial">شعاعية متوازنة</option>
+                    <option value="medical_flow">مسار سريري</option>
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                  صيغة النتيجة
+                  <select
+                    value={promptOutputFormat}
+                    onChange={(e) => setPromptOutputFormat(e.target.value as 'text' | 'file')}
+                    className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  >
+                    <option value="text">نص JSON قابل للنسخ واللصق</option>
+                    <option value="file">ملف JSON قابل للتنزيل</option>
+                  </select>
+                </label>
+                <p className="sm:col-span-2 text-[10px] leading-5 text-slate-500 dark:text-slate-400">
+                  في الحالتين يبقى المحتوى JSON مطابقاً لمستورد UMEDT. يمكن لصق النص مباشرة أو رفع ملف .json من أداة الاستيراد، ويجب أن يحتوي الملف على JSON فقط.
+                </p>
               </div>
 
               {/* Copyable AI Prompt Templates */}
@@ -385,30 +508,21 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className="text-xs font-extrabold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>قوالب جاهزة للنسخ إلى ChatGPT أو Gemini:</span>
+                    <span>قالب توليد موحد متوافق مع مستورد UMEDT:</span>
                   </span>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    {(
-                      [
-                        { key: 'markdown', label: 'نسخ قالب Markdown' },
-                        { key: 'flow', label: 'نسخ قالب المسار السريري ->' },
-                        { key: 'json', label: 'نسخ قالب JSON' }
-                      ] as const
-                    ).map((tpl) => (
-                      <button
-                        key={tpl.key}
-                        type="button"
-                        onClick={() => void handleCopyPrompt(tpl.key)}
-                        className="min-h-[32px] px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 text-[11px] font-bold flex items-center gap-1"
-                      >
-                        {copiedPromptKey === tpl.key ? (
-                          <Check className="w-3 h-3 text-emerald-500" />
-                        ) : (
-                          <Copy className="w-3 h-3 text-emerald-500" />
-                        )}
-                        <span>{tpl.label}</span>
-                      </button>
-                    ))}
+                    <button
+                      type="button"
+                      onClick={() => void handleCopyPrompt('json')}
+                      className="min-h-[32px] px-3 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 text-[11px] font-bold flex items-center gap-1"
+                    >
+                      {copiedPromptKey === 'json' ? (
+                        <Check className="w-3 h-3 text-emerald-500" />
+                      ) : (
+                        <Copy className="w-3 h-3 text-emerald-500" />
+                      )}
+                      <span>{copiedPromptKey === 'json' ? 'تم نسخ البرمبت الموحد' : 'نسخ برمبت JSON الموحد'}</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -537,22 +651,6 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                  {scopedTopic && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleAutoGenerateFromTopic(
-                          scopedTopic,
-                          preferredStyle === 'auto' ? 'radial' : preferredStyle
-                        )
-                      }
-                      className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center gap-1.5"
-                    >
-                      <Wand2 className="w-3.5 h-3.5" />
-                      <span>توليد تلقائي من الموضوع</span>
-                    </button>
-                  )}
-
                   {activeMap && scopedTopic && onEmbedMapInTopic && (
                     <button
                       type="button"
@@ -628,51 +726,10 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                   />
                 </div>
               ) : (
-                <div className="p-8 sm:p-10 rounded-3xl bg-slate-50 dark:bg-slate-950 border border-dashed border-slate-300 dark:border-slate-800 text-center space-y-4">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
-                    <Network className="w-6 h-6" />
-                  </div>
-                  <div className="space-y-1 max-w-md mx-auto">
-                    <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-                      {scopedTopic
-                        ? 'لا توجد خريطة ذهنية لهذا الموضوع بعد'
-                        : 'لا توجد خرائط ذهنية محفوظة بعد'}
-                    </h3>
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                      يمكنك توليد خريطة ذهنية تفاعلية تلقائياً من أقسام الموضوع وملاحظاته السريرية، أو استيرادها من Markdown / JSON / ChatGPT / Gemini، أو بناؤها من الصفر.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                    {scopedTopic && (
-                      <button
-                        type="button"
-                        onClick={() => handleAutoGenerateFromTopic(scopedTopic, 'radial')}
-                        className="min-h-[42px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5"
-                      >
-                        <Wand2 className="w-4 h-4" />
-                        <span>توليد خريطة تلقائياً من الموضوع</span>
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => setStudioMode('import')}
-                      className="min-h-[42px] px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 text-xs font-bold flex items-center gap-1.5"
-                    >
-                      <FileText className="w-4 h-4 text-emerald-500" />
-                      <span>استيراد Markdown / JSON / أسهم</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleCreateBlank}
-                      className="min-h-[42px] px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 text-xs font-bold flex items-center gap-1.5"
-                    >
-                      <Plus className="w-4 h-4 text-emerald-500" />
-                      <span>إنشاء خريطة فارغة</span>
-                    </button>
-                  </div>
+                <div className="rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-8 text-center">
+                  <Network className="mx-auto mb-3 h-10 w-10 text-slate-400" />
+                  <p className="text-sm font-bold">لم تعد هذه الخريطة متاحة.</p>
+                  <button type="button" onClick={() => setStudioMode('list')} className="mt-3 min-h-10 rounded-xl bg-emerald-600 px-4 text-xs font-extrabold text-white">العودة إلى قائمة الخرائط</button>
                 </div>
               )}
             </>

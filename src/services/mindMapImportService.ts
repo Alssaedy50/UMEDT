@@ -12,34 +12,100 @@ const MAX_CONCISE_LABEL_LEN = 54;
 const MAX_CONCISE_SUBLABEL_LEN = 42;
 
 export const MIND_MAP_AI_PROMPTS = {
-  markdown: `أنشئ خريطة ذهنية طبية أكاديمية مختصرة وواضحة حول: [اكتب اسم الموضوع الطبي هنا]
-التزم بالقواعد التالية بدقة:
-1. استخدم صيغة Markdown متداخلة (# للعنوان الرئيسي، ## للفروع الرئيسية، - للفروع الفرعية).
-2. اجعل عنوان العقدة مختصراً (2 إلى 6 كلمات)، وضع الشرح الكامل غير المحدود في حقل note لكل عقدة؛ لا تحذف التفاصيل الطبية أو الأمثلة.
-3. أضف sublabel للترجمة أو مؤشر سريري قصير، وأضف note لشرح تفصيلي كامل يدعم الأسطر والفقرات.
-4. ميّز العقد بالأدوار: root, concept, mechanism, diagnosis, treatment, warning؛ سيختار التطبيق لوناً وشكلاً مناسباً لكل دور.\n5. حافظ على التسلسل الهرمي والعلاقات السببية، ولا تضع الشرح الطويل داخل label.`,
+  json: `أنشئ خريطة ذهنية طبية أكاديمية تفاعلية حول: [اكتب اسم الموضوع الطبي هنا]
 
-  flow: `أنشئ خريطة تدفق طبية (Medical Flow Map) لمسار التشخيص والعلاج لـ: [اكتب الحالة السريرية هنا]
-التزم بصيغة الأسهم المباشرة التالية سطراً بسطر:
-Title: [عنوان المسار]
-العقدة الأولى -> [تسمية العلاقة] العقدة الثانية -> العقدة الثالثة
-اجعل كل عقدة قصيرة وواضحة (أقل من 6 كلمات).`,
+المخرج المطلوب:
+أعد كائن JSON واحداً فقط، صالحاً للتحليل مباشرة بواسطة UMEDT. لا تستخدم Markdown أو أسوار كود أو مقدمة أو خاتمة.
 
-  json: `Generate a concise medical-academic mind map JSON for: [Medical Topic]
-Return ONLY valid JSON matching this schema. Keep label concise (2-6 words), but put the complete, detailed, multi-paragraph explanation in note. Never truncate note content.
+المخطط الإلزامي:
 {
-  "title": "Topic Title",
+  "schemaVersion": 1,
+  "title": "عنوان الموضوع",
+  "titleEn": "English topic title",
+  "subtitle": "وصف مختصر",
   "style": "radial",
+  "rootNodeId": "n1",
   "nodes": [
-    { "id": "n1", "label": "Central Concept", "sublabel": "المفهوم الرئيسي", "parentId": null, "role": "root" },
-    { "id": "n2", "label": "Pathophysiology", "sublabel": "الفيزيولوجيا المرضية", "note": "Write the complete explanation here without an artificial word limit. Include mechanisms, examples, and clinical relevance.", "parentId": "n1", "role": "mechanism", "shape": "diamond", "color": "#38bdf8" },
-    { "id": "n3", "label": "First-line Therapy", "sublabel": "العلاج الأولي", "note": "Detailed treatment explanation, indications, cautions, and examples.", "parentId": "n1", "role": "treatment" }
+    {
+      "id": "n1",
+      "label": "عنوان مركزي مختصر",
+      "sublabel": "ترجمة أو مؤشر مختصر",
+      "note": "شرح علمي كامل ومفصل عند الحاجة",
+      "parentId": null,
+      "role": "root",
+      "order": 0
+    },
+    {
+      "id": "n2",
+      "label": "Pathophysiology",
+      "sublabel": "الفيزيولوجيا المرضية",
+      "note": "اشرح الآليات خطوة بخطوة، مع الأسباب والنتائج والأمثلة والأهمية السريرية. لا تضع الشرح الطويل في label ولا تحذف التفاصيل.",
+      "parentId": "n1",
+      "role": "mechanism",
+      "order": 1
+    },
+    {
+      "id": "n3",
+      "label": "Clinical Consequences",
+      "sublabel": "النتائج السريرية",
+      "note": "اشرح النتائج السريرية المرتبطة بالآلية.",
+      "parentId": "n1",
+      "role": "diagnosis",
+      "order": 2
+    }
   ],
   "edges": [
-    { "id": "e1", "sourceId": "n2", "targetId": "n3", "label": "Targeted by" }
+    {
+      "id": "e1",
+      "sourceId": "n2",
+      "targetId": "n3",
+      "label": "يؤدي إلى",
+      "directed": true,
+      "lineStyle": "solid"
+    }
   ]
-}`
+}
+
+قواعد صحة البيانات:
+1. استخدم عقدة جذر واحدة فقط، واجعل parentId لها null وrootNodeId مساوياً لمعرفها.
+2. يجب أن يكون id فريداً لكل عقدة ولكل علاقة. استخدم معرفات قصيرة مثل n1 وn2 وe1.
+3. يجب أن يشير parentId لكل عقدة فرعية إلى id موجود فعلياً في nodes، وألا تشير العقدة إلى نفسها أو إلى أحد أحفادها.
+4. استخدم فقط هذه القيم في style: radial أو hierarchical أو medical_flow.
+5. استخدم فقط هذه القيم في role: root أو concept أو mechanism أو diagnosis أو treatment أو warning.
+6. اجعل label عنواناً بصرياً موجزاً (2–6 كلمات غالباً)، وضع التعريف والشرح والتفاصيل والأمثلة في note دون اختصار مخل.
+7. استخدم sublabel للترجمة العربية أو قيمة/مؤشر قصير، وليس لشرح مطول.
+8. استخدم edges للعلاقات السببية أو الوظيفية العابرة بين الفروع فقط؛ لا تكرر علاقات الأب والابن الموجودة في parentId.
+9. يجب أن يكون sourceId وtargetId في كل edge معرفين موجودين في nodes، وألا تكون العلاقة بين العقدة ونفسها.
+10. لا تضف حقولاً غير معرفة في المخطط، ولا تضع تعليقات أو trailing commas داخل JSON.
+11. حافظ على المصطلحات الطبية الإنجليزية القياسية، وأضف المقابل العربي في sublabel عند فائدته.
+12. نظّم الموضوع من المفاهيم الأساسية إلى الآليات ثم المظاهر والتشخيص والعلاج والمضاعفات. لا تخترع معلومات أو جرعات أو مراجع.
+13. اجعل كل فرع مستقلاً منطقياً، وتجنب تكرار المعلومة نفسها في أكثر من عقدة.
+14. إذا كان الموضوع مساراً تشخيصياً أو علاجياً متسلسلاً، استخدم style = "medical_flow" وعقداً مرتبة مع علاقات edges واضحة.
+15. أخرج JSON كاملاً فقط. لا تضع أي شرح خارج كائن JSON.`
 } as const;
+
+export interface MindMapPromptOptions {
+  topic: string;
+  nodeCount: number;
+  style: MindMapStyle;
+  outputFormat: 'text' | 'file';
+}
+
+export function buildMindMapGenerationPrompt(options: MindMapPromptOptions): string {
+  const topic = options.topic.trim() || '[اكتب الموضوع الطبي]';
+  const nodeCount = Math.max(3, Math.min(80, Math.round(options.nodeCount) || 3));
+  const outputInstruction = options.outputFormat === 'file'
+    ? 'أنشئ ملفاً قابلاً للتنزيل باسم medical-mind-map.json بترميز UTF-8، ويحتوي الملف على كائن JSON فقط. إذا كانت المنصة لا تدعم إنشاء الملفات، أخرج نص JSON كاملاً دون Markdown ليتمكن المستخدم من نسخه.'
+    : 'أخرج نص JSON كاملاً فقط داخل المحادثة دون Markdown أو أسوار كود أو مقدمة أو خاتمة.';
+  return MIND_MAP_AI_PROMPTS.json
+    .replace('[اكتب اسم الموضوع الطبي هنا]', topic)
+    .replace('"style": "radial"', `"style": "${options.style}"`)
+    .replace(
+      'أعد كائن JSON واحداً فقط، صالحاً للتحليل مباشرة بواسطة UMEDT. لا تستخدم Markdown أو أسوار كود أو مقدمة أو خاتمة.',
+      outputInstruction
+    )
+    + `\\n\\nالمواصفات المحددة لهذه الخريطة:\\n- الموضوع: ${topic}.\\n- العدد المستهدف: ${nodeCount} عقدة إجمالاً، وتُحتسب عقدة الجذر ضمن العدد. لا تتجاوز العدد ولا تقل عنه إلا إذا كان ذلك ضرورياً لصحة المحتوى؛ وعند التعذر اذكر ذلك في subtitle دون إضافة نص خارج JSON.\\n- نمط التخطيط: ${options.style}.\\n- يجب أن تكون كل عقدة وعلاقة صالحة وفق المخطط أعلاه، وأن تكون جميع parentId وsourceId وtargetId مرتبطة بمعرفات موجودة.\\n- لا تضف حقولاً أو صيغاً غير مدعومة. يجب أن يستطيع مستورد UMEDT تحليل النتيجة مباشرة دون تحويل يدوي.`;
+}
 
 function inferMedicalRoleFromText(text: string, depth: number): MindMapNodeRole {
   if (depth === 0) return 'root';

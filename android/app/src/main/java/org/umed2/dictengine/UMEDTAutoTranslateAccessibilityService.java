@@ -40,7 +40,7 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
     }
 
     public static UMEDTAutoTranslateAccessibilityService getActiveInstance() {
-        return activeInstance;
+        return serviceConnected ? activeInstance : null;
     }
 
     public String getRecentSelectedText(long maxAgeMs) {
@@ -75,10 +75,6 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
             return;
         }
 
-        if (!UMEDTDictionaryPopupEngine.isClipboardMonitorEnabled(this)) {
-            return;
-        }
-
         int eventType = event.getEventType();
 
         // 1. Track text selection in any external app (works even without background clipboard access)
@@ -92,6 +88,28 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
                     tryShowTranslationForText(selected, false);
                 }
             }
+            return;
+        }
+
+        // Some apps (notably WebView/PDF readers) update the selected range through
+        // window-content events instead of TYPE_VIEW_TEXT_SELECTION_CHANGED.
+        // Read only an actual accessibility text selection; never translate arbitrary
+        // visible text or observe typed characters.
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+            String selected = extractActiveWindowSelection();
+            if (!selected.isEmpty() && selected.length() <= 180
+                    && !UMEDTDictionaryPopupEngine.shouldIgnoreText(selected)) {
+                lastSelectedText = selected;
+                lastSelectedTimestampMs = System.currentTimeMillis();
+                if (UMEDTDictionaryPopupEngine.isAutoTranslateOnSelectEnabled(this)) {
+                    tryShowTranslationForText(selected, false);
+                }
+            }
+            return;
+        }
+
+        // Copy monitoring can be disabled independently from automatic selection translation.
+        if (!UMEDTDictionaryPopupEngine.isClipboardMonitorEnabled(this)) {
             return;
         }
 
@@ -137,26 +155,10 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
             return;
         }
 
-        // Priority 3: On Android 10+, an active AccessibilityService is explicitly permitted by Android OS
-        // to start an Activity from the background even when the main UMEDT app is completely closed!
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            mainHandler.postDelayed(() -> {
-                try {
-                    Intent popupIntent = new Intent(this, UMEDTPopupCardActivity.class);
-                    popupIntent.setAction(UMEDTPopupCardActivity.ACTION_CLIPBOARD_CHECK);
-                    popupIntent.putExtra(UMEDTPopupCardActivity.EXTRA_FORCE_FEEDBACK, false);
-                    popupIntent.addFlags(
-                            Intent.FLAG_ACTIVITY_NEW_TASK
-                                    | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                                    | Intent.FLAG_ACTIVITY_SINGLE_TOP
-                                    | Intent.FLAG_ACTIVITY_NO_ANIMATION
-                                    | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
-                    );
-                    startActivity(popupIntent);
-                } catch (Exception ignored) {
-                }
-            }, 70L);
-        }
+        // Do not open UMEDTPopupCardActivity as a background clipboard reader.
+        // Even a transparent Activity takes window focus away from the current IME,
+        // which causes the keyboard to flicker. The selection/copy paths above
+        // already render a matched term directly through the non-focusable overlay.
     }
 
     private boolean tryShowTranslationForText(String rawText, boolean forceShow) {
@@ -323,6 +325,9 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
     @Override
     public void onInterrupt() {
         serviceConnected = false;
+        if (activeInstance == this) {
+            activeInstance = null;
+        }
     }
 
     @Override
