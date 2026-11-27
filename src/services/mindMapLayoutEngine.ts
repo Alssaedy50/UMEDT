@@ -58,38 +58,65 @@ export function truncateSublabel(sublabel?: string): string | undefined {
   return clean.length > 28 ? `${clean.slice(0, 27)}…` : clean;
 }
 
+function wrapNotePreview(note?: string): string[] {
+  const clean = String(note || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return [];
+  const words = clean.split(' ');
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const safeWord = word.length > 34 ? word.slice(0, 33) + '…' : word;
+    const next = current ? current + ' ' + safeWord : safeWord;
+    if (next.length <= 34) current = next;
+    else {
+      if (current) lines.push(current);
+      current = word;
+      if (lines.length === 2) break;
+    }
+  }
+  if (current && lines.length < 2) lines.push(current);
+  const rendered = lines.join(' ');
+  if (rendered.length < clean.length && lines.length) lines[lines.length - 1] = lines[lines.length - 1].replace(/[.…]*$/, '') + '…';
+  return lines.slice(0, 2);
+}
+
 function measureNodeBox(node: MindMapNode, isRoot: boolean): {
   width: number;
   height: number;
   lines: string[];
   sublabelLine?: string;
+  noteLines: string[];
 } {
   const lines = wrapConciseNodeLabel(node.label);
   const sublabelLine = truncateSublabel(node.sublabel);
+  const noteLines = wrapNotePreview(node.note);
   const maxChars = Math.max(
     ...lines.map((l) => l.length),
-    sublabelLine ? Math.min(sublabelLine.length, 26) : 0
+    sublabelLine ? Math.min(sublabelLine.length, 26) : 0,
+    ...noteLines.map((line) => line.length)
   );
 
-  const minWidth = isRoot ? 196 : 148;
-  const maxWidth = isRoot ? 260 : 232;
-  const estimatedWidth = Math.round(maxChars * 7.8 + 44);
+  const minWidth = isRoot ? 204 : 164;
+  const maxWidth = isRoot ? 280 : 260;
+  const estimatedWidth = Math.round(maxChars * 7.6 + 48);
   const width = Math.max(minWidth, Math.min(maxWidth, estimatedWidth));
 
-  const baseHeight = isRoot ? 58 : 48;
+  const baseHeight = isRoot ? 64 : 56;
   const extraLine = lines.length > 1 ? 18 : 0;
-  const extraSub = sublabelLine ? 18 : 0;
+  const extraSub = sublabelLine ? 16 : 0;
+  const extraNote = noteLines.length * 13;
   // Reserve a dedicated visual line for the parent label so every child card
   // remains identifiable even when relationship connectors are dense.
   const extraParent = node.parentId ? 15 : 0;
-  const height = baseHeight + extraLine + extraSub + extraParent;
+  const height = baseHeight + extraLine + extraSub + extraNote + extraParent;
 
-  return { width, height, lines, sublabelLine };
+  return { width, height, lines, sublabelLine, noteLines };
 }
 
 function buildChildrenMap(nodes: MindMapNode[]): Map<string, MindMapNode[]> {
   const map = new Map<string, MindMapNode[]>();
   const validIds = new Set(nodes.map((n) => n.id));
+  const sourceOrder = new Map(nodes.map((node, index) => [node.id, index]));
   for (const node of nodes) {
     if (node.parentId && validIds.has(node.parentId) && node.parentId !== node.id) {
       const list = map.get(node.parentId) || [];
@@ -98,7 +125,7 @@ function buildChildrenMap(nodes: MindMapNode[]): Map<string, MindMapNode[]> {
     }
   }
   for (const [parentId, list] of map.entries()) {
-    list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || (sourceOrder.get(a.id) ?? 0) - (sourceOrder.get(b.id) ?? 0));
     map.set(parentId, list);
   }
   return map;
@@ -303,7 +330,7 @@ export function computeMindMapLayout(
 
   const boxes = new Map<
     string,
-    { width: number; height: number; lines: string[]; sublabelLine?: string }
+    { width: number; height: number; lines: string[]; sublabelLine?: string; noteLines: string[] }
   >();
   for (const id of visibleIds) {
     const node = nodeMap.get(id);
@@ -326,8 +353,8 @@ export function computeMindMapLayout(
     autoPositions.set(rootId, { x: 0, y: 0, side: 'center' });
     const rootChildren = getVisibleChildren(rootId);
 
-    const verticalGap = 28;
-    const horizontalGap = 86;
+    const verticalGap = 40;
+    const horizontalGap = 104;
 
     const subtreeHeightCache = new Map<string, number>();
     const measureSubtreeHeight = (id: string, seen = new Set<string>()): number => {
@@ -413,8 +440,8 @@ export function computeMindMapLayout(
     placeWing(leftBranchRoots, -1);
   } else if (doc.style === 'hierarchical') {
     // Top-Down Structured Medical Taxonomy Tree
-    const hGap = 34;
-    const levelGap = 96;
+    const hGap = 62;
+    const levelGap = 124;
 
     const subtreeWidthCache = new Map<string, number>();
     const measureSubtreeWidth = (id: string, seen = new Set<string>()): number => {
@@ -513,18 +540,23 @@ export function computeMindMapLayout(
       layers.set(layer, bucket);
     }
 
+    const hierarchyRank = new Map<string, number>();
+    let nextRank = 0;
+    const rankTree = (id: string, seen = new Set<string>()) => {
+      if (seen.has(id)) return;
+      seen.add(id);
+      hierarchyRank.set(id, nextRank++);
+      (childrenMap.get(id) || []).forEach((child) => rankTree(child.id, seen));
+    };
+    rankTree(rootId);
     const sortedLayers = Array.from(layers.keys()).sort((a, b) => a - b);
-    const colGap = 110;
-    const rowGap = 38;
+    const colGap = 128;
+    const rowGap = 52;
     let cursorX = 0;
 
     for (const layerIdx of sortedLayers) {
       const ids = layers.get(layerIdx) || [];
-      ids.sort((a, b) => {
-        const na = nodeMap.get(a);
-        const nb = nodeMap.get(b);
-        return (na?.order ?? 0) - (nb?.order ?? 0);
-      });
+      ids.sort((a, b) => (hierarchyRank.get(a) ?? Number.MAX_SAFE_INTEGER) - (hierarchyRank.get(b) ?? Number.MAX_SAFE_INTEGER));
 
       const maxColWidth = Math.max(
         ...ids.map((id) => (boxes.get(id)?.width ?? 170))
@@ -597,7 +629,8 @@ export function computeMindMapLayout(
       hiddenDescendantsCount,
       isCollapsed,
       lines: box.lines,
-      sublabelLine: box.sublabelLine
+      sublabelLine: box.sublabelLine,
+      noteLines: box.noteLines
     };
     positionedNodes.push(pNode);
     positionedMap.set(id, pNode);

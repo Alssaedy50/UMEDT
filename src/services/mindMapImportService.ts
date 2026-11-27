@@ -12,25 +12,23 @@ const MAX_CONCISE_LABEL_LEN = 54;
 const MAX_CONCISE_SUBLABEL_LEN = 42;
 
 export const MIND_MAP_AI_PROMPTS = {
-  json: `أنشئ خريطة ذهنية طبية أكاديمية تفاعلية حول: [اكتب اسم الموضوع الطبي هنا]
+  json: `Create an academically rigorous, interactive medical mind map about: [ENTER MEDICAL TOPIC]
 
-المخرج المطلوب:
-أعد كائن JSON واحداً فقط، صالحاً للتحليل مباشرة بواسطة UMEDT. لا تستخدم Markdown أو أسوار كود أو مقدمة أو خاتمة.
+OUTPUT CONTRACT:
+Return exactly one valid JSON object that UMEDT can import directly. Do not use Markdown fences, prefaces, commentary, or trailing text.
 
-المخطط الإلزامي:
+REQUIRED JSON STRUCTURE:
 {
   "schemaVersion": 1,
-  "title": "عنوان الموضوع",
+  "title": "English topic title",
   "titleEn": "English topic title",
-  "subtitle": "وصف مختصر",
-  "style": "radial",
+  "style": "hierarchical",
   "rootNodeId": "n1",
   "nodes": [
     {
       "id": "n1",
-      "label": "عنوان مركزي مختصر",
-      "sublabel": "ترجمة أو مؤشر مختصر",
-      "note": "شرح علمي كامل ومفصل عند الحاجة",
+      "label": "Main topic",
+      "note": "A concise, scientifically accurate overview in English.",
       "parentId": null,
       "role": "root",
       "order": 0
@@ -38,17 +36,15 @@ export const MIND_MAP_AI_PROMPTS = {
     {
       "id": "n2",
       "label": "Pathophysiology",
-      "sublabel": "الفيزيولوجيا المرضية",
-      "note": "اشرح الآليات خطوة بخطوة، مع الأسباب والنتائج والأمثلة والأهمية السريرية. لا تضع الشرح الطويل في label ولا تحذف التفاصيل.",
+      "note": "Explain the mechanism in clear, connected steps. Include causes, intermediate events, consequences, and clinical relevance.",
       "parentId": "n1",
       "role": "mechanism",
       "order": 1
     },
     {
       "id": "n3",
-      "label": "Clinical Consequences",
-      "sublabel": "النتائج السريرية",
-      "note": "اشرح النتائج السريرية المرتبطة بالآلية.",
+      "label": "Clinical Diagnosis",
+      "note": "Explain the diagnostic approach, key findings, and relevant investigations in English.",
       "parentId": "n1",
       "role": "diagnosis",
       "order": 2
@@ -59,29 +55,29 @@ export const MIND_MAP_AI_PROMPTS = {
       "id": "e1",
       "sourceId": "n2",
       "targetId": "n3",
-      "label": "يؤدي إلى",
+      "label": "Leads to",
       "directed": true,
       "lineStyle": "solid"
     }
   ]
 }
 
-قواعد صحة البيانات:
-1. استخدم عقدة جذر واحدة فقط، واجعل parentId لها null وrootNodeId مساوياً لمعرفها.
-2. يجب أن يكون id فريداً لكل عقدة ولكل علاقة. استخدم معرفات قصيرة مثل n1 وn2 وe1.
-3. يجب أن يشير parentId لكل عقدة فرعية إلى id موجود فعلياً في nodes، وألا تشير العقدة إلى نفسها أو إلى أحد أحفادها.
-4. استخدم فقط هذه القيم في style: radial أو hierarchical أو medical_flow.
-5. استخدم فقط هذه القيم في role: root أو concept أو mechanism أو diagnosis أو treatment أو warning.
-6. اجعل label عنواناً بصرياً موجزاً (2–6 كلمات غالباً)، وضع التعريف والشرح والتفاصيل والأمثلة في note دون اختصار مخل.
-7. استخدم sublabel للترجمة العربية أو قيمة/مؤشر قصير، وليس لشرح مطول.
-8. استخدم edges للعلاقات السببية أو الوظيفية العابرة بين الفروع فقط؛ لا تكرر علاقات الأب والابن الموجودة في parentId.
-9. يجب أن يكون sourceId وtargetId في كل edge معرفين موجودين في nodes، وألا تكون العلاقة بين العقدة ونفسها.
-10. لا تضف حقولاً غير معرفة في المخطط، ولا تضع تعليقات أو trailing commas داخل JSON.
-11. حافظ على المصطلحات الطبية الإنجليزية القياسية، وأضف المقابل العربي في sublabel عند فائدته.
-12. نظّم الموضوع من المفاهيم الأساسية إلى الآليات ثم المظاهر والتشخيص والعلاج والمضاعفات. لا تخترع معلومات أو جرعات أو مراجع.
-13. اجعل كل فرع مستقلاً منطقياً، وتجنب تكرار المعلومة نفسها في أكثر من عقدة.
-14. إذا كان الموضوع مساراً تشخيصياً أو علاجياً متسلسلاً، استخدم style = "medical_flow" وعقداً مرتبة مع علاقات edges واضحة.
-15. أخرج JSON كاملاً فقط. لا تضع أي شرح خارج كائن JSON.`
+DATA AND CONTENT RULES:
+1. Use exactly one root node. Its parentId must be null and rootNodeId must equal its id.
+2. Every node and edge must have a unique id. Use short ids such as n1, n2, and e1.
+3. Every non-root parentId must reference an existing node. Do not create self-parenting or cyclic hierarchies.
+4. Allowed style values: radial, hierarchical, medical_flow.
+5. Allowed role values: root, concept, mechanism, diagnosis, treatment, warning.
+6. Keep every label concise (usually 2–6 words). Put explanations, mechanisms, examples, and clinical detail in note.
+7. Write all labels, notes, edge labels, titles, and explanatory content in clear academic English.
+8. Do not add Arabic translations, bilingual explanations, or duplicate Arabic text. UMEDT displays English content and handles card colors inside the app.
+9. Use edges only for meaningful causal or functional relationships across branches. Do not duplicate parent-child relationships already represented by parentId.
+10. Every edge sourceId and targetId must reference existing nodes and must be different.
+11. Do not add unsupported fields, colors, hex codes, or styling instructions.
+12. Organize the subject from foundational concepts through mechanisms, clinical features, diagnosis, treatment, and complications.
+13. Keep branches logically independent and avoid repeating the same information.
+14. Use medical_flow for a genuinely sequential diagnostic or therapeutic pathway; otherwise use hierarchical or radial.
+15. Return the complete JSON object only.`
 } as const;
 
 export interface MindMapPromptOptions {
@@ -89,33 +85,50 @@ export interface MindMapPromptOptions {
   nodeCount?: number;
   style: MindMapStyle;
   outputFormat: 'text' | 'file';
+  includeArabicTranslation?: boolean;
 }
 
 export function buildMindMapGenerationPrompt(options: MindMapPromptOptions): string {
-  const topic = options.topic.trim() || '[اكتب الموضوع الطبي]';
+  const topic = options.topic.trim() || '[Enter medical topic]';
+  const includeArabicTranslation = options.includeArabicTranslation === true;
   const requestedCount = typeof options.nodeCount === 'number' && Number.isFinite(options.nodeCount)
     ? Math.max(3, Math.min(80, Math.round(options.nodeCount)))
     : null;
   const outputInstruction = options.outputFormat === 'file'
-    ? 'أنشئ ملفاً قابلاً للتنزيل باسم medical-mind-map.json بترميز UTF-8، ويحتوي الملف على كائن JSON فقط. إذا كانت المنصة لا تدعم إنشاء الملفات، أخرج نص JSON كاملاً دون Markdown ليتمكن المستخدم من نسخه.'
-    : 'أخرج نص JSON كاملاً فقط داخل المحادثة دون Markdown أو أسوار كود أو مقدمة أو خاتمة.';
+    ? 'Create a downloadable UTF-8 file named medical-mind-map.json containing only the JSON object. If file creation is unavailable, return the complete raw JSON text.'
+    : 'Return the complete raw JSON object in the response. Do not use Markdown fences, prefaces, commentary, or trailing text.';
   const prompt = MIND_MAP_AI_PROMPTS.json
-    .replace('[اكتب اسم الموضوع الطبي هنا]', topic)
-    .replace('"style": "radial"', `"style": "${options.style}"`)
+    .replace('[ENTER MEDICAL TOPIC]', topic)
+    .replace('"style": "hierarchical"', `"style": "${options.style}"`)
     .replace(
-      'أعد كائن JSON واحداً فقط، صالحاً للتحليل مباشرة بواسطة UMEDT. لا تستخدم Markdown أو أسوار كود أو مقدمة أو خاتمة.',
-      outputInstruction
+      '8. Do not add Arabic translations, bilingual explanations, or duplicate Arabic text. UMEDT displays English content and handles card colors inside the app.',
+      includeArabicTranslation
+        ? '8. Keep all explanations in English. Add only concise Arabic translations in optional sublabel fields; never translate or duplicate the explanatory notes.'
+        : '8. Do not add Arabic translations, bilingual explanations, or duplicate Arabic text. UMEDT displays English content and handles card colors inside the app.'
     );
+  const languageRules = includeArabicTranslation
+    ? [
+        '- Keep all labels, notes, and explanations in English.',
+        '- Add a concise Arabic translation only in the optional sublabel field for nodes where it adds real value.',
+        '- Do not translate or duplicate the explanatory note. Never put Arabic paragraphs inside cards.',
+      ]
+    : [
+        '- English only: do not generate Arabic translations, Arabic explanations, sublabels, or bilingual duplicates.',
+        '- Omit the sublabel property from every node.'
+      ];
   const constraints = [
-    `- الموضوع: ${topic}.`,
+    `- Topic: ${topic}.`,
     ...(requestedCount === null
-      ? ['- لا يوجد عدد محدد للعقد؛ اختر العدد المناسب لتغطية الموضوع بوضوح دون حشو أو تكرار.']
-      : [`- العدد المستهدف: ${requestedCount} عقدة إجمالاً، وتُحتسب عقدة الجذر ضمن العدد.`]),
-    `- نمط التخطيط: ${options.style}.`,
-    '- يجب أن تكون كل عقدة وعلاقة صالحة وفق المخطط أعلاه، وأن تكون جميع parentId وsourceId وtargetId مرتبطة بمعرفات موجودة.',
-    '- لا تضف حقولاً أو صيغاً غير مدعومة. يجب أن يستطيع مستورد UMEDT تحليل النتيجة مباشرة دون تحويل يدوي.'
+      ? ['- Choose the number of nodes needed for clear, complete coverage. Avoid padding and repetition.']
+      : [`- Target ${requestedCount} nodes total, including the root node.`]),
+    `- Layout style: ${options.style}.`,
+    ...languageRules,
+    '- Keep every node and edge within the exact JSON schema shown above. All parentId, sourceId, and targetId values must reference existing node ids.',
+    '- Do not invent additional fields or unsupported formats. The result must be directly readable by the UMEDT mind-map importer.',
+    '- Do not include color properties or hex codes; UMEDT assigns harmonious colors automatically.',
+    outputInstruction
   ];
-  return `${prompt}\n\nالمواصفات المحددة لهذه الخريطة:\n${constraints.join('\n')}`;
+  return [prompt, 'MAP-SPECIFIC SETTINGS:', ...constraints].join('\n');
 }
 
 function inferMedicalRoleFromText(text: string, depth: number): MindMapNodeRole {

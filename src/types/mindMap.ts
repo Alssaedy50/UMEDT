@@ -1,4 +1,5 @@
 export type MindMapStyle = 'radial' | 'hierarchical' | 'medical_flow';
+export type MindMapColorMode = 'branch' | 'role';
 
 export type MindMapNodeRole =
   | 'root'
@@ -19,7 +20,7 @@ export interface MindMapNode {
   label: string;
   /** Optional short secondary cue (e.g., Arabic translation, key value, or drug class) */
   sublabel?: string;
-  /** Optional brief clinical note shown only when inspecting the node (never bloats canvas) */
+  /** Optional clinical note shown in a two-line card preview and fully in the inspector. */
   note?: string;
   /** Parent node ID for tree hierarchy; null/undefined for root or independent flow nodes */
   parentId: string | null;
@@ -27,7 +28,7 @@ export interface MindMapNode {
   role: MindMapNodeRole;
   /** Optional sibling ordering */
   order?: number;
-  /** Optional visual shape and accent color for this node */
+  /** Optional visual shape and persistent manual fill-color override for this node */
   shape?: 'rounded' | 'pill' | 'diamond' | 'hexagon' | 'circle';
   color?: string;
   /** Optional manual coordinates set when the user drags the node in the editor */
@@ -52,6 +53,8 @@ export interface MindMapDocument {
   titleEn?: string;
   subtitle?: string;
   style: MindMapStyle;
+  /** Automatic node palette: branch hierarchy by default, or semantic medical role. */
+  colorMode?: MindMapColorMode;
   rootNodeId: string;
   nodes: MindMapNode[];
   edges: MindMapEdge[];
@@ -100,6 +103,7 @@ export interface PositionedMindMapNode {
   isCollapsed: boolean;
   lines: string[];
   sublabelLine?: string;
+  noteLines?: string[];
 }
 
 export interface PositionedMindMapEdge {

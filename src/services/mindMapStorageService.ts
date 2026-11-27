@@ -7,6 +7,7 @@ import {
   MindMapNodeRole,
   MindMapStyle
 } from '../types/mindMap';
+import { getMindMapNodeColors } from './mindMapColorEngine';
 
 export const MIND_MAPS_STORAGE_KEY = 'dictengine_umd_mind_maps_v1';
 export const MIND_MAPS_UPDATED_EVENT = 'umed:mindmaps-updated';
@@ -111,6 +112,7 @@ export function normalizeMindMapDocument(raw: unknown): MindMapDocument | null {
     titleEn: typeof obj.titleEn === 'string' && obj.titleEn.trim() ? obj.titleEn.trim() : undefined,
     subtitle: typeof obj.subtitle === 'string' && obj.subtitle.trim() ? obj.subtitle.trim() : undefined,
     style,
+    colorMode: obj.colorMode === 'role' ? 'role' : 'branch',
     rootNodeId,
     nodes,
     edges,
@@ -543,60 +545,6 @@ function escapeXml(str: string): string {
     .replace(/'/g, '&apos;');
 }
 
-const SVG_ROLE_PALETTE: Record<
-  MindMapNodeRole,
-  { fillLight: string; strokeLight: string; textLight: string; fillDark: string; strokeDark: string; textDark: string }
-> = {
-  root: {
-    fillLight: '#059669',
-    strokeLight: '#047857',
-    textLight: '#ffffff',
-    fillDark: '#10b981',
-    strokeDark: '#34d399',
-    textDark: '#022c22'
-  },
-  concept: {
-    fillLight: '#ffffff',
-    strokeLight: '#94a3b8',
-    textLight: '#0f172a',
-    fillDark: '#1e293b',
-    strokeDark: '#475569',
-    textDark: '#f8fafc'
-  },
-  mechanism: {
-    fillLight: '#eff6ff',
-    strokeLight: '#3b82f6',
-    textLight: '#1e3a8a',
-    fillDark: '#172554',
-    strokeDark: '#60a5fa',
-    textDark: '#dbeafe'
-  },
-  diagnosis: {
-    fillLight: '#f5f3ff',
-    strokeLight: '#8b5cf6',
-    textLight: '#4c1d95',
-    fillDark: '#2e1065',
-    strokeDark: '#a78bfa',
-    textDark: '#ede9fe'
-  },
-  treatment: {
-    fillLight: '#ecfdf5',
-    strokeLight: '#10b981',
-    textLight: '#065f46',
-    fillDark: '#022c22',
-    strokeDark: '#34d399',
-    textDark: '#d1fae5'
-  },
-  warning: {
-    fillLight: '#fff1f2',
-    strokeLight: '#f43f5e',
-    textLight: '#881337',
-    fillDark: '#4c0519',
-    strokeDark: '#fb7185',
-    textDark: '#ffe4e6'
-  }
-};
-
 export function buildStandaloneMindMapSvg(
   doc: MindMapDocument,
   layout: MindMapLayoutResult,
@@ -605,34 +553,36 @@ export function buildStandaloneMindMapSvg(
   const { minX, minY, width, height } = layout.bounds;
   const bg = isDark ? '#0f172a' : '#f8fafc';
   const edgeStroke = isDark ? '#64748b' : '#94a3b8';
-  const labelBg = isDark ? '#1e293b' : '#ffffff';
-  const labelText = isDark ? '#cbd5e1' : '#334155';
   const nodeById = new Map(doc.nodes.map((node) => [node.id, node]));
 
   const edgeElements = layout.edges
     .map((e) => {
       const dash = e.lineStyle === 'dashed' ? ' stroke-dasharray="6 4"' : '';
       const marker = e.directed ? ' marker-end="url(#mm-arrow)"' : '';
-      const labelWidth = e.label ? Math.max(64, Math.min(220, Math.round(e.label.length * 7.2 + 22))) : 84;
-      const edgeLabel = e.label
-        ? `<g transform="translate(${e.labelX}, ${e.labelY})">
-             <rect x="${-Math.round(labelWidth / 2)}" y="-11" width="${labelWidth}" height="20" rx="6" fill="${labelBg}" stroke="${edgeStroke}" stroke-width="1"/>
-             <text x="0" y="3" text-anchor="middle" font-family="Cairo, sans-serif" font-size="10" font-weight="700" fill="${labelText}">${escapeXml(e.label)}</text>
-           </g>`
-        : '';
-      const relationStroke = e.isCrossLink ? '#8b5cf6' : '#0f766e';
-      const relationWidth = e.isCrossLink ? 1.6 : 2.8;
-      const relationOpacity = e.isCrossLink ? 0.58 : 0.92;
-      return `<g class="mm-edge" data-kind="${e.isCrossLink ? 'cross-link' : 'tree-link'}" data-from="${escapeXml(e.sourceId)}" data-to="${escapeXml(e.targetId)}"><path d="${escapeXml(e.path)}" fill="none" stroke="${relationStroke}" stroke-width="${relationWidth}" opacity="${relationOpacity}"${dash}${marker} />${edgeLabel}</g>`;
+      const relationStroke = e.isCrossLink ? '#a78bfa' : '#2dd4bf';
+      const relationWidth = e.isCrossLink ? 2.1 : 3.2;
+      const relationOpacity = e.isCrossLink ? 0.76 : 0.96;
+      return `<g class="mm-edge" data-kind="${e.isCrossLink ? 'cross-link' : 'tree-link'}" data-from="${escapeXml(e.sourceId)}" data-to="${escapeXml(e.targetId)}"><path d="${escapeXml(e.path)}" fill="none" stroke="${relationStroke}" stroke-width="${relationWidth}" opacity="${relationOpacity}"${dash}${marker} /></g>`;
+    })
+    .join('\n');
+
+  const edgeLabelElements = layout.edges
+    .filter((edge) => Boolean(edge.label))
+    .map((edge) => {
+      const labelWidth = Math.max(64, Math.min(220, Math.round((edge.label || '').length * 7.2 + 22)));
+      return `<g class="mm-edge-label" transform="translate(${edge.labelX}, ${edge.labelY})" pointer-events="none">
+        <rect x="${-Math.round(labelWidth / 2)}" y="-11" width="${labelWidth}" height="22" rx="11" fill="#0b1220" stroke="#64748b" stroke-width="1.2" />
+        <text x="0" y="3.5" text-anchor="middle" dir="auto" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="10" font-weight="700" fill="#e2e8f0">${escapeXml(edge.label || '')}</text>
+      </g>`;
     })
     .join('\n');
 
   const nodeElements = layout.nodes
     .map((pn) => {
-      const palette = SVG_ROLE_PALETTE[pn.node.role] || SVG_ROLE_PALETTE.concept;
-      const fill = pn.node.color || (isDark ? palette.fillDark : palette.fillLight);
-      const stroke = pn.node.color || (isDark ? palette.strokeDark : palette.strokeLight);
-      const textColor = pn.node.color ? '#ffffff' : isDark ? palette.textDark : palette.textLight;
+      const colors = getMindMapNodeColors(doc, pn.node);
+      const fill = colors.fill;
+      const stroke = colors.stroke;
+      const textColor = colors.text;
       const x = pn.x - pn.width / 2;
       const y = pn.y - pn.height / 2;
       const shape = pn.node.shape || 'rounded';
@@ -648,31 +598,36 @@ export function buildStandaloneMindMapSvg(
       const parentNode = pn.node.parentId ? nodeById.get(pn.node.parentId) : undefined;
       const parentLabel = parentNode?.label || '';
       const parentLine = parentLabel ? `↳ ${parentLabel.slice(0, 22)}${parentLabel.length > 22 ? '…' : ''}` : '';
-      const totalLines = pn.lines.length + (pn.sublabelLine ? 1 : 0) + (parentLine ? 1 : 0);
-      const startY = pn.y - ((totalLines - 1) * 15) / 2 + 4;
+      const noteLines = pn.noteLines || [];
+      const totalLines = pn.lines.length + (pn.sublabelLine ? 1 : 0) + noteLines.length + (parentLine ? 1 : 0);
+      const startY = pn.y - ((totalLines - 1) * 13.5) / 2 + 4;
 
       const textLines = pn.lines
         .map(
           (line, idx) =>
-            `<text x="${pn.x}" y="${startY + idx * 17}" text-anchor="middle" font-family="Cairo, sans-serif" font-size="${
+            `<text x="${pn.x}" y="${startY + idx * 16}" text-anchor="middle" dir="auto" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="${
               pn.node.role === 'root' ? 13 : 12
             }" font-weight="800" fill="${textColor}">${escapeXml(line)}</text>`
         )
         .join('');
 
       const subLine = pn.sublabelLine
-        ? `<text x="${pn.x}" y="${startY + pn.lines.length * 15}" text-anchor="middle" font-family="Cairo, sans-serif" font-size="10.5" font-weight="600" opacity="0.82" fill="${textColor}">${escapeXml(
+        ? `<text x="${pn.x}" y="${startY + pn.lines.length * 13.5}" text-anchor="middle" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="10.5" font-weight="600" opacity="0.84" fill="${textColor}">${escapeXml(
             pn.sublabelLine
           )}</text>`
         : '';
+      const noteMarkup = noteLines.map((line, index) =>
+        `<text x="${pn.x}" y="${startY + (pn.lines.length + (pn.sublabelLine ? 1 : 0) + index) * 13.5 + 1}" text-anchor="middle" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="9" font-weight="500" opacity="0.78" fill="${textColor}">${escapeXml(line)}</text>`
+      ).join('');
       const parentMarkup = parentLine
-        ? `<text x="${pn.x}" y="${startY + (pn.lines.length + (pn.sublabelLine ? 1 : 0)) * 15}" text-anchor="middle" font-family="Cairo, sans-serif" font-size="8.5" font-weight="700" opacity="0.72" fill="${textColor}">${escapeXml(parentLine)}</text>`
+        ? `<text x="${pn.x}" y="${startY + (pn.lines.length + (pn.sublabelLine ? 1 : 0) + noteLines.length) * 13.5}" text-anchor="middle" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="8.5" font-weight="700" opacity="0.72" fill="${textColor}">${escapeXml(parentLine)}</text>`
         : '';
 
       return `<g class="mm-node" data-node-id="${escapeXml(pn.node.id)}" role="button" tabindex="0" aria-label="${escapeXml(pn.node.label)}">
         ${shapeMarkup}
         ${textLines}
         ${subLine}
+        ${noteMarkup}
         ${parentMarkup}
       </g>`;
     })
@@ -690,6 +645,7 @@ export function buildStandaloneMindMapSvg(
   </defs>
   <rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="${bg}" />
   ${edgeElements}
+  ${edgeLabelElements}
   ${nodeElements}
 </svg>`;
 }
