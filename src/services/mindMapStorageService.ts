@@ -607,6 +607,7 @@ export function buildStandaloneMindMapSvg(
   const edgeStroke = isDark ? '#64748b' : '#94a3b8';
   const labelBg = isDark ? '#1e293b' : '#ffffff';
   const labelText = isDark ? '#cbd5e1' : '#334155';
+  const nodeById = new Map(doc.nodes.map((node) => [node.id, node]));
 
   const edgeElements = layout.edges
     .map((e) => {
@@ -619,7 +620,10 @@ export function buildStandaloneMindMapSvg(
              <text x="0" y="3" text-anchor="middle" font-family="Cairo, sans-serif" font-size="10" font-weight="700" fill="${labelText}">${escapeXml(e.label)}</text>
            </g>`
         : '';
-      return `<g class="mm-edge" data-from="${escapeXml(e.sourceId)}" data-to="${escapeXml(e.targetId)}"><path d="${escapeXml(e.path)}" fill="none" stroke="${edgeStroke}" stroke-width="2"${dash}${marker} />${edgeLabel}</g>`;
+      const relationStroke = e.isCrossLink ? '#8b5cf6' : '#0f766e';
+      const relationWidth = e.isCrossLink ? 1.6 : 2.8;
+      const relationOpacity = e.isCrossLink ? 0.58 : 0.92;
+      return `<g class="mm-edge ${e.isCrossLink ? 'mm-cross-link' : 'mm-tree-link'}" data-from="${escapeXml(e.sourceId)}" data-to="${escapeXml(e.targetId)}"><path d="${escapeXml(e.path)}" fill="none" stroke="${relationStroke}" stroke-width="${relationWidth}" opacity="${relationOpacity}"${dash}${marker} />${edgeLabel}</g>`;
     })
     .join('\n');
 
@@ -641,8 +645,10 @@ export function buildStandaloneMindMapSvg(
             ? `<polygon points="${x+pn.width*0.18},${y} ${x+pn.width*0.82},${y} ${x+pn.width},${pn.y} ${x+pn.width*0.82},${y+pn.height} ${x+pn.width*0.18},${y+pn.height} ${x},${pn.y}" fill="${fill}" stroke="${stroke}" stroke-width="${pn.node.role === 'root' ? 2.5 : 1.75}"/>`
             : `<rect x="${x}" y="${y}" width="${pn.width}" height="${pn.height}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${pn.node.role === 'root' ? 2.5 : 1.75}"/>`;
 
-      const totalLines = pn.lines.length + (pn.sublabelLine ? 1 : 0);
-      const startY = pn.y - ((totalLines - 1) * 16) / 2 + 4;
+      const parentNode = pn.node.parentId ? nodeById.get(pn.node.parentId) : undefined;
+      const parentLine = parentNode ? `↳ ${parentNode.label}` : '';
+      const totalLines = pn.lines.length + (pn.sublabelLine ? 1 : 0) + (parentLine ? 1 : 0);
+      const startY = pn.y - ((totalLines - 1) * 15) / 2 + 4;
 
       const textLines = pn.lines
         .map(
@@ -654,15 +660,19 @@ export function buildStandaloneMindMapSvg(
         .join('');
 
       const subLine = pn.sublabelLine
-        ? `<text x="${pn.x}" y="${startY + pn.lines.length * 17}" text-anchor="middle" font-family="Cairo, sans-serif" font-size="10.5" font-weight="600" opacity="0.82" fill="${textColor}">${escapeXml(
+        ? `<text x="${pn.x}" y="${startY + pn.lines.length * 15}" text-anchor="middle" font-family="Cairo, sans-serif" font-size="10.5" font-weight="600" opacity="0.82" fill="${textColor}">${escapeXml(
             pn.sublabelLine
           )}</text>`
+        : '';
+      const parentMarkup = parentLine
+        ? `<text x="${pn.x}" y="${startY + (pn.lines.length + (pn.sublabelLine ? 1 : 0)) * 15}" text-anchor="middle" font-family="Cairo, sans-serif" font-size="8.5" font-weight="700" opacity="0.72" fill="${textColor}">${escapeXml(parentLine)}</text>`
         : '';
 
       return `<g class="mm-node" data-node-id="${escapeXml(pn.node.id)}" role="button" tabindex="0" aria-label="${escapeXml(pn.node.label)}">
         ${shapeMarkup}
         ${textLines}
         ${subLine}
+        ${parentMarkup}
       </g>`;
     })
     .join('\n');
