@@ -310,6 +310,45 @@ function extractJsonBlockFromText(raw: string): string | null {
   return null;
 }
 
+
+/** Validate the strict UMEDT unified JSON contract before any legacy/text parser runs. */
+function validateUnifiedMindMapJson(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return 'يجب أن يكون JSON كائناً.';
+  const obj = value as Record<string, unknown>;
+  if (obj.schemaVersion !== 1) return 'إصدار المخطط غير مدعوم؛ schemaVersion يجب أن يساوي 1.';
+  if (typeof obj.rootNodeId !== 'string' || !obj.rootNodeId.trim()) return 'الحقل rootNodeId مفقود أو غير صالح.';
+  if (!Array.isArray(obj.nodes) || obj.nodes.length === 0) return 'الحقل nodes يجب أن يحتوي على عقدة واحدة على الأقل.';
+  if (!Array.isArray(obj.edges)) return 'الحقل edges يجب أن يكون مصفوفة، حتى إن كانت فارغة.';
+  const ids = new Set<string>();
+  for (const [index, item] of obj.nodes.entries()) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return `العقدة رقم ${index + 1} غير صالحة.`;
+    const node = item as Record<string, unknown>;
+    if (typeof node.id !== 'string' || !node.id.trim()) return `معرّف العقدة رقم ${index + 1} مفقود.`;
+    if (ids.has(node.id)) return `معرّف العقدة مكرر: ${node.id}.`;
+    ids.add(node.id);
+  }
+  if (!ids.has(obj.rootNodeId)) return 'rootNodeId لا يشير إلى عقدة موجودة في nodes.';
+  for (const [index, item] of obj.nodes.entries()) {
+    const node = item as Record<string, unknown>;
+    if (node.parentId != null && (typeof node.parentId !== 'string' || !ids.has(node.parentId))) {
+      return `parentId في العقدة ${node.id} لا يشير إلى عقدة موجودة.`;
+    }
+    if (node.id === obj.rootNodeId && node.parentId != null) return 'يجب أن يكون parentId لعقدة الجذر null.';
+  }
+  const edgeIds = new Set<string>();
+  for (const [index, item] of obj.edges.entries()) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return `العلاقة رقم ${index + 1} غير صالحة.`;
+    const edge = item as Record<string, unknown>;
+    if (typeof edge.id !== 'string' || !edge.id.trim()) return `معرّف العلاقة رقم ${index + 1} مفقود.`;
+    if (edgeIds.has(edge.id)) return `معرّف العلاقة مكرر: ${edge.id}.`;
+    edgeIds.add(edge.id);
+    if (typeof edge.sourceId !== 'string' || !ids.has(edge.sourceId)) return `sourceId في العلاقة ${edge.id} غير مرتبط بعقدة موجودة.`;
+    if (typeof edge.targetId !== 'string' || !ids.has(edge.targetId)) return `targetId في العلاقة ${edge.id} غير مرتبط بعقدة موجودة.`;
+    if (edge.sourceId === edge.targetId) return `العلاقة ${edge.id} تربط العقدة بنفسها.`;
+  }
+  return null;
+}
+
 function computeMaxDepth(nodes: MindMapNode[], rootNodeId: string): number {
   const childrenMap = new Map<string, string[]>();
   for (const n of nodes) {
@@ -1049,13 +1088,51 @@ export function parseMindMapInput(
   const fileLower = (options?.fileName || '').toLowerCase();
   const extractedJson = extractJsonBlockFromText(text);
 
-  if (extractedJson && (fileLower.endsWith('.json') || text.startsWith('{') || /```json/i.test(text))) {
-    const jsonRes = parseJsonMindMap(extractedJson, options);
-    if (jsonRes.success) return jsonRes;
-    if (fileLower.endsWith('.json')) return jsonRes;
-  } else if (extractedJson) {
-    const jsonRes = parseJsonMindMap(extractedJson, options);
-    if (jsonRes.success) return jsonRes;
+  // JSON has absolute precedence. A successfully parsed JSON document is never
+  // reinterpreted as TXT/Markdown, even when its schema is invalid.
+  if (extractedJson) {
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(extractedJson);
+    } catch (error) {
+      return parseJsonMindMap(extractedJson, options);
+    }
+    const candidate =
+      parsedJson && typeof parsedJson === 'object' && !Array.isArray(parsedJson)
+        ? ((parsedJson as Record<string, unknown>).mindMap &&
+            typeof (parsedJson as Record<string, unknown>).mindMap === 'object'
+            ? (parsedJson as Record<string, unknown>).mindMap
+            : parsedJson)
+        : parsedJson;
+    if (candidate && typeof candidate === 'object' &&
+        (candidate as Record<string, unknown>).schemaVersion !== undefined) {
+      const validationError = validateUnifiedMindMapJson(candidate);
+      if (validationError) {
+        return {
+          success: false,
+          detectedFormat: 'umedt-json',
+          detectedFormatLabelAr: 'ملف JSON الموحد',
+          document: null,
+          stats: { nodeCount: 0, edgeCount: 0, maxDepth: 0, trimmedLongNodes: 0 },
+          warnings: [],
+          error: validationError
+        };
+      }
+    }
+    return parseJsonMindMap(extractedJson, options);
+  }
+
+  // Explicit JSON uploads must not silently fall through to a one-node text map.
+  if (fileLower.endsWith('.json')) {
+    return {
+      success: false,
+      detectedFormat: 'umedt-json',
+      detectedFormatLabelAr: 'ملف JSON',
+      document: null,
+      stats: { nodeCount: 0, edgeCount: 0, maxDepth: 0, trimmedLongNodes: 0 },
+      warnings: [],
+      error: 'تعذر العثور على كائن JSON صالح في الملف. تحقق من المحتوى والأسوار الخارجية.'
+    };
   }
 
   return parseOutlineOrMarkdown(text, options);
