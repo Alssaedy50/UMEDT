@@ -653,6 +653,7 @@ function updateEdgeFocus(){
     var activeNode=activeNodes.has(node.dataset.nodeId);
     node.style.opacity=(selectedId||selectedEdgeId)&&!activeNode?'.38':'';
     node.classList.toggle('relationship-focus',activeNode);
+    node.style.filter=activeNode?'drop-shadow(0 0 10px rgba(16,185,129,.72))':'';
   });
   overlay.setAttribute('pointer-events','none');
 }
