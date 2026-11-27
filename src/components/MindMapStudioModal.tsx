@@ -75,6 +75,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
   const [promptNodeCount, setPromptNodeCount] = useState('');
   const [promptStyle, setPromptStyle] = useState<MindMapStyle>('hierarchical');
   const [promptOutputFormat, setPromptOutputFormat] = useState<'text' | 'file'>('text');
+  const [promptIncludeArabic, setPromptIncludeArabic] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const onCloseRef = useRef(onClose);
   const historyEntryRef = useRef(false);
@@ -286,7 +287,8 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
       ? { nodeCount: Number(promptNodeCount) }
       : {}),
     style: promptStyle,
-    outputFormat: promptOutputFormat
+    outputFormat: promptOutputFormat,
+    includeArabicTranslation: promptIncludeArabic
   });
 
   const handleCopyPrompt = async (key: 'json') => {
@@ -467,12 +469,12 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
 
               <div className="grid grid-cols-1 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950 sm:grid-cols-2">
                 <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                  موضوع الخريطة
+                  Map topic (English)
                   <input
                     type="text"
                     value={promptTopic}
                     onChange={(e) => setPromptTopic(e.target.value)}
-                    placeholder={scopedTopic?.title || 'مثال: Atherosclerosis'}
+                    placeholder={scopedTopic?.titleEn || scopedTopic?.title || 'e.g. Atherosclerosis'}
                     className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                   />
                 </label>
@@ -509,6 +511,10 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                     <option value="text">نص JSON قابل للنسخ واللصق</option>
                     <option value="file">ملف JSON قابل للتنزيل</option>
                   </select>
+                </label>
+                <label className="sm:col-span-2 flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold dark:border-slate-700 dark:bg-slate-900">
+                  <input type="checkbox" checked={promptIncludeArabic} onChange={(event) => setPromptIncludeArabic(event.target.checked)} />
+                  Include concise Arabic translations (optional; explanatory notes remain English)
                 </label>
                 <p className="sm:col-span-2 text-[10px] leading-5 text-slate-500 dark:text-slate-400">
                   في الحالتين يبقى المحتوى JSON مطابقاً لمستورد UMEDT. يمكن لصق النص مباشرة أو رفع ملف .json من أداة الاستيراد، ويجب أن يحتوي الملف على JSON فقط.
