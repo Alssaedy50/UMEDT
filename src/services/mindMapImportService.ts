@@ -84,6 +84,29 @@ export const MIND_MAP_AI_PROMPTS = {
 15. أخرج JSON كاملاً فقط. لا تضع أي شرح خارج كائن JSON.`
 } as const;
 
+export interface MindMapPromptOptions {
+  topic: string;
+  nodeCount: number;
+  style: MindMapStyle;
+  outputFormat: 'text' | 'file';
+}
+
+export function buildMindMapGenerationPrompt(options: MindMapPromptOptions): string {
+  const topic = options.topic.trim() || '[اكتب الموضوع الطبي]';
+  const nodeCount = Math.max(3, Math.min(80, Math.round(options.nodeCount) || 3));
+  const outputInstruction = options.outputFormat === 'file'
+    ? 'أنشئ ملفاً قابلاً للتنزيل باسم medical-mind-map.json بترميز UTF-8، ويحتوي الملف على كائن JSON فقط. إذا كانت المنصة لا تدعم إنشاء الملفات، أخرج نص JSON كاملاً دون Markdown ليتمكن المستخدم من نسخه.'
+    : 'أخرج نص JSON كاملاً فقط داخل المحادثة دون Markdown أو أسوار كود أو مقدمة أو خاتمة.';
+  return MIND_MAP_AI_PROMPTS.json
+    .replace('[اكتب اسم الموضوع الطبي هنا]', topic)
+    .replace('"style": "radial"', `"style": "${options.style}"`)
+    .replace(
+      'أعد كائن JSON واحداً فقط، صالحاً للتحليل مباشرة بواسطة UMEDT. لا تستخدم Markdown أو أسوار كود أو مقدمة أو خاتمة.',
+      outputInstruction
+    )
+    + `\\n\\nالمواصفات المحددة لهذه الخريطة:\\n- الموضوع: ${topic}.\\n- العدد المستهدف: ${nodeCount} عقدة إجمالاً، وتُحتسب عقدة الجذر ضمن العدد. لا تتجاوز العدد ولا تقل عنه إلا إذا كان ذلك ضرورياً لصحة المحتوى؛ وعند التعذر اذكر ذلك في subtitle دون إضافة نص خارج JSON.\\n- نمط التخطيط: ${options.style}.\\n- يجب أن تكون كل عقدة وعلاقة صالحة وفق المخطط أعلاه، وأن تكون جميع parentId وsourceId وtargetId مرتبطة بمعرفات موجودة.\\n- لا تضف حقولاً أو صيغاً غير مدعومة. يجب أن يستطيع مستورد UMEDT تحليل النتيجة مباشرة دون تحويل يدوي.`;
+}
+
 function inferMedicalRoleFromText(text: string, depth: number): MindMapNodeRole {
   if (depth === 0) return 'root';
   const lower = text.toLowerCase();
