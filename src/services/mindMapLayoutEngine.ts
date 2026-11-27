@@ -746,7 +746,7 @@ export function computeMindMapLayout(
       path: curve.path,
       label: edge.label,
       labelX: curve.labelX,
-      labelY: curve.labelY - 9,
+      labelY: curve.labelY,
       isCrossLink: true,
       directed: edge.directed ?? true,
       lineStyle: edge.lineStyle || 'dashed',
