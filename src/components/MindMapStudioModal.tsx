@@ -71,7 +71,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
   const [preferredStyle, setPreferredStyle] = useState<MindMapStyle | 'auto'>('auto');
   const [importColorMode, setImportColorMode] = useState<MindMapColorMode>('branch');
   const [copiedPromptKey, setCopiedPromptKey] = useState<string | null>(null);
-  const [promptTopic, setPromptTopic] = useState(initialTopic?.title || '');
+  const [promptTopic, setPromptTopic] = useState(initialTopic?.titleEn || initialTopic?.title || '');
   const [promptNodeCount, setPromptNodeCount] = useState('');
   const [promptStyle, setPromptStyle] = useState<MindMapStyle>('hierarchical');
   const [promptOutputFormat, setPromptOutputFormat] = useState<'text' | 'file'>('text');
@@ -282,7 +282,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
   };
 
   const buildConfiguredPrompt = () => buildMindMapGenerationPrompt({
-    topic: promptTopic.trim() || scopedTopic?.title || initialTopic?.title || '',
+    topic: promptTopic.trim() || scopedTopic?.titleEn || scopedTopic?.title || initialTopic?.titleEn || initialTopic?.title || '',
     ...(promptNodeCount.trim() && Number.isFinite(Number(promptNodeCount))
       ? { nodeCount: Number(promptNodeCount) }
       : {}),
