@@ -63,6 +63,10 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
   const [importFileName, setImportFileName] = useState<string>('');
   const [preferredStyle, setPreferredStyle] = useState<MindMapStyle | 'auto'>('auto');
   const [copiedPromptKey, setCopiedPromptKey] = useState<string | null>(null);
+  const [promptTopic, setPromptTopic] = useState(initialTopic?.title || '');
+  const [promptNodeCount, setPromptNodeCount] = useState(24);
+  const [promptStyle, setPromptStyle] = useState<MindMapStyle>('hierarchical');
+  const [promptOutputFormat, setPromptOutputFormat] = useState<'text' | 'file'>('text');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const onCloseRef = useRef(onClose);
   const historyEntryRef = useRef(false);
@@ -253,9 +257,24 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
     }
   };
 
+  const buildConfiguredPrompt = () => {
+    const topic = promptTopic.trim() || scopedTopic?.title || initialTopic?.title || '[اكتب الموضوع الطبي]';
+    const outputInstruction = promptOutputFormat === 'file'
+      ? 'أنشئ ملفاً قابلاً للتنزيل باسم medical-mind-map.json بترميز UTF-8، ويحتوي الملف على كائن JSON فقط. إذا كانت المنصة لا تدعم إنشاء الملفات، أخرج نص JSON كاملاً دون Markdown ليتمكن المستخدم من نسخه.'
+      : 'أخرج نص JSON كاملاً فقط داخل المحادثة دون Markdown أو أسوار كود أو مقدمة أو خاتمة.';
+    return MIND_MAP_AI_PROMPTS.json
+      .replace('[اكتب اسم الموضوع الطبي هنا]', topic)
+      .replace('"style": "radial"', `"style": "${promptStyle}"`)
+      .replace(
+        'أعد كائن JSON واحداً فقط، صالحاً للتحليل مباشرة بواسطة UMEDT. لا تستخدم Markdown أو أسوار كود أو مقدمة أو خاتمة.',
+        outputInstruction
+      )
+      + `\n\nالمواصفات المحددة لهذه الخريطة:\n- الموضوع: ${topic}.\n- العدد المستهدف: ${promptNodeCount} عقدة إجمالاً، وتُحتسب عقدة الجذر ضمن العدد. لا تتجاوز العدد ولا تقل عنه إلا إذا كان ذلك ضرورياً لصحة المحتوى؛ وعند التعذر اذكر ذلك في subtitle دون إضافة نص خارج JSON.\n- نمط التخطيط: ${promptStyle}.\n- يجب أن تكون كل عقدة وعلاقة صالحة وفق المخطط أعلاه، وأن تكون جميع parentId وsourceId وtargetId مرتبطة بمعرفات موجودة.\n- لا تضف حقولاً أو صيغاً غير مدعومة. يجب أن يستطيع مستورد UMEDT تحليل النتيجة مباشرة دون تحويل يدوي.`;
+  };
+
   const handleCopyPrompt = async (key: 'json') => {
     try {
-      await navigator.clipboard.writeText(MIND_MAP_AI_PROMPTS[key]);
+      await navigator.clipboard.writeText(buildConfiguredPrompt());
       setCopiedPromptKey(key);
       window.setTimeout(() => setCopiedPromptKey(null), 1800);
       showToast('تم نسخ قالب الذكاء الاصطناعي');
@@ -378,6 +397,57 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                   <ArrowRight className="w-3.5 h-3.5" />
                   <span>العودة للخريطة</span>
                 </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950 sm:grid-cols-2">
+                <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                  موضوع الخريطة
+                  <input
+                    type="text"
+                    value={promptTopic}
+                    onChange={(e) => setPromptTopic(e.target.value)}
+                    placeholder={scopedTopic?.title || 'مثال: Atherosclerosis'}
+                    className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                  العدد المستهدف للعقد (بما فيها الجذر)
+                  <input
+                    type="number"
+                    min={3}
+                    max={80}
+                    step={1}
+                    value={promptNodeCount}
+                    onChange={(e) => setPromptNodeCount(Math.max(3, Math.min(80, Number(e.target.value) || 3)))}
+                    className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                  نمط الخريطة
+                  <select
+                    value={promptStyle}
+                    onChange={(e) => setPromptStyle(e.target.value as MindMapStyle)}
+                    className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  >
+                    <option value="hierarchical">هرمية واضحة</option>
+                    <option value="radial">شعاعية متوازنة</option>
+                    <option value="medical_flow">مسار سريري</option>
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                  صيغة النتيجة
+                  <select
+                    value={promptOutputFormat}
+                    onChange={(e) => setPromptOutputFormat(e.target.value as 'text' | 'file')}
+                    className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  >
+                    <option value="text">نص JSON قابل للنسخ واللصق</option>
+                    <option value="file">ملف JSON قابل للتنزيل</option>
+                  </select>
+                </label>
+                <p className="sm:col-span-2 text-[10px] leading-5 text-slate-500 dark:text-slate-400">
+                  في الحالتين يبقى المحتوى JSON مطابقاً لمستورد UMEDT. يمكن لصق النص مباشرة أو رفع ملف .json من أداة الاستيراد، ويجب أن يحتوي الملف على JSON فقط.
+                </p>
               </div>
 
               {/* Copyable AI Prompt Templates */}
