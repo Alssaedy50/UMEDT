@@ -179,7 +179,7 @@ public final class UMEDTDictionaryPopupEngine {
     public static boolean isSingleWordLookup(String rawText) {
         if (rawText == null) return false;
         String value = rawText.trim();
-        return value.matches("[\\\\p{L}\\\\p{M}\\\\p{N}]+(?:[-'’][\\\\p{L}\\\\p{M}\\\\p{N}]+)*");
+        return value.matches("[\\p{L}\\p{M}\\p{N}]+(?:[-'’][\\p{L}\\p{M}\\p{N}]+)*");
     }
 
     public static boolean shouldIgnoreText(String rawText) {
