@@ -257,25 +257,31 @@ function computeCrossLinkPath(
   src: PositionedMindMapNode,
   tgt: PositionedMindMapNode,
   side: 'left' | 'right',
-  laneX: number
+  laneX: number,
+  laneY: number
 ): { path: string; labelX: number; labelY: number } {
   const clearance = 5;
+  const detour = 28;
   const direction = side === 'right' ? 1 : -1;
   const sx = src.x + direction * (src.width / 2 + clearance);
   const sy = src.y;
+  const sourceDetourX = src.x + direction * (src.width / 2 + detour);
   const tx = tgt.x + direction * (tgt.width / 2 + clearance);
   const ty = tgt.y;
+  const targetDetourX = tgt.x + direction * (tgt.width / 2 + detour);
 
-  // Both control points live in the external lane. The curve therefore leaves
-  // the source card, travels outside the complete card field, and re-enters
-  // the target from the same outer side without crossing intermediate cards.
-  const c1x = laneX;
-  const c2x = laneX;
-  const path = `M ${sx} ${sy} C ${c1x} ${sy}, ${c2x} ${ty}, ${tx} ${ty}`;
+  // Three smooth cubic segments: clear the source column locally, cross the
+  // external top/bottom gutter beyond every card, then re-enter at the target.
+  // The local detours stay within the inter-column clearance, avoiding all cards.
+  const path =
+    `M ${sx} ${sy} ` +
+    `C ${sourceDetourX} ${sy}, ${sourceDetourX} ${laneY}, ${laneX} ${laneY} ` +
+    `C ${laneX} ${laneY}, ${targetDetourX} ${laneY}, ${targetDetourX} ${laneY} ` +
+    `C ${targetDetourX} ${laneY}, ${targetDetourX} ${ty}, ${tx} ${ty}`;
 
-  // Exact cubic Bezier midpoint (t = 0.5), not the midpoint of the endpoints.
-  const labelX = 0.125 * sx + 0.375 * c1x + 0.375 * c2x + 0.125 * tx;
-  const labelY = 0.125 * sy + 0.375 * sy + 0.375 * ty + 0.125 * ty;
+  // Place the pill at t=0.5 of the central external-gutter Bezier segment.
+  const labelX = (laneX + targetDetourX) / 2;
+  const labelY = laneY - 10;
   return { path, labelX, labelY };
 }
 
@@ -663,13 +669,18 @@ export function computeMindMapLayout(
   const renderedEdgePairs = new Set<string>();
   const cardMinX = Math.min(...positionedNodes.map((node) => node.x - node.width / 2));
   const cardMaxX = Math.max(...positionedNodes.map((node) => node.x + node.width / 2));
+  const cardMinY = Math.min(...positionedNodes.map((node) => node.y - node.height / 2));
+  const cardMaxY = Math.max(...positionedNodes.map((node) => node.y + node.height / 2));
   const fieldCenterX = (cardMinX + cardMaxX) / 2;
+  const fieldCenterY = (cardMinY + cardMaxY) / 2;
   const laneIntervals: Record<'left' | 'right', Array<{ top: number; bottom: number; lane: number }>> = {
     left: [],
     right: []
   };
   let routedMinX = cardMinX;
   let routedMaxX = cardMaxX;
+  let routedMinY = cardMinY;
+  let routedMaxY = cardMaxY;
 
   for (const pNode of positionedNodes) {
     const parentId = pNode.node.parentId;
@@ -728,9 +739,15 @@ export function computeMindMapLayout(
 
     const laneClearance = 56 + lane * 28;
     const laneX = side === 'right' ? cardMaxX + laneClearance : cardMinX - laneClearance;
+    const verticalSide = (source.y + target.y) / 2 <= fieldCenterY ? 'top' : 'bottom';
+    const laneY = verticalSide === 'top'
+      ? cardMinY - laneClearance
+      : cardMaxY + laneClearance;
     routedMinX = Math.min(routedMinX, laneX - 12);
     routedMaxX = Math.max(routedMaxX, laneX + 12);
-    const curve = computeCrossLinkPath(source, target, side, laneX);
+    routedMinY = Math.min(routedMinY, laneY - 18);
+    routedMaxY = Math.max(routedMaxY, laneY + 18);
+    const curve = computeCrossLinkPath(source, target, side, laneX, laneY);
 
     positionedEdges.push({
       id: edge.id,
@@ -769,6 +786,8 @@ export function computeMindMapLayout(
 
   minX = Math.min(minX, routedMinX);
   maxX = Math.max(maxX, routedMaxX);
+  minY = Math.min(minY, routedMinY);
+  maxY = Math.max(maxY, routedMaxY);
 
   // Include routed relationship labels so outer-lane pills remain inside the SVG viewBox.
   for (const edge of positionedEdges) {
