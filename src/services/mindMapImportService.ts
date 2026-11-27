@@ -99,7 +99,13 @@ export function buildMindMapGenerationPrompt(options: MindMapPromptOptions): str
     : 'Return the complete raw JSON object in the response. Do not use Markdown fences, prefaces, commentary, or trailing text.';
   const prompt = MIND_MAP_AI_PROMPTS.json
     .replace('[ENTER MEDICAL TOPIC]', topic)
-    .replace('"style": "hierarchical"', `"style": "${options.style}"`);
+    .replace('"style": "hierarchical"', `"style": "${options.style}"`)
+    .replace(
+      '8. Do not add Arabic translations, bilingual explanations, or duplicate Arabic text. UMEDT displays English content and handles card colors inside the app.',
+      includeArabicTranslation
+        ? '8. Keep all explanations in English. Add only concise Arabic translations in optional sublabel fields; never translate or duplicate the explanatory notes.'
+        : '8. Do not add Arabic translations, bilingual explanations, or duplicate Arabic text. UMEDT displays English content and handles card colors inside the app.'
+    );
   const languageRules = includeArabicTranslation
     ? [
         '- Keep all labels, notes, and explanations in English.',
