@@ -12,7 +12,10 @@ import {
   Wand2,
   BookOpen,
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  ChevronDown,
+  Clock3,
+  CalendarClock
 } from 'lucide-react';
 import { TopicArticle } from '../types/lexicon';
 import { MindMapDocument, MindMapStyle } from '../types/mindMap';
@@ -57,7 +60,13 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
   const [allMaps, setAllMaps] = useState<MindMapDocument[]>(() => loadMindMaps());
   const [scopeTopicId, setScopeTopicId] = useState<string>(initialTopic?.id || 'ALL');
   const [activeMapId, setActiveMapId] = useState<string | null>(initialMindMapId || null);
-  const [studioMode, setStudioMode] = useState<'canvas' | 'import'>('canvas');
+  const [studioMode, setStudioMode] = useState<'list' | 'create' | 'import' | 'canvas'>('list');
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [sortMode, setSortMode] = useState<'updated' | 'created' | 'name'>('updated');
+  const [creationTitle, setCreationTitle] = useState(initialTopic?.titleEn || initialTopic?.title || '');
+  const [creationTopicId, setCreationTopicId] = useState(initialTopic?.id || '');
+  const [creationStyle, setCreationStyle] = useState<MindMapStyle>('hierarchical');
+  const [importLinkedTopicId, setImportLinkedTopicId] = useState(initialTopic?.id || '');
 
   // Importer state
   const [importText, setImportText] = useState<string>('');
@@ -114,7 +123,10 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
 
     const nextScope = initialTopic?.id || 'ALL';
     setScopeTopicId(nextScope);
-    setStudioMode('canvas');
+    setCreationTopicId(initialTopic?.id || '');
+    setImportLinkedTopicId(initialTopic?.id || '');
+    setCreationTitle(initialTopic?.titleEn || initialTopic?.title || '');
+    setStudioMode(initialMindMapId ? 'canvas' : 'list');
 
     if (initialMindMapId && loaded.some((m) => m.id === initialMindMapId)) {
       setActiveMapId(initialMindMapId);
@@ -158,9 +170,16 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
   );
 
   const visibleMaps = useMemo(() => {
-    if (scopeTopicId === 'ALL') return allMaps;
-    return allMaps.filter((m) => m.linkedTopicId === scopeTopicId);
-  }, [allMaps, scopeTopicId]);
+    const filtered = scopeTopicId === 'ALL'
+      ? [...allMaps]
+      : allMaps.filter((m) => m.linkedTopicId === scopeTopicId);
+    return filtered.sort((a, b) => {
+      if (sortMode === 'name') return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+      const aTime = Date.parse(sortMode === 'created' ? a.createdAt : a.updatedAt) || 0;
+      const bTime = Date.parse(sortMode === 'created' ? b.createdAt : b.updatedAt) || 0;
+      return bTime - aTime;
+    });
+  }, [allMaps, scopeTopicId, sortMode]);
 
   const activeMap = useMemo(
     () => visibleMaps.find((m) => m.id === activeMapId) || allMaps.find((m) => m.id === activeMapId) || visibleMaps[0] || null,
@@ -172,9 +191,9 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
     return parseMindMapInput(importText, {
       fileName: importFileName || undefined,
       preferredStyle: preferredStyle === 'auto' ? undefined : preferredStyle,
-      linkedTopicId: scopedTopic?.id
+      linkedTopicId: importLinkedTopicId || undefined
     });
-  }, [importText, importFileName, preferredStyle, scopedTopic]);
+  }, [importText, importFileName, preferredStyle, importLinkedTopicId]);
 
   if (!isOpen) return null;
 
@@ -184,14 +203,18 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
   };
 
   const handleCreateBlank = () => {
+    const selectedTopic = topics.find((topic) => topic.id === creationTopicId) || null;
     const created = createBlankMindMap({
-      topic: scopedTopic,
-      style: preferredStyle === 'auto' ? 'radial' : preferredStyle
+      topic: selectedTopic,
+      title: creationTitle.trim() || undefined,
+      style: creationStyle
     });
     const updated = upsertMindMap(created);
     setAllMaps(updated);
     setActiveMapId(created.id);
+    setScopeTopicId('ALL');
     setStudioMode('canvas');
+    setShowAddMenu(false);
     showToast('تم إنشاء خريطة ذهنية جديدة قابلة للتعديل');
   };
 
@@ -221,11 +244,12 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
     if (!importPreview?.success || !importPreview.document) return;
     const docToSave: MindMapDocument = {
       ...importPreview.document,
-      linkedTopicId: scopedTopic?.id || importPreview.document.linkedTopicId
+      linkedTopicId: importLinkedTopicId || importPreview.document.linkedTopicId
     };
     const updated = upsertMindMap(docToSave);
     setAllMaps(updated);
     setActiveMapId(docToSave.id);
+    setScopeTopicId('ALL');
     setStudioMode('canvas');
     setImportText('');
     setImportFileName('');
@@ -311,67 +335,109 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Topic Scope Selector when multiple topics exist */}
-            <select
-              dir="auto"
-              value={scopeTopicId}
-              onChange={(e) => {
-                const nextId = e.target.value;
-                setScopeTopicId(nextId);
-                const nextList =
-                  nextId === 'ALL'
-                    ? allMaps
-                    : allMaps.filter((m) => m.linkedTopicId === nextId);
-                setActiveMapId(nextList[0]?.id || null);
-              }}
-              className="max-w-[200px] min-h-[36px] px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200"
-            >
-              <option value="ALL">كل المواضيع ({allMaps.length})</option>
-              {topics.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.titleAr || t.titleEn || t.title}
-                </option>
-              ))}
-            </select>
-
-            <button
-              type="button"
-              onClick={() => setStudioMode((m) => (m === 'import' ? 'canvas' : 'import'))}
-              className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 border transition-colors ${
-                studioMode === 'import'
-                  ? 'bg-emerald-600 text-white border-emerald-600'
-                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-emerald-500'
-              }`}
-            >
-              <Upload className="w-3.5 h-3.5" />
-              <span>استيراد نص / JSON</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleCreateBlank}
-              className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>خريطة جديدة</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={requestClose}
-              className="min-h-[36px] min-w-[36px] rounded-xl bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center"
-              aria-label={backLabel || "العودة"}
-              title={backLabel || "العودة"}
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+          {studioMode === 'list' ? (
+            <div className="relative flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAddMenu((open) => !open)}
+                aria-expanded={showAddMenu}
+                className="min-h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm"
+                aria-label="إضافة خريطة"
+                title="إضافة خريطة"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+              {showAddMenu && (
+                <div className="absolute left-0 top-full z-30 mt-2 w-52 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 shadow-2xl">
+                  <button type="button" onClick={() => { setCreationTopicId(scopeTopicId === 'ALL' ? '' : scopeTopicId); setCreationTitle(scopedTopic?.titleEn || scopedTopic?.title || ''); setStudioMode('create'); setShowAddMenu(false); }} className="w-full rounded-xl px-3 py-3 text-right text-xs font-extrabold hover:bg-emerald-500/10">إنشاء يدوي</button>
+                  <button type="button" onClick={() => { setImportLinkedTopicId(scopeTopicId === 'ALL' ? '' : scopeTopicId); setStudioMode('import'); setShowAddMenu(false); }} className="w-full rounded-xl px-3 py-3 text-right text-xs font-extrabold hover:bg-emerald-500/10">استيراد خريطة</button>
+                </div>
+              )}
+              <button type="button" onClick={requestClose} className="min-h-10 min-w-10 rounded-xl bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center" aria-label={backLabel || "العودة"} title={backLabel || "العودة"}><X className="w-4 h-4" /></button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setStudioMode('list')} className="min-h-10 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold">العودة إلى قائمة الخرائط</button>
+              <button type="button" onClick={requestClose} className="min-h-10 min-w-10 rounded-xl bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center" aria-label={backLabel || "العودة"}><X className="w-4 h-4" /></button>
+            </div>
+          )}
         </div>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-4">
-          {studioMode === 'import' ? (
+          {studioMode === 'list' ? (
+            <section className="space-y-4">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-black">خرائطي التفاعلية</h3>
+                  <p className="mt-1 text-xs text-slate-500">{allMaps.length} خريطة محفوظة · اختر خريطة لفتح محررها</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <label className="text-[10px] font-bold text-slate-500">ترتيب حسب
+                    <select value={sortMode} onChange={(e) => setSortMode(e.target.value as typeof sortMode)} className="mt-1 block min-h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-xs font-bold">
+                      <option value="updated">آخر تحديث</option>
+                      <option value="created">تاريخ الإنشاء</option>
+                      <option value="name">الاسم</option>
+                    </select>
+                  </label>
+                  <label className="text-[10px] font-bold text-slate-500">الموضوع
+                    <select value={scopeTopicId} onChange={(e) => setScopeTopicId(e.target.value)} className="mt-1 block min-h-9 max-w-[190px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-xs font-bold">
+                      <option value="ALL">كل المواضيع ({allMaps.length})</option>
+                      {topics.map((topic) => <option key={topic.id} value={topic.id}>{topic.titleAr || topic.titleEn || topic.title}</option>)}
+                    </select>
+                  </label>
+                </div>
+              </div>
+              {visibleMaps.length === 0 ? (
+                <div className="rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-8 text-center">
+                  <Network className="mx-auto mb-3 h-10 w-10 text-emerald-500/60" />
+                  <h4 className="text-sm font-black">{scopeTopicId === 'ALL' ? 'لا توجد خرائط محفوظة بعد' : 'لا توجد خرائط مرتبطة بهذا الموضوع'}</h4>
+                  <p className="mt-2 text-xs text-slate-500">استخدم زر الإضافة لإنشاء خريطة يدوياً أو استيراد خريطة موجودة.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {visibleMaps.map((map) => {
+                    const linkedTopic = topics.find((topic) => topic.id === map.linkedTopicId);
+                    return (
+                      <button key={map.id} type="button" onClick={() => { setActiveMapId(map.id); setStudioMode('canvas'); }} className="group rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-4 text-right shadow-sm transition hover:border-emerald-500 hover:shadow-md">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h4 className="truncate text-sm font-black group-hover:text-emerald-600">{map.title}</h4>
+                            <p className="mt-1 text-[10px] text-slate-500">{map.nodes.length} عقدة · {map.edges.length} علاقة</p>
+                          </div>
+                          <Network className="h-5 w-5 shrink-0 text-emerald-500" />
+                        </div>
+                        <div className="mt-4 space-y-1 text-[10px] text-slate-500">
+                          <p>{linkedTopic ? `الموضوع: ${linkedTopic.titleAr || linkedTopic.titleEn || linkedTopic.title}` : 'غير مرتبطة بموضوع'}</p>
+                          <p className="flex items-center gap-1"><CalendarClock className="h-3 w-3" /> أُنشئت: {new Date(map.createdAt).toLocaleString('ar')}</p>
+                          <p className="flex items-center gap-1"><Clock3 className="h-3 w-3" /> آخر تحديث: {new Date(map.updatedAt).toLocaleString('ar')}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          ) : studioMode === 'create' ? (
+            <section className="mx-auto w-full max-w-2xl space-y-5">
+              <div><h3 className="text-base font-black">إنشاء خريطة يدوياً</h3><p className="mt-1 text-xs text-slate-500">حدد بيانات الخريطة الأولية ثم انتقل إلى المحرر لإضافة العقد والروابط وتعديلها.</p></div>
+              <label className="block text-xs font-extrabold">اسم الخريطة
+                <input dir="auto" value={creationTitle} onChange={(e) => setCreationTitle(e.target.value)} placeholder="مثال: Atherosclerosis" className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 text-sm" />
+              </label>
+              <label className="block text-xs font-extrabold">ربط الخريطة بموضوع
+                <select value={creationTopicId} onChange={(e) => { setCreationTopicId(e.target.value); if (!creationTitle.trim()) setCreationTitle(topics.find((topic) => topic.id === e.target.value)?.titleEn || topics.find((topic) => topic.id === e.target.value)?.title || ''); }} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 text-xs">
+                  <option value="">غير مرتبطة بموضوع</option>
+                  {topics.map((topic) => <option key={topic.id} value={topic.id}>{topic.titleAr || topic.titleEn || topic.title}</option>)}
+                </select>
+              </label>
+              <label className="block text-xs font-extrabold">نمط التخطيط
+                <select value={creationStyle} onChange={(e) => setCreationStyle(e.target.value as MindMapStyle)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 text-xs font-bold">
+                  <option value="hierarchical">هرمي</option><option value="radial">شعاعي</option><option value="medical_flow">مسار سريري</option>
+                </select>
+              </label>
+              <div className="flex justify-end gap-2"><button type="button" onClick={() => setStudioMode('list')} className="min-h-10 rounded-xl px-4 text-xs font-bold bg-slate-100 dark:bg-slate-800">إلغاء</button><button type="button" disabled={!creationTitle.trim()} onClick={handleCreateBlank} className="min-h-10 rounded-xl bg-emerald-600 px-5 text-xs font-extrabold text-white disabled:opacity-40">إنشاء وفتح المحرر</button></div>
+            </section>
+          ) : studioMode === 'import' ? (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -384,13 +450,20 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setStudioMode('canvas')}
+                  onClick={() => setStudioMode('list')}
                   className="min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold flex items-center gap-1"
                 >
                   <ArrowRight className="w-3.5 h-3.5" />
-                  <span>العودة للخريطة</span>
+                  <span>العودة إلى قائمة الخرائط</span>
                 </button>
               </div>
+
+              <label className="block text-xs font-extrabold">ربط الخريطة بموضوع محدد
+                <select value={importLinkedTopicId} onChange={(e) => setImportLinkedTopicId(e.target.value)} className="mt-1 min-h-10 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs">
+                  <option value="">غير مرتبطة بموضوع</option>
+                  {topics.map((topic) => <option key={topic.id} value={topic.id}>{topic.titleAr || topic.titleEn || topic.title}</option>)}
+                </select>
+              </label>
 
               <div className="grid grid-cols-1 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950 sm:grid-cols-2">
                 <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
