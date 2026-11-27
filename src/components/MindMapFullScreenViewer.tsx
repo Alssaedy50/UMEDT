@@ -957,6 +957,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     >
       <style>{`
         .mm-node { cursor: pointer; outline: none; font-family: 'IBM Plex Sans Arabic', Inter, Cairo, sans-serif; }
+        .mm-node rect, .mm-node polygon, .mm-node ellipse { filter: drop-shadow(0 3px 7px rgba(0,0,0,.22)); }
         .mm-node text { font-family: 'IBM Plex Sans Arabic', Inter, Cairo, sans-serif; direction: auto; unicode-bidi: plaintext; }
         .mm-edge-label { pointer-events: none; }
         .mm-node:focus rect, .mm-node.selected rect,
