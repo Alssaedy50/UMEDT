@@ -12,7 +12,8 @@ import {
   MoreVertical,
   X
 } from 'lucide-react';
-import { MindMapDocument, MindMapStyle } from '../types/mindMap';
+import { MindMapColorMode, MindMapDocument, MindMapStyle } from '../types/mindMap';
+import { MIND_MAP_COLOR_SWATCHES } from '../services/mindMapColorEngine';
 import { computeMindMapLayout } from '../services/mindMapLayoutEngine';
 import { buildStandaloneMindMapSvg, upsertMindMap } from '../services/mindMapStorageService';
 import { buildStandaloneMindMapHtmlV2 as buildStandaloneMindMapHtml } from '../services/mindMapStandaloneExportServiceV2';
@@ -78,6 +79,8 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   const transformRef = useRef({ zoom: 1, pan: { x: 0, y: 0 } });
   const onCloseRef = useRef(onClose);
   const historyEntryRef = useRef(false);
+  const initialCameraMapIdRef = useRef<string | null>(null);
+  const toolsContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Active style (user can freely switch between radial, hierarchical, medical_flow)
   const [activeStyle, setActiveStyle] = useState<MindMapStyle>(mapDocument.style || 'radial');
@@ -89,6 +92,20 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(() => new Set());
   const [showNodesPanel, setShowNodesPanel] = useState(false);
   const [showToolsMenu, setShowToolsMenu] = useState(false);
+  const [activeColorMode, setActiveColorMode] = useState<MindMapColorMode>(mapDocument.colorMode || 'branch');
+  const [selectedSwatchColor, setSelectedSwatchColor] = useState<string>(MIND_MAP_COLOR_SWATCHES[0].base);
+
+  useEffect(() => {
+    setActiveColorMode(mapDocument.colorMode || 'branch');
+  }, [mapDocument.id, mapDocument.colorMode]);
+
+  useEffect(() => {
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (toolsContainerRef.current && !toolsContainerRef.current.contains(event.target as Node)) setShowToolsMenu(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointer, true);
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer, true);
+  }, []);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -395,6 +412,28 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     [layout, isSequentialMode, applyTransform]
   );
 
+  const focusPrimaryOverview = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const primaryNodes = layout.nodes.filter((node) => node.node.id === mapDocument.rootNodeId || node.depth === 1);
+    if (!primaryNodes.length) return;
+    const minX = Math.min(...primaryNodes.map((node) => node.x - node.width / 2));
+    const maxX = Math.max(...primaryNodes.map((node) => node.x + node.width / 2));
+    const minY = Math.min(...primaryNodes.map((node) => node.y - node.height / 2));
+    const maxY = Math.max(...primaryNodes.map((node) => node.y + node.height / 2));
+    const clusterWidth = Math.max(1, maxX - minX + 56);
+    const clusterHeight = Math.max(1, maxY - minY + 56);
+    const topInset = 12;
+    const reservedBottom = Math.min(190, viewport.clientHeight * 0.24);
+    const usableWidth = Math.max(200, viewport.clientWidth - 24);
+    const usableHeight = Math.max(150, viewport.clientHeight - topInset - reservedBottom);
+    const fitScale = Math.min(usableWidth / clusterWidth, usableHeight / clusterHeight);
+    const scale = Math.max(0.65, Math.min(0.8, fitScale));
+    const centerX = (minX + maxX) / 2 - layout.bounds.minX;
+    const centerY = (minY + maxY) / 2 - layout.bounds.minY;
+    applyTransform(scale, { x: viewport.clientWidth / 2 - centerX * scale, y: topInset + usableHeight / 2 - centerY * scale }, true);
+  }, [layout, mapDocument.rootNodeId, applyTransform]);
+
   const fitToView = useCallback(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
@@ -509,6 +548,39 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     },
     [mapDocument.rootNodeId, mapDocument.nodes]
   );
+
+  const persistDocumentUpdate = useCallback((nextDoc: MindMapDocument) => {
+    if (onChangeDocument) onChangeDocument(nextDoc);
+    else upsertMindMap(nextDoc);
+  }, [onChangeDocument]);
+
+  const handleColorModeSwitch = useCallback((nextMode: MindMapColorMode) => {
+    setActiveColorMode(nextMode);
+    persistDocumentUpdate({ ...mapDocument, colorMode: nextMode, updatedAt: new Date().toISOString() });
+  }, [mapDocument, persistDocumentUpdate]);
+
+  const applyColorToSelectedNode = useCallback((color: string) => {
+    if (!selectedNodeId) return;
+    setSelectedSwatchColor(color);
+    persistDocumentUpdate({ ...mapDocument, nodes: mapDocument.nodes.map((node) => node.id === selectedNodeId ? { ...node, color } : node), updatedAt: new Date().toISOString() });
+  }, [mapDocument, selectedNodeId, persistDocumentUpdate]);
+
+  const applyColorToSelectedBranch = useCallback(() => {
+    if (!selectedNodeId) return;
+    const swatch = MIND_MAP_COLOR_SWATCHES.find((item) => item.base === selectedSwatchColor) || MIND_MAP_COLOR_SWATCHES[0];
+    const children = new Map<string, string[]>();
+    mapDocument.nodes.forEach((node) => { if (node.parentId) children.set(node.parentId, [...(children.get(node.parentId) || []), node.id]); });
+    const depthById = new Map<string, number>();
+    const visit = (id: string, depth: number, seen = new Set<string>()) => {
+      if (seen.has(id)) return;
+      seen.add(id);
+      depthById.set(id, depth);
+      (children.get(id) || []).forEach((childId) => visit(childId, depth + 1, seen));
+    };
+    visit(selectedNodeId, 0);
+    persistDocumentUpdate({ ...mapDocument, nodes: mapDocument.nodes.map((node) => depthById.has(node.id) ? { ...node, color: swatch.shades[Math.min(depthById.get(node.id) || 0, swatch.shades.length - 1)] } : node), updatedAt: new Date().toISOString() });
+    showToast?.('تم تطبيق اللون على العقدة وجميع فروعها');
+  }, [mapDocument, selectedNodeId, selectedSwatchColor, persistDocumentUpdate, showToast]);
 
   const handleStyleSwitch = useCallback(
     (nextStyle: MindMapStyle) => {
@@ -663,6 +735,9 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     const frame = window.requestAnimationFrame(() => {
       if (selectedNodeId) {
         focusNodeCluster(selectedNodeId);
+      } else if (initialCameraMapIdRef.current !== mapDocument.id) {
+        initialCameraMapIdRef.current = mapDocument.id;
+        focusPrimaryOverview();
       } else {
         fitToView();
       }
@@ -680,7 +755,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       window.cancelAnimationFrame(frame);
       window.removeEventListener('resize', handleResize);
     };
-  }, [selectedNodeId, svgMarkup, focusNodeCluster, fitToView]);
+  }, [selectedNodeId, svgMarkup, focusNodeCluster, focusPrimaryOverview, fitToView, mapDocument.id]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -881,7 +956,9 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       dir="rtl"
     >
       <style>{`
-        .mm-node { cursor: pointer; outline: none; }
+        .mm-node { cursor: pointer; outline: none; font-family: 'IBM Plex Sans Arabic', Inter, Cairo, sans-serif; }
+        .mm-node text { font-family: 'IBM Plex Sans Arabic', Inter, Cairo, sans-serif; direction: auto; unicode-bidi: plaintext; }
+        .mm-edge-label { pointer-events: none; }
         .mm-node:focus rect, .mm-node.selected rect,
         .mm-node:focus polygon, .mm-node.selected polygon,
         .mm-node:focus ellipse, .mm-node.selected ellipse {
@@ -891,7 +968,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
         }
       `}</style>
       <header
-        className={`relative z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-3 py-2 pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-xl sm:flex-nowrap sm:px-5 ${
+        className={`relative z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-3 py-2 pt-[calc(env(safe-area-inset-top)+10px)] backdrop-blur-xl sm:flex-nowrap sm:px-5 ${
           isDark
             ? 'border-slate-800 bg-slate-950/95 text-white'
             : 'border-slate-200 bg-white/95 text-slate-900'
@@ -905,7 +982,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
             انقر على أي عقدة لإظهار فروعها وتفاصيلها · اسحب للتحريك · إصبعان للتكبير والتصغير
           </div>
         </div>
-        <div className="relative flex shrink-0 items-center gap-1.5">
+        <div ref={toolsContainerRef} className="relative flex shrink-0 items-center gap-1.5">
           <button
             type="button"
             onClick={() => setShowToolsMenu((open) => !open)}
@@ -928,7 +1005,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
               dir="rtl"
               onPointerDown={(event) => event.stopPropagation()}
               onWheel={(event) => event.stopPropagation()}
-              className={`absolute right-0 top-full z-[150] mt-2 flex max-h-[min(76dvh,620px)] w-[min(310px,calc(100vw-24px))] flex-col gap-1 overflow-y-auto rounded-2xl border p-2 shadow-2xl backdrop-blur-xl ${
+              className={`absolute right-0 top-full z-[150] mt-2 flex max-h-[min(76dvh,620px)] w-[min(310px,calc(100vw-32px))] max-w-[calc(100vw-32px)] flex-col gap-1 overflow-y-auto rounded-2xl border p-2 shadow-2xl backdrop-blur-xl ${
                 isDark
                   ? 'border-slate-700 bg-slate-900/98 text-white'
                   : 'border-slate-200 bg-white/98 text-slate-900'
@@ -1151,6 +1228,13 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
+            <div className="space-y-2 border-b border-slate-700/30 px-3 py-2.5">
+              <div className="flex items-center justify-between gap-2 text-[11px] font-black"><span>ألوان الخريطة</span><span className="text-[10px] font-semibold text-slate-400">{activeColorMode === 'branch' ? 'حسب الفروع' : 'حسب الدور الطبي'}</span></div>
+              <div className="grid grid-cols-2 gap-1 rounded-xl bg-black/10 p-1">
+                <button type="button" onClick={() => handleColorModeSwitch('branch')} className={`rounded-lg px-2 py-2 text-[11px] font-extrabold ${activeColorMode === 'branch' ? 'bg-emerald-400 text-slate-950' : 'opacity-75'}`}>حسب الفروع</button>
+                <button type="button" onClick={() => handleColorModeSwitch('role')} className={`rounded-lg px-2 py-2 text-[11px] font-extrabold ${activeColorMode === 'role' ? 'bg-emerald-400 text-slate-950' : 'opacity-75'}`}>حسب الدور الطبي</button>
+              </div>
+            </div>
             <div className="flex items-center gap-1.5 border-b border-slate-700/30 px-3 py-2">
               <button
                 type="button"
@@ -1174,6 +1258,14 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
               >
                 العقد الرئيسية فقط
               </button>
+            </div>
+            <div className="space-y-2 border-b border-slate-700/30 p-3">
+              <div className="text-[11px] font-black">لون العقدة المحددة</div>
+              <div className="flex flex-wrap gap-2">
+                {MIND_MAP_COLOR_SWATCHES.map((swatch) => <button key={swatch.name} type="button" title={swatch.name} aria-label={`تطبيق اللون ${swatch.name}`} onClick={() => applyColorToSelectedNode(swatch.base)} className={`h-7 w-7 rounded-full border-2 ${selectedSwatchColor === swatch.base ? 'border-white ring-2 ring-emerald-400' : 'border-white/25'}`} style={{ backgroundColor: swatch.base }} />)}
+              </div>
+              <button type="button" disabled={!selectedNodeId} onClick={applyColorToSelectedBranch} className="w-full rounded-xl bg-emerald-400 px-3 py-2 text-[11px] font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40">تطبيق اللون على الفرع بالكامل</button>
+              <div className="text-[10px] leading-4 text-slate-400">اختر عقدة من القائمة أو الخريطة أولاً. اللون اليدوي محفوظ مع الخريطة ويظل مستقلاً عن نمط التلوين التلقائي.</div>
             </div>
             <div className="flex-1 space-y-1 overflow-y-auto p-2.5">
               {treeRows.map(({ node, depth, childCount }) => {
