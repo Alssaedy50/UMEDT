@@ -651,22 +651,6 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                  {scopedTopic && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleAutoGenerateFromTopic(
-                          scopedTopic,
-                          preferredStyle === 'auto' ? 'radial' : preferredStyle
-                        )
-                      }
-                      className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center gap-1.5"
-                    >
-                      <Wand2 className="w-3.5 h-3.5" />
-                      <span>توليد تلقائي من الموضوع</span>
-                    </button>
-                  )}
-
                   {activeMap && scopedTopic && onEmbedMapInTopic && (
                     <button
                       type="button"
