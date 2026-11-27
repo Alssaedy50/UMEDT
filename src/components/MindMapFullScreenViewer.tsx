@@ -779,6 +779,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       const id = node.dataset.nodeId || '';
       node.style.opacity = (selectedNodeId || selectedEdgeId) && !activeNodeIds.has(id) ? '0.38' : '';
       node.classList.toggle('relationship-focus', activeNodeIds.has(id));
+      node.style.filter = activeNodeIds.has(id) ? 'drop-shadow(0 0 10px rgba(16,185,129,.72))' : ''; 
     });
     overlay.setAttribute('pointer-events', 'none');
   }, [svgMarkup, selectedNodeId, selectedEdgeId, showRelationships]);
