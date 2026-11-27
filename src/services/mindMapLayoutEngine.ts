@@ -249,12 +249,12 @@ function computeAnchorPoints(
 
   // Radial (bilateral / curved outward)
   if (Math.abs(dx) >= Math.abs(dy) * 0.45) {
-    const sx = dx >= 0 ? src.x + src.width / 2 : src.x - src.width / 2;
-    const tx = dx >= 0 ? tgt.x - tgt.width / 2 : tgt.x + tgt.width / 2;
+    const sx = dx >= 0 ? src.x + src.width / 2 + 5 : src.x - src.width / 2 - 5;
+    const tx = dx >= 0 ? tgt.x - tgt.width / 2 - 5 : tgt.x + tgt.width / 2 + 5;
     return { sx, sy: src.y, tx, ty: tgt.y, orientation: 'horizontal' };
   }
-  const sy = dy >= 0 ? src.y + src.height / 2 : src.y - src.height / 2;
-  const ty = dy >= 0 ? tgt.y - tgt.height / 2 : tgt.y + tgt.height / 2;
+  const sy = dy >= 0 ? src.y + src.height / 2 + 5 : src.y - src.height / 2 - 5;
+  const ty = dy >= 0 ? tgt.y - tgt.height / 2 - 5 : tgt.y + tgt.height / 2 + 5;
   return { sx: src.x, sy, tx: tgt.x, ty, orientation: 'vertical' };
 }
 
