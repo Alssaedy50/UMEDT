@@ -428,7 +428,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     const usableWidth = Math.max(200, viewport.clientWidth - 24);
     const usableHeight = Math.max(150, viewport.clientHeight - topInset - reservedBottom);
     const fitScale = Math.min(usableWidth / clusterWidth, usableHeight / clusterHeight);
-    const scale = Math.max(0.65, Math.min(0.8, fitScale));
+    const scale = viewport.clientWidth <= 640 ? Math.max(0.65, Math.min(0.8, fitScale)) : Math.min(1.1, fitScale);
     const centerX = (minX + maxX) / 2 - layout.bounds.minX;
     const centerY = (minY + maxY) / 2 - layout.bounds.minY;
     applyTransform(scale, { x: viewport.clientWidth / 2 - centerX * scale, y: topInset + usableHeight / 2 - centerY * scale }, true);
