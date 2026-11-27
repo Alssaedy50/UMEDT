@@ -10,14 +10,13 @@ import {
   Minus,
   Plus,
   MoreVertical,
-  Share2,
   X
 } from 'lucide-react';
 import { MindMapDocument, MindMapStyle } from '../types/mindMap';
 import { computeMindMapLayout } from '../services/mindMapLayoutEngine';
 import { buildStandaloneMindMapSvg, upsertMindMap } from '../services/mindMapStorageService';
 import { buildStandaloneMindMapHtmlV2 as buildStandaloneMindMapHtml } from '../services/mindMapStandaloneExportServiceV2';
-import { shareFileWithVerification } from '../utils/downloadHelper';
+import { prepareAndDownloadFile } from '../utils/downloadHelper';
 
 interface MindMapFullScreenViewerProps {
   mapDocument: MindMapDocument;
@@ -822,18 +821,16 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     );
   };
 
-  const handleShare = async () => {
+  const handleSaveInteractiveFile = async () => {
     const safeName = (styledDocument.title || 'mind-map')
       .replace(/[^\w\u0600-\u06FF-]+/g, '-')
       .slice(0, 48);
-    const result = await shareFileWithVerification({
+    const result = await prepareAndDownloadFile({
       filename: `${safeName || 'mind-map'}.html`,
       content: buildStandaloneMindMapHtml(styledDocument, fullLayout, isDark),
-      mime: 'text/html;charset=utf-8',
-      title: styledDocument.title || 'UMEDT Mind Map',
-      text: `خريطة ذهنية تفاعلية مستقلة: ${styledDocument.title || 'UMEDT Mind Map'}`
+      mime: 'text/html;charset=utf-8'
     });
-    showToast?.(result.messageAr);
+    showToast?.(result.initiated ? result.messageAr : result.error || 'تعذر حفظ ملف الخريطة');
   };
 
   const toggleBrowserFullscreen = async () => {
@@ -1030,11 +1027,11 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
                 type="button"
                 onClick={() => {
                   setShowToolsMenu(false);
-                  void handleShare();
+                  void handleSaveInteractiveFile();
                 }}
                 className="min-h-10 rounded-xl bg-emerald-400 px-3 text-right text-xs font-black text-slate-950"
               >
-                مشاركة الخريطة كملف تفاعلي
+                حفظ ملف HTML التفاعلي في الهاتف
               </button>
               <button
                 type="button"
