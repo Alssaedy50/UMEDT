@@ -179,7 +179,7 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
       '',
       'EXPECTED JSON SHAPE (illustrative fields; replace placeholders with complete content):',
       JSON.stringify({ topics: [topic], ...(includeQuestions ? { questions } : {}) }, null, 2)
-    ].filter(Boolean).join('\\n');
+    ].filter(Boolean).join('\n');
   }, [selectedBlock, selectedSubject, deferredTopicTitleEn, deferredTopicTitleAr, topicLevel, topicDepth, includeTables, includeDiagrams, includeClinicalNotes, includeQuestions, effectiveQuestionCount, deferredExtraInstructions, topicId, includeArabicTranslation]);
 
   const termsPrompt = useMemo(() => {
@@ -232,7 +232,7 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
         ...columns,
         '',
         ...sharedRules
-      ].join('\\n');
+      ].join('\n');
     }
     const record = {
       id: 'term-myocardial-infarction',
@@ -265,7 +265,7 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
       '',
       'EXPECTED terms.json STRUCTURE:',
       jsonRecordExample
-    ].join('\\n');
+    ].join('\n');
   }, [parsedTermCount, deferredTermDomain, termsOutputFormat, includeArabicTranslation]);
 
   const generatedPrompt = mode === 'topic' ? topicPrompt : termsPrompt;
@@ -385,8 +385,8 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
                       dir="ltr"
                     />
                   </label>
-                  <label className="space-y-1 block">
-                    <span className="text-xs font-bold">عنوان الموضوع بالعربية</span>
+                  {includeArabicTranslation ? <label className="space-y-1 block">
+                    <span className="text-xs font-bold">Arabic topic title (optional)</span>
                     <MobileSafeInput
                       value={topicTitleAr}
                       onValueChange={setTopicTitleAr}
@@ -394,10 +394,14 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
                       className="w-full min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm text-right focus:outline-none focus:border-emerald-500"
                       dir="auto"
                     />
-                  </label>
+                  </label> : null}
                   <label className="space-y-1 block"><span className="text-xs font-bold">المستوى العلمي</span><select value={topicLevel} onChange={(event) => setTopicLevel(event.target.value)} className="w-full min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm"><option>Basic medical student</option><option>Intermediate medical student</option><option>Advanced medical student</option><option>Clinical / Internship level</option></select></label>
                   <label className="space-y-1 block"><span className="text-xs font-bold">عمق الشرح</span><select value={topicDepth} onChange={(event) => setTopicDepth(event.target.value)} className="w-full min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm"><option>Concise</option><option>Comprehensive</option><option>Detailed</option></select></label>
                 </div>
+                <label className="flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold dark:border-slate-700 dark:bg-slate-950">
+                  <input type="checkbox" checked={includeArabicTranslation} onChange={(event) => setIncludeArabicTranslation(event.target.checked)} />
+                  Include concise Arabic translations (optional; all explanations stay in English)
+                </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
                     { label: 'جداول مقارنة', value: includeTables, set: setIncludeTables },
@@ -469,6 +473,10 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
                   dir="auto"
                 />
               </label>
+              <label className="flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold dark:border-slate-700 dark:bg-slate-950">
+                <input type="checkbox" checked={includeArabicTranslation} onChange={(event) => setIncludeArabicTranslation(event.target.checked)} />
+                Include Arabic translations (optional)
+              </label>
               <label className="space-y-1 block">
                 <span className="text-xs font-bold">عدد المصطلحات</span>
                 <MobileSafeNumericInput
@@ -533,7 +541,7 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
                 </div>
               </div>
 
-              <div className="rounded-xl bg-slate-50 dark:bg-slate-950 p-3 text-xs text-slate-600 dark:text-slate-300">كل سجل يحتوي على: المصطلح، الترجمة، التعريف باللغتين، ومثال باللغتين. التكرارات تُدمج أو تُتجاوز عند الاستيراد.</div>
+              <div className="rounded-xl bg-slate-50 dark:bg-slate-950 p-3 text-xs text-slate-600 dark:text-slate-300">{includeArabicTranslation ? 'Each record includes an English term, Arabic translation, English definition, and optional Arabic definition and example.' : 'Each record contains an English term, English definition, pronunciation, and an English example. Arabic fields are omitted.'} Duplicate terms are merged or skipped during import.</div>
             </div>
           )}
 
