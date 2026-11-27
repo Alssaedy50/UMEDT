@@ -646,7 +646,8 @@ export function buildStandaloneMindMapSvg(
             : `<rect x="${x}" y="${y}" width="${pn.width}" height="${pn.height}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${pn.node.role === 'root' ? 2.5 : 1.75}"/>`;
 
       const parentNode = pn.node.parentId ? nodeById.get(pn.node.parentId) : undefined;
-      const parentLine = parentNode ? `↳ ${parentNode.label}` : '';
+      const parentLabel = parentNode?.label || '';
+      const parentLine = parentLabel ? `↳ ${parentLabel.slice(0, 22)}${parentLabel.length > 22 ? '…' : ''}` : '';
       const totalLines = pn.lines.length + (pn.sublabelLine ? 1 : 0) + (parentLine ? 1 : 0);
       const startY = pn.y - ((totalLines - 1) * 15) / 2 + 4;
 
