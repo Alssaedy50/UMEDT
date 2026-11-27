@@ -51,6 +51,7 @@ public final class UMEDTDictionaryPopupEngine {
     public static final String KEY_TERMS_COUNT = "terms_count";
     public static final String KEY_MONITOR_ENABLED = "clipboard_monitor_enabled";
     public static final String KEY_AUTO_TRANSLATE_ON_SELECT = "auto_translate_on_select";
+    private static final String KEY_AUTO_TRANSLATE_DEFAULT_MIGRATED_V2 = "auto_translate_default_migrated_v2";
     public static final String KEY_LAST_SYNC_TS = "last_sync_ts";
     private static final String MIRROR_FILE_NAME = "umedt_copy_dictionary.json";
     private static final String FALLBACK_CORE_JSON = "["
@@ -166,6 +167,16 @@ public final class UMEDTDictionaryPopupEngine {
     public static boolean isAutoTranslateOnSelectEnabled(Context context) {
         if (context == null) return false;
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        // One-time migration: earlier releases persisted "off" as the default on some
+        // installations. Enable the feature once after upgrading; users can still turn
+        // it off explicitly afterwards and that choice is then preserved.
+        if (!prefs.getBoolean(KEY_AUTO_TRANSLATE_DEFAULT_MIGRATED_V2, false)) {
+            prefs.edit()
+                    .putBoolean(KEY_AUTO_TRANSLATE_ON_SELECT, true)
+                    .putBoolean(KEY_AUTO_TRANSLATE_DEFAULT_MIGRATED_V2, true)
+                    .apply();
+            return true;
+        }
         return prefs.getBoolean(KEY_AUTO_TRANSLATE_ON_SELECT, true);
     }
 
