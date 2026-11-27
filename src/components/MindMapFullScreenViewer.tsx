@@ -505,6 +505,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
           return next;
         });
       }
+      setSelectedEdgeId(null);
       setSelectedNodeId(targetId);
       setIsNoteExpanded(false);
       if (isSequentialMode) {
@@ -690,13 +691,14 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     });
 
     if (overlay && hasActiveFocus) {
-      relatedEdges.forEach((edge) => {
+        relatedEdges.forEach((edge) => {
         const clone = edge.cloneNode(true) as SVGGElement;
         clone.classList.add('mm-edge-active');
         overlay.appendChild(clone);
         const edgeId = edge.dataset.edgeId;
         if (edgeId) {
-          const label = svg.querySelector<SVGGElement>(`.mm-edge-label[data-edge-id="${CSS.escape(edgeId)}"]`);
+          const label = Array.from(svg.querySelectorAll<SVGGElement>('.mm-edge-label'))
+            .find((item) => item.dataset.edgeId === edgeId);
           if (label) {
             const labelClone = label.cloneNode(true) as SVGGElement;
             labelClone.classList.add('mm-edge-label-active');
