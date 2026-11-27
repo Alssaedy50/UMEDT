@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseMindMapInput, MIND_MAP_AI_PROMPTS } from '../src/services/mindMapImportService';
+import { parseMindMapInput, MIND_MAP_AI_PROMPTS, buildMindMapGenerationPrompt } from '../src/services/mindMapImportService';
 import { computeMindMapLayout } from '../src/services/mindMapLayoutEngine';
 import { buildStandaloneMindMapSvg } from '../src/services/mindMapStorageService';
 
@@ -17,6 +17,14 @@ const schemaIds = new Set<string>(schema.nodes.map((node: { id: string }) => nod
 assert(schema.nodes.filter((node: { parentId: string | null }) => node.parentId === null).length === 1, 'Canonical schema must contain exactly one root.');
 assert(schema.nodes.every((node: { parentId: string | null }) => node.parentId === null || schemaIds.has(node.parentId)), 'Canonical schema parent references must resolve.');
 assert(schema.edges.every((edge: { sourceId: string; targetId: string }) => schemaIds.has(edge.sourceId) && schemaIds.has(edge.targetId)), 'Canonical schema edge references must resolve.');
+const canonicalParsed = parseMindMapInput(JSON.stringify(schema));
+assert(canonicalParsed.success && canonicalParsed.document?.nodes.length === schema.nodes.length, 'Canonical prompt JSON must be fully readable by the UMEDT importer.');
+assert(canonicalParsed.document?.edges.length === schema.edges.length, 'Canonical prompt relationships must survive importer parsing.');
+const configuredTextPrompt = buildMindMapGenerationPrompt({ topic: 'Atherosclerosis', nodeCount: 32, style: 'hierarchical', outputFormat: 'text' });
+assert(configuredTextPrompt.includes('Atherosclerosis') && configuredTextPrompt.includes('32 عقدة') && configuredTextPrompt.includes('"style": "hierarchical"'), 'Configured prompt must include topic, requested node count, and selected layout.');
+const configuredFilePrompt = buildMindMapGenerationPrompt({ topic: 'Myocardial Infarction', nodeCount: 18, style: 'medical_flow', outputFormat: 'file' });
+assert(configuredFilePrompt.includes('medical-mind-map.json') && configuredFilePrompt.includes('Myocardial Infarction') && configuredFilePrompt.includes('"style": "medical_flow"'), 'File prompt must request a downloadable JSON file with the selected topic and layout.');
+
 const longExplanation = Array.from({ length: 120 }, (_, i) => `Paragraph ${i + 1}: detailed medical explanation.`).join('\\n\\n');
 const parsed = parseMindMapInput(JSON.stringify({
   title: 'Hypertension',
