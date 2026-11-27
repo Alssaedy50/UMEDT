@@ -68,11 +68,18 @@ for (let i = 0; i < collisionLayout.nodes.length; i++) {
 const parentAwareSvg = buildStandaloneMindMapSvg(collisionDoc, collisionLayout);
 assert(parentAwareSvg.includes('↳ Root') || parentAwareSvg.includes('↳ Branch'), 'Child cards must display their parent label.');
 
-const portalPath = path.join(process.cwd(), 'src/components/LibraryMindMapsPortal.tsx');
-const portal = fs.readFileSync(portalPath, 'utf8');
-assert(portal.includes('السابق') && portal.includes('التالي'), 'Sequential previous/next controls must exist.');
-assert(portal.includes('textarea') && portal.includes('نص غير محدود'), 'Unlimited explanation editor must exist.');
-assert(portal.includes('buildStandaloneMindMapHtmlV2'), 'Standalone HTML sharing must be wired.');
-assert(portal.includes('MindMapFullScreenViewer') && portal.includes('عرض الرسم الكامل'), 'Full graph viewer must be accessible from the Library portal.');
-assert(portal.includes('MIND_MAP_AI_PROMPTS') && portal.includes('const PROMPT = MIND_MAP_AI_PROMPTS.json;'), 'Library portal must use the shared canonical prompt.');
-console.log('[PASS] Library mind map import, unlimited node notes, sequential navigation, styling and sharing.');
+const studioPath = path.join(process.cwd(), 'src/components/MindMapStudioModal.tsx');
+const studio = fs.readFileSync(studioPath, 'utf8');
+assert(studio.includes("useState<'list' | 'create' | 'import' | 'canvas'>('list')"), 'The dedicated mind-map page must open on its central list.');
+assert(studio.includes('sortMode') && studio.includes('localeCompare') && studio.includes("sortMode === 'created'"), 'Mind maps must be sortable by name and timestamps.');
+assert(studio.includes('CalendarClock') && studio.includes('Clock3'), 'Map cards must show creation and last-update timestamps.');
+assert(studio.includes('إنشاء يدوي') && studio.includes('استيراد خريطة'), 'The compact add menu must expose only manual creation and import.');
+assert(studio.includes('creationTopicId') && studio.includes('importLinkedTopicId'), 'Manual creation and import must independently support topic linking.');
+assert(studio.includes('InteractiveMindMapCanvas') && studio.includes('نمط التخطيط'), 'Manual maps must open in the interactive editor with layout settings.');
+assert(studio.includes('parseMindMapInput') && studio.includes('رفع ملف'), 'The dedicated import page must parse pasted content and uploaded files.');
+const libraryPath = path.join(process.cwd(), 'src/components/LibraryView.tsx');
+const library = fs.readFileSync(libraryPath, 'utf8');
+assert(!library.includes('LibraryMindMapsPortal') && !library.includes('setIsMindMapsPortalOpen'), 'Library must not expose a separate mind-map manager.');
+assert(library.includes('mindMapCount') && library.includes('إجمالي الخرائط المحفوظة'), 'Library may show only the mind-map count summary.');
+assert(!fs.existsSync(path.join(process.cwd(), 'src/components/LibraryMindMapsPortal.tsx')), 'Legacy duplicate Library mind-map portal must be removed.');
+console.log('[PASS] Central mind-map manager, sort modes, topic linking, import and Library count-only summary.');
