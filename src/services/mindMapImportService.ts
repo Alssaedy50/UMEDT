@@ -123,7 +123,7 @@ export function buildMindMapGenerationPrompt(options: MindMapPromptOptions): str
     '- Do not include color properties or hex codes; UMEDT assigns harmonious colors automatically.',
     outputInstruction
   ];
-  return `${prompt}\\n\\nMAP-SPECIFIC SETTINGS:\\n${constraints.join('\\n')}`;
+  return [prompt, 'MAP-SPECIFIC SETTINGS:', ...constraints].join('\\n');
 }
 
 function inferMedicalRoleFromText(text: string, depth: number): MindMapNodeRole {
