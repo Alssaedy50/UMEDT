@@ -9,8 +9,8 @@ function assert(condition: boolean, message: string): void {
 }
 
 const canonicalPrompt = MIND_MAP_AI_PROMPTS.json;
-const schemaStart = canonicalPrompt.indexOf('{', canonicalPrompt.indexOf('المخطط الإلزامي:'));
-const schemaEnd = canonicalPrompt.indexOf('\n\nقواعد صحة البيانات:', schemaStart);
+const schemaStart = canonicalPrompt.indexOf('{', canonicalPrompt.indexOf('REQUIRED JSON STRUCTURE:'));
+const schemaEnd = canonicalPrompt.indexOf('\n\nDATA AND CONTENT RULES:', schemaStart);
 assert(schemaStart >= 0 && schemaEnd > schemaStart, 'Canonical prompt must contain one JSON schema example.');
 const schema = JSON.parse(canonicalPrompt.slice(schemaStart, schemaEnd));
 const schemaIds = new Set<string>(schema.nodes.map((node: { id: string }) => node.id));
@@ -21,11 +21,15 @@ const canonicalParsed = parseMindMapInput(JSON.stringify(schema));
 assert(canonicalParsed.success && canonicalParsed.document?.nodes.length === schema.nodes.length, 'Canonical prompt JSON must be fully readable by the UMEDT importer.');
 assert(canonicalParsed.document?.edges.length === schema.edges.length, 'Canonical prompt relationships must survive importer parsing.');
 const configuredTextPrompt = buildMindMapGenerationPrompt({ topic: 'Atherosclerosis', nodeCount: 32, style: 'hierarchical', outputFormat: 'text' });
-assert(configuredTextPrompt.includes('Atherosclerosis') && configuredTextPrompt.includes('32 عقدة') && configuredTextPrompt.includes('"style": "hierarchical"'), 'Configured prompt must include topic, requested node count, and selected layout.');
+assert(configuredTextPrompt.includes('Atherosclerosis') && configuredTextPrompt.includes('Target 32 nodes total') && configuredTextPrompt.includes('"style": "hierarchical"'), 'Configured prompt must include topic, requested node count, and selected layout.');
 const configuredFilePrompt = buildMindMapGenerationPrompt({ topic: 'Myocardial Infarction', nodeCount: 18, style: 'medical_flow', outputFormat: 'file' });
 assert(configuredFilePrompt.includes('medical-mind-map.json') && configuredFilePrompt.includes('Myocardial Infarction') && configuredFilePrompt.includes('"style": "medical_flow"'), 'File prompt must request a downloadable JSON file with the selected topic and layout.');
 const optionalCountPrompt = buildMindMapGenerationPrompt({ topic: 'Heart Failure', style: 'hierarchical', outputFormat: 'text' });
-assert(optionalCountPrompt.includes('Heart Failure') && optionalCountPrompt.includes('لا يوجد عدد محدد للعقد') && !optionalCountPrompt.includes('العدد المستهدف:'), 'Node count must remain optional when omitted.');
+assert(optionalCountPrompt.includes('Heart Failure') && optionalCountPrompt.includes('Choose the number of nodes') && !optionalCountPrompt.includes('Target '), 'Node count must remain optional when omitted.');
+const englishOnlyPrompt = buildMindMapGenerationPrompt({ topic: 'Atherosclerosis', style: 'hierarchical', outputFormat: 'text' });
+assert(englishOnlyPrompt.includes('English only') && englishOnlyPrompt.includes('Omit the sublabel property') && !englishOnlyPrompt.includes('احتشاء'), 'Mind-map prompts must default to English-only without Arabic translation requirements.');
+const bilingualPrompt = buildMindMapGenerationPrompt({ topic: 'Atherosclerosis', style: 'hierarchical', outputFormat: 'text', includeArabicTranslation: true });
+assert(bilingualPrompt.includes('concise Arabic translation') && bilingualPrompt.includes('English'), 'Arabic translation must be an explicit optional prompt setting.');
 
 const longExplanation = Array.from({ length: 120 }, (_, i) => `Paragraph ${i + 1}: detailed medical explanation.`).join('\\n\\n');
 const parsed = parseMindMapInput(JSON.stringify({
