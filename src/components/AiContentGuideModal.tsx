@@ -45,6 +45,7 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
   const [termDomain, setTermDomain] = useState('General medical and academic English');
   const [termCount, setTermCount] = useState('');
   const [termsOutputFormat, setTermsOutputFormat] = useState<TermsOutputFormat>('text');
+  const [includeArabicTranslation, setIncludeArabicTranslation] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const parsedQuestionCount = useMemo(() => {
@@ -90,31 +91,39 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
   const topicPrompt = useMemo(() => {
     if (!selectedBlock || !selectedSubject) return '';
     const requestedFeatures = [
-      'Bilingual English-Arabic explanations throughout the topic.',
-      'Preserve accurate standard medical terminology in English and explain it in clear Arabic.',
+      'Use clear, precise academic English throughout. Explanations, mechanisms, clinical correlations, and summaries must be in English.',
+      includeArabicTranslation
+        ? 'Add concise Arabic translations only in the corresponding optional Arabic fields. Do not duplicate or expand the English explanations in Arabic.'
+        : 'English only. Do not generate Arabic translations, Arabic explanations, or bilingual duplicate fields.',
       'Organize the article into logical sections with concise headings and coherent progression.',
       'Include learning objectives, key concepts, mechanisms, clinical correlations, and a concise high-yield summary.',
       includeTables ? 'Include clinically useful comparison tables with explicit column headers and complete rows.' : '',
       includeDiagrams ? 'Include meaningful inline SVG diagrams or flowcharts. SVG must be valid, self-contained, responsive, and contain no external dependencies.' : '',
-      includeClinicalNotes ? 'Include clinical pearls, red flags, common exam traps, and practical notes where relevant.' : '',
-      includeQuestions && effectiveQuestionCount > 0 ? 'Add ' + effectiveQuestionCount + ' validated assessment questions using supported UMEDT types. Each question must have a correct answer and explanations in English and Arabic.' : ''
+      includeClinicalNotes ? 'Include clinical pearls, red flags, common exam traps, and practical notes where relevant. Write all notes in English.' : '',
+      includeQuestions && effectiveQuestionCount > 0
+        ? includeArabicTranslation
+          ? 'Add ' + effectiveQuestionCount + ' validated assessment questions using supported UMEDT types. Include accurate English questions and explanations plus concise Arabic translations.'
+          : 'Add ' + effectiveQuestionCount + ' validated assessment questions using supported UMEDT types. Use English only; omit all Arabic question, option, and explanation fields.'
+        : ''
     ].filter(Boolean);
     const topic = {
       id: topicId,
       blockId: selectedBlock.id,
       subjectId: selectedSubject.id,
       titleEn: deferredTopicTitleEn.trim(),
-      titleAr: deferredTopicTitleAr.trim(),
+      ...(includeArabicTranslation && deferredTopicTitleAr.trim()
+        ? { titleAr: deferredTopicTitleAr.trim() }
+        : {}),
       category: 'Medical',
       sections: [{
         id: 'sec-1',
         headingEn: 'Section title',
-        headingAr: 'عنوان القسم',
+        ...(includeArabicTranslation ? { headingAr: 'Optional Arabic section title' } : {}),
         contentBlocks: [
-          { id: 'cb-1', type: 'paragraph', order: 1, text: 'English explanation', textAr: 'الشرح العربي' },
-          ...(includeTables ? [{ id: 'cb-2', type: 'table', order: 2, titleEn: 'Comparison', titleAr: 'مقارنة', tableHeaders: ['Feature', 'Finding'], tableRows: [['Example', 'Example finding']] }] : []),
-          ...(includeClinicalNotes ? [{ id: 'cb-3', type: 'clinical_note', order: 3, titleEn: 'Clinical Pearl', titleAr: 'معلومة سريرية', text: '...', textAr: '...' }] : []),
-          ...(includeDiagrams ? [{ id: 'cb-4', type: 'diagram', order: 4, titleEn: 'Mechanism', titleAr: 'الآلية', diagramSvg: '<svg viewBox="0 0 420 160" xmlns="http://www.w3.org/2000/svg">...</svg>' }] : [])
+          { id: 'cb-1', type: 'paragraph', order: 1, text: 'English explanation', ...(includeArabicTranslation ? { textAr: 'Optional concise Arabic translation' } : {}) },
+          ...(includeTables ? [{ id: 'cb-2', type: 'table', order: 2, titleEn: 'Comparison', ...(includeArabicTranslation ? { titleAr: 'Optional Arabic table title' } : {}), tableHeaders: ['Feature', 'Finding'], tableRows: [['Example', 'Example finding']] }] : []),
+          ...(includeClinicalNotes ? [{ id: 'cb-3', type: 'clinical_note', order: 3, titleEn: 'Clinical Pearl', ...(includeArabicTranslation ? { titleAr: 'Optional Arabic clinical note title' } : {}), text: 'English clinical note', ...(includeArabicTranslation ? { textAr: 'Optional concise Arabic translation' } : {}) }] : []),
+          ...(includeDiagrams ? [{ id: 'cb-4', type: 'diagram', order: 4, titleEn: 'Mechanism', ...(includeArabicTranslation ? { titleAr: 'Optional Arabic diagram title' } : {}), diagramSvg: '<svg viewBox="0 0 420 160" xmlns="http://www.w3.org/2000/svg">...</svg>' }] : [])
         ]
       }]
     };
@@ -126,24 +135,27 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
       topicId,
       difficulty: 'medium',
       questionEn: 'Clinical vignette and question?',
-      questionAr: 'سؤال سريري؟',
-      options: [{ key: 'A', textEn: 'Option A', textAr: 'الخيار أ' }, { key: 'B', textEn: 'Option B', textAr: 'الخيار ب' }],
+      ...(includeArabicTranslation ? { questionAr: 'Optional Arabic translation of the question' } : {}),
+      options: [
+        { key: 'A', textEn: 'Option A', ...(includeArabicTranslation ? { textAr: 'Optional Arabic translation' } : {}) },
+        { key: 'B', textEn: 'Option B', ...(includeArabicTranslation ? { textAr: 'Optional Arabic translation' } : {}) }
+      ],
       correctOptionKeys: ['A'],
       explanationEn: 'Why A is correct and B is incorrect.',
-      explanationAr: 'لماذا الإجابة أ صحيحة ولماذا ب خاطئة.',
+      ...(includeArabicTranslation ? { explanationAr: 'Optional concise Arabic explanation' } : {}),
       linkedTermIds: []
     }] : [];
     return [
-      'You are a medical educator and UMEDT content engineer. Generate one excellent, clinically accurate learning topic.',
+      'You are a medical educator and UMEDT content engineer. Generate one clinically accurate, well-structured learning topic.',
       '',
-      'LOCAL HIERARCHY — USE THESE EXISTING RECORDS ONLY:',
+      'EXISTING LOCAL HIERARCHY — USE THESE RECORDS EXACTLY:',
       JSON.stringify({
-        block: { id: selectedBlock.id, code: selectedBlock.code, titleEn: selectedBlock.titleEn, titleAr: selectedBlock.titleAr },
-        subject: { id: selectedSubject.id, blockId: selectedSubject.blockId, code: selectedSubject.code, titleEn: selectedSubject.titleEn, titleAr: selectedSubject.titleAr }
+        block: { id: selectedBlock.id, code: selectedBlock.code, titleEn: selectedBlock.titleEn },
+        subject: { id: selectedSubject.id, blockId: selectedSubject.blockId, code: selectedSubject.code, titleEn: selectedSubject.titleEn }
       }, null, 2),
       '',
       'TOPIC REQUEST:',
-      JSON.stringify({ titleEn: deferredTopicTitleEn.trim(), titleAr: deferredTopicTitleAr.trim(), level: topicLevel, depth: topicDepth }, null, 2),
+      JSON.stringify({ titleEn: deferredTopicTitleEn.trim(), level: topicLevel, depth: topicDepth }, null, 2),
       '',
       'CONTENT REQUIREMENTS:',
       ...requestedFeatures.map((item) => '- ' + item),
@@ -153,127 +165,108 @@ export const AiContentGuideModal: React.FC<AiContentGuideModalProps> = ({
       '- Return exactly one valid JSON object. No Markdown fences, preface, commentary, or trailing text.',
       '- The JSON root must contain "topics" and may contain "questions". Do not include "blocks" or "subjects" arrays.',
       '- Use the exact existing blockId and subjectId above. Never create, rename, infer, or modify a Block or Subject.',
-      '- The topic must include id, blockId, subjectId, titleEn, titleAr, category, and sections[]. If titleAr is empty, generate a precise Arabic title instead of leaving it blank.',
-      '- Every section must include id, headingEn, headingAr, and contentBlocks[].',
+      '- Every topic must include id, blockId, subjectId, titleEn, category, and sections[]. titleAr is optional.',
+      '- Every section must include id, headingEn, and contentBlocks[]. headingAr is optional.',
       '- Use only supported content block types: heading, paragraph, table, clinical_note, diagram, image, pdf_viewer, book_reference, exam_link, audio, video, video_link, attachment, question.',
-      '- Put English in text and Arabic in textAr. Keep medical terms in standard English alongside accurate Arabic explanations.',
+      '- Put all primary content in English fields such as text, titleEn, headingEn, questionEn, and explanationEn.',
+      ...(includeArabicTranslation
+        ? ['- Arabic is optional supporting metadata only. Add concise Arabic fields (textAr, titleAr, headingAr, questionAr, textAr for options, explanationAr) only where useful. Never replace the English field.']
+        : ['- Omit all Arabic fields, including titleAr, headingAr, textAr, questionAr, option textAr, and explanationAr. Do not add Arabic prose anywhere in the generated topic.']),
       '- If the user supplies a lecture PDF or text, use it as the primary source and preserve its teaching sequence where possible. Do not invent media URLs, books, references, citations, files, or checksums. Only include real, verified resources supplied by the user; otherwise omit them.',
-      '- Every question must use a supported type, have valid options and correctOptionKeys, and include explanations in both languages.',
+      '- Every question must use a supported type, have valid options and correctOptionKeys. Include English explanations; Arabic fields are optional only when requested.',
       '- Do not include dictionary terms in this topic package. UMEDT automatically links the global dictionary to topic text after import.',
       '- Preserve the exact selected hierarchy IDs.',
       '',
-      'EXPECTED JSON SHAPE (illustrative fields; replace all placeholders with complete content):',
+      'EXPECTED JSON SHAPE (illustrative fields; replace placeholders with complete content):',
       JSON.stringify({ topics: [topic], ...(includeQuestions ? { questions } : {}) }, null, 2)
-    ].filter(Boolean).join('\n');
-  }, [selectedBlock, selectedSubject, deferredTopicTitleEn, deferredTopicTitleAr, topicLevel, topicDepth, includeTables, includeDiagrams, includeClinicalNotes, includeQuestions, effectiveQuestionCount, deferredExtraInstructions, topicId]);
+    ].filter(Boolean).join('\\n');
+  }, [selectedBlock, selectedSubject, deferredTopicTitleEn, deferredTopicTitleAr, topicLevel, topicDepth, includeTables, includeDiagrams, includeClinicalNotes, includeQuestions, effectiveQuestionCount, deferredExtraInstructions, topicId, includeArabicTranslation]);
 
   const termsPrompt = useMemo(() => {
     if (parsedTermCount <= 0 || !deferredTermDomain.trim()) return '';
-
     const sharedHeader = [
-      'You are a bilingual medical and academic lexicographer preparing import-ready UMEDT dictionary records.',
+      'You are a medical and academic lexicographer preparing import-ready UMEDT dictionary records.',
       '',
       'Generate exactly ' + parsedTermCount + ' unique English terms for this domain: ' + deferredTermDomain.trim(),
-      ''
+      '',
+      includeArabicTranslation
+        ? 'Include concise, accurate Arabic translations and definitions in the optional Arabic fields.'
+        : 'English only. Do not generate Arabic translations, Arabic definitions, or bilingual duplicate examples.'
     ];
-
     const sharedRules = [
       'QUALITY AND DEDUPLICATION RULES:',
       '- Do not repeat a term within the output. Normalize case, whitespace, hyphens, and apostrophes when checking duplicates.',
+      '- Each term must be one English word or at most two English words. Never use a sentence as a term.',
       '- Do not include blockId, subjectId, topicId, linkedBlockIds, linkedSubjectIds, linkedTopicIds, specialty, or collection-specific hierarchy fields.',
       '- Do not generate blocks, subjects, topics, sentences, questions, or any other record type.',
-      '- Do not use generic translations, fabricated IPA, circular definitions, or placeholder examples.',
-      '- Prefer established medical terminology and context-appropriate Arabic translations. If a term has multiple meanings, select the domain-appropriate meaning and explain it.'
+      '- Use established terminology, precise context-specific definitions, accurate IPA pronunciation, and natural clinical or academic examples.',
+      '- Do not fabricate IPA, use circular definitions, or add placeholder examples.'
     ];
-
     if (termsOutputFormat === 'text') {
+      const columns = includeArabicTranslation
+        ? [
+            'TERM || term || translation || pos || category || definitionAr || definitionEn || exampleEn || exampleAr',
+            '- translation: precise Arabic translation.',
+            '- definitionAr: concise and accurate Arabic definition.',
+            '- definitionEn: concise and accurate English definition.',
+            '- exampleEn: natural English clinical or academic sentence.',
+            '- exampleAr: accurate Arabic translation of exampleEn.',
+            'TERM || Myocardial infarction || احتشاء عضلة القلب || noun || Medical || Irreversible injury and necrosis of cardiac muscle caused by prolonged ischemia. || Early reperfusion reduces myocardial damage after an acute infarction. || تقلل إعادة التروية المبكرة من تلف عضلة القلب بعد الاحتشاء الحاد.'
+          ]
+        : [
+            'TERM || term || pos || category || definitionEn || exampleEn',
+            '- Do not include translation or Arabic columns.',
+            '- definitionEn: concise, accurate English definition.',
+            '- exampleEn: natural English clinical or academic sentence.',
+            'TERM || Myocardial infarction || phrase || Medical || Irreversible injury and necrosis of cardiac muscle caused by prolonged ischemia. || Early reperfusion reduces myocardial damage after an acute infarction.'
+          ];
       return [
         ...sharedHeader,
-        'OUTPUT FORMAT — DIRECT PIPE-DELIMITED TEXT LINES (READY TO PASTE IN UMEDT):',
-        '- Return ONLY plain text lines, one term per line. Do NOT return JSON, Markdown code fences, headers, numbering, or commentary.',
-        '- Every line MUST start with TERM || and use exactly 9 pipe-separated columns in this order:',
-        '  TERM || term || translation || pos || category || definitionAr || definitionEn || exampleEn || exampleAr',
-        '- term: one English word or at most two English words; never a sentence.',
-        '- translation: precise Arabic translation in the requested context.',
+        '',
+        'OUTPUT FORMAT — DIRECT PIPE-DELIMITED TEXT LINES FOR UMEDT:',
+        '- Return only plain text lines, one term per line. No Markdown fences, headers, numbering, or commentary.',
+        '- Every line must start with TERM || and use exactly the column order shown below.',
+        '- Use the exact column count shown. Do not insert extra pipe characters inside a field.',
         '- pos: noun, verb, adjective, or phrase.',
         '- category: Medical, Academic, or General.',
-        '- definitionAr: clear Arabic definition (must not contain ||).',
-        '- definitionEn: concise, accurate English definition (must not contain ||).',
-        '- exampleEn: natural, clinically or academically relevant English sentence.',
-        '- exampleAr: accurate Arabic translation of that sentence.',
+        ...columns,
         '',
-        ...sharedRules,
-        '',
-        'EXPECTED LINE EXAMPLE:',
-        'TERM || Myocardial infarction || احتشاء عضلة القلب || noun || Medical || تلف وموت غير عكوس في خلايا عضلة القلب نتيجة نقص التروية لفترة كافية. || Irreversible injury and necrosis of cardiac muscle caused by prolonged ischemia. || Early reperfusion reduces myocardial damage after an acute infarction. || تقلل إعادة التروية المبكرة من تلف عضلة القلب بعد الاحتشاء الحاد.'
-      ].join('\n');
+        ...sharedRules
+      ].join('\\n');
     }
-
-    const jsonRecordExample = JSON.stringify({
-      terms: [
-        {
-          id: 'term-myocardial-infarction',
-          term: 'Myocardial infarction',
-          translation: 'احتشاء عضلة القلب',
-          pronunciation: '/ˌmaɪ.oʊˈkɑːr.di.əl ɪnˈfɑːrk.ʃən/',
-          definitionEn: 'Irreversible injury and necrosis of cardiac muscle caused by prolonged ischemia.',
-          definitionAr: 'تلف وموت غير عكوس في خلايا عضلة القلب نتيجة نقص التروية لفترة كافية.',
-          exampleEn: 'Early reperfusion reduces myocardial damage after an acute infarction.',
-          exampleAr: 'تقلل إعادة التروية المبكرة من تلف عضلة القلب بعد الاحتشاء الحاد.',
-          examples: [
-            {
-              en: 'Early reperfusion reduces myocardial damage after an acute infarction.',
-              ar: 'تقلل إعادة التروية المبكرة من تلف عضلة القلب بعد الاحتشاء الحاد.'
-            }
-          ]
-        }
-      ]
-    }, null, 2);
-
-    const jsonFields = [
-      'REQUIRED FIELDS FOR EVERY TERM:',
-      '- id: stable unique ID such as term-acute-infarction',
-      '- term: one English word or at most two English words; never a sentence',
-      '- translation: precise Arabic translation in the requested context',
-      '- pronunciation: accurate IPA pronunciation',
-      '- definitionEn: concise, accurate English definition',
-      '- definitionAr: clear Arabic definition',
-      '- exampleEn: natural, clinically or academically relevant English sentence',
-      '- exampleAr: accurate Arabic translation of that sentence',
-      '- examples: [{ "en": "same English example", "ar": "same Arabic translation" }]',
-      ''
-    ];
-
-    if (termsOutputFormat === 'zip') {
-      return [
-        ...sharedHeader,
-        'OUTPUT FORMAT — DOWNLOADABLE ZIP ARCHIVE (.zip) FOR UMEDT:',
-        '- Package all generated terms into a valid UTF-8 JSON file named terms.json inside a downloadable .zip archive named umedt-terms.zip.',
-        '- Inside terms.json, the root MUST be a single valid JSON object with a single "terms" array.',
-        '- Do not include executable files, scripts, SQLite files, or extra folders inside the .zip archive.',
-        '- If your environment can create downloadable files, generate and provide the downloadable umedt-terms.zip file directly. Otherwise, output the exact valid terms.json content ready to save and compress into .zip.',
-        '',
-        ...jsonFields,
-        ...sharedRules,
-        '',
-        'EXPECTED terms.json STRUCTURE INSIDE THE .zip ARCHIVE:',
-        jsonRecordExample
-      ].join('\n');
-    }
-
+    const record = {
+      id: 'term-myocardial-infarction',
+      term: 'Myocardial infarction',
+      pronunciation: '/ˌmaɪ.oʊˈkɑːr.di.əl ɪnˈfɑːrk.ʃən/',
+      definitionEn: 'Irreversible injury and necrosis of cardiac muscle caused by prolonged ischemia.',
+      exampleEn: 'Early reperfusion reduces myocardial damage after an acute infarction.',
+      examples: [{ en: 'Early reperfusion reduces myocardial damage after an acute infarction.' }],
+      ...(includeArabicTranslation ? {
+        translation: 'احتشاء عضلة القلب',
+        definitionAr: 'تلف وموت غير عكوس في خلايا عضلة القلب نتيجة نقص التروية لفترة كافية.',
+        exampleAr: 'تقلل إعادة التروية المبكرة من تلف عضلة القلب بعد الاحتشاء الحاد.',
+        examples: [{ en: 'Early reperfusion reduces myocardial damage after an acute infarction.', ar: 'تقلل إعادة التروية المبكرة من تلف عضلة القلب بعد الاحتشاء الحاد.' }]
+      } : {})
+    };
+    const jsonRecordExample = JSON.stringify({ terms: [record] }, null, 2);
     return [
       ...sharedHeader,
-      'OUTPUT FORMAT — DOWNLOADABLE OR COPYABLE JSON FILE (.json) FOR UMEDT:',
-      '- Return exactly one valid UTF-8 JSON object with a single "terms" array (ready to save as umedt-terms.json and import into UMEDT).',
-      '- No Markdown fences, preface, commentary, or trailing text.',
       '',
-      ...jsonFields,
+      termsOutputFormat === 'zip'
+        ? 'OUTPUT FORMAT — ZIP ARCHIVE FOR UMEDT:'
+        : 'OUTPUT FORMAT — JSON FILE FOR UMEDT:',
+      termsOutputFormat === 'zip'
+        ? '- Create a downloadable UTF-8 archive named umedt-terms.zip containing one file named terms.json. If file creation is unavailable, return the exact valid terms.json content.'
+        : '- Return exactly one valid UTF-8 JSON object with a single "terms" array, ready to save as umedt-terms.json.',
+      '- Do not include Markdown fences, preface, commentary, or trailing text.',
+      '- Use only the fields shown in the example. The Arabic fields are optional and must be omitted when Arabic translation is disabled.',
+      '',
       ...sharedRules,
       '',
-      'EXPECTED JSON FILE STRUCTURE:',
+      'EXPECTED terms.json STRUCTURE:',
       jsonRecordExample
-    ].join('\n');
-  }, [parsedTermCount, deferredTermDomain, termsOutputFormat]);
+    ].join('\\n');
+  }, [parsedTermCount, deferredTermDomain, termsOutputFormat, includeArabicTranslation]);
 
   const generatedPrompt = mode === 'topic' ? topicPrompt : termsPrompt;
   const promptReady = mode === 'topic' ? hierarchyReady : termDomain.trim().length > 0 && parsedTermCount > 0;
