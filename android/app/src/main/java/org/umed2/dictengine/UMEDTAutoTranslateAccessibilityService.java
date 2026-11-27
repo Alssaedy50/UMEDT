@@ -89,14 +89,8 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
             return;
         }
 
-        // 2. Detect "Copy / نسخ" action button clicks OR system "Copied to clipboard / تم النسخ" announcements
-        if (eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
-            if (isCopyButtonEvent(event)) {
-                triggerCopyLookup();
-            }
-            return;
-        }
-
+        // Clipboard-change events are handled by UMEDTClipboardMonitorService.
+        // Accessibility announcements are only a fallback after Android confirms a copy.
         if (eventType == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED
                 || eventType == AccessibilityEvent.TYPE_ANNOUNCEMENT) {
             if (isCopiedToastEvent(event)) {
@@ -124,7 +118,7 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
         // Do not open UMEDTPopupCardActivity as a background clipboard reader.
         // Even a transparent Activity takes window focus away from the current IME,
         // which causes the keyboard to flicker. The selection/copy paths above
-        // already render a matched term directly through the non-focusable overlay.
+        // render a matched term directly through the non-focusable overlay.
     }
 
     private boolean tryShowTranslationForText(String rawText, boolean forceShow) {
