@@ -112,6 +112,7 @@ export function normalizeMindMapDocument(raw: unknown): MindMapDocument | null {
     titleEn: typeof obj.titleEn === 'string' && obj.titleEn.trim() ? obj.titleEn.trim() : undefined,
     subtitle: typeof obj.subtitle === 'string' && obj.subtitle.trim() ? obj.subtitle.trim() : undefined,
     style,
+    colorMode: obj.colorMode === 'role' ? 'role' : 'branch',
     rootNodeId,
     nodes,
     edges,
