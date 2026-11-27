@@ -211,6 +211,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 var data=JSON.parse(document.getElementById('map-data').textContent);
 var viewport=document.getElementById('viewport'),stage=document.getElementById('stage'),details=document.getElementById('details');
 var seqBar=document.getElementById('seq-bar'),nodesPanel=document.getElementById('nodes-panel'),nodesList=document.getElementById('nodes-list');
+var toolsMenu=document.querySelector('.tools-menu');
+var toolsContent=document.querySelector('.tools-content');
+if(toolsContent&&toolsMenu){toolsContent.addEventListener('click',function(e){if(e.target&&e.target.closest&&e.target.closest('button'))toolsMenu.open=false;});}
 var currentStyle=data.initialStyle||'radial';
 var svg=null,nodeEls=[],edgeEls=[];
 var nodes=new Map(),children=new Map(),collapsed=new Set(),userHidden=new Set(),hidden=new Set(),pointers=new Map();
