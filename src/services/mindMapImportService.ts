@@ -286,7 +286,7 @@ function extractJsonBlockFromText(raw: string): string | null {
   }
 
   // ChatGPT / Gemini fenced ```json ... ``` block
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
   if (fenced && fenced[1]) {
     const inner = fenced[1].trim();
     if (inner.startsWith('{') || inner.startsWith('[')) {
@@ -1123,7 +1123,7 @@ export function parseMindMapInput(
   }
 
   // Explicit JSON uploads must not silently fall through to a one-node text map.
-  if (fileLower.endsWith('.json') || text.startsWith('{') || text.startsWith('[') || /^\`\`\`(?:json)?\\s*/i.test(text)) {
+  if (fileLower.endsWith('.json') || text.startsWith('{') || text.startsWith('[') || text.startsWith('```')) {
     return {
       success: false,
       detectedFormat: 'umedt-json',
