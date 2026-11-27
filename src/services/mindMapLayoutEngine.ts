@@ -197,22 +197,16 @@ function computeCubicPath(
   orientation: 'horizontal' | 'vertical'
 ): { path: string; labelX: number; labelY: number } {
   if (orientation === 'horizontal') {
-    const dx = tx - sx;
-    const ctrl = Math.max(46, Math.abs(dx) * 0.45);
-    const c1x = sx + (dx >= 0 ? ctrl : -ctrl);
-    const c2x = tx - (dx >= 0 ? ctrl : -ctrl);
-    const path = `M ${sx} ${sy} C ${c1x} ${sy}, ${c2x} ${ty}, ${tx} ${ty}`;
+    const midX = (sx + tx) / 2;
+    const path = `M ${sx} ${sy} C ${midX} ${sy}, ${midX} ${ty}, ${tx} ${ty}`;
     return {
       path,
       labelX: (sx + tx) / 2,
       labelY: (sy + ty) / 2 - 8
     };
   }
-  const dy = ty - sy;
-  const ctrl = Math.max(38, Math.abs(dy) * 0.48);
-  const c1y = sy + (dy >= 0 ? ctrl : -ctrl);
-  const c2y = ty - (dy >= 0 ? ctrl : -ctrl);
-  const path = `M ${sx} ${sy} C ${sx} ${c1y}, ${tx} ${c2y}, ${tx} ${ty}`;
+  const midY = (sy + ty) / 2;
+  const path = `M ${sx} ${sy} C ${sx} ${midY}, ${tx} ${midY}, ${tx} ${ty}`;
   return {
     path,
     labelX: (sx + tx) / 2,
