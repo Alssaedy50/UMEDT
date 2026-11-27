@@ -28,7 +28,7 @@ export interface MindMapNode {
   role: MindMapNodeRole;
   /** Optional sibling ordering */
   order?: number;
-  /** Optional visual shape and accent color for this node */
+  /** Optional visual shape and persistent manual fill-color override for this node */
   shape?: 'rounded' | 'pill' | 'diamond' | 'hexagon' | 'circle';
   color?: string;
   /** Optional manual coordinates set when the user drags the node in the editor */
