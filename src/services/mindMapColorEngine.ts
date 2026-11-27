@@ -44,7 +44,7 @@ export function getMindMapNodeColors(
   node: MindMapNode
 ): MindMapNodeColors {
   if (node.color && /^#[0-9a-f]{6}$/i.test(node.color)) {
-    return { fill: node.color, stroke: node.color, text: '#f8fafc' };
+    return { fill: node.color, stroke: lightenHex(node.color, 0.32), text: '#f8fafc' };
   }
 
   const role = ROLE_COLORS[node.role] || ROLE_COLORS.concept;
@@ -75,6 +75,15 @@ export function getMindMapNodeColors(
     text: base.text
   };
   return shade;
+}
+
+function lightenHex(hex: string, amount: number): string {
+  const value = parseInt(hex.slice(1), 16);
+  const mix = (part: number) => Math.round(part + (255 - part) * amount);
+  const r = mix((value >> 16) & 255);
+  const g = mix((value >> 8) & 255);
+  const b = mix(value & 255);
+  return '#' + [r, g, b].map((part) => part.toString(16).padStart(2, '0')).join('');
 }
 
 function darkenHex(hex: string, amount: number): string {
