@@ -20,7 +20,7 @@ export interface MindMapNode {
   label: string;
   /** Optional short secondary cue (e.g., Arabic translation, key value, or drug class) */
   sublabel?: string;
-  /** Optional brief clinical note shown only when inspecting the node (never bloats canvas) */
+  /** Optional clinical note shown in a two-line card preview and fully in the inspector. */
   note?: string;
   /** Parent node ID for tree hierarchy; null/undefined for root or independent flow nodes */
   parentId: string | null;
