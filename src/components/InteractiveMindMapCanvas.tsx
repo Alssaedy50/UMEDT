@@ -279,6 +279,27 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
     });
   }, [layout.bounds]);
 
+  const fitPrimaryOverview = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 640) { fitToView(); return; }
+    const primary = layout.nodes.filter((node) => node.node.id === doc.rootNodeId || node.node.parentId === doc.rootNodeId);
+    if (!primary.length) { fitToView(); return; }
+    const minX = Math.min(...primary.map((node) => node.x - node.width / 2));
+    const maxX = Math.max(...primary.map((node) => node.x + node.width / 2));
+    const minY = Math.min(...primary.map((node) => node.y - node.height / 2));
+    const maxY = Math.max(...primary.map((node) => node.y + node.height / 2));
+    const clusterW = Math.max(1, maxX - minX + 56);
+    const clusterH = Math.max(1, maxY - minY + 56);
+    const usableH = Math.max(160, rect.height - 54);
+    const scale = Math.max(0.65, Math.min(0.8, Math.min((rect.width - 24) / clusterW, usableH / clusterH)));
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    setZoom(Number(scale.toFixed(2)));
+    setPan({ x: rect.width / 2 - cx * scale, y: (rect.height - 36) / 2 - cy * scale });
+  }, [layout.nodes, doc.rootNodeId, fitToView]);
+
   /**
    * Frames a target node and all of its currently visible direct child cards
    * inside the canvas viewport so revealed cards never get clipped off-screen.
@@ -341,10 +362,10 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
     const key = `${doc.id}::${localStyle}`;
     if (lastFitKeyRef.current !== key) {
       lastFitKeyRef.current = key;
-      const timer = window.setTimeout(() => fitToView(), 30);
+      const timer = window.setTimeout(() => fitPrimaryOverview(), 30);
       return () => window.clearTimeout(timer);
     }
-  }, [doc.id, localStyle, fitToView]);
+  }, [doc.id, localStyle, fitPrimaryOverview]);
 
   // Reset selected node when switching documents (keep root expanded so first-level branches are visible)
   useEffect(() => {
