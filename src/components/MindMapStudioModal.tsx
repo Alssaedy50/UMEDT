@@ -4,7 +4,6 @@ import {
   Plus,
   Sparkles,
   Upload,
-  FileText,
   Trash2,
   Network,
   Copy,
@@ -12,7 +11,6 @@ import {
   BookOpen,
   AlertCircle,
   ArrowRight,
-  ChevronDown,
   Clock3,
   CalendarClock
 } from 'lucide-react';
