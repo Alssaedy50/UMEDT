@@ -9,7 +9,6 @@ import {
   Network,
   Copy,
   Check,
-  Wand2,
   BookOpen,
   AlertCircle,
   ArrowRight,
@@ -24,7 +23,6 @@ import {
   upsertMindMap,
   deleteMindMap,
   createBlankMindMap,
-  generateMindMapFromTopic,
   MIND_MAPS_UPDATED_EVENT
 } from '../services/mindMapStorageService';
 import {
@@ -174,7 +172,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
       ? [...allMaps]
       : allMaps.filter((m) => m.linkedTopicId === scopeTopicId);
     return filtered.sort((a, b) => {
-      if (sortMode === 'name') return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+      if (sortMode === 'name') return a.title.localeCompare(b.title, 'ar', { sensitivity: 'base' });
       const aTime = Date.parse(sortMode === 'created' ? a.createdAt : a.updatedAt) || 0;
       const bTime = Date.parse(sortMode === 'created' ? b.createdAt : b.updatedAt) || 0;
       return bTime - aTime;
@@ -218,16 +216,6 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
     showToast('تم إنشاء خريطة ذهنية جديدة قابلة للتعديل');
   };
 
-  const handleAutoGenerateFromTopic = (targetTopic: TopicArticle, style: MindMapStyle = 'radial') => {
-    const generated = generateMindMapFromTopic(targetTopic, style);
-    const updated = upsertMindMap(generated);
-    setAllMaps(updated);
-    setScopeTopicId(targetTopic.id);
-    setActiveMapId(generated.id);
-    setStudioMode('canvas');
-    showToast(`تم توليد خريطة ذهنية تفاعلية (${generated.nodes.length} عقدة) من أقسام الموضوع`);
-  };
-
   const handleDeleteActiveMap = () => {
     if (!activeMap) return;
     const updated = deleteMindMap(activeMap.id);
@@ -237,6 +225,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
         ? updated
         : updated.filter((m) => m.linkedTopicId === scopeTopicId);
     setActiveMapId(remaining[0]?.id || null);
+    if (remaining.length === 0) setStudioMode('list');
     showToast('تم حذف الخريطة الذهنية');
   };
 
@@ -755,51 +744,10 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                   />
                 </div>
               ) : (
-                <div className="p-8 sm:p-10 rounded-3xl bg-slate-50 dark:bg-slate-950 border border-dashed border-slate-300 dark:border-slate-800 text-center space-y-4">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
-                    <Network className="w-6 h-6" />
-                  </div>
-                  <div className="space-y-1 max-w-md mx-auto">
-                    <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-                      {scopedTopic
-                        ? 'لا توجد خريطة ذهنية لهذا الموضوع بعد'
-                        : 'لا توجد خرائط ذهنية محفوظة بعد'}
-                    </h3>
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                      يمكنك توليد خريطة ذهنية تفاعلية تلقائياً من أقسام الموضوع وملاحظاته السريرية، أو استيرادها من Markdown / JSON / ChatGPT / Gemini، أو بناؤها من الصفر.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                    {scopedTopic && (
-                      <button
-                        type="button"
-                        onClick={() => handleAutoGenerateFromTopic(scopedTopic, 'radial')}
-                        className="min-h-[42px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-500 dark:text-slate-950 text-xs font-extrabold flex items-center gap-1.5"
-                      >
-                        <Wand2 className="w-4 h-4" />
-                        <span>توليد خريطة تلقائياً من الموضوع</span>
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => setStudioMode('import')}
-                      className="min-h-[42px] px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 text-xs font-bold flex items-center gap-1.5"
-                    >
-                      <FileText className="w-4 h-4 text-emerald-500" />
-                      <span>استيراد Markdown / JSON / أسهم</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleCreateBlank}
-                      className="min-h-[42px] px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 text-xs font-bold flex items-center gap-1.5"
-                    >
-                      <Plus className="w-4 h-4 text-emerald-500" />
-                      <span>إنشاء خريطة فارغة</span>
-                    </button>
-                  </div>
+                <div className="rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-8 text-center">
+                  <Network className="mx-auto mb-3 h-10 w-10 text-slate-400" />
+                  <p className="text-sm font-bold">لم تعد هذه الخريطة متاحة.</p>
+                  <button type="button" onClick={() => setStudioMode('list')} className="mt-3 min-h-10 rounded-xl bg-emerald-600 px-4 text-xs font-extrabold text-white">العودة إلى قائمة الخرائط</button>
                 </div>
               )}
             </>
