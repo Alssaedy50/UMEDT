@@ -65,7 +65,8 @@ function wrapNotePreview(note?: string): string[] {
   const lines: string[] = [];
   let current = '';
   for (const word of words) {
-    const next = current ? current + ' ' + word : word;
+    const safeWord = word.length > 34 ? word.slice(0, 33) + '…' : word;
+    const next = current ? current + ' ' + safeWord : safeWord;
     if (next.length <= 34) current = next;
     else {
       if (current) lines.push(current);
