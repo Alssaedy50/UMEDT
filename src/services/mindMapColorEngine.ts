@@ -10,13 +10,13 @@ export interface MindMapNodeColors {
 
 export const MIND_MAP_COLOR_SWATCHES = [
   { name: 'Teal', base: '#0f766e', shades: ['#0f766e', '#115e59', '#134e4a', '#164e63'] },
-  { name: 'Blue', base: '#2563eb', shades: ['#1d4ed8', '#1e40af', '#1e3a8a', '#172554'] },
-  { name: 'Violet', base: '#7c3aed', shades: ['#6d28d9', '#5b21b6', '#4c1d95', '#2e1065'] },
-  { name: 'Rose', base: '#e11d48', shades: ['#be123c', '#9f1239', '#881337', '#4c0519'] },
-  { name: 'Amber', base: '#d97706', shades: ['#b45309', '#92400e', '#78350f', '#451a03'] },
-  { name: 'Cyan', base: '#0891b2', shades: ['#0e7490', '#155e75', '#164e63', '#083344'] },
-  { name: 'Indigo', base: '#4f46e5', shades: ['#4338ca', '#3730a3', '#312e81', '#1e1b4b'] },
-  { name: 'Emerald', base: '#059669', shades: ['#047857', '#065f46', '#064e3b', '#022c22'] }
+  { name: 'Blue', base: '#1d4ed8', shades: ['#1d4ed8', '#1e40af', '#1e3a8a', '#172554'] },
+  { name: 'Violet', base: '#6d28d9', shades: ['#6d28d9', '#5b21b6', '#4c1d95', '#2e1065'] },
+  { name: 'Rose', base: '#be123c', shades: ['#be123c', '#9f1239', '#881337', '#4c0519'] },
+  { name: 'Amber', base: '#92400e', shades: ['#b45309', '#92400e', '#78350f', '#451a03'] },
+  { name: 'Cyan', base: '#0e7490', shades: ['#0e7490', '#155e75', '#164e63', '#083344'] },
+  { name: 'Indigo', base: '#4338ca', shades: ['#4338ca', '#3730a3', '#312e81', '#1e1b4b'] },
+  { name: 'Emerald', base: '#047857', shades: ['#047857', '#065f46', '#064e3b', '#022c22'] }
 ] as const;
 
 const ROLE_COLORS: Record<MindMapNodeRole, MindMapNodeColors> = {
