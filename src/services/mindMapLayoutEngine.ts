@@ -59,7 +59,7 @@ export function truncateSublabel(sublabel?: string): string | undefined {
 }
 
 function wrapNotePreview(note?: string): string[] {
-  const clean = String(note || '').replace(/\\s+/g, ' ').trim();
+  const clean = String(note || '').replace(/\s+/g, ' ').trim();
   if (!clean) return [];
   const words = clean.split(' ');
   const lines: string[] = [];
