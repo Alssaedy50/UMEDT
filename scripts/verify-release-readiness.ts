@@ -380,6 +380,14 @@ async function main() {
     'AI generator must expose only topic/global-terms modes, use selected local hierarchy IDs, and keep global terms unlinked'
   );
   assertCondition(
+    aiGeneratorContent.includes('English only. Do not generate Arabic translations') &&
+      aiGeneratorContent.includes('Include Arabic translations (optional)') &&
+      aiGeneratorContent.includes('Omit all Arabic fields') &&
+      aiImporterContent.includes('const englishOnly = cols.length < 9') &&
+      aiImporterContent.includes('if (translation &&'),
+    'AI topic and term prompts must be English-first with optional Arabic fields, and the importer must accept English-only terms'
+  );
+  assertCondition(
     aiImporterContent.includes('let nextBlocks = currentBlocks;') &&
       aiImporterContent.includes('let nextSubjects = currentSubjects;') &&
       aiImporterContent.includes('localBlockIds.has(topicBlockId)') &&
