@@ -623,7 +623,7 @@ export function buildStandaloneMindMapSvg(
       const relationStroke = e.isCrossLink ? '#8b5cf6' : '#0f766e';
       const relationWidth = e.isCrossLink ? 1.6 : 2.8;
       const relationOpacity = e.isCrossLink ? 0.58 : 0.92;
-      return `<g class="mm-edge ${e.isCrossLink ? 'mm-cross-link' : 'mm-tree-link'}" data-from="${escapeXml(e.sourceId)}" data-to="${escapeXml(e.targetId)}"><path d="${escapeXml(e.path)}" fill="none" stroke="${relationStroke}" stroke-width="${relationWidth}" opacity="${relationOpacity}"${dash}${marker} />${edgeLabel}</g>`;
+      return `<g class="mm-edge" data-kind="${e.isCrossLink ? 'cross-link' : 'tree-link'}" data-from="${escapeXml(e.sourceId)}" data-to="${escapeXml(e.targetId)}"><path d="${escapeXml(e.path)}" fill="none" stroke="${relationStroke}" stroke-width="${relationWidth}" opacity="${relationOpacity}"${dash}${marker} />${edgeLabel}</g>`;
     })
     .join('\n');
 
