@@ -147,7 +147,7 @@ public class UMEDTClipboardMonitorService extends Service {
         // Only the newly copied clipboard value can trigger an automatic lookup.
         // Never use the accessibility service's cached selection here.
         // 1. Try direct clipboard inspection first (succeeds on Android <= 9 or when app/IME/Accessibility has focus)
-        Context lookupCtx = a11y != null ? a11y : this;
+        Context lookupCtx = this;
         JSONObject directMatch = UMEDTDictionaryPopupEngine.inspectClipboardAndShowIfMatched(lookupCtx, false);
         if (directMatch != null) {
             return;
