@@ -30,6 +30,7 @@ import {
 } from '../services/mindMapImportService';
 import { InteractiveMindMapCanvas } from './InteractiveMindMapCanvas';
 import { parseUploadedFile } from '../services/fileParserService';
+import { MobileSafeNumericInput } from './MobileSafeInput';
 
 interface MindMapStudioModalProps {
   isOpen: boolean;
@@ -64,7 +65,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
   const [preferredStyle, setPreferredStyle] = useState<MindMapStyle | 'auto'>('auto');
   const [copiedPromptKey, setCopiedPromptKey] = useState<string | null>(null);
   const [promptTopic, setPromptTopic] = useState(initialTopic?.title || '');
-  const [promptNodeCount, setPromptNodeCount] = useState(24);
+  const [promptNodeCount, setPromptNodeCount] = useState('24');
   const [promptStyle, setPromptStyle] = useState<MindMapStyle>('hierarchical');
   const [promptOutputFormat, setPromptOutputFormat] = useState<'text' | 'file'>('text');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -259,7 +260,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
 
   const buildConfiguredPrompt = () => buildMindMapGenerationPrompt({
     topic: promptTopic.trim() || scopedTopic?.title || initialTopic?.title || '',
-    nodeCount: promptNodeCount,
+    nodeCount: Number(promptNodeCount) || 24,
     style: promptStyle,
     outputFormat: promptOutputFormat
   });
@@ -404,13 +405,13 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                 </label>
                 <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
                   العدد المستهدف للعقد (بما فيها الجذر)
-                  <input
-                    type="number"
+                  <MobileSafeNumericInput
+                    value={promptNodeCount}
+                    onRawChange={setPromptNodeCount}
                     min={3}
                     max={80}
-                    step={1}
-                    value={promptNodeCount}
-                    onChange={(e) => setPromptNodeCount(Math.max(3, Math.min(80, Number(e.target.value) || 3)))}
+                    fallbackOnBlur={24}
+                    aria-label="العدد المستهدف للعقد"
                     className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                   />
                 </label>
