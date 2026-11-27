@@ -53,7 +53,6 @@ routedMap.edges=[{id:'cross-sibling',sourceId:'route-source',targetId:'route-tar
 const routedLayout=computeMindMapLayout(routedMap);
 const rootPosition=routedLayout.nodes.find((node)=>node.node.id===routedRoot.id)!;
 const sourcePosition=routedLayout.nodes.find((node)=>node.node.id==='route-source')!;
-const targetPosition=routedLayout.nodes.find((node)=>node.node.id==='route-target')!;
 const hierarchyEdge=routedLayout.edges.find((edge)=>edge.sourceId===routedRoot.id&&edge.targetId==='route-source')!;
 const hierarchyStart=hierarchyEdge.path.match(/^M\\s+(-?[\\d.]+)\\s+(-?[\\d.]+)/);
 const hierarchyEnd=hierarchyEdge.path.match(/(-?[\\d.]+)\\s+(-?[\\d.]+)$/);
