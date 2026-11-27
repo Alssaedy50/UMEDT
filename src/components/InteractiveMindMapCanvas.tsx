@@ -1081,7 +1081,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
             const isLinkSource = linkSourceId === pNode.node.id;
             const isSearchMatch = searchMatches.has(pNode.node.id);
             const isDimmed = searchMatches.size > 0 && !isSearchMatch;
-            const nodeColors = getMindMapNodeColors(effectiveDoc, pNode.node);
+            const nodeColors = getMindMapNodeColors(doc, pNode.node);
             const shape = pNode.node.shape || 'rounded';
             const radiusClass =
               shape === 'pill' || shape === 'circle'
