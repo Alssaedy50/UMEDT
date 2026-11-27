@@ -856,20 +856,18 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
             </>
           )}
 
-          {true && (
-            <button
-              type="button"
-              onClick={() => {
-                if (onRequestFullscreen) onRequestFullscreen();
-                else setIsFullScreenViewerOpen(true);
-              }}
-              className="min-h-[34px] px-2.5 py-1 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-[11px] font-extrabold flex items-center gap-1"
-              title="فتح في الاستوديو الكامل"
-            >
-              <Maximize2 className="w-3.5 h-3.5" />
-              <span>عرض الخريطة كاملة</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (onRequestFullscreen) onRequestFullscreen();
+              else setIsFullScreenViewerOpen(true);
+            }}
+            className="min-h-[34px] px-2.5 py-1 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-[11px] font-extrabold flex items-center gap-1"
+            title="فتح في الاستوديو الكامل"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span>عرض الخريطة كاملة</span>
+          </button>
         </div>
         </div>
       </details>
