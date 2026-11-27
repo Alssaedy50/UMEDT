@@ -1,4 +1,5 @@
 export type MindMapStyle = 'radial' | 'hierarchical' | 'medical_flow';
+export type MindMapColorMode = 'branch' | 'role';
 
 export type MindMapNodeRole =
   | 'root'
@@ -52,6 +53,8 @@ export interface MindMapDocument {
   titleEn?: string;
   subtitle?: string;
   style: MindMapStyle;
+  /** Automatic node palette: branch hierarchy by default, or semantic medical role. */
+  colorMode?: MindMapColorMode;
   rootNodeId: string;
   nodes: MindMapNode[];
   edges: MindMapEdge[];
@@ -100,6 +103,7 @@ export interface PositionedMindMapNode {
   isCollapsed: boolean;
   lines: string[];
   sublabelLine?: string;
+  noteLines?: string[];
 }
 
 export interface PositionedMindMapEdge {
