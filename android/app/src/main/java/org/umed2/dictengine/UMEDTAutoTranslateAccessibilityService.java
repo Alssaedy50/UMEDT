@@ -77,38 +77,14 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
 
         int eventType = event.getEventType();
 
-        // 1. Track text selection in any external app (works even without background clipboard access)
-        if (eventType == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED) {
-            String selected = extractSelectedText(event);
-            if (!selected.isEmpty() && selected.length() <= 180 && !UMEDTDictionaryPopupEngine.shouldIgnoreText(selected)) {
-                lastSelectedText = selected;
-                lastSelectedTimestampMs = System.currentTimeMillis();
-
-                if (UMEDTDictionaryPopupEngine.isAutoTranslateOnSelectEnabled(this)) {
-                    tryShowTranslationForText(selected, false);
-                }
-            }
+        // Selection alone is not a translation request. The user must explicitly choose
+        // UMEDT from Android's PROCESS_TEXT menu, or copy exactly one word.
+        if (eventType == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED
+                || eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
             return;
         }
 
-        // Some apps (notably WebView/PDF readers) update the selected range through
-        // window-content events instead of TYPE_VIEW_TEXT_SELECTION_CHANGED.
-        // Read only an actual accessibility text selection; never translate arbitrary
-        // visible text or observe typed characters.
-        if (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
-            String selected = extractActiveWindowSelection();
-            if (!selected.isEmpty() && selected.length() <= 180
-                    && !UMEDTDictionaryPopupEngine.shouldIgnoreText(selected)) {
-                lastSelectedText = selected;
-                lastSelectedTimestampMs = System.currentTimeMillis();
-                if (UMEDTDictionaryPopupEngine.isAutoTranslateOnSelectEnabled(this)) {
-                    tryShowTranslationForText(selected, false);
-                }
-            }
-            return;
-        }
-
-        // Copy monitoring can be disabled independently from automatic selection translation.
+        // Copy monitoring can be disabled independently from explicit selection translation.
         if (!UMEDTDictionaryPopupEngine.isClipboardMonitorEnabled(this)) {
             return;
         }
@@ -136,20 +112,10 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
         }
         lastCopyTriggerTimestampMs = now;
 
-        // Priority 1: If we just captured the highlighted text before the user tapped Copy, look it up directly in 0ms!
-        if (!lastSelectedText.isEmpty() && (now - lastSelectedTimestampMs) < 20000L) {
-            if (tryShowTranslationForText(lastSelectedText, false)) {
-                return;
-            }
-        }
-
-        // Priority 1b: Try scanning active window root for any active text selection
-        String windowSelected = extractActiveWindowSelection();
-        if (!windowSelected.isEmpty() && tryShowTranslationForText(windowSelected, false)) {
-            return;
-        }
-
-        // Priority 2: Direct clipboard inspection (works on Android <= 9 or when OEM allows AccessibilityService)
+        // A copy event must resolve from the clipboard itself, never from a stale
+        // highlighted selection. This prevents a previous selection from triggering
+        // translation while the user is typing or selecting unrelated text.
+        // Direct clipboard inspection (works on Android <= 9 or when OEM allows AccessibilityService)
         JSONObject direct = UMEDTDictionaryPopupEngine.inspectClipboardAndShowIfMatched(this, false);
         if (direct != null) {
             return;
