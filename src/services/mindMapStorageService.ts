@@ -566,7 +566,7 @@ export function buildStandaloneMindMapSvg(
       const width = edge.isCrossLink ? 2.35 : 3.1;
       const opacity = edge.isCrossLink ? 0.34 : 0.94;
       const originDot = edge.isCrossLink
-        ? `<circle class="mm-edge-origin" cx="${edge.path.match(/^M\\s*(-?[\\d.]+)/)?.[1] || 0}" cy="${edge.path.match(/^M\\s*-?[\\d.]+\\s+(-?[\\d.]+)/)?.[1] || 0}" r="3.4" fill="${stroke}" />`
+        ? `<circle class="mm-edge-origin" cx="${edge.sourceX ?? 0}" cy="${edge.sourceY ?? 0}" r="3.4" fill="${stroke}" />`
         : '';
       return `<g class="mm-edge" data-edge-id="${escapeXml(edge.id)}" data-kind="${edge.isCrossLink ? 'cross-link' : 'tree-link'}" data-from="${escapeXml(edge.sourceId)}" data-to="${escapeXml(edge.targetId)}">
         <defs><marker id="${markerId}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 1 L 9 5 L 0 9 z" fill="${stroke}" /></marker></defs>
