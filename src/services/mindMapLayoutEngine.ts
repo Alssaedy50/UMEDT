@@ -8,7 +8,7 @@ import {
   PositionedMindMapNode
 } from '../types/mindMap';
 
-const MAX_LABEL_CHARS_PER_LINE = 24;
+const MAX_LABEL_CHARS_PER_LINE = 26;
 const MAX_LABEL_LINES = 2;
 
 export function wrapConciseNodeLabel(label: string): string[] {
@@ -22,9 +22,10 @@ export function wrapConciseNodeLabel(label: string): string[] {
 
   for (const word of words) {
     if (!current) {
-      current = word.length > MAX_LABEL_CHARS_PER_LINE
-        ? `${word.slice(0, MAX_LABEL_CHARS_PER_LINE - 1)}…`
-        : word;
+      current =
+        word.length > MAX_LABEL_CHARS_PER_LINE
+          ? `${word.slice(0, MAX_LABEL_CHARS_PER_LINE - 1)}…`
+          : word;
       continue;
     }
 
@@ -40,9 +41,10 @@ export function wrapConciseNodeLabel(label: string): string[] {
             : `${last}…`;
         return lines;
       }
-      current = word.length > MAX_LABEL_CHARS_PER_LINE
-        ? `${word.slice(0, MAX_LABEL_CHARS_PER_LINE - 1)}…`
-        : word;
+      current =
+        word.length > MAX_LABEL_CHARS_PER_LINE
+          ? `${word.slice(0, MAX_LABEL_CHARS_PER_LINE - 1)}…`
+          : word;
     }
   }
 
@@ -55,32 +57,18 @@ export function wrapConciseNodeLabel(label: string): string[] {
 export function truncateSublabel(sublabel?: string): string | undefined {
   const clean = String(sublabel || '').replace(/\s+/g, ' ').trim();
   if (!clean) return undefined;
-  return clean.length > 28 ? `${clean.slice(0, 27)}…` : clean;
+  return clean.length > 30 ? `${clean.slice(0, 29)}…` : clean;
 }
 
-function wrapNotePreview(note?: string): string[] {
-  const clean = String(note || '').replace(/\s+/g, ' ').trim();
-  if (!clean) return [];
-  const words = clean.split(' ');
-  const lines: string[] = [];
-  let current = '';
-  for (const word of words) {
-    const safeWord = word.length > 34 ? word.slice(0, 33) + '…' : word;
-    const next = current ? current + ' ' + safeWord : safeWord;
-    if (next.length <= 34) current = next;
-    else {
-      if (current) lines.push(current);
-      current = word;
-      if (lines.length === 2) break;
-    }
-  }
-  if (current && lines.length < 2) lines.push(current);
-  const rendered = lines.join(' ');
-  if (rendered.length < clean.length && lines.length) lines[lines.length - 1] = lines[lines.length - 1].replace(/[.…]*$/, '') + '…';
-  return lines.slice(0, 2);
-}
-
-function measureNodeBox(node: MindMapNode, isRoot: boolean): {
+/**
+ * Sleek, compact node card measurement:
+ * Fits 1-2 title lines + optional 1-line sublabel without redundant 3rd-line parent breadcrumb
+ * or multi-line note bloat inside the card.
+ */
+function measureNodeBox(
+  node: MindMapNode,
+  isRoot: boolean
+): {
   width: number;
   height: number;
   lines: string[];
@@ -89,28 +77,22 @@ function measureNodeBox(node: MindMapNode, isRoot: boolean): {
 } {
   const lines = wrapConciseNodeLabel(node.label);
   const sublabelLine = truncateSublabel(node.sublabel);
-  const noteLines = wrapNotePreview(node.note);
   const maxChars = Math.max(
     ...lines.map((l) => l.length),
-    sublabelLine ? Math.min(sublabelLine.length, 26) : 0,
-    ...noteLines.map((line) => line.length)
+    sublabelLine ? Math.min(sublabelLine.length, 28) : 0
   );
 
-  const minWidth = isRoot ? 204 : 164;
-  const maxWidth = isRoot ? 280 : 260;
-  const estimatedWidth = Math.round(maxChars * 7.6 + 48);
+  const minWidth = isRoot ? 192 : 156;
+  const maxWidth = isRoot ? 268 : 244;
+  const estimatedWidth = Math.round(maxChars * 7.4 + 42);
   const width = Math.max(minWidth, Math.min(maxWidth, estimatedWidth));
 
-  const baseHeight = isRoot ? 64 : 56;
-  const extraLine = lines.length > 1 ? 18 : 0;
+  const baseHeight = isRoot ? 54 : 46;
+  const extraLine = (lines.length - 1) * 17;
   const extraSub = sublabelLine ? 16 : 0;
-  const extraNote = noteLines.length * 13;
-  // Reserve a dedicated visual line for the parent label so every child card
-  // remains identifiable even when relationship connectors are dense.
-  const extraParent = node.parentId ? 15 : 0;
-  const height = baseHeight + extraLine + extraSub + extraNote + extraParent;
+  const height = baseHeight + extraLine + extraSub;
 
-  return { width, height, lines, sublabelLine, noteLines };
+  return { width, height, lines, sublabelLine, noteLines: [] };
 }
 
 function buildChildrenMap(nodes: MindMapNode[]): Map<string, MindMapNode[]> {
@@ -125,7 +107,11 @@ function buildChildrenMap(nodes: MindMapNode[]): Map<string, MindMapNode[]> {
     }
   }
   for (const [parentId, list] of map.entries()) {
-    list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || (sourceOrder.get(a.id) ?? 0) - (sourceOrder.get(b.id) ?? 0));
+    list.sort(
+      (a, b) =>
+        (a.order ?? 0) - (b.order ?? 0) ||
+        (sourceOrder.get(a.id) ?? 0) - (sourceOrder.get(b.id) ?? 0)
+    );
     map.set(parentId, list);
   }
   return map;
@@ -157,9 +143,7 @@ function collectVisibleNodeIds(
   const depthMap = new Map<string, number>();
   const nodeMap = new Map(doc.nodes.map((n) => [n.id, n]));
 
-  const rootId = nodeMap.has(doc.rootNodeId)
-    ? doc.rootNodeId
-    : doc.nodes[0]?.id;
+  const rootId = nodeMap.has(doc.rootNodeId) ? doc.rootNodeId : doc.nodes[0]?.id;
   if (!rootId) return { visibleIds, depthMap };
 
   const dfs = (id: string, depth: number) => {
@@ -178,7 +162,6 @@ function collectVisibleNodeIds(
   // Include any unattached / independent nodes (common in Medical Flow maps)
   for (const node of doc.nodes) {
     if (!visibleIds.has(node.id)) {
-      // Only include if it has no parent, or its parent does not exist in map (not hidden by collapse)
       const parentExists = Boolean(node.parentId && nodeMap.has(node.parentId));
       if (!parentExists) {
         dfs(node.id, 1);
@@ -202,18 +185,18 @@ function computeCubicPath(
     return {
       path,
       labelX: (sx + tx) / 2,
-      labelY: (sy + ty) / 2 - 8
+      labelY: (sy + ty) / 2 - 10
     };
   }
   const dy = ty - sy;
-  const ctrl = Math.max(38, Math.abs(dy) * 0.48);
+  const ctrl = Math.max(32, Math.abs(dy) * 0.45);
   const c1y = sy + (dy >= 0 ? ctrl : -ctrl);
   const c2y = ty - (dy >= 0 ? ctrl : -ctrl);
   const path = `M ${sx} ${sy} C ${sx} ${c1y}, ${tx} ${c2y}, ${tx} ${ty}`;
   return {
     path,
     labelX: (sx + tx) / 2,
-    labelY: (sy + ty) / 2 - 8
+    labelY: (sy + ty) / 2 - 10
   };
 }
 
@@ -226,39 +209,35 @@ function computeAnchorPoints(
   const dy = tgt.y - src.y;
 
   if (style === 'hierarchical') {
-    // Prefer the horizontal inter-column gutter when the nodes are horizontally separated;
-    // retain top/bottom ports for genuinely top-down parent-child placement.
-    if (Math.abs(dx) >= Math.max(24, Math.abs(dy) * 0.85)) {
-      const sx = dx >= 0 ? src.x + src.width / 2 + 5 : src.x - src.width / 2 - 5;
-      const tx = dx >= 0 ? tgt.x - tgt.width / 2 - 5 : tgt.x + tgt.width / 2 + 5;
+    if (Math.abs(dx) >= Math.max(24, Math.abs(dy) * 1.15)) {
+      const sx = dx >= 0 ? src.x + src.width / 2 + 4 : src.x - src.width / 2 - 4;
+      const tx = dx >= 0 ? tgt.x - tgt.width / 2 - 4 : tgt.x + tgt.width / 2 + 4;
       return { sx, sy: src.y, tx, ty: tgt.y, orientation: 'horizontal' };
     }
-    if (Math.abs(dy) >= 24) {
-      const sy = dy >= 0 ? src.y + src.height / 2 + 5 : src.y - src.height / 2 - 5;
-      const ty = dy >= 0 ? tgt.y - tgt.height / 2 - 5 : tgt.y + tgt.height / 2 + 5;
-      return { sx: src.x, sy, tx: tgt.x, ty, orientation: 'vertical' };
-    }
+    const sy = dy >= 0 ? src.y + src.height / 2 + 4 : src.y - src.height / 2 - 4;
+    const ty = dy >= 0 ? tgt.y - tgt.height / 2 - 4 : tgt.y + tgt.height / 2 + 4;
+    return { sx: src.x, sy, tx: tgt.x, ty, orientation: 'vertical' };
   }
 
   if (style === 'medical_flow') {
-    if (Math.abs(dx) >= Math.abs(dy) * 0.85) {
-      const sx = dx >= 0 ? src.x + src.width / 2 + 5 : src.x - src.width / 2 - 5;
-      const tx = dx >= 0 ? tgt.x - tgt.width / 2 - 5 : tgt.x + tgt.width / 2 + 5;
+    if (Math.abs(dx) >= Math.abs(dy) * 0.75) {
+      const sx = dx >= 0 ? src.x + src.width / 2 + 4 : src.x - src.width / 2 - 4;
+      const tx = dx >= 0 ? tgt.x - tgt.width / 2 - 4 : tgt.x + tgt.width / 2 + 4;
       return { sx, sy: src.y, tx, ty: tgt.y, orientation: 'horizontal' };
     }
-    const sy = dy >= 0 ? src.y + src.height / 2 + 5 : src.y - src.height / 2 - 5;
-    const ty = dy >= 0 ? tgt.y - tgt.height / 2 - 5 : tgt.y + tgt.height / 2 + 5;
+    const sy = dy >= 0 ? src.y + src.height / 2 + 4 : src.y - src.height / 2 - 4;
+    const ty = dy >= 0 ? tgt.y - tgt.height / 2 - 4 : tgt.y + tgt.height / 2 + 4;
     return { sx: src.x, sy, tx: tgt.x, ty, orientation: 'vertical' };
   }
 
   // Radial (bilateral / curved outward)
-  if (Math.abs(dx) >= Math.abs(dy) * 0.45) {
-    const sx = dx >= 0 ? src.x + src.width / 2 + 5 : src.x - src.width / 2 - 5;
-    const tx = dx >= 0 ? tgt.x - tgt.width / 2 - 5 : tgt.x + tgt.width / 2 + 5;
+  if (Math.abs(dx) >= Math.abs(dy) * 0.42) {
+    const sx = dx >= 0 ? src.x + src.width / 2 + 4 : src.x - src.width / 2 - 4;
+    const tx = dx >= 0 ? tgt.x - tgt.width / 2 - 4 : tgt.x + tgt.width / 2 + 4;
     return { sx, sy: src.y, tx, ty: tgt.y, orientation: 'horizontal' };
   }
-  const sy = dy >= 0 ? src.y + src.height / 2 + 5 : src.y - src.height / 2 - 5;
-  const ty = dy >= 0 ? tgt.y - tgt.height / 2 - 5 : tgt.y + tgt.height / 2 + 5;
+  const sy = dy >= 0 ? src.y + src.height / 2 + 4 : src.y - src.height / 2 - 4;
+  const ty = dy >= 0 ? tgt.y - tgt.height / 2 - 4 : tgt.y + tgt.height / 2 + 4;
   return { sx: src.x, sy, tx: tgt.x, ty, orientation: 'vertical' };
 }
 
@@ -267,28 +246,58 @@ function computeCrossLinkPath(
   tgt: PositionedMindMapNode,
   laneX: number
 ): { path: string; labelX: number; labelY: number; sourceX: number; sourceY: number } {
-  // Cross-branch links always leave and re-enter through the outer-right card ports.
-  // The endpoint is kept 5px clear of the border so the complete arrowhead remains visible.
+  const dx = tgt.x - src.x;
+  const dy = tgt.y - src.y;
   const clearance = 5;
+
+  // If nodes are horizontally separated in different columns, connect directly between inner ports
+  // with an arched curve instead of forcing all curves outside the rightmost edge.
+  if (Math.abs(dx) > (src.width + tgt.width) * 0.55) {
+    const sourceX = dx >= 0 ? src.x + src.width / 2 + clearance : src.x - src.width / 2 - clearance;
+    const sourceY = src.y;
+    const targetX = dx >= 0 ? tgt.x - tgt.width / 2 - clearance : tgt.x + tgt.width / 2 + clearance;
+    const targetY = tgt.y;
+    const midX = (sourceX + targetX) / 2;
+    const arcLift = dy === 0 ? -34 : (dy > 0 ? -24 : 24);
+    const c1x = sourceX + (midX - sourceX) * 0.55;
+    const c2x = targetX - (targetX - midX) * 0.55;
+    const c1y = sourceY + arcLift;
+    const c2y = targetY + arcLift;
+    const path = `M ${sourceX} ${sourceY} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${targetX} ${targetY}`;
+    const labelX = (sourceX + 3 * c1x + 3 * c2x + targetX) / 8;
+    const labelY = (sourceY + 3 * c1y + 3 * c2y + targetY) / 8;
+    return { path, labelX, labelY, sourceX, sourceY };
+  }
+
+  // Same-column or vertical cross-link: route cleanly along the outer right lane
   const sourceX = src.x + src.width / 2 + clearance;
   const sourceY = src.y;
   const targetX = tgt.x + tgt.width / 2 + clearance;
   const targetY = tgt.y;
-  const c1x = Math.max(laneX, sourceX + 24);
-  const c2x = Math.max(laneX, targetX + 24);
+  const c1x = Math.max(laneX, sourceX + 26);
+  const c2x = Math.max(laneX, targetX + 26);
   const path = `M ${sourceX} ${sourceY} C ${c1x} ${sourceY}, ${c2x} ${targetY}, ${targetX} ${targetY}`;
 
-  // Exact cubic Bezier midpoint (t = 0.5), not the midpoint of the endpoint chord.
   const labelX = (sourceX + 3 * c1x + 3 * c2x + targetX) / 8;
   const labelY = (sourceY + 3 * sourceY + 3 * targetY + targetY) / 8;
   return { path, labelX, labelY, sourceX, sourceY };
 }
 
+function estimateEdgeLabelPillSize(label?: string): { width: number; height: number } {
+  if (!label) return { width: 0, height: 0 };
+  const clean = label.trim();
+  if (!clean) return { width: 0, height: 0 };
+  return {
+    width: Math.max(64, Math.min(230, Math.round(clean.length * 7.0 + 22))),
+    height: 24
+  };
+}
+
 /**
  * Computes deterministic, non-overlapping node & edge geometry for all 3 academic styles:
  * - radial: Balanced bilateral radial branches extending smoothly left & right from the central concept
- * - hierarchical: Top-down structured medical taxonomy tree with proportional subtree spacing
- * - medical_flow: Layered left-to-right clinical algorithm / pathophysiology pathway with arrows
+ * - hierarchical: Top-down structured medical taxonomy tree with multi-tier wrapping so mobile zoom stays large
+ * - medical_flow: Layered clinical algorithm / pathophysiology pathway with collision-free edge labels
  */
 export function computeMindMapLayout(
   doc: MindMapDocument,
@@ -326,21 +335,18 @@ export function computeMindMapLayout(
   const autoPositions = new Map<string, { x: number; y: number; side: 'center' | 'left' | 'right' }>();
 
   if (doc.style === 'radial') {
-    // Balanced Bilateral Radial Mind Map:
-    // Root sits at (0,0); Level-1 branches split symmetrically between right and left wings,
-    // each subtree allocated vertical space proportional to its leaf span so zero nodes collide.
     autoPositions.set(rootId, { x: 0, y: 0, side: 'center' });
     const rootChildren = getVisibleChildren(rootId);
 
-    const verticalGap = 40;
-    const horizontalGap = 104;
+    const verticalGap = 24;
+    const horizontalGap = 74;
 
     const subtreeHeightCache = new Map<string, number>();
     const measureSubtreeHeight = (id: string, seen = new Set<string>()): number => {
       if (subtreeHeightCache.has(id)) return subtreeHeightCache.get(id)!;
-      if (seen.has(id)) return 64;
+      if (seen.has(id)) return 54;
       seen.add(id);
-      const box = boxes.get(id) || { width: 160, height: 52 };
+      const box = boxes.get(id) || { width: 160, height: 48 };
       const kids = getVisibleChildren(id);
       if (kids.length === 0) {
         subtreeHeightCache.set(id, box.height);
@@ -380,7 +386,7 @@ export function computeMindMapLayout(
     ) => {
       if (seen.has(id)) return;
       seen.add(id);
-      const box = boxes.get(id) || { width: 160, height: 52 };
+      const box = boxes.get(id) || { width: 160, height: 48 };
       const x = parentX + dir * (parentWidth / 2 + horizontalGap + box.width / 2);
       autoPositions.set(id, { x, y: centerY, side: dir === 1 ? 'right' : 'left' });
 
@@ -400,10 +406,10 @@ export function computeMindMapLayout(
       }
     };
 
-    const rootBox = boxes.get(rootId) || { width: 210, height: 64 };
+    const rootBox = boxes.get(rootId) || { width: 200, height: 54 };
     const placeWing = (branchRoots: MindMapNode[], dir: 1 | -1) => {
       if (branchRoots.length === 0) return;
-      const wingGap = 40;
+      const wingGap = 26;
       const totalH =
         branchRoots.reduce((acc, k) => acc + measureSubtreeHeight(k.id), 0) +
         wingGap * (branchRoots.length - 1);
@@ -418,27 +424,50 @@ export function computeMindMapLayout(
     placeWing(rightBranchRoots, 1);
     placeWing(leftBranchRoots, -1);
   } else if (doc.style === 'hierarchical') {
-    // Top-Down Structured Medical Taxonomy Tree
-    const hGap = 62;
-    const levelGap = 124;
+    // Top-Down Structured Medical Taxonomy Tree with Mobile-Friendly Aspect Ratio
+    // Wraps wide sibling sets into balanced tiers (max 4 columns per tier) so the graph
+    // never becomes 2800px wide and never shrinks to an unreadable 16% zoom.
+    const hGap = 26;
+    const levelGap = 76;
+    const tierGap = 68;
+    const maxColsPerRow = 4;
 
-    const subtreeWidthCache = new Map<string, number>();
-    const measureSubtreeWidth = (id: string, seen = new Set<string>()): number => {
-      if (subtreeWidthCache.has(id)) return subtreeWidthCache.get(id)!;
-      if (seen.has(id)) return 170;
+    const subtreeSizeCache = new Map<string, { width: number; height: number }>();
+    const measureSubtreeSize = (
+      id: string,
+      seen = new Set<string>()
+    ): { width: number; height: number } => {
+      if (subtreeSizeCache.has(id)) return subtreeSizeCache.get(id)!;
+      if (seen.has(id)) return { width: 170, height: 50 };
       seen.add(id);
-      const box = boxes.get(id) || { width: 170, height: 52 };
+      const box = boxes.get(id) || { width: 170, height: 50 };
       const kids = getVisibleChildren(id);
       if (kids.length === 0) {
-        subtreeWidthCache.set(id, box.width);
-        return box.width;
+        const res = { width: box.width, height: box.height };
+        subtreeSizeCache.set(id, res);
+        return res;
       }
-      const sumKids =
-        kids.reduce((acc, k) => acc + measureSubtreeWidth(k.id, seen), 0) +
-        hGap * (kids.length - 1);
-      const w = Math.max(box.width, sumKids);
-      subtreeWidthCache.set(id, w);
-      return w;
+
+      // Split kids into rows of up to maxColsPerRow
+      let maxRowW = box.width;
+      let totalTiersH = 0;
+      for (let i = 0; i < kids.length; i += maxColsPerRow) {
+        const chunk = kids.slice(i, i + maxColsPerRow);
+        const chunkSizes = chunk.map((k) => measureSubtreeSize(k.id, new Set(seen)));
+        const rowW =
+          chunkSizes.reduce((acc, s) => acc + s.width, 0) +
+          hGap * Math.max(0, chunk.length - 1);
+        const rowH = Math.max(...chunkSizes.map((s) => s.height), 48);
+        if (rowW > maxRowW) maxRowW = rowW;
+        totalTiersH += rowH + (i > 0 ? tierGap : 0);
+      }
+
+      const res = {
+        width: maxRowW,
+        height: box.height + levelGap + totalTiersH
+      };
+      subtreeSizeCache.set(id, res);
+      return res;
     };
 
     const placeHierarchical = (
@@ -449,30 +478,36 @@ export function computeMindMapLayout(
     ) => {
       if (seen.has(id)) return;
       seen.add(id);
-      const box = boxes.get(id) || { width: 170, height: 52 };
+      const box = boxes.get(id) || { width: 170, height: 50 };
       const y = topY + box.height / 2;
       autoPositions.set(id, { x: centerX, y, side: 'center' });
 
       const kids = getVisibleChildren(id);
       if (kids.length === 0) return;
 
-      const totalW =
-        kids.reduce((acc, k) => acc + measureSubtreeWidth(k.id), 0) +
-        hGap * (kids.length - 1);
-      let cursorX = centerX - totalW / 2;
-      const nextTopY = topY + box.height + levelGap;
+      let tierTopY = topY + box.height + levelGap;
+      for (let i = 0; i < kids.length; i += maxColsPerRow) {
+        const chunk = kids.slice(i, i + maxColsPerRow);
+        const chunkSizes = chunk.map((k) => measureSubtreeSize(k.id));
+        const rowW =
+          chunkSizes.reduce((acc, s) => acc + s.width, 0) +
+          hGap * Math.max(0, chunk.length - 1);
+        const rowH = Math.max(...chunkSizes.map((s) => s.height), 48);
+        let cursorX = centerX - rowW / 2;
 
-      for (const kid of kids) {
-        const kw = measureSubtreeWidth(kid.id);
-        placeHierarchical(kid.id, cursorX + kw / 2, nextTopY, seen);
-        cursorX += kw + hGap;
+        for (let j = 0; j < chunk.length; j++) {
+          const kid = chunk[j];
+          const kw = chunkSizes[j].width;
+          placeHierarchical(kid.id, cursorX + kw / 2, tierTopY, seen);
+          cursorX += kw + hGap;
+        }
+        tierTopY += rowH + tierGap;
       }
     };
 
     placeHierarchical(rootId, 0, 0);
   } else {
     // Medical Flow Map (Layered Clinical Pathway / Diagnostic-Treatment Algorithm)
-    // Assign layers via BFS across BOTH parent-child relations and explicit directed edges
     const outgoing = new Map<string, string[]>();
     for (const id of visibleIds) {
       outgoing.set(id, []);
@@ -505,7 +540,6 @@ export function computeMindMapLayout(
       }
     }
 
-    // Any disconnected visible nodes go to layer 1
     for (const id of visibleIds) {
       if (!layerOf.has(id)) {
         layerOf.set(id, depthMap.get(id) || 1);
@@ -529,26 +563,28 @@ export function computeMindMapLayout(
     };
     rankTree(rootId);
     const sortedLayers = Array.from(layers.keys()).sort((a, b) => a - b);
-    const colGap = 128;
-    const rowGap = 52;
+    const colGap = 96;
+    const rowGap = 38;
     let cursorX = 0;
 
     for (const layerIdx of sortedLayers) {
       const ids = layers.get(layerIdx) || [];
-      ids.sort((a, b) => (hierarchyRank.get(a) ?? Number.MAX_SAFE_INTEGER) - (hierarchyRank.get(b) ?? Number.MAX_SAFE_INTEGER));
-
-      const maxColWidth = Math.max(
-        ...ids.map((id) => (boxes.get(id)?.width ?? 170))
+      ids.sort(
+        (a, b) =>
+          (hierarchyRank.get(a) ?? Number.MAX_SAFE_INTEGER) -
+          (hierarchyRank.get(b) ?? Number.MAX_SAFE_INTEGER)
       );
+
+      const maxColWidth = Math.max(...ids.map((id) => boxes.get(id)?.width ?? 170));
       const totalColHeight =
-        ids.reduce((acc, id) => acc + (boxes.get(id)?.height ?? 54), 0) +
+        ids.reduce((acc, id) => acc + (boxes.get(id)?.height ?? 48), 0) +
         rowGap * Math.max(0, ids.length - 1);
 
       const centerX = cursorX + maxColWidth / 2;
       let cursorY = -totalColHeight / 2;
 
       for (const id of ids) {
-        const box = boxes.get(id) || { width: 170, height: 54 };
+        const box = boxes.get(id) || { width: 170, height: 48 };
         autoPositions.set(id, {
           x: centerX,
           y: cursorY + box.height / 2,
@@ -561,20 +597,18 @@ export function computeMindMapLayout(
     }
   }
 
-  // Fallback position for any independent visible nodes not placed by tree traversal
   let extraIndex = 0;
   for (const id of visibleIds) {
     if (!autoPositions.has(id)) {
       autoPositions.set(id, {
-        x: 260,
-        y: 180 + extraIndex * 96,
+        x: 240,
+        y: 160 + extraIndex * 84,
         side: 'right'
       });
       extraIndex += 1;
     }
   }
 
-  // Assemble Positioned Nodes (respecting manual user drag positions when set)
   const positionedNodes: PositionedMindMapNode[] = [];
   const positionedMap = new Map<string, PositionedMindMapNode>();
 
@@ -583,18 +617,18 @@ export function computeMindMapLayout(
     if (!node) continue;
     const box = boxes.get(id)!;
     const auto = autoPositions.get(id) || { x: 0, y: 0, side: 'center' as const };
-    const x = typeof node.position?.x === 'number' && Number.isFinite(node.position.x)
-      ? node.position.x
-      : auto.x;
-    const y = typeof node.position?.y === 'number' && Number.isFinite(node.position.y)
-      ? node.position.y
-      : auto.y;
+    const x =
+      typeof node.position?.x === 'number' && Number.isFinite(node.position.x)
+        ? node.position.x
+        : auto.x;
+    const y =
+      typeof node.position?.y === 'number' && Number.isFinite(node.position.y)
+        ? node.position.y
+        : auto.y;
 
     const allChildren = childrenMap.get(id) || [];
     const isCollapsed = collapsedIds.has(id) && allChildren.length > 0;
-    const hiddenDescendantsCount = isCollapsed
-      ? countAllDescendants(id, childrenMap)
-      : 0;
+    const hiddenDescendantsCount = isCollapsed ? countAllDescendants(id, childrenMap) : 0;
 
     const pNode: PositionedMindMapNode = {
       node,
@@ -616,7 +650,6 @@ export function computeMindMapLayout(
   }
 
   // Resolve imported/manual coordinate collisions before drawing connectors.
-  // Move a colliding branch as a unit so parent-child geometry remains coherent.
   const positionedById = new Map(positionedNodes.map((node) => [node.node.id, node]));
   const orderedForCollision = [...positionedNodes].sort(
     (a, b) => a.depth - b.depth || a.y - b.y || a.x - b.x
@@ -639,14 +672,14 @@ export function computeMindMapLayout(
       const collision = placedForCollision.find((placed) => {
         if (branchIds.has(placed.node.id)) return false;
         const horizontalOverlap =
-          Math.abs(current.x - placed.x) < (current.width + placed.width) / 2 + 18;
+          Math.abs(current.x - placed.x) < (current.width + placed.width) / 2 + 16;
         const verticalOverlap =
-          top < placed.y + placed.height / 2 + 22 &&
-          bottom > placed.y - placed.height / 2 - 22;
+          top < placed.y + placed.height / 2 + 18 &&
+          bottom > placed.y - placed.height / 2 - 18;
         return horizontalOverlap && verticalOverlap;
       });
       if (!collision) break;
-      const requiredTop = collision.y + collision.height / 2 + 24;
+      const requiredTop = collision.y + collision.height / 2 + 20;
       shiftY = Math.max(shiftY, requiredTop - (current.y - current.height / 2));
     }
 
@@ -695,8 +728,7 @@ export function computeMindMapLayout(
       labelX: curve.labelX,
       labelY: curve.labelY,
       isCrossLink: false,
-      directed:
-        matchingCustomEdge?.directed ?? doc.style === 'medical_flow',
+      directed: matchingCustomEdge?.directed ?? doc.style === 'medical_flow',
       lineStyle: matchingCustomEdge?.lineStyle || 'solid',
       role: pNode.node.role as MindMapNodeRole
     });
@@ -704,16 +736,17 @@ export function computeMindMapLayout(
 
   const crossEdges = (doc.edges || []).filter((edge) => {
     const pairKey = `${edge.sourceId}::${edge.targetId}`;
-    return !renderedEdgePairs.has(pairKey) &&
+    return (
+      !renderedEdgePairs.has(pairKey) &&
       positionedMap.has(edge.sourceId) &&
       positionedMap.has(edge.targetId) &&
-      edge.sourceId !== edge.targetId;
+      edge.sourceId !== edge.targetId
+    );
   });
   const rightmostCardEdge = Math.max(
     ...positionedNodes.map((node) => node.x + node.width / 2),
     0
   );
-  // Greedy interval coloring: links with overlapping vertical spans use separate lanes.
   const laneIntervals: Array<Array<[number, number]>> = [];
   const edgeLane = new Map<string, number>();
   const sortedCrossEdges = [...crossEdges].sort((a, b) => {
@@ -741,7 +774,7 @@ export function computeMindMapLayout(
     const pSrc = positionedMap.get(edge.sourceId)!;
     const pTgt = positionedMap.get(edge.targetId)!;
     const laneIndex = edgeLane.get(edge.id) || 0;
-    const laneX = rightmostCardEdge + 42 + laneIndex * 28;
+    const laneX = rightmostCardEdge + 38 + laneIndex * 32;
     const curve = computeCrossLinkPath(pSrc, pTgt, laneX);
     positionedEdges.push({
       id: edge.id,
@@ -759,7 +792,80 @@ export function computeMindMapLayout(
       role: pTgt.node.role
     });
   }
-  // Compute overall bounding box with generous academic margin
+
+  // Edge Label Collision Avoidance & Viewport Bounds Inclusion:
+  // Prevent secondary cross-link edge labels ("depolarized by graded stimuli to", "threshold reached")
+  // from stacking on top of each other or overlapping node cards.
+  const occupiedRects: Array<{ minX: number; minY: number; maxX: number; maxY: number }> =
+    positionedNodes.map((pn) => ({
+      minX: pn.x - pn.width / 2 - 6,
+      minY: pn.y - pn.height / 2 - 6,
+      maxX: pn.x + pn.width / 2 + 6,
+      maxY: pn.y + pn.height / 2 + 6
+    }));
+
+  const candidateOffsets: Array<[number, number]> = [
+    [0, 0],
+    [0, -24],
+    [0, 24],
+    [-28, -22],
+    [-28, 22],
+    [0, -48],
+    [0, 48],
+    [-44, 0],
+    [28, -24],
+    [28, 24],
+    [0, -72],
+    [0, 72]
+  ];
+
+  for (const edge of positionedEdges) {
+    if (!edge.label) continue;
+    const pill = estimateEdgeLabelPillSize(edge.label);
+    if (pill.width <= 0) continue;
+
+    let bestX = edge.labelX;
+    let bestY = edge.labelY;
+
+    // For outer right-lane cross-links, pull label slightly inward so it doesn't jut out past the lane
+    if (edge.isCrossLink && bestX > rightmostCardEdge + 12) {
+      bestX = Math.min(bestX, rightmostCardEdge + 24);
+    }
+
+    for (const [dx, dy] of candidateOffsets) {
+      const cx = bestX + dx;
+      const cy = bestY + dy;
+      const rect = {
+        minX: cx - pill.width / 2 - 4,
+        minY: cy - pill.height / 2 - 3,
+        maxX: cx + pill.width / 2 + 4,
+        maxY: cy + pill.height / 2 + 3
+      };
+      const collides = occupiedRects.some(
+        (r) =>
+          rect.minX < r.maxX &&
+          rect.maxX > r.minX &&
+          rect.minY < r.maxY &&
+          rect.maxY > r.minY
+      );
+      if (!collides) {
+        bestX = cx;
+        bestY = cy;
+        break;
+      }
+    }
+
+    edge.labelX = Math.round(bestX);
+    edge.labelY = Math.round(bestY);
+    occupiedRects.push({
+      minX: edge.labelX - pill.width / 2 - 4,
+      minY: edge.labelY - pill.height / 2 - 3,
+      maxX: edge.labelX + pill.width / 2 + 4,
+      maxY: edge.labelY + pill.height / 2 + 3
+    });
+  }
+
+  // Compute overall bounding box including both node cards and edge label pills
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -769,7 +875,17 @@ export function computeMindMapLayout(
     minX = Math.min(minX, pn.x - pn.width / 2);
     maxX = Math.max(maxX, pn.x + pn.width / 2);
     minY = Math.min(minY, pn.y - pn.height / 2);
-    maxY = Math.max(maxY, pn.y + pn.height / 2);
+    maxY = Math.max(maxY, pn.y + pn.height / 2 + (pn.hasChildren ? 18 : 0));
+  }
+
+  for (const edge of positionedEdges) {
+    if (edge.label) {
+      const pill = estimateEdgeLabelPillSize(edge.label);
+      minX = Math.min(minX, edge.labelX - pill.width / 2 - 8);
+      maxX = Math.max(maxX, edge.labelX + pill.width / 2 + 8);
+      minY = Math.min(minY, edge.labelY - pill.height / 2 - 8);
+      maxY = Math.max(maxY, edge.labelY + pill.height / 2 + 8);
+    }
   }
 
   if (!Number.isFinite(minX)) {
@@ -780,10 +896,10 @@ export function computeMindMapLayout(
   }
 
   const outerLaneCount = Math.max(1, ...Array.from(edgeLane.values(), (lane) => lane + 1));
-  const outerLaneExtent = crossEdges.length ? 42 + outerLaneCount * 28 + 24 : 0;
-  const padding = 104;
+  const outerLaneExtent = crossEdges.length ? 36 + outerLaneCount * 24 : 0;
+  const padding = 52;
   minX -= padding;
-  maxX += padding + outerLaneExtent;
+  maxX += Math.max(padding, outerLaneExtent);
   minY -= padding;
   maxY += padding;
 

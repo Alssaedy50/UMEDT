@@ -18,6 +18,7 @@ import { computeMindMapLayout } from '../services/mindMapLayoutEngine';
 import { buildStandaloneMindMapSvg, upsertMindMap } from '../services/mindMapStorageService';
 import { buildStandaloneMindMapHtmlV2 as buildStandaloneMindMapHtml } from '../services/mindMapStandaloneExportServiceV2';
 import { prepareAndDownloadFile } from '../utils/downloadHelper';
+import { detectTextDirection, isLatinLeadText } from '../utils/bidiHelper';
 
 interface MindMapFullScreenViewerProps {
   mapDocument: MindMapDocument;
@@ -27,6 +28,7 @@ interface MindMapFullScreenViewerProps {
 }
 
 type PointerPoint = { x: number; y: number };
+type SheetSnapState = 'minimized' | 'compact' | 'expanded';
 type Gesture =
   | {
       type: 'pan';
@@ -70,6 +72,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   showToast,
   onChangeDocument
 }) => {
+  const headerRef = useRef<HTMLElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const pointersRef = useRef<Map<number, PointerPoint>>(new Map());
@@ -94,6 +97,9 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   const [showNodesPanel, setShowNodesPanel] = useState(false);
   const [showToolsMenu, setShowToolsMenu] = useState(false);
   const [showRelationships, setShowRelationships] = useState(true);
+  const [showCrossEdgeLabels, setShowCrossEdgeLabels] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth > 640 : false
+  );
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [activeColorMode, setActiveColorMode] = useState<MindMapColorMode>(mapDocument.colorMode || 'branch');
   const [selectedSwatchColor, setSelectedSwatchColor] = useState<string>(MIND_MAP_COLOR_SWATCHES[0].base);
@@ -150,7 +156,13 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     selectedNodeIdRef.current = selectedNodeId;
   }, [selectedNodeId]);
 
-  const [isNoteExpanded, setIsNoteExpanded] = useState(false);
+  const [sheetSnap, setSheetSnap] = useState<SheetSnapState>('compact');
+  const sheetSnapRef = useRef<SheetSnapState>('compact');
+  useEffect(() => {
+    sheetSnapRef.current = sheetSnap;
+  }, [sheetSnap]);
+  const sheetDragStartYRef = useRef<number | null>(null);
+
   const [isSequentialMode, setIsSequentialMode] = useState(false);
   const [sequenceIndex, setSequenceIndex] = useState(0);
 
@@ -334,22 +346,29 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     []
   );
 
+  const getReservedBottomHeight = useCallback(
+    (vh: number, hasSelected: boolean, snap: SheetSnapState, isSeq = false): number => {
+      const seqHeight = isSeq ? 58 : 0;
+      if (!hasSelected) return 18 + seqHeight;
+      if (snap === 'minimized') return 64 + seqHeight;
+      if (snap === 'expanded') return Math.min(340, Math.round(vh * 0.45)) + 16 + seqHeight;
+      return Math.min(185, Math.round(vh * 0.22)) + 14 + seqHeight;
+    },
+    []
+  );
+
   /**
    * Frames a target node AND all of its currently visible direct child cards
-   * inside the visible viewport area (above the bottom details sheet).
-   * Notice that SVG viewBox="${layout.bounds.minX} ${layout.bounds.minY} ${width} ${height}"
-   * ALREADY shifts user-space coordinates by (-layout.bounds.minX, -layout.bounds.minY),
-   * so any user-space point (ux, uy) is located at CSS pixel (ux - minX, uy - minY) inside stageRef!
+   * inside the unobstructed middle canvas area (between top header/bar and bottom sheet).
    */
   const focusNodeCluster = useCallback(
-    (nodeId: string, includeParent = false) => {
+    (nodeId: string, includeParent = false, snapOverride?: SheetSnapState) => {
       const viewport = viewportRef.current;
       if (!viewport) return;
       const targetPositioned = layout.nodes.find((n) => n.node.id === nodeId);
       if (!targetPositioned) return;
 
       const clusterNodes = [targetPositioned];
-      // Always include currently visible direct child cards so revealed cards never get clipped off-screen
       layout.nodes.forEach((n) => {
         if (n.node.parentId === nodeId) {
           clusterNodes.push(n);
@@ -381,24 +400,31 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
         if (localBottom > maxLocalY) maxLocalY = localBottom;
       }
 
-      const padX = 28;
-      const padY = 28;
+      const padX = 26;
+      const padY = 24;
       const clusterW = Math.max(140, maxLocalX - minLocalX + padX * 2);
       const clusterH = Math.max(90, maxLocalY - minLocalY + padY * 2);
       const localCenterX = (minLocalX + maxLocalX) / 2;
       const localCenterY = (minLocalY + maxLocalY) / 2;
 
-      const topInset = isSequentialMode ? 68 : 14;
-      const reservedBottom = Math.min(215, viewport.clientHeight * 0.29) + 14;
+      const topInset = 16;
+      const activeSnap = snapOverride || sheetSnapRef.current;
+      const reservedBottom = getReservedBottomHeight(
+        viewport.clientHeight,
+        true,
+        activeSnap,
+        isSequentialMode
+      );
       const usableWidth = Math.max(200, viewport.clientWidth - 20);
-      const usableHeight = Math.max(150, viewport.clientHeight - topInset - reservedBottom);
+      const usableHeight = Math.max(140, viewport.clientHeight - topInset - reservedBottom);
 
       const fitScale = Math.min(usableWidth / clusterW, usableHeight / clusterH);
       const currentZoom = transformRef.current.zoom;
+      const minReadableScale = viewport.clientWidth <= 640 ? 0.44 : 0.34;
       const nextScale =
         clusterNodes.length > 1
-          ? Math.max(0.22, Math.min(1.12, fitScale))
-          : Math.max(0.68, Math.min(1.15, Math.min(currentZoom < 0.68 ? 0.92 : currentZoom, fitScale)));
+          ? Math.max(minReadableScale, Math.min(1.12, fitScale))
+          : Math.max(0.72, Math.min(1.15, Math.min(currentZoom < 0.72 ? 0.94 : currentZoom, fitScale)));
 
       const targetScreenX = viewport.clientWidth / 2;
       const targetScreenY = topInset + usableHeight / 2;
@@ -412,13 +438,15 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
         true
       );
     },
-    [layout, isSequentialMode, applyTransform]
+    [layout, isSequentialMode, applyTransform, getReservedBottomHeight]
   );
 
   const focusPrimaryOverview = useCallback(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
-    const primaryNodes = layout.nodes.filter((node) => node.node.id === mapDocument.rootNodeId || node.depth === 1);
+    const primaryNodes = layout.nodes.filter(
+      (node) => node.node.id === mapDocument.rootNodeId || node.depth === 1
+    );
     if (!primaryNodes.length) return;
     const minX = Math.min(...primaryNodes.map((node) => node.x - node.width / 2));
     const maxX = Math.max(...primaryNodes.map((node) => node.x + node.width / 2));
@@ -426,34 +454,50 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     const maxY = Math.max(...primaryNodes.map((node) => node.y + node.height / 2));
     const clusterWidth = Math.max(1, maxX - minX + 56);
     const clusterHeight = Math.max(1, maxY - minY + 56);
-    const topInset = 12;
-    const reservedBottom = Math.min(190, viewport.clientHeight * 0.24);
+    const topInset = 16;
+    const reservedBottom = getReservedBottomHeight(
+      viewport.clientHeight,
+      Boolean(selectedNodeIdRef.current),
+      sheetSnapRef.current,
+      isSequentialMode
+    );
     const usableWidth = Math.max(200, viewport.clientWidth - 24);
     const usableHeight = Math.max(150, viewport.clientHeight - topInset - reservedBottom);
     const fitScale = Math.min(usableWidth / clusterWidth, usableHeight / clusterHeight);
-    const scale = viewport.clientWidth <= 640 ? Math.max(0.65, Math.min(0.8, fitScale)) : Math.min(1.1, fitScale);
+    const scale =
+      viewport.clientWidth <= 640
+        ? Math.max(0.55, Math.min(0.88, fitScale))
+        : Math.max(0.45, Math.min(1.1, fitScale));
     const centerX = (minX + maxX) / 2 - layout.bounds.minX;
     const centerY = (minY + maxY) / 2 - layout.bounds.minY;
-    applyTransform(scale, { x: viewport.clientWidth / 2 - centerX * scale, y: topInset + usableHeight / 2 - centerY * scale }, true);
-  }, [layout, mapDocument.rootNodeId, applyTransform]);
+    applyTransform(
+      scale,
+      {
+        x: viewport.clientWidth / 2 - centerX * scale,
+        y: topInset + usableHeight / 2 - centerY * scale
+      },
+      true
+    );
+  }, [layout, mapDocument.rootNodeId, isSequentialMode, applyTransform, getReservedBottomHeight]);
 
   const fitToView = useCallback(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
     const width = Math.max(1, layout.bounds.width || 900);
     const height = Math.max(1, layout.bounds.height || 600);
-    const topInset = isSequentialMode ? 64 : 10;
-    const reservedBottom = selectedNodeIdRef.current
-      ? Math.min(190, viewport.clientHeight * 0.25)
-      : 16;
+    const topInset = 14;
+    const reservedBottom = getReservedBottomHeight(
+      viewport.clientHeight,
+      Boolean(selectedNodeIdRef.current),
+      sheetSnapRef.current,
+      isSequentialMode
+    );
     const usableWidth = Math.max(200, viewport.clientWidth - 16);
     const usableHeight = Math.max(150, viewport.clientHeight - topInset - reservedBottom);
-    const scale = Math.max(
-      0.16,
-      Math.min(1.5, Math.min(usableWidth / width, usableHeight / height) * 0.95)
-    );
-    // Because <svg viewBox="minX minY width height" width="width" height="height"> already maps
-    // (minX, minY) to CSS pixel (0, 0), the SVG's local pixel box is strictly [0..width, 0..height].
+    const rawFit = Math.min(usableWidth / width, usableHeight / height) * 0.95;
+    const minZoomFloor =
+      collapsedIds.size > 0 && viewport.clientWidth <= 640 ? 0.36 : 0.26;
+    const scale = Math.max(minZoomFloor, Math.min(1.5, rawFit));
     applyTransform(
       scale,
       {
@@ -462,14 +506,21 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       },
       true
     );
-  }, [layout.bounds.width, layout.bounds.height, isSequentialMode, applyTransform]);
+  }, [
+    layout.bounds.width,
+    layout.bounds.height,
+    isSequentialMode,
+    collapsedIds.size,
+    applyTransform,
+    getReservedBottomHeight
+  ]);
 
   const zoomByFactor = useCallback(
     (factor: number) => {
       const viewport = viewportRef.current;
       if (!viewport) return;
       const current = transformRef.current;
-      const nextZoom = Math.max(0.16, Math.min(3.2, current.zoom * factor));
+      const nextZoom = Math.max(0.22, Math.min(3.2, current.zoom * factor));
       const cx = viewport.clientWidth / 2;
       const cy = viewport.clientHeight * 0.42;
       const worldX = (cx - current.pan.x) / current.zoom;
@@ -494,13 +545,11 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
         const hasChildren = (childCountMap.get(targetId) || 0) > 0;
         setCollapsedIds((previous) => {
           const next = new Set(previous);
-          // Uncollapse all ancestors of targetId
           let parentId: string | null = byId.get(targetId)?.parentId || null;
           while (parentId) {
             next.delete(parentId);
             parentId = byId.get(parentId)?.parentId || null;
           }
-          // If the tapped node itself has collapsed children, reveal its direct children
           if (hasChildren && next.has(targetId)) {
             next.delete(targetId);
           }
@@ -509,7 +558,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       }
       setSelectedEdgeId(null);
       setSelectedNodeId(targetId);
-      setIsNoteExpanded(false);
+      setSheetSnap((prev) => (prev === 'minimized' ? 'compact' : prev));
       if (isSequentialMode) {
         const index = sequenceNodes.findIndex((node) => node.id === targetId);
         if (index >= 0) setSequenceIndex(index);
@@ -724,7 +773,8 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   ]);
 
   // Elevate only the selected relationship (or all links attached to the selected node)
-  // into the pointer-transparent overlay above cards.
+  // into the pointer-transparent overlay above cards, and hide secondary cross-link labels
+  // on mobile until zoomed in or tapped unless showCrossEdgeLabels is enabled.
   useEffect(() => {
     const svg = stageRef.current?.querySelector('svg');
     if (!svg) return;
@@ -750,7 +800,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       const isActive = activeIds.has(edge.dataset.edgeId || '');
       const cross = edge.dataset.kind === 'cross-link';
       edge.style.display = cross && !showRelationships ? 'none' : '';
-      edge.style.opacity = (selectedNodeId || selectedEdgeId) && !isActive ? '0.12' : '';
+      edge.style.opacity = (selectedNodeId || selectedEdgeId) && !isActive ? '0.14' : '';
       if (isActive && (!cross || showRelationships)) {
         const clone = edge.cloneNode(true) as SVGGElement;
         clone.style.opacity = '1';
@@ -761,15 +811,18 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
         overlay.appendChild(clone);
       }
     });
+    const hideSecondaryCrossLabels = !showCrossEdgeLabels && zoom < 0.85;
     labelGroups.forEach((label) => {
       const isActive = activeIds.has(label.dataset.edgeId || '');
       const edgeId = label.dataset.edgeId || '';
       const relatedEdge = edgeGroups.find((edge) => edge.dataset.edgeId === edgeId);
-      const cross = relatedEdge?.dataset.kind === 'cross-link';
-      label.style.display = cross && !showRelationships ? 'none' : '';
-      label.style.opacity = (selectedNodeId || selectedEdgeId) && !isActive ? '0.12' : '';
+      const cross = relatedEdge?.dataset.kind === 'cross-link' || label.dataset.crossLink === 'true';
+      const hideByToggle = cross && (!showRelationships || (hideSecondaryCrossLabels && !isActive));
+      label.style.display = hideByToggle ? 'none' : '';
+      label.style.opacity = (selectedNodeId || selectedEdgeId) && !isActive ? '0.14' : '';
       if (isActive && (!cross || showRelationships)) {
         const clone = label.cloneNode(true) as SVGGElement;
+        clone.style.display = '';
         clone.style.opacity = '1';
         clone.querySelector('rect')?.setAttribute('stroke-width', '2.4');
         overlay.appendChild(clone);
@@ -777,12 +830,12 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     });
     svg.querySelectorAll<SVGGElement>('.mm-node[data-node-id]').forEach((node) => {
       const id = node.dataset.nodeId || '';
-      node.style.opacity = (selectedNodeId || selectedEdgeId) && !activeNodeIds.has(id) ? '0.38' : '';
+      node.style.opacity = (selectedNodeId || selectedEdgeId) && !activeNodeIds.has(id) && id !== selectedNodeId ? '0.38' : '';
       node.classList.toggle('relationship-focus', activeNodeIds.has(id));
-      node.style.filter = activeNodeIds.has(id) ? 'drop-shadow(0 0 10px rgba(16,185,129,.72))' : ''; 
+      node.style.filter = activeNodeIds.has(id) ? 'drop-shadow(0 0 10px rgba(16,185,129,.72))' : '';
     });
     overlay.setAttribute('pointer-events', 'none');
-  }, [svgMarkup, selectedNodeId, selectedEdgeId, showRelationships]);
+  }, [svgMarkup, selectedNodeId, selectedEdgeId, showRelationships, showCrossEdgeLabels, zoom]);
 
   // Unified camera framing effect: frames selected node + its visible children, or fits entire map
   useEffect(() => {
@@ -799,7 +852,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
 
     const frame = window.requestAnimationFrame(() => {
       if (selectedNodeId) {
-        focusNodeCluster(selectedNodeId);
+        focusNodeCluster(selectedNodeId, false, sheetSnap);
       } else if (initialCameraMapIdRef.current !== mapDocument.id) {
         initialCameraMapIdRef.current = mapDocument.id;
         focusPrimaryOverview();
@@ -810,7 +863,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
 
     const handleResize = () => {
       if (selectedNodeIdRef.current) {
-        focusNodeCluster(selectedNodeIdRef.current);
+        focusNodeCluster(selectedNodeIdRef.current, false, sheetSnapRef.current);
       } else {
         fitToView();
       }
@@ -820,7 +873,15 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       window.cancelAnimationFrame(frame);
       window.removeEventListener('resize', handleResize);
     };
-  }, [selectedNodeId, svgMarkup, focusNodeCluster, focusPrimaryOverview, fitToView, mapDocument.id]);
+  }, [
+    selectedNodeId,
+    sheetSnap,
+    svgMarkup,
+    focusNodeCluster,
+    focusPrimaryOverview,
+    fitToView,
+    mapDocument.id
+  ]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -880,7 +941,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
         y: center.y - (rect?.top || 0)
       };
       const nextZoom = Math.max(
-        0.16,
+        0.22,
         Math.min(
           3.2,
           (gesture.startScale * distance(points[0], points[1])) / gesture.startDistance
@@ -925,7 +986,6 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       } else if (gesture.edgeId) {
         setSelectedNodeId(null);
         setSelectedEdgeId(gesture.edgeId);
-        setIsNoteExpanded(false);
       } else {
         setSelectedNodeId(null);
         setSelectedEdgeId(null);
@@ -955,7 +1015,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     const cursor = { x: event.clientX - rect.left, y: event.clientY - rect.top };
     const current = transformRef.current;
     const nextZoom = Math.max(
-      0.16,
+      0.22,
       Math.min(3.2, current.zoom * (event.deltaY < 0 ? 1.12 : 0.89))
     );
     const worldX = (cursor.x - current.pan.x) / current.zoom;
@@ -982,13 +1042,15 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     showToast?.(result.initiated ? result.messageAr : result.error || 'تعذر حفظ ملف الخريطة');
   };
 
-  const toggleBrowserFullscreen = async () => {
+  const handleExitFullscreenViewer = async () => {
     try {
-      if (window.document.fullscreenElement) await window.document.exitFullscreen();
-      else await window.document.documentElement.requestFullscreen?.();
+      if (window.document.fullscreenElement) {
+        await window.document.exitFullscreen();
+      }
     } catch {
-      showToast?.('تعذر تفعيل ملء الشاشة في هذا المتصفح', 'info');
+      // ignore
     }
+    requestClose();
   };
 
   const selectedChildNodes = useMemo(() => {
@@ -996,6 +1058,19 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     return styledDocument.nodes
       .filter((node) => node.parentId === selectedNode.id)
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [styledDocument.nodes, selectedNode]);
+
+  const siblingNav = useMemo(() => {
+    if (!selectedNode || !selectedNode.parentId) return { prev: null, next: null };
+    const siblings = styledDocument.nodes
+      .filter((node) => node.parentId === selectedNode.parentId)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    if (siblings.length <= 1) return { prev: null, next: null };
+    const idx = siblings.findIndex((node) => node.id === selectedNode.id);
+    return {
+      prev: idx > 0 ? siblings[idx - 1] : null,
+      next: idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null
+    };
   }, [styledDocument.nodes, selectedNode]);
 
   // Hierarchy tree list for the Nodes & Branches Visibility Panel
@@ -1022,6 +1097,41 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
     return rows;
   }, [mapDocument.nodes, mapDocument.rootNodeId]);
 
+  const cycleSheetSnap = () => {
+    setSheetSnap((prev) => {
+      if (prev === 'minimized') return 'compact';
+      if (prev === 'compact') return 'expanded';
+      return 'minimized';
+    });
+  };
+
+  const handleSheetHandlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    sheetDragStartYRef.current = e.clientY;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+
+  const handleSheetHandlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    const startY = sheetDragStartYRef.current;
+    sheetDragStartYRef.current = null;
+    if (startY === null) return;
+    const dy = e.clientY - startY;
+    if (Math.abs(dy) < 12) {
+      cycleSheetSnap();
+      return;
+    }
+    if (dy > 20) {
+      // Dragged down
+      setSheetSnap((prev) => (prev === 'expanded' ? 'compact' : 'minimized'));
+    } else if (dy < -20) {
+      // Dragged up
+      setSheetSnap((prev) => (prev === 'minimized' ? 'compact' : 'expanded'));
+    }
+  };
+
+  const titleIsLatin = isLatinLeadText(mapDocument.title || '');
+
   return (
     <div
       className={`fixed inset-0 z-[120] flex flex-col overflow-hidden ${
@@ -1032,7 +1142,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       <style>{`
         .mm-node { cursor: pointer; outline: none; font-family: 'IBM Plex Sans Arabic', Inter, Cairo, sans-serif; }
         .mm-node rect, .mm-node polygon, .mm-node ellipse { filter: drop-shadow(0 3px 7px rgba(0,0,0,.22)); }
-        .mm-node text { font-family: 'IBM Plex Sans Arabic', Inter, Cairo, sans-serif; direction: auto; unicode-bidi: plaintext; }
+        .mm-node text { font-family: 'IBM Plex Sans Arabic', Inter, Cairo, sans-serif; unicode-bidi: isolate; }
         .mm-edge-label { pointer-events: none; }
         .mm-node:focus rect, .mm-node.selected rect,
         .mm-node:focus polygon, .mm-node.selected polygon,
@@ -1043,6 +1153,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
         }
       `}</style>
       <header
+        ref={headerRef}
         className={`relative z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-3 py-2 pt-[calc(env(safe-area-inset-top)+10px)] backdrop-blur-xl sm:flex-nowrap sm:px-5 ${
           isDark
             ? 'border-slate-800 bg-slate-950/95 text-white'
@@ -1050,17 +1161,32 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
         }`}
       >
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-black tracking-wide sm:text-base">
+          <div
+            dir="auto"
+            style={{ unicodeBidi: 'isolate' }}
+            className={`truncate text-sm font-black tracking-wide sm:text-base ${
+              titleIsLatin ? 'text-left' : 'text-right'
+            }`}
+          >
             {mapDocument.title || 'الخريطة الذهنية'}
           </div>
-          <div className="text-[10px] font-semibold text-slate-400">
-            انقر على أي عقدة لإظهار فروعها وتفاصيلها · اسحب للتحريك · إصبعان للتكبير والتصغير
+          <div className="truncate text-[10px] font-semibold text-slate-400">
+            انقر على أي عقدة لإظهار فروعها وتفاصيلها · اسحب للتحريك · إصبعان للتكبير
           </div>
         </div>
         <div ref={toolsContainerRef} className="relative flex shrink-0 items-center gap-1.5">
           <button
             type="button"
-            onClick={() => setShowToolsMenu((open) => !open)}
+            onClick={() => {
+              setShowToolsMenu((open) => {
+                const next = !open;
+                if (next) {
+                  setSheetSnap('minimized');
+                  setShowNodesPanel(false);
+                }
+                return next;
+              });
+            }}
             aria-expanded={showToolsMenu}
             aria-label="أدوات الخريطة"
             className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-extrabold shadow-sm ${
@@ -1080,7 +1206,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
               dir="rtl"
               onPointerDown={(event) => event.stopPropagation()}
               onWheel={(event) => event.stopPropagation()}
-              className={`absolute right-0 top-full z-[150] mt-2 flex max-h-[min(76dvh,620px)] w-[min(310px,calc(100vw-32px))] max-w-[calc(100vw-32px)] flex-col gap-1 overflow-y-auto rounded-2xl border p-2 shadow-2xl backdrop-blur-xl ${
+              className={`absolute right-0 top-full z-[150] mt-2 flex max-h-[min(76dvh,620px)] w-[min(300px,calc(100vw-24px))] max-w-[calc(100vw-24px)] flex-col gap-1 overflow-y-auto rounded-2xl border p-2 shadow-2xl backdrop-blur-xl ${
                 isDark
                   ? 'border-slate-700 bg-slate-900/98 text-white'
                   : 'border-slate-200 bg-white/98 text-slate-900'
@@ -1095,13 +1221,16 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
                     handleStyleSwitch(opt.id);
                     setShowToolsMenu(false);
                   }}
-                  className={`min-h-10 rounded-xl px-3 text-right text-xs font-bold ${
+                  className={`min-h-10 rounded-xl px-3 py-2 text-right text-xs font-bold whitespace-normal leading-snug ${
                     activeStyle === opt.id
                       ? 'bg-emerald-400 text-slate-950'
-                      : isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+                      : isDark
+                        ? 'hover:bg-white/10'
+                        : 'hover:bg-slate-100'
                   }`}
                 >
-                  {activeStyle === opt.id ? '✓ ' : ''}{opt.labelAr}
+                  {activeStyle === opt.id ? '✓ ' : ''}
+                  {opt.labelAr}
                 </button>
               ))}
               <div className={`my-1 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`} />
@@ -1112,11 +1241,34 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
                   setShowRelationships((visible) => !visible);
                   setShowToolsMenu(false);
                 }}
-                className={`min-h-10 rounded-xl px-3 text-right text-xs font-bold ${
-                  showRelationships ? 'bg-violet-500/15 text-violet-500' : isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+                className={`min-h-10 rounded-xl px-3 py-2 text-right text-xs font-bold whitespace-normal leading-snug ${
+                  showRelationships
+                    ? 'bg-violet-500/15 text-violet-400'
+                    : isDark
+                      ? 'hover:bg-white/10'
+                      : 'hover:bg-slate-100'
                 }`}
               >
                 {showRelationships ? 'إخفاء أسهم العلاقات' : 'إظهار أسهم العلاقات'}
+              </button>
+              <button
+                type="button"
+                aria-pressed={showCrossEdgeLabels}
+                onClick={() => {
+                  setShowCrossEdgeLabels((visible) => !visible);
+                  setShowToolsMenu(false);
+                }}
+                className={`min-h-10 rounded-xl px-3 py-2 text-right text-xs font-bold whitespace-normal leading-snug ${
+                  showCrossEdgeLabels
+                    ? 'bg-emerald-500/15 text-emerald-400'
+                    : isDark
+                      ? 'hover:bg-white/10'
+                      : 'hover:bg-slate-100'
+                }`}
+              >
+                {showCrossEdgeLabels
+                  ? 'إخفاء تسميات الروابط الثانوية'
+                  : 'إظهار تسميات الروابط الثانوية'}
               </button>
               <button
                 type="button"
@@ -1126,13 +1278,18 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
                   if (next && sequenceNodes.length) {
                     setSequenceIndex(0);
                     setSelectedNodeId(sequenceNodes[0].id);
+                    setSheetSnap('compact');
                   } else {
                     setCollapsedIds(buildDefaultCollapsedSet());
                   }
                   setShowToolsMenu(false);
                 }}
-                className={`min-h-10 rounded-xl px-3 text-right text-xs font-bold ${
-                  isSequentialMode ? 'bg-emerald-400 text-slate-950' : isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+                className={`min-h-10 rounded-xl px-3 py-2 text-right text-xs font-bold whitespace-normal leading-snug ${
+                  isSequentialMode
+                    ? 'bg-emerald-400 text-slate-950'
+                    : isDark
+                      ? 'hover:bg-white/10'
+                      : 'hover:bg-slate-100'
                 }`}
               >
                 {isSequentialMode ? 'إيقاف العرض التسلسلي' : 'عرض تسلسلي خطوة بخطوة'}
@@ -1140,15 +1297,27 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
               <button
                 type="button"
                 onClick={() => {
-                  setShowNodesPanel((open) => !open);
+                  setShowNodesPanel((open) => {
+                    const next = !open;
+                    if (next) setSheetSnap('minimized');
+                    return next;
+                  });
                   setShowToolsMenu(false);
                 }}
-                className={`flex min-h-10 items-center justify-between rounded-xl px-3 text-xs font-bold ${
-                  showNodesPanel || hiddenNodeIds.size ? 'bg-emerald-500/15 text-emerald-500' : isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+                className={`flex min-h-10 items-center justify-between gap-2 rounded-xl px-3 py-2 text-right text-xs font-bold whitespace-normal leading-snug ${
+                  showNodesPanel || hiddenNodeIds.size
+                    ? 'bg-emerald-500/15 text-emerald-500'
+                    : isDark
+                      ? 'hover:bg-white/10'
+                      : 'hover:bg-slate-100'
                 }`}
               >
                 <span>التحكم بالعقد والفروع</span>
-                {hiddenNodeIds.size > 0 && <span className="rounded-full bg-emerald-400 px-2 py-0.5 text-[10px] font-black text-slate-950">{hiddenNodeIds.size}</span>}
+                {hiddenNodeIds.size > 0 && (
+                  <span className="rounded-full bg-emerald-400 px-2 py-0.5 text-[10px] font-black text-slate-950">
+                    {hiddenNodeIds.size}
+                  </span>
+                )}
               </button>
               {!isSequentialMode && (
                 <>
@@ -1160,7 +1329,9 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
                       setCollapsedIds(new Set());
                       setShowToolsMenu(false);
                     }}
-                    className={`min-h-10 rounded-xl px-3 text-right text-xs font-bold ${isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'}`}
+                    className={`min-h-10 rounded-xl px-3 py-2 text-right text-xs font-bold whitespace-normal leading-snug ${
+                      isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+                    }`}
                   >
                     إظهار وتوسيع جميع العقد
                   </button>
@@ -1171,7 +1342,9 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
                       setCollapsedIds(buildDefaultCollapsedSet());
                       setShowToolsMenu(false);
                     }}
-                    className={`min-h-10 rounded-xl px-3 text-right text-xs font-bold ${isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'}`}
+                    className={`min-h-10 rounded-xl px-3 py-2 text-right text-xs font-bold whitespace-normal leading-snug ${
+                      isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+                    }`}
                   >
                     طي الفروع الفرعية
                   </button>
@@ -1185,9 +1358,11 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
                   window.requestAnimationFrame(() => fitToView());
                   setShowToolsMenu(false);
                 }}
-                className={`min-h-10 rounded-xl px-3 text-right text-xs font-bold ${isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'}`}
+                className={`min-h-10 rounded-xl px-3 py-2 text-right text-xs font-bold whitespace-normal leading-snug ${
+                  isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+                }`}
               >
-                ملاءمة جميع البطاقات للشاشة
+                ملاءمة حجم البطاقات
               </button>
               <button
                 type="button"
@@ -1195,19 +1370,21 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
                   setShowToolsMenu(false);
                   void handleSaveInteractiveFile();
                 }}
-                className="min-h-10 rounded-xl bg-emerald-400 px-3 text-right text-xs font-black text-slate-950"
+                className="min-h-10 rounded-xl bg-emerald-400 px-3 py-2 text-right text-xs font-black text-slate-950 whitespace-normal leading-snug"
               >
-                حفظ ملف HTML التفاعلي في الهاتف
+                حفظ ملف HTML التفاعلي
               </button>
               <button
                 type="button"
                 onClick={() => {
                   setShowToolsMenu(false);
-                  void toggleBrowserFullscreen();
+                  void handleExitFullscreenViewer();
                 }}
-                className={`min-h-10 rounded-xl px-3 text-right text-xs font-bold ${isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'}`}
+                className={`min-h-10 rounded-xl px-3 py-2 text-right text-xs font-bold whitespace-normal leading-snug ${
+                  isDark ? 'hover:bg-white/10 text-rose-300' : 'hover:bg-slate-100 text-rose-700'
+                }`}
               >
-                ملء الشاشة
+                إنهاء ملء الشاشة
               </button>
             </div>
           )}
@@ -1257,7 +1434,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
           }}
         />
 
-        {/* Floating Zoom In / Zoom Out / Fit All Controls */}
+        {/* Floating Zoom In / Zoom Out Controls */}
         <div
           dir="rtl"
           onPointerDown={(e) => e.stopPropagation()}
@@ -1318,10 +1495,31 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
               </button>
             </div>
             <div className="space-y-2 border-b border-slate-700/30 px-3 py-2.5">
-              <div className="flex items-center justify-between gap-2 text-[11px] font-black"><span>ألوان الخريطة</span><span className="text-[10px] font-semibold text-slate-400">{activeColorMode === 'branch' ? 'حسب الفروع' : 'حسب الدور الطبي'}</span></div>
+              <div className="flex items-center justify-between gap-2 text-[11px] font-black">
+                <span>ألوان الخريطة</span>
+                <span className="text-[10px] font-semibold text-slate-400">
+                  {activeColorMode === 'branch' ? 'حسب الفروع' : 'حسب الدور الطبي'}
+                </span>
+              </div>
               <div className="grid grid-cols-2 gap-1 rounded-xl bg-black/10 p-1">
-                <button type="button" onClick={() => handleColorModeSwitch('branch')} className={`rounded-lg px-2 py-2 text-[11px] font-extrabold ${activeColorMode === 'branch' ? 'bg-emerald-400 text-slate-950' : 'opacity-75'}`}>حسب الفروع</button>
-                <button type="button" onClick={() => handleColorModeSwitch('role')} className={`rounded-lg px-2 py-2 text-[11px] font-extrabold ${activeColorMode === 'role' ? 'bg-emerald-400 text-slate-950' : 'opacity-75'}`}>حسب الدور الطبي</button>
+                <button
+                  type="button"
+                  onClick={() => handleColorModeSwitch('branch')}
+                  className={`rounded-lg px-2 py-2 text-[11px] font-extrabold ${
+                    activeColorMode === 'branch' ? 'bg-emerald-400 text-slate-950' : 'opacity-75'
+                  }`}
+                >
+                  حسب الفروع
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleColorModeSwitch('role')}
+                  className={`rounded-lg px-2 py-2 text-[11px] font-extrabold ${
+                    activeColorMode === 'role' ? 'bg-emerald-400 text-slate-950' : 'opacity-75'
+                  }`}
+                >
+                  حسب الدور الطبي
+                </button>
               </div>
             </div>
             <div className="flex items-center gap-1.5 border-b border-slate-700/30 px-3 py-2">
@@ -1351,10 +1549,33 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
             <div className="space-y-2 border-b border-slate-700/30 p-3">
               <div className="text-[11px] font-black">لون العقدة المحددة</div>
               <div className="flex flex-wrap gap-2">
-                {MIND_MAP_COLOR_SWATCHES.map((swatch) => <button key={swatch.name} type="button" title={swatch.name} aria-label={`تطبيق اللون ${swatch.name}`} onClick={() => applyColorToSelectedNode(swatch.base)} className={`h-7 w-7 rounded-full border-2 ${selectedSwatchColor === swatch.base ? 'border-white ring-2 ring-emerald-400' : 'border-white/25'}`} style={{ backgroundColor: swatch.base }} />)}
+                {MIND_MAP_COLOR_SWATCHES.map((swatch) => (
+                  <button
+                    key={swatch.name}
+                    type="button"
+                    title={swatch.name}
+                    aria-label={`تطبيق اللون ${swatch.name}`}
+                    onClick={() => applyColorToSelectedNode(swatch.base)}
+                    className={`h-7 w-7 rounded-full border-2 ${
+                      selectedSwatchColor === swatch.base
+                        ? 'border-white ring-2 ring-emerald-400'
+                        : 'border-white/25'
+                    }`}
+                    style={{ backgroundColor: swatch.base }}
+                  />
+                ))}
               </div>
-              <button type="button" disabled={!selectedNodeId} onClick={applyColorToSelectedBranch} className="w-full rounded-xl bg-emerald-400 px-3 py-2 text-[11px] font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40">تطبيق اللون على الفرع بالكامل</button>
-              <div className="text-[10px] leading-4 text-slate-400">اختر عقدة من القائمة أو الخريطة أولاً. اللون اليدوي محفوظ مع الخريطة ويظل مستقلاً عن نمط التلوين التلقائي.</div>
+              <button
+                type="button"
+                disabled={!selectedNodeId}
+                onClick={applyColorToSelectedBranch}
+                className="w-full rounded-xl bg-emerald-400 px-3 py-2 text-[11px] font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                تطبيق اللون على الفرع بالكامل
+              </button>
+              <div className="text-[10px] leading-4 text-slate-400">
+                اختر عقدة من القائمة أو الخريطة أولاً. اللون اليدوي محفوظ مع الخريطة ويظل مستقلاً عن نمط التلوين التلقائي.
+              </div>
             </div>
             <div className="flex-1 space-y-1 overflow-y-auto p-2.5">
               {treeRows.map(({ node, depth, childCount }) => {
@@ -1388,9 +1609,21 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
                       }}
                       className="min-w-0 flex-1 text-right font-bold"
                     >
-                      <div className="truncate">{node.label}</div>
+                      <div
+                        dir="auto"
+                        style={{ unicodeBidi: 'isolate' }}
+                        className="truncate"
+                      >
+                        {node.label}
+                      </div>
                       {node.sublabel && (
-                        <div className="truncate text-[10px] opacity-70">{node.sublabel}</div>
+                        <div
+                          dir="auto"
+                          style={{ unicodeBidi: 'isolate' }}
+                          className="truncate text-[10px] opacity-70"
+                        >
+                          {node.sublabel}
+                        </div>
                       )}
                     </button>
                     <div className="flex shrink-0 items-center gap-1">
@@ -1438,206 +1671,288 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
           </aside>
         )}
 
-        {/* Sequential Step-by-Step Navigation Bar */}
-        {isSequentialMode && selectedNode && (
-          <div
-            dir="rtl"
-            onPointerDown={(e) => e.stopPropagation()}
-            className="absolute top-3 left-14 right-3 z-10 mx-auto flex max-w-xl items-center justify-between gap-3 rounded-2xl border border-emerald-400/30 bg-slate-900/90 p-2.5 text-white shadow-xl backdrop-blur-xl"
-          >
-            <button
-              type="button"
-              disabled={sequenceIndex <= 0}
-              onClick={() => {
-                const next = Math.max(0, sequenceIndex - 1);
-                setSequenceIndex(next);
-                setSelectedNodeId(sequenceNodes[next]?.id || null);
-              }}
-              className="min-h-9 rounded-xl border border-white/15 px-3 text-xs font-bold disabled:opacity-40"
-            >
-              السابق
-            </button>
-            <div className="min-w-0 flex-1 text-center">
-              <div className="truncate text-xs font-black">{selectedNode.label}</div>
-              <div className="mt-0.5 text-[10px] text-slate-400">
-                {sequenceIndex + 1} / {sequenceNodes.length}
-              </div>
-            </div>
-            <button
-              type="button"
-              disabled={sequenceIndex >= sequenceNodes.length - 1}
-              onClick={() => {
-                const next = Math.min(sequenceNodes.length - 1, sequenceIndex + 1);
-                setSequenceIndex(next);
-                setSelectedNodeId(sequenceNodes[next]?.id || null);
-              }}
-              className="min-h-9 rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 disabled:opacity-40"
-            >
-              التالي
-            </button>
-          </div>
-        )}
-
-        {/* Selected Node Details & Branch Control Sheet */}
-        {selectedNode && (
+        {/* Bottom Dock: 3-State Collapsible Detail Sheet + Thumb-Friendly Sequential Step-by-Step Bar */}
+        {(selectedNode || isSequentialMode) && (
           <div
             dir="rtl"
             onPointerDown={(e) => e.stopPropagation()}
             onWheel={(e) => e.stopPropagation()}
-            className={`absolute bottom-[max(8px,env(safe-area-inset-bottom))] left-2 right-2 z-10 mx-auto ${
-              isNoteExpanded ? 'max-h-[58dvh]' : 'max-h-[min(28dvh,220px)]'
-            } max-w-3xl overflow-y-auto rounded-2xl border p-3 shadow-2xl backdrop-blur-xl transition-all sm:bottom-4 sm:p-3.5 ${
-              isDark
-                ? 'border-emerald-400/30 bg-slate-900/95 text-white'
-                : 'border-slate-300 bg-white/95 text-slate-900'
-            }`}
+            className="pointer-events-none absolute bottom-[max(8px,env(safe-area-inset-bottom))] left-2 right-2 z-10 mx-auto flex max-w-3xl flex-col gap-1.5 sm:bottom-4"
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                {selectedNodePath.length > 1 && (
-                  <div className="mb-1 flex flex-wrap items-center gap-1 text-[10px] text-slate-400">
-                    {selectedNodePath.map((node, index) => (
-                      <React.Fragment key={node.id}>
-                        {index > 0 && <span aria-hidden="true">‹</span>}
+            {/* 3-State Collapsible / Draggable Bottom Detail Sheet ('minimized' | 'compact' | 'expanded') */}
+            {selectedNode && (
+              <div
+                className={`pointer-events-auto flex w-full flex-col overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-xl transition-all duration-200 ${
+                  sheetSnap === 'minimized'
+                    ? 'max-h-[56px]'
+                    : sheetSnap === 'expanded'
+                      ? 'max-h-[45dvh]'
+                      : 'max-h-[min(22dvh,185px)]'
+                } ${
+                  isDark
+                    ? 'border-emerald-400/30 bg-slate-900/95 text-white'
+                    : 'border-slate-300 bg-white/95 text-slate-900'
+                }`}
+              >
+                {/* Draggable / Tappable Top Pill Handle */}
+                <div
+                  onPointerDown={handleSheetHandlePointerDown}
+                  onPointerUp={handleSheetHandlePointerUp}
+                  className="flex cursor-grab touch-none items-center justify-center pt-1.5 pb-0.5 active:cursor-grabbing"
+                  title="اسحب للأعلى أو الأسفل لتغيير حجم البطاقة"
+                >
+                  <div className="h-1 w-10 rounded-full bg-slate-400/45" />
+                </div>
+
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pb-2.5 pt-1 sm:px-3.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      {sheetSnap !== 'minimized' && selectedNodePath.length > 1 && (
+                        <div className="mb-1 flex flex-wrap items-center gap-1 text-[10px] text-slate-400">
+                          {selectedNodePath.map((node, index) => (
+                            <React.Fragment key={node.id}>
+                              {index > 0 && <span aria-hidden="true">‹</span>}
+                              <button
+                                type="button"
+                                dir="auto"
+                                style={{ unicodeBidi: 'isolate' }}
+                                onClick={() => selectNodeAndRevealChildren(node.id)}
+                                className={`max-w-[160px] truncate ${
+                                  index === selectedNodePath.length - 1
+                                    ? 'font-black text-emerald-400'
+                                    : 'hover:underline'
+                                }`}
+                              >
+                                {node.label}
+                              </button>
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      )}
+                      <div
+                        dir={detectTextDirection(selectedNode.label)}
+                        style={{ unicodeBidi: 'isolate' }}
+                        className={`truncate text-xs font-black sm:text-sm ${
+                          isDark ? 'text-emerald-300' : 'text-emerald-700'
+                        }`}
+                      >
+                        {selectedNode.label}
+                      </div>
+                      {sheetSnap !== 'minimized' && selectedNode.sublabel && (
+                        <p
+                          dir="auto"
+                          style={{ unicodeBidi: 'isolate' }}
+                          className={`mt-0.5 text-[11px] font-semibold ${
+                            isDark ? 'text-emerald-200' : 'text-emerald-700'
+                          }`}
+                        >
+                          {selectedNode.sublabel}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {sheetSnap !== 'minimized' && selectedNode.id !== mapDocument.rootNodeId && (
                         <button
                           type="button"
-                          onClick={() => selectNodeAndRevealChildren(node.id)}
-                          className={
-                            index === selectedNodePath.length - 1
-                              ? 'font-black text-emerald-400'
-                              : 'hover:underline'
-                          }
+                          onClick={() => toggleHideNode(selectedNode.id)}
+                          className={`inline-flex min-h-7 items-center gap-1 rounded-lg border px-2 text-[10px] font-bold ${
+                            isDark
+                              ? 'border-white/15 bg-white/5 text-slate-300 hover:text-rose-300'
+                              : 'border-slate-300 bg-slate-100 text-slate-700 hover:text-rose-700'
+                          }`}
+                          title="إخفاء هذه العقدة من الخريطة"
                         >
-                          {node.label}
+                          <EyeOff className="h-3 w-3" />
+                          <span className="hidden sm:inline">إخفاء</span>
                         </button>
-                      </React.Fragment>
-                    ))}
+                      )}
+                      <button
+                        type="button"
+                        onClick={cycleSheetSnap}
+                        className={`inline-flex min-h-7 items-center gap-1 rounded-lg border px-2 text-[10px] font-extrabold ${
+                          isDark
+                            ? 'border-emerald-400/35 bg-emerald-500/15 text-emerald-300'
+                            : 'border-emerald-600/30 bg-emerald-50 text-emerald-800'
+                        }`}
+                        title="تغيير حجم بطاقة الشرح"
+                      >
+                        {sheetSnap === 'minimized' ? (
+                          <>
+                            <ChevronUp className="h-3.5 w-3.5" />
+                            <span>توسيع</span>
+                          </>
+                        ) : sheetSnap === 'compact' ? (
+                          <>
+                            <ChevronUp className="h-3.5 w-3.5" />
+                            <span>الشرح الكامل</span>
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="h-3.5 w-3.5" />
+                            <span>طي الشريط</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedNodeId(null)}
+                        className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border text-xs font-bold ${
+                          isDark
+                            ? 'border-white/15 bg-white/5 text-slate-300 hover:text-white'
+                            : 'border-slate-300 bg-slate-100 text-slate-600 hover:text-slate-900'
+                        }`}
+                        title="إغلاق بطاقة التفاصيل"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
-                )}
-                <div
-                  className={`text-sm font-black sm:text-base ${
-                    isDark ? 'text-emerald-300' : 'text-emerald-700'
-                  }`}
-                >
-                  {selectedNode.label}
-                </div>
-                {selectedNode.sublabel && (
-                  <p
-                    className={`mt-0.5 text-xs font-semibold ${
-                      isDark ? 'text-emerald-200' : 'text-emerald-700'
-                    }`}
-                  >
-                    {selectedNode.sublabel}
-                  </p>
-                )}
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                {selectedNode.id !== mapDocument.rootNodeId && (
-                  <button
-                    type="button"
-                    onClick={() => toggleHideNode(selectedNode.id)}
-                    className={`inline-flex min-h-8 items-center gap-1 rounded-lg border px-2 text-[11px] font-bold ${
-                      isDark
-                        ? 'border-white/15 bg-white/5 text-slate-300 hover:text-rose-300'
-                        : 'border-slate-300 bg-slate-100 text-slate-700 hover:text-rose-700'
-                    }`}
-                    title="إخفاء هذه العقدة من الخريطة"
-                  >
-                    <EyeOff className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">إخفاء العقدة</span>
-                  </button>
-                )}
-                {selectedNode.note && selectedNode.note.length > 110 && (
-                  <button
-                    type="button"
-                    onClick={() => setIsNoteExpanded((v) => !v)}
-                    className={`inline-flex min-h-8 items-center gap-1 rounded-lg border px-2 text-[11px] font-bold ${
-                      isDark
-                        ? 'border-white/15 bg-white/5 text-emerald-300'
-                        : 'border-slate-300 bg-slate-100 text-emerald-700'
-                    }`}
-                  >
-                    {isNoteExpanded ? (
-                      <>
-                        <ChevronDown className="h-3.5 w-3.5" />
-                        <span>تصغير</span>
-                      </>
-                    ) : (
-                      <>
-                        <ChevronUp className="h-3.5 w-3.5" />
-                        <span>الشرح الكامل</span>
-                      </>
-                    )}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setSelectedNodeId(null)}
-                  className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border text-xs font-bold ${
-                    isDark
-                      ? 'border-white/15 bg-white/5 text-slate-300 hover:text-white'
-                      : 'border-slate-300 bg-slate-100 text-slate-600 hover:text-slate-900'
-                  }`}
-                  title="إغلاق بطاقة التفاصيل"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
 
-            {selectedNode.note && (
-              <p
-                className={`mt-1.5 whitespace-pre-wrap break-words text-xs leading-6 ${
-                  isNoteExpanded
-                    ? ''
-                    : '[display:-webkit-box] [-webkit-line-clamp:3] [-webkit-box-orient:vertical] overflow-hidden'
-                } ${isDark ? 'text-slate-100' : 'text-slate-700'}`}
-              >
-                {selectedNode.note}
-              </p>
+                  {sheetSnap !== 'minimized' && selectedNode.note && (
+                    <p
+                      dir="auto"
+                      style={{ unicodeBidi: 'isolate' }}
+                      className={`mt-1.5 whitespace-pre-wrap break-words text-xs leading-5 ${
+                        sheetSnap === 'expanded'
+                          ? ''
+                          : '[display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden'
+                      } ${isDark ? 'text-slate-100' : 'text-slate-700'}`}
+                    >
+                      {selectedNode.note}
+                    </p>
+                  )}
+
+                  {sheetSnap !== 'minimized' &&
+                    (selectedChildNodes.length > 0 || siblingNav.prev || siblingNav.next) && (
+                      <div className="mt-2 flex min-w-0 max-w-full items-center gap-1.5 overflow-x-auto pb-0.5">
+                        {siblingNav.prev && (
+                          <button
+                            type="button"
+                            onClick={() => selectNodeAndRevealChildren(siblingNav.prev!.id)}
+                            className={`flex min-w-0 shrink-0 max-w-[155px] items-center gap-1 rounded-xl border px-2.5 py-1 text-[11px] font-bold ${
+                              isDark
+                                ? 'border-white/15 bg-white/5 text-slate-200 hover:bg-white/10'
+                                : 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            }`}
+                            title={`السابق: ${siblingNav.prev.label}`}
+                          >
+                            <span className="shrink-0 text-emerald-400">السابق:</span>
+                            <span
+                              dir="auto"
+                              style={{ unicodeBidi: 'isolate' }}
+                              className="min-w-0 truncate"
+                            >
+                              {siblingNav.prev.label}
+                            </span>
+                          </button>
+                        )}
+                        {siblingNav.next && (
+                          <button
+                            type="button"
+                            onClick={() => selectNodeAndRevealChildren(siblingNav.next!.id)}
+                            className={`flex min-w-0 shrink-0 max-w-[155px] items-center gap-1 rounded-xl border px-2.5 py-1 text-[11px] font-bold ${
+                              isDark
+                                ? 'border-white/15 bg-white/5 text-slate-200 hover:bg-white/10'
+                                : 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            }`}
+                            title={`التالي: ${siblingNav.next.label}`}
+                          >
+                            <span className="shrink-0 text-emerald-400">التالي:</span>
+                            <span
+                              dir="auto"
+                              style={{ unicodeBidi: 'isolate' }}
+                              className="min-w-0 truncate"
+                            >
+                              {siblingNav.next.label}
+                            </span>
+                          </button>
+                        )}
+                        {!isSequentialMode && selectedChildNodes.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => toggleNodeBranchCollapse(selectedNode.id)}
+                            className={`flex shrink-0 items-center gap-1 rounded-xl border px-2.5 py-1 text-[11px] font-extrabold ${
+                              collapsedIds.has(selectedNode.id)
+                                ? 'border-emerald-400 bg-emerald-400 text-slate-950'
+                                : isDark
+                                  ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-300'
+                                  : 'border-emerald-600/40 bg-emerald-50 text-emerald-800'
+                            }`}
+                          >
+                            <GitBranch className="h-3 w-3" />
+                            <span>
+                              {collapsedIds.has(selectedNode.id)
+                                ? `إظهار الفروع (${selectedChildNodes.length})`
+                                : `إخفاء الفروع (${selectedChildNodes.length})`}
+                            </span>
+                          </button>
+                        )}
+                        {selectedChildNodes.map((child) => (
+                          <button
+                            key={child.id}
+                            type="button"
+                            dir="auto"
+                            style={{ unicodeBidi: 'isolate' }}
+                            onClick={() => selectNodeAndRevealChildren(child.id)}
+                            className={`min-w-0 shrink-0 max-w-[185px] truncate rounded-xl border px-2.5 py-1 text-[11px] font-bold ${
+                              isDark
+                                ? 'border-white/15 bg-white/5 text-slate-100 hover:bg-white/10'
+                                : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+                            }`}
+                          >
+                            {child.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                </div>
+              </div>
             )}
 
-            {selectedChildNodes.length > 0 && (
-              <div className="mt-2 flex max-w-full items-center gap-1.5 overflow-x-auto pb-1">
-                {!isSequentialMode && (
-                  <button
-                    type="button"
-                    onClick={() => toggleNodeBranchCollapse(selectedNode.id)}
-                    className={`flex shrink-0 items-center gap-1 rounded-xl border px-2.5 py-1 text-[11px] font-extrabold ${
-                      collapsedIds.has(selectedNode.id)
-                        ? 'border-emerald-400 bg-emerald-400 text-slate-950'
-                        : isDark
-                          ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-300'
-                          : 'border-emerald-600/40 bg-emerald-50 text-emerald-800'
-                    }`}
+            {/* Sequential Step-by-Step Navigation Bar (Bottom Thumb-Friendly Dock) */}
+            {isSequentialMode && (
+              <div className="pointer-events-auto mx-auto flex w-full max-w-xl items-center justify-between gap-2 rounded-2xl border border-emerald-400/35 bg-slate-900/95 p-2 text-white shadow-2xl backdrop-blur-xl">
+                <button
+                  type="button"
+                  disabled={sequenceIndex <= 0}
+                  onClick={() => {
+                    const next = Math.max(0, sequenceIndex - 1);
+                    setSequenceIndex(next);
+                    setSelectedNodeId(sequenceNodes[next]?.id || null);
+                  }}
+                  className="min-h-9 shrink-0 rounded-xl border border-white/15 bg-white/5 px-3.5 text-xs font-extrabold hover:bg-white/10 disabled:opacity-40"
+                >
+                  السابق
+                </button>
+                <div className="min-w-0 flex-1 text-center">
+                  <div
+                    dir="auto"
+                    style={{ unicodeBidi: 'isolate' }}
+                    className="truncate text-xs font-black"
                   >
-                    <GitBranch className="h-3 w-3" />
-                    <span>
-                      {collapsedIds.has(selectedNode.id)
-                        ? `إظهار الفروع (${selectedChildNodes.length})`
-                        : `إخفاء الفروع (${selectedChildNodes.length})`}
-                    </span>
-                  </button>
-                )}
-                {selectedChildNodes.map((child) => (
-                  <button
-                    key={child.id}
-                    type="button"
-                    onClick={() => selectNodeAndRevealChildren(child.id)}
-                    className={`shrink-0 max-w-[220px] truncate rounded-xl border px-3 py-1 text-xs font-bold ${
-                      isDark
-                        ? 'border-white/15 bg-white/5 text-slate-100 hover:bg-white/10'
-                        : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
-                    }`}
-                  >
-                    {child.label}
-                  </button>
-                ))}
+                    {(selectedNode || sequenceNodes[sequenceIndex])?.label || ''}
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-slate-400">
+                    {sequenceIndex + 1} / {sequenceNodes.length}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={sequenceIndex >= sequenceNodes.length - 1}
+                  onClick={() => {
+                    const next = Math.min(sequenceNodes.length - 1, sequenceIndex + 1);
+                    setSequenceIndex(next);
+                    setSelectedNodeId(sequenceNodes[next]?.id || null);
+                  }}
+                  className="min-h-9 shrink-0 rounded-xl bg-emerald-400 px-3.5 text-xs font-black text-slate-950 hover:bg-emerald-300 disabled:opacity-40"
+                >
+                  التالي
+                </button>
               </div>
             )}
           </div>
         )}
-        {!selectedNode && (
+        {!selectedNode && !isSequentialMode && (
           <div
             dir="rtl"
             className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/10 bg-slate-950/75 px-3 py-1 text-[10px] font-semibold text-slate-300 backdrop-blur sm:bottom-5"

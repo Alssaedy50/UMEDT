@@ -19,6 +19,8 @@ import {
   CircleDot,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
+  ChevronUp,
   Sparkles,
   FileCode
 } from 'lucide-react';
@@ -37,6 +39,7 @@ import { buildStandaloneMindMapSvg } from '../services/mindMapStorageService';
 import { buildStandaloneMindMapHtmlV2 as buildStandaloneMindMapHtml } from '../services/mindMapStandaloneExportServiceV2';
 import { MindMapFullScreenViewer } from './MindMapFullScreenViewer';
 import { prepareAndDownloadFile } from '../utils/downloadHelper';
+import { detectTextDirection, formatMindMapCountsAr } from '../utils/bidiHelper';
 
 export const MIND_MAP_ROLE_META: Record<
   MindMapNodeRole,
@@ -151,6 +154,10 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
   }, [doc.id, doc.style]);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(doc.rootNodeId || null);
+  const [inspectorSnap, setInspectorSnap] = useState<'minimized' | 'compact' | 'expanded'>('compact');
+  const [showCrossEdgeLabels, setShowCrossEdgeLabels] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth > 640 : false
+  );
   const [zoom, setZoom] = useState<number>(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -263,12 +270,13 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
     }
     const rect = el.getBoundingClientRect();
     const cw = Math.max(280, rect.width);
-    const ch = Math.max(220, rect.height);
+    const ch = Math.max(220, rect.height - 36);
     const { minX, minY, width, height } = layout.bounds;
 
     const scaleX = cw / Math.max(1, width);
     const scaleY = ch / Math.max(1, height);
-    const nextZoom = Math.max(0.24, Math.min(1.18, Math.min(scaleX, scaleY) * 0.92));
+    const minZoomFloor = collapsedIds.size > 0 && cw <= 640 ? 0.36 : 0.28;
+    const nextZoom = Math.max(minZoomFloor, Math.min(1.18, Math.min(scaleX, scaleY) * 0.92));
 
     const centerX = minX + width / 2;
     const centerY = minY + height / 2;
@@ -277,32 +285,43 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
       x: cw / 2 - centerX * nextZoom,
       y: ch / 2 - centerY * nextZoom
     });
-  }, [layout.bounds]);
+  }, [layout.bounds, collapsedIds.size]);
 
   const fitPrimaryOverview = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    if (rect.width > 640) { fitToView(); return; }
-    const primary = layout.nodes.filter((node) => node.node.id === doc.rootNodeId || node.node.parentId === doc.rootNodeId);
-    if (!primary.length) { fitToView(); return; }
+    if (rect.width > 640) {
+      fitToView();
+      return;
+    }
+    const primary = layout.nodes.filter(
+      (node) => node.node.id === doc.rootNodeId || node.node.parentId === doc.rootNodeId
+    );
+    if (!primary.length) {
+      fitToView();
+      return;
+    }
     const minX = Math.min(...primary.map((node) => node.x - node.width / 2));
     const maxX = Math.max(...primary.map((node) => node.x + node.width / 2));
     const minY = Math.min(...primary.map((node) => node.y - node.height / 2));
     const maxY = Math.max(...primary.map((node) => node.y + node.height / 2));
     const clusterW = Math.max(1, maxX - minX + 56);
     const clusterH = Math.max(1, maxY - minY + 56);
-    const usableH = Math.max(160, rect.height - 54);
-    const scale = Math.max(0.65, Math.min(0.8, Math.min((rect.width - 24) / clusterW, usableH / clusterH)));
+    const usableH = Math.max(160, rect.height - 46);
+    const scale = Math.max(
+      0.55,
+      Math.min(0.88, Math.min((rect.width - 24) / clusterW, usableH / clusterH))
+    );
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
     setZoom(Number(scale.toFixed(2)));
-    setPan({ x: rect.width / 2 - cx * scale, y: (rect.height - 36) / 2 - cy * scale });
+    setPan({ x: rect.width / 2 - cx * scale, y: usableH / 2 - cy * scale });
   }, [layout.nodes, doc.rootNodeId, fitToView]);
 
   /**
    * Frames a target node and all of its currently visible direct child cards
-   * inside the canvas viewport so revealed cards never get clipped off-screen.
+   * inside the unobstructed canvas viewport area.
    */
   const focusNodeCluster = useCallback(
     (nodeId: string) => {
@@ -327,14 +346,14 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
       }
       const rect = el.getBoundingClientRect();
       const cw = Math.max(260, rect.width - 24);
-      const ch = Math.max(200, rect.height - 40);
+      const ch = Math.max(180, rect.height - 44);
       const clusterW = Math.max(150, maxX - minX + 56);
       const clusterH = Math.max(100, maxY - minY + 56);
       const fitScale = Math.min(cw / clusterW, ch / clusterH);
       const nextZoom = Number(
         (cluster.length > 1
-          ? Math.max(0.26, Math.min(1.12, fitScale))
-          : Math.max(0.68, Math.min(1.14, Math.min(zoom < 0.68 ? 0.92 : zoom, fitScale)))
+          ? Math.max(0.42, Math.min(1.12, fitScale))
+          : Math.max(0.72, Math.min(1.14, Math.min(zoom < 0.72 ? 0.94 : zoom, fitScale)))
         ).toFixed(2)
       );
       const cx = (minX + maxX) / 2;
@@ -342,7 +361,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
       setZoom(nextZoom);
       setPan({
         x: rect.width / 2 - cx * nextZoom,
-        y: (rect.height - 16) / 2 - cy * nextZoom
+        y: ch / 2 - cy * nextZoom
       });
     },
     [layout.nodes, zoom]
@@ -889,6 +908,19 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
 
           <button
             type="button"
+            onClick={() => setShowCrossEdgeLabels((v) => !v)}
+            className={`min-h-[34px] px-2.5 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1 whitespace-normal leading-snug ${
+              showCrossEdgeLabels
+                ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300'
+                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
+            }`}
+            title="إظهار أو إخفاء تسميات الروابط الثانوية"
+          >
+            <span>{showCrossEdgeLabels ? 'إخفاء تسميات الروابط' : 'إظهار تسميات الروابط'}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setShowSearch((v) => !v)}
             className={`min-h-[34px] px-2.5 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1 ${
               showSearch || searchTerm
@@ -921,7 +953,6 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                 <span>JSON</span>
               </button>
               <button type="button" onClick={() => void handleExportHtml()} className="min-h-[34px] px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1" title="تصدير صفحة HTML مستقلة تعمل دون إنترنت"><FileCode className="w-3.5 h-3.5 text-sky-500" /><span>حفظ HTML تفاعلي</span></button>
-
             </>
           )}
 
@@ -1054,23 +1085,47 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                 </g>
               );
             })}
-            {layout.edges.filter((edge) => Boolean(edge.label)).map((edge) => (
-              <g key={`label-${edge.id}`} transform={`translate(${edge.labelX}, ${edge.labelY})`} pointerEvents="none">
-                <rect
-                  x={-Math.max(28, edge.label!.length * 3.6 + 10)}
-                  y={-11}
-                  width={Math.max(64, edge.label!.length * 7.2 + 24)}
-                  height={22}
-                  rx={11}
-                  fill="#0b1220"
-                  stroke="#64748b"
-                  strokeWidth={1.2}
-                />
-                <text x={0} y={3.5} textAnchor="middle" className="fill-slate-100 text-[10px] font-bold" direction="auto" unicodeBidi="plaintext">
-                  {edge.label}
-                </text>
-              </g>
-            ))}
+            {layout.edges
+              .filter((edge) => {
+                if (!edge.label) return false;
+                if (!edge.isCrossLink) return true;
+                const isConnected =
+                  selectedNodeId &&
+                  (edge.sourceId === selectedNodeId || edge.targetId === selectedNodeId);
+                return showCrossEdgeLabels || zoom >= 0.85 || Boolean(isConnected);
+              })
+              .map((edge) => {
+                const labelDir = detectTextDirection(edge.label || '');
+                const labelW = Math.max(64, Math.min(236, Math.round(edge.label!.length * 6.8 + 24)));
+                return (
+                  <g
+                    key={`label-${edge.id}`}
+                    transform={`translate(${edge.labelX}, ${edge.labelY})`}
+                    pointerEvents="none"
+                  >
+                    <rect
+                      x={-Math.round(labelW / 2)}
+                      y={-11}
+                      width={labelW}
+                      height={22}
+                      rx={11}
+                      fill="#0b1220"
+                      stroke="#64748b"
+                      strokeWidth={1.2}
+                    />
+                    <text
+                      x={0}
+                      y={3.5}
+                      textAnchor="middle"
+                      className="fill-slate-100 text-[10px] font-bold"
+                      direction={labelDir}
+                      style={{ direction: labelDir, unicodeBidi: 'isolate' }}
+                    >
+                      {edge.label}
+                    </text>
+                  </g>
+                );
+              })}
           </svg>
 
           {/* Interactive HTML Nodes Positioned in Exact Layout Coordinates */}
@@ -1091,6 +1146,8 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                   : shape === 'hexagon'
                     ? 'rounded-xl'
                     : 'rounded-2xl';
+            const titleText = pNode.lines.join(' ');
+            const titleDir = detectTextDirection(titleText);
 
             return (
               <div
@@ -1111,7 +1168,9 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                   borderColor: nodeColors.stroke,
                   color: nodeColors.text,
                   fontFamily: "'IBM Plex Sans Arabic', Inter, Cairo, sans-serif",
-                  boxShadow: isSelected ? '0 0 0 3px rgba(16,185,129,.28), 0 8px 22px rgba(0,0,0,.24)' : '0 3px 9px rgba(0,0,0,.2)'
+                  boxShadow: isSelected
+                    ? '0 0 0 3px rgba(16,185,129,.28), 0 8px 22px rgba(0,0,0,.24)'
+                    : '0 3px 9px rgba(0,0,0,.2)'
                 }}
                 className={`absolute ${radiusClass} border-2 px-3 py-2 flex flex-col items-center justify-center text-center transition-shadow cursor-pointer select-none ${
                   'text-white shadow-sm border-slate-600/70'
@@ -1125,26 +1184,25 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                   isSearchMatch ? 'ring-3 ring-amber-500' : ''
                 } ${isDimmed ? 'opacity-30' : 'opacity-100'}`}
               >
-                {/* Small semantic role indicator & clinical note dot */}
+                {/* Small semantic role indicator & BiDi-isolated title */}
                 <div className="flex items-center justify-center gap-1 mb-0.5 max-w-full">
                   <RoleIcon className="w-3 h-3 shrink-0 opacity-80" />
-                  <span dir="auto" className="text-[11px] sm:text-xs font-extrabold leading-tight break-words">
-                    {pNode.lines.join(' ')}
+                  <span
+                    dir={titleDir}
+                    style={{ unicodeBidi: 'isolate' }}
+                    className="text-[11px] sm:text-xs font-extrabold leading-tight break-words"
+                  >
+                    {titleText}
                   </span>
                 </div>
 
                 {pNode.sublabelLine && (
                   <div
-                    dir="auto"
-                    className="text-[10px] font-semibold opacity-80 leading-tight mt-0.5 break-words"
+                    dir={detectTextDirection(pNode.sublabelLine)}
+                    style={{ unicodeBidi: 'isolate' }}
+                    className="text-[10px] font-semibold opacity-85 leading-tight mt-0.5 break-words"
                   >
                     {pNode.sublabelLine}
-                  </div>
-                )}
-
-                {(pNode.noteLines || []).length > 0 && (
-                  <div dir="auto" className="mt-1 max-w-full line-clamp-2 break-words text-[9px] font-medium leading-tight opacity-80">
-                    {(pNode.noteLines || []).join(' ')}
                   </div>
                 )}
 
@@ -1164,14 +1222,14 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                     data-mm-interactive="true"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => toggleCollapseNode(pNode.node.id, e)}
-                    className={`absolute -bottom-3 left-1/2 -translate-x-1/2 min-h-[26px] min-w-[30px] px-2 rounded-full border text-[10px] font-mono font-extrabold flex items-center justify-center shadow-sm transition-colors ${
+                    className={`absolute -bottom-3 left-1/2 -translate-x-1/2 min-h-[24px] min-w-[30px] px-2 rounded-full border text-[10px] font-mono font-extrabold flex items-center justify-center shadow-sm transition-colors ${
                       pNode.isCollapsed
                         ? 'bg-emerald-600 text-white border-emerald-700'
                         : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:border-emerald-500'
                     }`}
                     title={pNode.isCollapsed ? 'توسيع الفرع' : 'طي الفرع'}
                   >
-                    {pNode.isCollapsed ? `+ عرض ${pNode.hiddenDescendantsCount}` : 'طي'}
+                    {pNode.isCollapsed ? `+${pNode.hiddenDescendantsCount}` : '−'}
                   </button>
                 )}
               </div>
@@ -1180,10 +1238,17 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
         </div>
 
         {/* Bottom Canvas Info & Quick Zoom Controls */}
-        <div className="absolute bottom-2 right-2 left-2 pointer-events-none flex flex-wrap items-center justify-between gap-2">
+        <div
+          dir="rtl"
+          className="absolute bottom-2 right-2 left-2 pointer-events-none flex flex-wrap items-center justify-between gap-2"
+        >
           <div className="px-2.5 py-1 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xs border border-slate-200/80 dark:border-slate-800/80 text-[10px] font-bold text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-2 pointer-events-auto">
-            <span className="font-mono tabular-nums">
-              {effectiveDoc.nodes.length} عقدة · {effectiveDoc.edges.length} علاقة
+            <span
+              dir="rtl"
+              style={{ unicodeBidi: 'isolate' }}
+              className="font-extrabold tabular-nums"
+            >
+              {formatMindMapCountsAr(effectiveDoc.nodes.length, effectiveDoc.edges.length)}
             </span>
             {hiddenNodeIds.size > 0 && (
               <button
@@ -1194,11 +1259,6 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                 إظهار العقد المخفية ({hiddenNodeIds.size})
               </button>
             )}
-            {!compact && (
-              <span className="hidden sm:inline text-slate-400">
-                اسحب الخلفية للتحريك · انقر على أي عقدة لإظهار فروعها وتفاصيلها
-              </span>
-            )}
           </div>
           <div
             data-mm-interactive="true"
@@ -1207,7 +1267,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
           >
             <button
               type="button"
-              onClick={() => setZoom((z) => Number(Math.max(0.22, z * 0.84).toFixed(2)))}
+              onClick={() => setZoom((z) => Number(Math.max(0.24, z * 0.84).toFixed(2)))}
               className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-black text-xs flex items-center justify-center"
               title="تصغير الشاشة"
             >
@@ -1217,7 +1277,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
               type="button"
               onClick={fitToView}
               className="px-2 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-mono text-[10px] font-extrabold"
-              title="ملاءمة جميع البطائق"
+              title="ملاءمة حجم البطاقات"
             >
               {Math.round(zoom * 100)}%
             </button>
@@ -1233,16 +1293,22 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
         </div>
       </div>
 
-      {/* Selected Node Inspector & Inline Editor */}
+      {/* Collapsible Bottom Sheet Selected Node Inspector & Inline Editor */}
       {selectedNode && (
         <div
           dir="rtl"
-          className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3"
+          className={`rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-lg transition-all ${
+            inspectorSnap === 'minimized' && !isEditingNode
+              ? 'px-3 py-2'
+              : inspectorSnap === 'compact' && !isEditingNode
+                ? 'p-3 max-h-[26dvh] overflow-y-auto'
+                : 'p-3.5 max-h-[48dvh] overflow-y-auto'
+          }`}
         >
           {!isEditingNode ? (
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0 flex-1 space-y-1">
+                <div className="min-w-0 flex-1 space-y-0.5">
                   <div className="flex flex-wrap items-center gap-1.5">
                     {(() => {
                       const rm = MIND_MAP_ROLE_META[selectedNode.role] || MIND_MAP_ROLE_META.concept;
@@ -1257,88 +1323,177 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                       );
                     })()}
                     {selectedNode.sublabel && (
-                      <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                      <span
+                        dir="auto"
+                        style={{ unicodeBidi: 'isolate' }}
+                        className="text-xs font-bold text-emerald-700 dark:text-emerald-300"
+                      >
                         {selectedNode.sublabel}
                       </span>
                     )}
                   </div>
                   <h4
-                    dir="auto"
+                    dir={detectTextDirection(selectedNode.label)}
+                    style={{ unicodeBidi: 'isolate' }}
                     className="text-sm font-extrabold text-slate-900 dark:text-white break-words"
                   >
                     {selectedNode.label}
                   </h4>
-                  {selectedNode.note && (
+                  {inspectorSnap !== 'minimized' && selectedNode.note && (
                     <p
                       dir="auto"
-                      className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200/70 dark:border-slate-800"
+                      style={{ unicodeBidi: 'isolate' }}
+                      className={`text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line bg-slate-50 dark:bg-slate-950 p-2 rounded-xl border border-slate-200/70 dark:border-slate-800 ${
+                        inspectorSnap === 'compact' ? 'line-clamp-2' : ''
+                      }`}
                     >
                       {selectedNode.note}
                     </p>
                   )}
                 </div>
 
-                {editable && onChangeDocument && (
-                  <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleAddChildNode(selectedNode.id)}
-                      className="min-h-[34px] px-2.5 py-1 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-[11px] font-extrabold flex items-center gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>فرع فرعي</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingNode(true)}
-                      className="min-h-[34px] px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] font-bold flex items-center gap-1"
-                    >
-                      <Edit3 className="w-3.5 h-3.5 text-emerald-500" />
-                      <span>تعديل</span>
-                    </button>
-                    {!compact && (
+                <div className="flex flex-wrap items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setInspectorSnap((prev) =>
+                        prev === 'minimized'
+                          ? 'compact'
+                          : prev === 'compact'
+                            ? 'expanded'
+                            : 'minimized'
+                      )
+                    }
+                    className="min-h-[30px] px-2 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold flex items-center gap-1"
+                    title="تغيير حجم بطاقة تفاصيل العقدة"
+                  >
+                    {inspectorSnap === 'minimized' ? (
+                      <>
+                        <ChevronUp className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>توسيع</span>
+                      </>
+                    ) : inspectorSnap === 'compact' ? (
+                      <>
+                        <ChevronUp className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>كامل</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>طي</span>
+                      </>
+                    )}
+                  </button>
+                  {editable && onChangeDocument && (
+                    <>
                       <button
                         type="button"
-                        onClick={() => setLinkSourceId(selectedNode.id)}
-                        className="min-h-[34px] px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] font-bold flex items-center gap-1"
-                        title="ربط هذه العقدة بعقدة أخرى"
+                        onClick={() => handleAddChildNode(selectedNode.id)}
+                        className="min-h-[30px] px-2.5 py-1 rounded-xl bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 text-[11px] font-extrabold flex items-center gap-1"
                       >
-                        <Link2 className="w-3.5 h-3.5 text-emerald-500" />
-                        <span>ربط</span>
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>فرع</span>
                       </button>
-                    )}
-                    {selectedNode.id !== doc.rootNodeId && (
                       <button
                         type="button"
-                        onClick={() => handleDeleteNode(selectedNode.id)}
-                        className="min-h-[34px] px-2.5 py-1 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[11px] font-bold flex items-center gap-1"
-                        title="حذف العقدة وفروعها"
+                        onClick={() => {
+                          setInspectorSnap('expanded');
+                          setIsEditingNode(true);
+                        }}
+                        className="min-h-[30px] px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] font-bold flex items-center gap-1"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Edit3 className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>تعديل</span>
                       </button>
-                    )}
-                  </div>
-                )}
+                      {!compact && (
+                        <button
+                          type="button"
+                          onClick={() => setLinkSourceId(selectedNode.id)}
+                          className="min-h-[30px] px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] font-bold flex items-center gap-1"
+                          title="ربط هذه العقدة بعقدة أخرى"
+                        >
+                          <Link2 className="w-3.5 h-3.5 text-emerald-500" />
+                          <span>ربط</span>
+                        </button>
+                      )}
+                      {selectedNode.id !== doc.rootNodeId && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteNode(selectedNode.id)}
+                          className="min-h-[30px] px-2 py-1 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[11px] font-bold flex items-center gap-1"
+                          title="حذف العقدة وفروعها"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
 
-              {editable && onChangeDocument && (
-                <div className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-                  <div className="flex items-center justify-between gap-2 text-[11px] font-black"><span>ألوان العقدة والفرع</span><span className="text-[10px] text-slate-400">{selectedNode.color ? 'لون يدوي' : (doc.colorMode || 'branch') === 'branch' ? 'تلقائي حسب الفرع' : 'تلقائي حسب الدور'}</span></div>
-                  <div className="flex flex-wrap gap-2">
-                    {MIND_MAP_COLOR_SWATCHES.map((swatch) => <button key={swatch.name} type="button" title={swatch.name} aria-label={`لون ${swatch.name}`} onClick={() => applySwatchToSelectedNode(swatch.base)} className={`h-7 w-7 rounded-full border-2 ${selectedSwatchColor === swatch.base ? 'border-white ring-2 ring-emerald-400' : 'border-slate-400/40'}`} style={{ backgroundColor: swatch.base }} />)}
-                    <button type="button" onClick={() => onChangeDocument({ ...doc, nodes: doc.nodes.map((node) => node.id === selectedNode.id ? { ...node, color: undefined } : node), updatedAt: new Date().toISOString() })} className="rounded-lg border border-slate-300 px-2 text-[10px] font-bold dark:border-slate-600">تلقائي</button>
+              {inspectorSnap === 'expanded' && editable && onChangeDocument && (
+                <div className="space-y-2 rounded-xl border border-slate-200 p-2.5 dark:border-slate-700">
+                  <div className="flex items-center justify-between gap-2 text-[11px] font-black">
+                    <span>ألوان العقدة والفرع</span>
+                    <span className="text-[10px] text-slate-400">
+                      {selectedNode.color
+                        ? 'لون يدوي'
+                        : (doc.colorMode || 'branch') === 'branch'
+                          ? 'تلقائي حسب الفرع'
+                          : 'تلقائي حسب الدور'}
+                    </span>
                   </div>
-                  <button type="button" onClick={applySwatchToSelectedBranch} className="w-full rounded-lg bg-emerald-500 px-3 py-2 text-[11px] font-black text-slate-950">تطبيق اللون على الفرع بالكامل</button>
+                  <div className="flex flex-wrap gap-2">
+                    {MIND_MAP_COLOR_SWATCHES.map((swatch) => (
+                      <button
+                        key={swatch.name}
+                        type="button"
+                        title={swatch.name}
+                        aria-label={`لون ${swatch.name}`}
+                        onClick={() => applySwatchToSelectedNode(swatch.base)}
+                        className={`h-6 w-6 rounded-full border-2 ${
+                          selectedSwatchColor === swatch.base
+                            ? 'border-white ring-2 ring-emerald-400'
+                            : 'border-slate-400/40'
+                        }`}
+                        style={{ backgroundColor: swatch.base }}
+                      />
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onChangeDocument({
+                          ...doc,
+                          nodes: doc.nodes.map((node) =>
+                            node.id === selectedNode.id ? { ...node, color: undefined } : node
+                          ),
+                          updatedAt: new Date().toISOString()
+                        })
+                      }
+                      className="rounded-lg border border-slate-300 px-2 text-[10px] font-bold dark:border-slate-600"
+                    >
+                      تلقائي
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={applySwatchToSelectedBranch}
+                    className="w-full rounded-lg bg-emerald-500 px-3 py-1.5 text-[11px] font-black text-slate-950"
+                  >
+                    تطبيق اللون على الفرع بالكامل
+                  </button>
                 </div>
               )}
 
               {/* Connected custom edges */}
-              {connectedEdgesForSelected.length > 0 && (
+              {inspectorSnap !== 'minimized' && connectedEdgesForSelected.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800">
                   <span className="text-[11px] font-bold text-slate-400">العلاقات:</span>
                   {connectedEdgesForSelected.map((ed) => (
                     <span
                       key={ed.id}
+                      dir="auto"
+                      style={{ unicodeBidi: 'isolate' }}
                       className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-200"
                     >
                       <span>

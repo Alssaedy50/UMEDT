@@ -8,6 +8,7 @@ import {
   MindMapStyle
 } from '../types/mindMap';
 import { getMindMapNodeColors } from './mindMapColorEngine';
+import { detectTextDirection } from '../utils/bidiHelper';
 
 export const MIND_MAPS_STORAGE_KEY = 'dictengine_umd_mind_maps_v1';
 export const MIND_MAPS_UPDATED_EVENT = 'umed:mindmaps-updated';
@@ -563,31 +564,34 @@ export function buildStandaloneMindMapSvg(
       const markerId = `mm-arrow-${String(edge.id).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
       const dash = edge.lineStyle === 'dashed' && !edge.isCrossLink ? ' stroke-dasharray="6 4"' : '';
       const marker = edge.directed ? ` marker-end="url(#${markerId})"` : '';
-      const width = edge.isCrossLink ? 2.35 : 3.1;
-      const opacity = edge.isCrossLink ? 0.34 : 0.94;
+      const strokeW = edge.isCrossLink ? 2.35 : 3.1;
+      const opacity = edge.isCrossLink ? 0.38 : 0.94;
       const originDot = edge.isCrossLink
         ? `<circle class="mm-edge-origin" cx="${edge.sourceX ?? 0}" cy="${edge.sourceY ?? 0}" r="3.4" fill="${stroke}" />`
         : '';
-      return `<g class="mm-edge" data-edge-id="${escapeXml(edge.id)}" data-kind="${edge.isCrossLink ? 'cross-link' : 'tree-link'}" data-from="${escapeXml(edge.sourceId)}" data-to="${escapeXml(edge.targetId)}">
+      return `<g class="mm-edge" data-edge-id="${escapeXml(edge.id)}" data-kind="${edge.isCrossLink ? 'cross-link' : 'tree-link'}" data-cross-link="${edge.isCrossLink ? 'true' : 'false'}" data-from="${escapeXml(edge.sourceId)}" data-to="${escapeXml(edge.targetId)}">
         <defs><marker id="${markerId}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 1 L 9 5 L 0 9 z" fill="${stroke}" /></marker></defs>
-        <path class="mm-edge-path" d="${escapeXml(edge.path)}" fill="none" stroke="${stroke}" stroke-width="${width}" opacity="${opacity}" stroke-linecap="round" stroke-linejoin="round" pointer-events="stroke"${dash}${marker} />
+        <path class="mm-edge-path" d="${escapeXml(edge.path)}" fill="none" stroke="${stroke}" stroke-width="${strokeW}" opacity="${opacity}" stroke-linecap="round" stroke-linejoin="round" pointer-events="stroke"${dash}${marker} />
         ${originDot}
       </g>`;
     })
-    .join('\\n');
+    .join('\n');
 
   const edgeLabelElements = layout.edges
     .filter((edge) => Boolean(edge.label))
     .map((edge) => {
       const sourceNode = nodeById.get(edge.sourceId);
       const accent = sourceNode ? getMindMapNodeColors(doc, sourceNode).stroke : edgeStroke;
-      const labelWidth = Math.max(64, Math.min(220, Math.round((edge.label || '').length * 7.2 + 22)));
-      return `<g class="mm-edge-label" data-edge-id="${escapeXml(edge.id)}" data-from="${escapeXml(edge.sourceId)}" data-to="${escapeXml(edge.targetId)}" transform="translate(${edge.labelX}, ${edge.labelY})" role="button" tabindex="0" pointer-events="all" style="cursor:pointer">
+      const rawLabel = edge.label || '';
+      const labelDir = detectTextDirection(rawLabel);
+      const labelWidth = Math.max(64, Math.min(236, Math.round(rawLabel.length * 6.8 + 24)));
+      return `<g class="mm-edge-label" data-edge-id="${escapeXml(edge.id)}" data-kind="${edge.isCrossLink ? 'cross-link' : 'tree-link'}" data-cross-link="${edge.isCrossLink ? 'true' : 'false'}" data-from="${escapeXml(edge.sourceId)}" data-to="${escapeXml(edge.targetId)}" transform="translate(${edge.labelX}, ${edge.labelY})" role="button" tabindex="0" pointer-events="all" style="cursor:pointer">
         <rect x="${-Math.round(labelWidth / 2)}" y="-11" width="${labelWidth}" height="22" rx="11" fill="#0b1220" fill-opacity=".96" stroke="${accent}" stroke-width="1.5" />
-        <text x="0" y="3.5" text-anchor="middle" dir="auto" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="10" font-weight="800" fill="#e2e8f0">${escapeXml(edge.label || '')}</text>
+        <text x="0" y="3.5" text-anchor="middle" dir="${labelDir}" direction="${labelDir}" unicode-bidi="isolate" style="direction:${labelDir};unicode-bidi:isolate" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="10" font-weight="800" fill="#e2e8f0">${escapeXml(rawLabel)}</text>
       </g>`;
     })
-    .join('\\n');
+    .join('\n');
+
   const nodeElements = layout.nodes
     .map((pn) => {
       const colors = getMindMapNodeColors(doc, pn.node);
@@ -598,54 +602,51 @@ export function buildStandaloneMindMapSvg(
       const y = pn.y - pn.height / 2;
       const shape = pn.node.shape || 'rounded';
       const rx = shape === 'pill' ? pn.height / 2 : pn.node.role === 'root' ? 18 : 14;
-      const shapeMarkup = shape === 'circle'
-        ? `<ellipse cx="${pn.x}" cy="${pn.y}" rx="${Math.max(pn.width,pn.height)/2}" ry="${Math.max(pn.width,pn.height)/2}" fill="${fill}" stroke="${stroke}" stroke-width="${pn.node.role === 'root' ? 2.5 : 1.75}"/>`
-        : shape === 'diamond'
-          ? `<polygon points="${pn.x},${y} ${x+pn.width},${pn.y} ${pn.x},${y+pn.height} ${x},${pn.y}" fill="${fill}" stroke="${stroke}" stroke-width="${pn.node.role === 'root' ? 2.5 : 1.75}"/>`
-          : shape === 'hexagon'
-            ? `<polygon points="${x+pn.width*0.18},${y} ${x+pn.width*0.82},${y} ${x+pn.width},${pn.y} ${x+pn.width*0.82},${y+pn.height} ${x+pn.width*0.18},${y+pn.height} ${x},${pn.y}" fill="${fill}" stroke="${stroke}" stroke-width="${pn.node.role === 'root' ? 2.5 : 1.75}"/>`
-            : `<rect x="${x}" y="${y}" width="${pn.width}" height="${pn.height}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${pn.node.role === 'root' ? 2.5 : 1.75}"/>`;
+      const shapeMarkup =
+        shape === 'circle'
+          ? `<ellipse cx="${pn.x}" cy="${pn.y}" rx="${Math.max(pn.width, pn.height) / 2}" ry="${Math.max(pn.width, pn.height) / 2}" fill="${fill}" stroke="${stroke}" stroke-width="${pn.node.role === 'root' ? 2.5 : 1.75}"/>`
+          : shape === 'diamond'
+            ? `<polygon points="${pn.x},${y} ${x + pn.width},${pn.y} ${pn.x},${y + pn.height} ${x},${pn.y}" fill="${fill}" stroke="${stroke}" stroke-width="${pn.node.role === 'root' ? 2.5 : 1.75}"/>`
+            : shape === 'hexagon'
+              ? `<polygon points="${x + pn.width * 0.18},${y} ${x + pn.width * 0.82},${y} ${x + pn.width},${pn.y} ${x + pn.width * 0.82},${y + pn.height} ${x + pn.width * 0.18},${y + pn.height} ${x},${pn.y}" fill="${fill}" stroke="${stroke}" stroke-width="${pn.node.role === 'root' ? 2.5 : 1.75}"/>`
+              : `<rect x="${x}" y="${y}" width="${pn.width}" height="${pn.height}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${pn.node.role === 'root' ? 2.5 : 1.75}"/>`;
 
       const parentNode = pn.node.parentId ? nodeById.get(pn.node.parentId) : undefined;
       const parentLabel = parentNode?.label || '';
-      const parentLine = parentLabel ? `↳ ${parentLabel.slice(0, 22)}${parentLabel.length > 22 ? '…' : ''}` : '';
-      const noteLines = pn.noteLines || [];
-      const totalLines = pn.lines.length + (pn.sublabelLine ? 1 : 0) + noteLines.length + (parentLine ? 1 : 0);
-      const startY = pn.y - ((totalLines - 1) * 13.5) / 2 + 4;
+      const parentAttr = parentLabel
+        ? ` data-parent-label="↳ ${escapeXml(parentLabel.slice(0, 28))}"`
+        : '';
+
+      const totalLines = pn.lines.length + (pn.sublabelLine ? 1 : 0);
+      const lineSpacing = 15.5;
+      const startY = pn.y - ((totalLines - 1) * lineSpacing) / 2 + 4;
 
       const textLines = pn.lines
-        .map(
-          (line, idx) =>
-            `<text x="${pn.x}" y="${startY + idx * 16}" text-anchor="middle" dir="auto" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="${
-              pn.node.role === 'root' ? 13 : 12
-            }" font-weight="800" fill="${textColor}">${escapeXml(line)}</text>`
-        )
+        .map((line, idx) => {
+          const lineDir = detectTextDirection(line);
+          return `<text x="${pn.x}" y="${startY + idx * lineSpacing}" text-anchor="middle" dir="${lineDir}" direction="${lineDir}" unicode-bidi="isolate" style="direction:${lineDir};unicode-bidi:isolate" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="${
+            pn.node.role === 'root' ? 13 : 12
+          }" font-weight="800" fill="${textColor}">${escapeXml(line)}</text>`;
+        })
         .join('');
 
+      const subDir = pn.sublabelLine ? detectTextDirection(pn.sublabelLine) : 'rtl';
       const subLine = pn.sublabelLine
-        ? `<text x="${pn.x}" y="${startY + pn.lines.length * 13.5}" text-anchor="middle" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="10.5" font-weight="600" opacity="0.84" fill="${textColor}">${escapeXml(
+        ? `<text x="${pn.x}" y="${startY + pn.lines.length * lineSpacing}" text-anchor="middle" dir="${subDir}" direction="${subDir}" unicode-bidi="isolate" style="direction:${subDir};unicode-bidi:isolate" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="10.5" font-weight="600" opacity="0.86" fill="${textColor}">${escapeXml(
             pn.sublabelLine
           )}</text>`
         : '';
-      const noteMarkup = noteLines.map((line, index) =>
-        `<text x="${pn.x}" y="${startY + (pn.lines.length + (pn.sublabelLine ? 1 : 0) + index) * 13.5 + 1}" text-anchor="middle" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="9" font-weight="500" opacity="0.78" fill="${textColor}">${escapeXml(line)}</text>`
-      ).join('');
-      const parentMarkup = parentLine
-        ? `<text x="${pn.x}" y="${startY + (pn.lines.length + (pn.sublabelLine ? 1 : 0) + noteLines.length) * 13.5}" text-anchor="middle" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="8.5" font-weight="700" opacity="0.72" fill="${textColor}">${escapeXml(parentLine)}</text>`
-        : '';
 
-      return `<g class="mm-node" data-node-id="${escapeXml(pn.node.id)}" role="button" tabindex="0" aria-label="${escapeXml(pn.node.label)}">
+      return `<g class="mm-node" data-node-id="${escapeXml(pn.node.id)}"${parentAttr} role="button" tabindex="0" aria-label="${escapeXml(pn.node.label)}">
         ${shapeMarkup}
         ${textLines}
         ${subLine}
-        ${noteMarkup}
-        ${parentMarkup}
       </g>`;
     })
     .join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${width} ${height}" width="${Math.round(
+<svg xmlns="http://www.w3.org/2000/svg" dir="ltr" viewBox="${minX} ${minY} ${width} ${height}" width="${Math.round(
     width
   )}" height="${Math.round(height)}">
   <title>${escapeXml(doc.title)}</title>

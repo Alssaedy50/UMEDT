@@ -13,7 +13,10 @@ import {
   ArrowRight,
   Clock3,
   CalendarClock,
-  Save
+  Save,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { TopicArticle } from '../types/lexicon';
 import { MindMapColorMode, MindMapDocument, MindMapStyle } from '../types/mindMap';
@@ -31,6 +34,7 @@ import {
 import { InteractiveMindMapCanvas } from './InteractiveMindMapCanvas';
 import { parseUploadedFile } from '../services/fileParserService';
 import { MobileSafeNumericInput } from './MobileSafeInput';
+import { isLatinLeadText, formatMindMapCountsAr } from '../utils/bidiHelper';
 
 interface MindMapStudioModalProps {
   isOpen: boolean;
@@ -59,6 +63,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
   const [activeMapId, setActiveMapId] = useState<string | null>(initialMindMapId || null);
   const [studioMode, setStudioMode] = useState<'list' | 'create' | 'import' | 'canvas'>('list');
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showMapPropsSheet, setShowMapPropsSheet] = useState(false);
   const [sortMode, setSortMode] = useState<'updated' | 'created' | 'name'>('updated');
   const [creationTitle, setCreationTitle] = useState(initialTopic?.titleEn || initialTopic?.title || '');
   const [creationTopicId, setCreationTopicId] = useState(initialTopic?.id || '');
@@ -400,17 +405,18 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {visibleMaps.map((map) => {
                     const linkedTopic = topics.find((topic) => topic.id === map.linkedTopicId);
+                    const mapTitleIsLatin = isLatinLeadText(map.title || '');
                     return (
                       <button key={map.id} type="button" onClick={() => { setActiveMapId(map.id); setStudioMode('canvas'); }} className="group rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-4 text-right shadow-sm transition hover:border-emerald-500 hover:shadow-md">
                         <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <h4 className="truncate text-sm font-black group-hover:text-emerald-600">{map.title}</h4>
-                            <p className="mt-1 text-[10px] text-slate-500">{map.nodes.length} عقدة · {map.edges.length} علاقة</p>
+                          <div className="min-w-0 flex-1">
+                            <h4 dir="auto" style={{ unicodeBidi: 'isolate' }} className={`truncate text-sm font-black group-hover:text-emerald-600 ${mapTitleIsLatin ? 'text-left' : 'text-right'}`}>{map.title}</h4>
+                            <p dir="rtl" style={{ unicodeBidi: 'isolate' }} className="mt-1 text-[10px] text-slate-500">{formatMindMapCountsAr(map.nodes.length, map.edges.length)}</p>
                           </div>
                           <Network className="h-5 w-5 shrink-0 text-emerald-500" />
                         </div>
                         <div className="mt-4 space-y-1 text-[10px] text-slate-500">
-                          <p>{linkedTopic ? `الموضوع: ${linkedTopic.titleAr || linkedTopic.titleEn || linkedTopic.title}` : 'غير مرتبطة بموضوع'}</p>
+                          <p dir="auto" style={{ unicodeBidi: 'isolate' }}>{linkedTopic ? `الموضوع: ${linkedTopic.titleAr || linkedTopic.titleEn || linkedTopic.title}` : 'غير مرتبطة بموضوع'}</p>
                           <p className="flex items-center gap-1"><CalendarClock className="h-3 w-3" /> أُنشئت: {new Date(map.createdAt).toLocaleString('ar')}</p>
                           <p className="flex items-center gap-1"><Clock3 className="h-3 w-3" /> آخر تحديث: {new Date(map.updatedAt).toLocaleString('ar')}</p>
                         </div>
@@ -424,7 +430,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
             <section className="mx-auto w-full max-w-2xl space-y-5">
               <div><h3 className="text-base font-black">إنشاء خريطة يدوياً</h3><p className="mt-1 text-xs text-slate-500">حدد بيانات الخريطة الأولية ثم انتقل إلى المحرر لإضافة العقد والروابط وتعديلها.</p></div>
               <label className="block text-xs font-extrabold">اسم الخريطة
-                <input dir="auto" value={creationTitle} onChange={(e) => setCreationTitle(e.target.value)} placeholder="مثال: Atherosclerosis" className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 text-sm" />
+                <input dir="auto" style={{ unicodeBidi: 'isolate' }} value={creationTitle} onChange={(e) => setCreationTitle(e.target.value)} placeholder="مثال: Atherosclerosis" className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 text-sm" />
               </label>
               <label className="block text-xs font-extrabold">ربط الخريطة بموضوع
                 <select value={creationTopicId} onChange={(e) => { setCreationTopicId(e.target.value); if (!creationTitle.trim()) setCreationTitle(topics.find((topic) => topic.id === e.target.value)?.titleEn || topics.find((topic) => topic.id === e.target.value)?.title || ''); }} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 text-xs">
@@ -612,7 +618,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                             تم التعرف على الصيغة: {importPreview.detectedFormatLabelAr}
                           </div>
                           <div className="text-xs text-slate-600 dark:text-slate-300 font-mono tabular-nums">
-                            {importPreview.stats.nodeCount} عقدة · {importPreview.stats.edgeCount} علاقة · عمق{' '}
+                            {formatMindMapCountsAr(importPreview.stats.nodeCount, importPreview.stats.edgeCount)} · عمق{' '}
                             {importPreview.stats.maxDepth}
                           </div>
                         </div>
@@ -652,111 +658,147 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
             </div>
           ) : (
             <>
-              {/* Quick Map Selector & Topic Auto-Generator Strip */}
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                  {visibleMaps.map((m) => {
-                    const isActive = activeMap?.id === m.id;
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => setActiveMapId(m.id)}
-                        className={`min-h-[36px] px-3 py-1.5 rounded-xl border text-xs font-extrabold max-w-[230px] truncate transition-colors ${
-                          isActive
-                            ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:text-slate-950'
-                            : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-emerald-500'
-                        }`}
-                      >
-                        {m.title}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                  {activeMap && (
-                    <button
-                      type="button"
-                      onClick={handleSaveActiveMap}
-                      className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center gap-1.5"
-                      title="حفظ الخريطة الذهنية"
-                    >
-                      <Save className="w-3.5 h-3.5" />
-                      <span>حفظ الخريطة</span>
-                    </button>
-                  )}
-                  {activeMap && scopedTopic && onEmbedMapInTopic && (
-                    <button
-                      type="button"
-                      onClick={() => onEmbedMapInTopic(scopedTopic, activeMap)}
-                      className="min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-emerald-500/15 text-xs font-bold flex items-center gap-1.5"
-                      title="إدراج هذه الخريطة داخل نص الموضوع كعنصر محتوى"
-                    >
-                      <BookOpen className="w-3.5 h-3.5 text-emerald-500" />
-                      <span>إدراج داخل الموضوع</span>
-                    </button>
-                  )}
-
-                  {activeMap && (
-                    <button
-                      type="button"
-                      onClick={handleDeleteActiveMap}
-                      className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-1"
-                      title="حذف الخريطة الحالية"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
               {/* Active Canvas OR Empty State */}
               {activeMap ? (
-                <div className="space-y-3">
-                  {/* Editable Map Title & Topic Link Row */}
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                    <div className="sm:col-span-7">
-                      <input
-                        type="text"
-                        dir="auto"
-                        value={activeMap.title}
-                        onChange={(e) =>
-                          handleSaveMapUpdate({
-                            ...activeMap,
-                            title: e.target.value
-                          })
-                        }
-                        placeholder="عنوان الخريطة الذهنية..."
-                        className="w-full min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-extrabold"
-                      />
+                <div className="space-y-2.5">
+                  {/* Compact Consolidated Top Bar for Mobile & Desktop */}
+                  <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/70 px-2.5 py-2 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      {/* Map switcher / current map title */}
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        {visibleMaps.length > 1 ? (
+                          <select
+                            dir="auto"
+                            style={{ unicodeBidi: 'isolate' }}
+                            value={activeMap.id}
+                            onChange={(e) => setActiveMapId(e.target.value)}
+                            aria-label="تبديل الخريطة النشطة"
+                            className={`min-h-[34px] min-w-0 flex-1 max-w-[260px] rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 text-xs font-extrabold truncate ${
+                              isLatinLeadText(activeMap.title || '') ? 'text-left' : 'text-right'
+                            }`}
+                          >
+                            {visibleMaps.map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.title}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div
+                            dir="auto"
+                            style={{ unicodeBidi: 'isolate' }}
+                            className={`min-w-0 flex-1 truncate text-xs sm:text-sm font-black text-slate-900 dark:text-white px-1 ${
+                              isLatinLeadText(activeMap.title || '') ? 'text-left' : 'text-right'
+                            }`}
+                            title={activeMap.title}
+                          >
+                            {activeMap.title}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Primary compact actions */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setShowMapPropsSheet((prev) => !prev)}
+                          aria-expanded={showMapPropsSheet}
+                          className={`min-h-[34px] px-2.5 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1 transition-colors ${
+                            showMapPropsSheet
+                              ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
+                          }`}
+                          title="خصائص وعنوان الخريطة"
+                        >
+                          <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-500" />
+                          <span className="hidden sm:inline">خصائص الخريطة</span>
+                          {showMapPropsSheet ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleSaveActiveMap}
+                          className="min-h-[34px] px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center gap-1.5"
+                          title="حفظ الخريطة الذهنية"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>حفظ الخريطة</span>
+                        </button>
+
+                        {scopedTopic && onEmbedMapInTopic && (
+                          <button
+                            type="button"
+                            onClick={() => onEmbedMapInTopic(scopedTopic, activeMap)}
+                            className="min-h-[34px] px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-emerald-500/15 text-[11px] font-bold flex items-center gap-1"
+                            title="إدراج هذه الخريطة داخل نص الموضوع كعنصر محتوى"
+                          >
+                            <BookOpen className="w-3.5 h-3.5 text-emerald-500" />
+                            <span className="hidden md:inline">إدراج داخل الموضوع</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={handleDeleteActiveMap}
+                          className="min-h-[34px] px-2.5 py-1 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-1"
+                          title="حذف الخريطة الحالية"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="sm:col-span-5">
-                      <select
-                        dir="auto"
-                        value={activeMap.linkedTopicId || ''}
-                        onChange={(e) =>
-                          handleSaveMapUpdate({
-                            ...activeMap,
-                            linkedTopicId: e.target.value || undefined
-                          })
-                        }
-                        className="w-full min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold"
-                      >
-                        <option value="">غير مرتبطة بموضوع محدد</option>
-                        {topics.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            مرتبطة بـ: {t.titleAr || t.titleEn || t.title}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+
+                    {/* Collapsible Map Title & Topic Link Sheet */}
+                    {showMapPropsSheet && (
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center pt-1.5 border-t border-slate-200/80 dark:border-slate-800">
+                        <div className="sm:col-span-7">
+                          <input
+                            type="text"
+                            dir="auto"
+                            style={{ unicodeBidi: 'isolate' }}
+                            value={activeMap.title}
+                            onChange={(e) =>
+                              handleSaveMapUpdate({
+                                ...activeMap,
+                                title: e.target.value
+                              })
+                            }
+                            placeholder="عنوان الخريطة الذهنية..."
+                            className={`w-full min-h-[36px] px-3 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-extrabold ${
+                              isLatinLeadText(activeMap.title || '') ? 'text-left' : 'text-right'
+                            }`}
+                          />
+                        </div>
+                        <div className="sm:col-span-5">
+                          <select
+                            dir="auto"
+                            style={{ unicodeBidi: 'isolate' }}
+                            value={activeMap.linkedTopicId || ''}
+                            onChange={(e) =>
+                              handleSaveMapUpdate({
+                                ...activeMap,
+                                linkedTopicId: e.target.value || undefined
+                              })
+                            }
+                            className="w-full min-h-[36px] px-3 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold"
+                          >
+                            <option value="">غير مرتبطة بموضوع محدد</option>
+                            {topics.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                مرتبطة بـ: {t.titleAr || t.titleEn || t.title}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <InteractiveMindMapCanvas
                     document={activeMap}
                     onChangeDocument={handleSaveMapUpdate}
                     editable={true}
+                    heightClassName="h-[68dvh] min-h-[420px]"
                     showToast={showToast}
                   />
                 </div>
