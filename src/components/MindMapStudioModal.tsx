@@ -475,7 +475,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                  العدد المستهدف للعقد (بما فيها الجذر)
+                  عدد العقد المستهدف (اختياري، بما فيها الجذر)
                   <MobileSafeNumericInput
                     value={promptNodeCount}
                     onRawChange={setPromptNodeCount}
