@@ -1123,7 +1123,7 @@ export function parseMindMapInput(
   }
 
   // Explicit JSON uploads must not silently fall through to a one-node text map.
-  if (fileLower.endsWith('.json')) {
+  if (fileLower.endsWith('.json') || text.startsWith('{') || text.startsWith('[') || /^\`\`\`(?:json)?\\s*/i.test(text)) {
     return {
       success: false,
       detectedFormat: 'umedt-json',
