@@ -134,7 +134,8 @@ public class UMEDTPopupCardActivity extends Activity {
     }
 
     private void processDirectTextLookup(String rawText, boolean notifyIfMissing) {
-        if (UMEDTDictionaryPopupEngine.shouldIgnoreText(rawText)) {
+        if (UMEDTDictionaryPopupEngine.shouldIgnoreText(rawText)
+                || !UMEDTDictionaryPopupEngine.isSingleWordLookup(rawText)) {
             closeSilently();
             return;
         }
