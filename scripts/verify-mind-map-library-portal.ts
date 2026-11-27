@@ -34,6 +34,32 @@ assert(doc.nodes[0].shape === 'pill' && doc.nodes[0].color === '#0f766e', 'Root 
 assert(doc.nodes[1].shape === 'diamond' && doc.nodes[1].color === '#2563eb', 'Child shape and color must be preserved.');
 const svg = buildStandaloneMindMapSvg(doc, computeMindMapLayout(doc));
 assert(svg.includes('<polygon') && svg.includes('fill="#2563eb"'), 'Custom shape and color must render in SVG.');
+
+const collisionDoc = {
+  ...doc,
+  style: 'hierarchical' as const,
+  nodes: [
+    { id: 'root', label: 'Root', parentId: null, role: 'root' as const },
+    { id: 'a', label: 'Branch A', parentId: 'root', role: 'concept' as const, position: { x: 0, y: 0 } },
+    { id: 'b', label: 'Branch B', parentId: 'root', role: 'concept' as const, position: { x: 0, y: 0 } },
+    { id: 'a1', label: 'Child A1', parentId: 'a', role: 'mechanism' as const, position: { x: 0, y: 0 } },
+    { id: 'b1', label: 'Child B1', parentId: 'b', role: 'mechanism' as const, position: { x: 0, y: 0 } }
+  ],
+  edges: []
+};
+const collisionLayout = computeMindMapLayout(collisionDoc);
+for (let i = 0; i < collisionLayout.nodes.length; i++) {
+  for (let j = i + 1; j < collisionLayout.nodes.length; j++) {
+    const a = collisionLayout.nodes[i];
+    const b = collisionLayout.nodes[j];
+    const overlapX = Math.abs(a.x - b.x) < (a.width + b.width) / 2 + 16;
+    const overlapY = Math.abs(a.y - b.y) < (a.height + b.height) / 2 + 16;
+    assert(!(overlapX && overlapY), 'Visible node cards must not overlap after layout collision resolution.');
+  }
+}
+const parentAwareSvg = buildStandaloneMindMapSvg(collisionDoc, collisionLayout);
+assert(parentAwareSvg.includes('↳ Root') || parentAwareSvg.includes('↳ Branch'), 'Child cards must display their parent label.');
+
 const portalPath = path.join(process.cwd(), 'src/components/LibraryMindMapsPortal.tsx');
 const portal = fs.readFileSync(portalPath, 'utf8');
 assert(portal.includes('السابق') && portal.includes('التالي'), 'Sequential previous/next controls must exist.');
