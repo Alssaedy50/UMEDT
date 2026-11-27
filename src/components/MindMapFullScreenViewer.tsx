@@ -142,6 +142,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
   }, []);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const selectedNodeIdRef = useRef<string | null>(null);
   useEffect(() => {
     selectedNodeIdRef.current = selectedNodeId;
@@ -504,6 +505,7 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
           return next;
         });
       }
+      setSelectedEdgeId(null);
       setSelectedNodeId(targetId);
       setIsNoteExpanded(false);
       if (isSequentialMode) {
@@ -669,13 +671,64 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       });
     }
 
-    // Highlight selected node immediately after SVG render
-    if (selectedNodeIdRef.current) {
+    // Two-layer edge focus: keep the full graph beneath cards, then clone only
+    // the active relationships and labels into the non-interactive overlay above them.
+    const overlay = svg.querySelector('.mm-edge-overlay');
+    const activeNodeId = selectedNodeIdRef.current;
+    const activeEdgeId = selectedEdgeId;
+    const hasActiveFocus = Boolean(activeNodeId || activeEdgeId);
+    svg.classList.toggle('has-active-focus', hasActiveFocus);
+    if (overlay) overlay.replaceChildren();
+
+    const relatedEdges = Array.from(svg.querySelectorAll<SVGGElement>('.mm-edge')).filter((edge) => {
+      const related = activeEdgeId
+        ? edge.dataset.edgeId === activeEdgeId
+        : Boolean(activeNodeId && (
+            edge.dataset.from === activeNodeId || edge.dataset.to === activeNodeId
+          ));
+      edge.classList.toggle('is-related', related);
+      return related;
+    });
+
+    const relatedEdgeIds = new Set(relatedEdges.map((edge) => edge.dataset.edgeId).filter(Boolean));
+    svg.querySelectorAll<SVGGElement>('.mm-edge-label').forEach((label) => {
+      label.classList.toggle('is-related', Boolean(label.dataset.edgeId && relatedEdgeIds.has(label.dataset.edgeId)));
+    });
+
+    if (overlay && hasActiveFocus) {
+        relatedEdges.forEach((edge) => {
+        const clone = edge.cloneNode(true) as SVGGElement;
+        clone.classList.add('mm-edge-active');
+        overlay.appendChild(clone);
+        const edgeId = edge.dataset.edgeId;
+        if (edgeId) {
+          const label = Array.from(svg.querySelectorAll<SVGGElement>('.mm-edge-label'))
+            .find((item) => item.dataset.edgeId === edgeId);
+          if (label) {
+            const labelClone = label.cloneNode(true) as SVGGElement;
+            labelClone.classList.add('mm-edge-label-active');
+            overlay.appendChild(labelClone);
+          }
+        }
+      });
+    }
+
+    if (activeNodeId) {
       const selected = Array.from(svg.querySelectorAll('.mm-node')).find(
-        (node) => (node as SVGGElement).dataset.nodeId === selectedNodeIdRef.current
+        (node) => (node as SVGGElement).dataset.nodeId === activeNodeId
       );
       selected?.classList.add('selected');
     }
+
+    const handleEdgeClick = (event: Event) => {
+      const target = event.target as Element | null;
+      const edge = target?.closest?.('.mm-edge[data-edge-id]') as SVGGElement | null;
+      if (!edge?.dataset.edgeId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setSelectedNodeId(null);
+      setSelectedEdgeId(edge.dataset.edgeId);
+    };
 
     const handleDoubleClick = (event: Event) => {
       const target = event.target as Element | null;
@@ -704,12 +757,16 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
 
     svg.addEventListener('dblclick', handleDoubleClick);
     svg.addEventListener('keydown', handleKeyDown);
+    svg.addEventListener('click', handleEdgeClick);
     return () => {
       svg.removeEventListener('dblclick', handleDoubleClick);
       svg.removeEventListener('keydown', handleKeyDown);
+      svg.removeEventListener('click', handleEdgeClick);
     };
   }, [
     svgMarkup,
+    selectedNodeId,
+    selectedEdgeId,
     styledDocument.rootNodeId,
     childCountMap,
     collapsedIds,
@@ -960,6 +1017,11 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
         .mm-node rect, .mm-node polygon, .mm-node ellipse { filter: drop-shadow(0 3px 7px rgba(0,0,0,.22)); }
         .mm-node text { font-family: 'IBM Plex Sans Arabic', Inter, Cairo, sans-serif; direction: auto; unicode-bidi: plaintext; }
         .mm-edge-label { pointer-events: none; }
+        .mm-edge { cursor: pointer; }
+        .has-active-focus .mm-edge-layer .mm-edge:not(.is-related),
+        .has-active-focus .mm-edge-label-layer .mm-edge-label:not(.is-related) { opacity: .14 !important; }
+        .mm-edge-active path { stroke-width: 4.6px !important; opacity: 1 !important; filter: drop-shadow(0 0 3px rgba(16,185,129,.75)); }
+        .mm-edge-label-active rect { stroke: #10b981 !important; stroke-width: 2px !important; }
         .mm-node:focus rect, .mm-node.selected rect,
         .mm-node:focus polygon, .mm-node.selected polygon,
         .mm-node:focus ellipse, .mm-node.selected ellipse {

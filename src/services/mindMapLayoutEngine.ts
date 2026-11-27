@@ -197,22 +197,16 @@ function computeCubicPath(
   orientation: 'horizontal' | 'vertical'
 ): { path: string; labelX: number; labelY: number } {
   if (orientation === 'horizontal') {
-    const dx = tx - sx;
-    const ctrl = Math.max(46, Math.abs(dx) * 0.45);
-    const c1x = sx + (dx >= 0 ? ctrl : -ctrl);
-    const c2x = tx - (dx >= 0 ? ctrl : -ctrl);
-    const path = `M ${sx} ${sy} C ${c1x} ${sy}, ${c2x} ${ty}, ${tx} ${ty}`;
+    const midX = (sx + tx) / 2;
+    const path = `M ${sx} ${sy} C ${midX} ${sy}, ${midX} ${ty}, ${tx} ${ty}`;
     return {
       path,
       labelX: (sx + tx) / 2,
       labelY: (sy + ty) / 2 - 8
     };
   }
-  const dy = ty - sy;
-  const ctrl = Math.max(38, Math.abs(dy) * 0.48);
-  const c1y = sy + (dy >= 0 ? ctrl : -ctrl);
-  const c2y = ty - (dy >= 0 ? ctrl : -ctrl);
-  const path = `M ${sx} ${sy} C ${sx} ${c1y}, ${tx} ${c2y}, ${tx} ${ty}`;
+  const midY = (sy + ty) / 2;
+  const path = `M ${sx} ${sy} C ${sx} ${midY}, ${tx} ${midY}, ${tx} ${ty}`;
   return {
     path,
     labelX: (sx + tx) / 2,
@@ -227,81 +221,67 @@ function computeAnchorPoints(
 ): { sx: number; sy: number; tx: number; ty: number; orientation: 'horizontal' | 'vertical' } {
   const dx = tgt.x - src.x;
   const dy = tgt.y - src.y;
+  const clearance = 5;
 
+  let orientation: 'horizontal' | 'vertical';
   if (style === 'hierarchical') {
-    if (Math.abs(dy) >= 24) {
-      const sy = dy >= 0 ? src.y + src.height / 2 : src.y - src.height / 2;
-      const ty = dy >= 0 ? tgt.y - tgt.height / 2 : tgt.y + tgt.height / 2;
-      return { sx: src.x, sy, tx: tgt.x, ty, orientation: 'vertical' };
-    }
+    orientation = Math.abs(dy) >= 24 ? 'vertical' : 'horizontal';
+  } else if (style === 'medical_flow') {
+    orientation = Math.abs(dx) >= Math.abs(dy) * 0.85 ? 'horizontal' : 'vertical';
+  } else {
+    orientation = Math.abs(dx) >= Math.abs(dy) * 0.45 ? 'horizontal' : 'vertical';
   }
 
-  if (style === 'medical_flow') {
-    if (Math.abs(dx) >= Math.abs(dy) * 0.85) {
-      const sx = dx >= 0 ? src.x + src.width / 2 : src.x - src.width / 2;
-      const tx = dx >= 0 ? tgt.x - tgt.width / 2 : tgt.x + tgt.width / 2;
-      return { sx, sy: src.y, tx, ty: tgt.y, orientation: 'horizontal' };
-    }
-    const sy = dy >= 0 ? src.y + src.height / 2 : src.y - src.height / 2;
-    const ty = dy >= 0 ? tgt.y - tgt.height / 2 : tgt.y + tgt.height / 2;
-    return { sx: src.x, sy, tx: tgt.x, ty, orientation: 'vertical' };
+  if (orientation === 'horizontal') {
+    const direction = dx >= 0 ? 1 : -1;
+    return {
+      sx: src.x + direction * (src.width / 2 + clearance),
+      sy: src.y,
+      tx: tgt.x - direction * (tgt.width / 2 + clearance),
+      ty: tgt.y,
+      orientation
+    };
   }
 
-  // Radial (bilateral / curved outward)
-  if (Math.abs(dx) >= Math.abs(dy) * 0.45) {
-    const sx = dx >= 0 ? src.x + src.width / 2 : src.x - src.width / 2;
-    const tx = dx >= 0 ? tgt.x - tgt.width / 2 : tgt.x + tgt.width / 2;
-    return { sx, sy: src.y, tx, ty: tgt.y, orientation: 'horizontal' };
-  }
-  const sy = dy >= 0 ? src.y + src.height / 2 : src.y - src.height / 2;
-  const ty = dy >= 0 ? tgt.y - tgt.height / 2 : tgt.y + tgt.height / 2;
-  return { sx: src.x, sy, tx: tgt.x, ty, orientation: 'vertical' };
+  const direction = dy >= 0 ? 1 : -1;
+  return {
+    sx: src.x,
+    sy: src.y + direction * (src.height / 2 + clearance),
+    tx: tgt.x,
+    ty: tgt.y - direction * (tgt.height / 2 + clearance),
+    orientation
+  };
 }
 
 function computeCrossLinkPath(
   src: PositionedMindMapNode,
-  tgt: PositionedMindMapNode
+  tgt: PositionedMindMapNode,
+  side: 'left' | 'right',
+  laneX: number,
+  laneY: number
 ): { path: string; labelX: number; labelY: number } {
-  const dx = tgt.x - src.x;
-  const dy = tgt.y - src.y;
-  const dist = Math.hypot(dx, dy) || 1;
-  const ux = dx / dist;
-  const uy = dy / dist;
+  const clearance = 5;
+  const detour = 28;
+  const direction = side === 'right' ? 1 : -1;
+  const sx = src.x + direction * (src.width / 2 + clearance);
+  const sy = src.y;
+  const sourceDetourX = src.x + direction * (src.width / 2 + detour);
+  const tx = tgt.x + direction * (tgt.width / 2 + clearance);
+  const ty = tgt.y;
+  const targetDetourX = tgt.x + direction * (tgt.width / 2 + detour);
 
-  // Approximate box edge exit/entry points
-  const srcHalfW = src.width / 2 + 2;
-  const srcHalfH = src.height / 2 + 2;
-  const tgtHalfW = tgt.width / 2 + 4;
-  const tgtHalfH = tgt.height / 2 + 4;
+  // Three smooth cubic segments: clear the source column locally, cross the
+  // external top/bottom gutter beyond every card, then re-enter at the target.
+  // The local detours stay within the inter-column clearance, avoiding all cards.
+  const path =
+    `M ${sx} ${sy} ` +
+    `C ${sourceDetourX} ${sy}, ${sourceDetourX} ${laneY}, ${laneX} ${laneY} ` +
+    `C ${laneX} ${laneY}, ${targetDetourX} ${laneY}, ${targetDetourX} ${laneY} ` +
+    `C ${targetDetourX} ${laneY}, ${targetDetourX} ${ty}, ${tx} ${ty}`;
 
-  const srcScale = Math.min(
-    Math.abs(ux) > 0.001 ? srcHalfW / Math.abs(ux) : Infinity,
-    Math.abs(uy) > 0.001 ? srcHalfH / Math.abs(uy) : Infinity
-  );
-  const tgtScale = Math.min(
-    Math.abs(ux) > 0.001 ? tgtHalfW / Math.abs(ux) : Infinity,
-    Math.abs(uy) > 0.001 ? tgtHalfH / Math.abs(uy) : Infinity
-  );
-
-  const sx = src.x + ux * (Number.isFinite(srcScale) ? srcScale : 0);
-  const sy = src.y + uy * (Number.isFinite(srcScale) ? srcScale : 0);
-  const tx = tgt.x - ux * (Number.isFinite(tgtScale) ? tgtScale : 0);
-  const ty = tgt.y - uy * (Number.isFinite(tgtScale) ? tgtScale : 0);
-
-  // Subtle perpendicular curve offset so cross-links arc gracefully around tree edges
-  const midX = (sx + tx) / 2;
-  const midY = (sy + ty) / 2;
-  const curveOffset = Math.min(72, Math.max(28, dist * 0.16));
-  const nx = -uy * curveOffset;
-  const ny = ux * curveOffset;
-  const cx = midX + nx;
-  const cy = midY + ny;
-
-  const path = `M ${sx} ${sy} Q ${cx} ${cy}, ${tx} ${ty}`;
-  // Point at t=0.5 on quadratic Bezier
-  const labelX = 0.25 * sx + 0.5 * cx + 0.25 * tx;
-  const labelY = 0.25 * sy + 0.5 * cy + 0.25 * ty;
-
+  // Place the pill at t=0.5 of the central external-gutter Bezier segment.
+  const labelX = (laneX + targetDetourX) / 2;
+  const labelY = laneY;
   return { path, labelX, labelY };
 }
 
@@ -680,13 +660,27 @@ export function computeMindMapLayout(
     placedForCollision.push(current);
   }
 
-  // Assemble Edges (Parent-Child tree connectors + custom labeled relationships)
+  // Assemble hierarchy connectors and routed cross-branch relationships.
   const positionedEdges: PositionedMindMapEdge[] = [];
   const existingEdgeLookup = new Map<string, MindMapEdge>();
   for (const edge of doc.edges || []) {
     existingEdgeLookup.set(`${edge.sourceId}::${edge.targetId}`, edge);
   }
   const renderedEdgePairs = new Set<string>();
+  const cardMinX = Math.min(...positionedNodes.map((node) => node.x - node.width / 2));
+  const cardMaxX = Math.max(...positionedNodes.map((node) => node.x + node.width / 2));
+  const cardMinY = Math.min(...positionedNodes.map((node) => node.y - node.height / 2));
+  const cardMaxY = Math.max(...positionedNodes.map((node) => node.y + node.height / 2));
+  const fieldCenterX = (cardMinX + cardMaxX) / 2;
+  const fieldCenterY = (cardMinY + cardMaxY) / 2;
+  const laneIntervals: Record<'left' | 'right', Array<{ top: number; bottom: number; lane: number }>> = {
+    left: [],
+    right: []
+  };
+  let routedMinX = cardMinX;
+  let routedMaxX = cardMaxX;
+  let routedMinY = cardMinY;
+  let routedMaxY = cardMaxY;
 
   for (const pNode of positionedNodes) {
     const parentId = pNode.node.parentId;
@@ -697,15 +691,8 @@ export function computeMindMapLayout(
     const pairKey = `${parentId}::${pNode.node.id}`;
     renderedEdgePairs.add(pairKey);
     const matchingCustomEdge = existingEdgeLookup.get(pairKey);
-
     const anchor = computeAnchorPoints(pParent, pNode, doc.style);
-    const curve = computeCubicPath(
-      anchor.sx,
-      anchor.sy,
-      anchor.tx,
-      anchor.ty,
-      anchor.orientation
-    );
+    const curve = computeCubicPath(anchor.sx, anchor.sy, anchor.tx, anchor.ty, anchor.orientation);
 
     positionedEdges.push({
       id: matchingCustomEdge?.id || `tree-${parentId}-${pNode.node.id}`,
@@ -716,21 +703,52 @@ export function computeMindMapLayout(
       labelX: curve.labelX,
       labelY: curve.labelY,
       isCrossLink: false,
-      directed:
-        matchingCustomEdge?.directed ?? doc.style === 'medical_flow',
+      directed: matchingCustomEdge?.directed ?? doc.style === 'medical_flow',
       lineStyle: matchingCustomEdge?.lineStyle || 'solid',
       role: pNode.node.role as MindMapNodeRole
     });
   }
 
-  for (const edge of doc.edges || []) {
-    const pairKey = `${edge.sourceId}::${edge.targetId}`;
-    if (renderedEdgePairs.has(pairKey)) continue;
-    const pSrc = positionedMap.get(edge.sourceId);
-    const pTgt = positionedMap.get(edge.targetId);
-    if (!pSrc || !pTgt || edge.sourceId === edge.targetId) continue;
+  const crossEdges = (doc.edges || [])
+    .filter((edge) => {
+      const pairKey = `${edge.sourceId}::${edge.targetId}`;
+      return !renderedEdgePairs.has(pairKey) &&
+        positionedMap.has(edge.sourceId) &&
+        positionedMap.has(edge.targetId) &&
+        edge.sourceId !== edge.targetId;
+    })
+    .map((edge) => {
+      const source = positionedMap.get(edge.sourceId)!;
+      const target = positionedMap.get(edge.targetId)!;
+      return { edge, source, target, top: Math.min(source.y, target.y), bottom: Math.max(source.y, target.y) };
+    })
+    .sort((a, b) => a.top - b.top || a.bottom - b.bottom);
 
-    const curve = computeCrossLinkPath(pSrc, pTgt);
+  for (const item of crossEdges) {
+    const { edge, source, target } = item;
+    const side: 'left' | 'right' =
+      (source.x + target.x) / 2 >= fieldCenterX ? 'right' : 'left';
+    const intervals = laneIntervals[side];
+    let lane = 0;
+    while (intervals.some((used) =>
+      used.lane === lane &&
+      item.top - 24 < used.bottom + 24 &&
+      item.bottom + 24 > used.top - 24
+    )) lane += 1;
+    intervals.push({ top: item.top, bottom: item.bottom, lane });
+
+    const laneClearance = 56 + lane * 28;
+    const laneX = side === 'right' ? cardMaxX + laneClearance : cardMinX - laneClearance;
+    const verticalSide = (source.y + target.y) / 2 <= fieldCenterY ? 'top' : 'bottom';
+    const laneY = verticalSide === 'top'
+      ? cardMinY - laneClearance
+      : cardMaxY + laneClearance;
+    routedMinX = Math.min(routedMinX, laneX - 12);
+    routedMaxX = Math.max(routedMaxX, laneX + 12);
+    routedMinY = Math.min(routedMinY, laneY - 18);
+    routedMaxY = Math.max(routedMaxY, laneY + 18);
+    const curve = computeCrossLinkPath(source, target, side, laneX, laneY);
+
     positionedEdges.push({
       id: edge.id,
       sourceId: edge.sourceId,
@@ -742,7 +760,7 @@ export function computeMindMapLayout(
       isCrossLink: true,
       directed: edge.directed ?? true,
       lineStyle: edge.lineStyle || 'dashed',
-      role: pTgt.node.role
+      role: target.node.role
     });
   }
 
@@ -764,6 +782,21 @@ export function computeMindMapLayout(
     maxX = 200;
     minY = -150;
     maxY = 150;
+  }
+
+  minX = Math.min(minX, routedMinX);
+  maxX = Math.max(maxX, routedMaxX);
+  minY = Math.min(minY, routedMinY);
+  maxY = Math.max(maxY, routedMaxY);
+
+  // Include routed relationship labels so outer-lane pills remain inside the SVG viewBox.
+  for (const edge of positionedEdges) {
+    if (!edge.label) continue;
+    const labelHalfWidth = Math.max(32, Math.min(110, edge.label.length * 3.6 + 12));
+    minX = Math.min(minX, edge.labelX - labelHalfWidth);
+    maxX = Math.max(maxX, edge.labelX + labelHalfWidth);
+    minY = Math.min(minY, edge.labelY - 14);
+    maxY = Math.max(maxY, edge.labelY + 14);
   }
 
   const padding = 84;
