@@ -12,7 +12,8 @@ import {
   AlertCircle,
   ArrowRight,
   Clock3,
-  CalendarClock
+  CalendarClock,
+  Save
 } from 'lucide-react';
 import { TopicArticle } from '../types/lexicon';
 import { MindMapDocument, MindMapStyle } from '../types/mindMap';
@@ -70,7 +71,7 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
   const [preferredStyle, setPreferredStyle] = useState<MindMapStyle | 'auto'>('auto');
   const [copiedPromptKey, setCopiedPromptKey] = useState<string | null>(null);
   const [promptTopic, setPromptTopic] = useState(initialTopic?.title || '');
-  const [promptNodeCount, setPromptNodeCount] = useState('24');
+  const [promptNodeCount, setPromptNodeCount] = useState('');
   const [promptStyle, setPromptStyle] = useState<MindMapStyle>('hierarchical');
   const [promptOutputFormat, setPromptOutputFormat] = useState<'text' | 'file'>('text');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -198,6 +199,14 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
     setAllMaps(updated);
   };
 
+  const handleSaveActiveMap = () => {
+    if (!activeMap) return;
+    const savedMap = { ...activeMap, updatedAt: new Date().toISOString() };
+    const updated = upsertMindMap(savedMap);
+    setAllMaps(updated);
+    showToast('تم حفظ الخريطة بنجاح');
+  };
+
   const handleCreateBlank = () => {
     const selectedTopic = topics.find((topic) => topic.id === creationTopicId) || null;
     const created = createBlankMindMap({
@@ -271,7 +280,9 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
 
   const buildConfiguredPrompt = () => buildMindMapGenerationPrompt({
     topic: promptTopic.trim() || scopedTopic?.title || initialTopic?.title || '',
-    nodeCount: Number(promptNodeCount) || 24,
+    ...(promptNodeCount.trim() && Number.isFinite(Number(promptNodeCount))
+      ? { nodeCount: Number(promptNodeCount) }
+      : {}),
     style: promptStyle,
     outputFormat: promptOutputFormat
   });
@@ -464,13 +475,12 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                  العدد المستهدف للعقد (بما فيها الجذر)
+                  عدد العقد المستهدف (اختياري، بما فيها الجذر)
                   <MobileSafeNumericInput
                     value={promptNodeCount}
                     onRawChange={setPromptNodeCount}
                     min={3}
                     max={80}
-                    fallbackOnBlur={24}
                     aria-label="العدد المستهدف للعقد"
                     className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                   />
@@ -651,6 +661,17 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  {activeMap && (
+                    <button
+                      type="button"
+                      onClick={handleSaveActiveMap}
+                      className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center gap-1.5"
+                      title="حفظ الخريطة الذهنية"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>حفظ الخريطة</span>
+                    </button>
+                  )}
                   {activeMap && scopedTopic && onEmbedMapInTopic && (
                     <button
                       type="button"
