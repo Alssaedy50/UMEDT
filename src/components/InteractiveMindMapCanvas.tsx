@@ -1040,11 +1040,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
               return (
                 <g
                   key={edge.id}
-                  className={
-                    isHighlighted
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-slate-400 dark:text-slate-600'
-                  }
+                  className={isHighlighted ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}
                 >
                   <path
                     d={edge.path}
@@ -1052,44 +1048,29 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                     stroke={isHighlighted ? roleStroke : 'currentColor'}
                     strokeWidth={isHighlighted ? 3 : 2.4}
                     strokeDasharray={edge.lineStyle === 'dashed' ? '6 4' : undefined}
-                    markerEnd={
-                      edge.directed ? `url(#mm-arrow-${doc.id})` : undefined
-                    }
-                    opacity={
-                      searchMatches.size > 0 &&
-                      !searchMatches.has(edge.sourceId) &&
-                      !searchMatches.has(edge.targetId)
-                        ? 0.25
-                        : 1
-                    }
+                    markerEnd={edge.directed ? `url(#mm-arrow-${doc.id})` : undefined}
+                    opacity={searchMatches.size > 0 && !searchMatches.has(edge.sourceId) && !searchMatches.has(edge.targetId) ? 0.25 : 1}
                   />
-                  {edge.label && (
-                    <g transform={`translate(${edge.labelX}, ${edge.labelY})`}>
-                      <rect
-                        x={-Math.max(28, edge.label.length * 3.6 + 10)}
-                        y={-10}
-                        width={Math.max(56, edge.label.length * 7.2 + 20)}
-                        height={20}
-                        rx={10}
-                        fill="#0b1220"
-                        stroke="#64748b"
-                        strokeWidth={1.2}
-                      />
-                      <text
-                        x={0}
-                        y={3.5}
-                        textAnchor="middle"
-                        className="fill-slate-100 text-[10px] font-bold"
-                        direction="auto"
-                        unicodeBidi="plaintext"
-                      >
-                        {edge.label}
-                      </text>
-                    </g>
-                  )}
                 </g>
               );
             })}
+            {layout.edges.filter((edge) => Boolean(edge.label)).map((edge) => (
+              <g key={`label-${edge.id}`} transform={`translate(${edge.labelX}, ${edge.labelY})`} pointerEvents="none">
+                <rect
+                  x={-Math.max(28, edge.label!.length * 3.6 + 10)}
+                  y={-11}
+                  width={Math.max(64, edge.label!.length * 7.2 + 24)}
+                  height={22}
+                  rx={11}
+                  fill="#0b1220"
+                  stroke="#64748b"
+                  strokeWidth={1.2}
+                />
+                <text x={0} y={3.5} textAnchor="middle" className="fill-slate-100 text-[10px] font-bold" direction="auto" unicodeBidi="plaintext">
+                  {edge.label}
+                </text>
+              </g>
+            ))}
           </svg>
 
           {/* Interactive HTML Nodes Positioned in Exact Layout Coordinates */}
