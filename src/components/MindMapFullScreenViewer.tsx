@@ -690,6 +690,11 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
       return related;
     });
 
+    const relatedEdgeIds = new Set(relatedEdges.map((edge) => edge.dataset.edgeId).filter(Boolean));
+    svg.querySelectorAll<SVGGElement>('.mm-edge-label').forEach((label) => {
+      label.classList.toggle('is-related', Boolean(label.dataset.edgeId && relatedEdgeIds.has(label.dataset.edgeId)));
+    });
+
     if (overlay && hasActiveFocus) {
         relatedEdges.forEach((edge) => {
         const clone = edge.cloneNode(true) as SVGGElement;
@@ -1013,7 +1018,8 @@ export const MindMapFullScreenViewer: React.FC<MindMapFullScreenViewerProps> = (
         .mm-node text { font-family: 'IBM Plex Sans Arabic', Inter, Cairo, sans-serif; direction: auto; unicode-bidi: plaintext; }
         .mm-edge-label { pointer-events: none; }
         .mm-edge { cursor: pointer; }
-        .has-active-focus .mm-edge-layer .mm-edge:not(.is-related) { opacity: .14 !important; }
+        .has-active-focus .mm-edge-layer .mm-edge:not(.is-related),
+        .has-active-focus .mm-edge-label-layer .mm-edge-label:not(.is-related) { opacity: .14 !important; }
         .mm-edge-active path { stroke-width: 4.6px !important; opacity: 1 !important; filter: drop-shadow(0 0 3px rgba(16,185,129,.75)); }
         .mm-edge-label-active rect { stroke: #10b981 !important; stroke-width: 2px !important; }
         .mm-node:focus rect, .mm-node.selected rect,
