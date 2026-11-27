@@ -23,6 +23,7 @@ import {
   FileCode
 } from 'lucide-react';
 import {
+  MindMapColorMode,
   MindMapDocument,
   MindMapEdge,
   MindMapNode,
@@ -31,6 +32,7 @@ import {
   PositionedMindMapNode
 } from '../types/mindMap';
 import { computeMindMapLayout } from '../services/mindMapLayoutEngine';
+import { getMindMapNodeColors, MIND_MAP_COLOR_SWATCHES } from '../services/mindMapColorEngine';
 import { buildStandaloneMindMapSvg } from '../services/mindMapStorageService';
 import { buildStandaloneMindMapHtmlV2 as buildStandaloneMindMapHtml } from '../services/mindMapStandaloneExportServiceV2';
 import { MindMapFullScreenViewer } from './MindMapFullScreenViewer';
@@ -129,6 +131,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
   showToast
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const toolsDropdownRef = useRef<HTMLDetailsElement | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(
     () =>
       new Set(
@@ -163,6 +166,15 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
   const [editRole, setEditRole] = useState<MindMapNodeRole>('concept');
   const [editShape, setEditShape] = useState<NonNullable<MindMapNode['shape']>>('rounded');
   const [editColor, setEditColor] = useState<string>('');
+  const [selectedSwatchColor, setSelectedSwatchColor] = useState<string>(MIND_MAP_COLOR_SWATCHES[0].base);
+
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => {
+      if (toolsDropdownRef.current && !toolsDropdownRef.current.contains(event.target as Node)) toolsDropdownRef.current.removeAttribute('open');
+    };
+    document.addEventListener('pointerdown', closeOutside, true);
+    return () => document.removeEventListener('pointerdown', closeOutside, true);
+  }, []);
 
   // Linking mode: click source -> click target to create edge
   const [linkSourceId, setLinkSourceId] = useState<string | null>(null);
@@ -358,6 +370,34 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
     () => doc.nodes.find((n) => n.id === selectedNodeId) || null,
     [doc.nodes, selectedNodeId]
   );
+
+  const updateColorMode = (mode: MindMapColorMode) => {
+    if (!onChangeDocument) return;
+    onChangeDocument({ ...doc, colorMode: mode, updatedAt: new Date().toISOString() });
+  };
+
+  const applySwatchToSelectedNode = (color: string) => {
+    if (!selectedNode || !onChangeDocument) return;
+    setSelectedSwatchColor(color);
+    onChangeDocument({ ...doc, nodes: doc.nodes.map((node) => node.id === selectedNode.id ? { ...node, color } : node), updatedAt: new Date().toISOString() });
+  };
+
+  const applySwatchToSelectedBranch = () => {
+    if (!selectedNode || !onChangeDocument) return;
+    const swatch = MIND_MAP_COLOR_SWATCHES.find((item) => item.base === selectedSwatchColor) || MIND_MAP_COLOR_SWATCHES[0];
+    const children = new Map<string, string[]>();
+    doc.nodes.forEach((node) => { if (node.parentId) children.set(node.parentId, [...(children.get(node.parentId) || []), node.id]); });
+    const depths = new Map<string, number>();
+    const visit = (id: string, depth: number, seen = new Set<string>()) => {
+      if (seen.has(id)) return;
+      seen.add(id);
+      depths.set(id, depth);
+      (children.get(id) || []).forEach((childId) => visit(childId, depth + 1, seen));
+    };
+    visit(selectedNode.id, 0);
+    onChangeDocument({ ...doc, nodes: doc.nodes.map((node) => depths.has(node.id) ? { ...node, color: swatch.shades[Math.min(depths.get(node.id) || 0, swatch.shades.length - 1)] } : node), updatedAt: new Date().toISOString() });
+    showToast?.('تم تطبيق اللون على العقدة وجميع فروعها');
+  };
 
   useEffect(() => {
     if (selectedNode) {
@@ -768,11 +808,11 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
   return (
     <div className="flex flex-col gap-2.5 w-full min-w-0">
       {/* Compact dropdown keeps the editing canvas clear on mobile */}
-      <details className="group relative z-30 self-start">
+      <details ref={toolsDropdownRef} className="group relative z-30 self-start">
         <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 text-xs font-extrabold text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
           <span aria-hidden="true">☰</span><span>أدوات الخريطة وإعداداتها</span><span className="text-slate-400 transition-transform group-open:rotate-180">⌄</span>
         </summary>
-        <div onClick={(event) => { if ((event.target as HTMLElement).closest("button")) event.currentTarget.closest("details")?.removeAttribute("open"); }} className="absolute right-0 top-full mt-2 flex max-h-[min(72dvh,620px)] w-[min(340px,calc(100vw-28px))] flex-col gap-2 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+        <div onClick={(event) => { if ((event.target as HTMLElement).closest("button")) event.currentTarget.closest("details")?.removeAttribute("open"); }} className="absolute right-0 top-full mt-2 flex max-h-[min(72dvh,620px)] w-[min(340px,calc(100vw-32px))] max-w-[calc(100vw-32px)] flex-col gap-2 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
         {/* Style Switcher */}
         <div className="flex items-center gap-1 p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
           {STYLE_LABELS.map((st) => {
@@ -792,6 +832,14 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
               </button>
             );
           })}
+        </div>
+
+        <div className="space-y-2 rounded-xl border border-slate-200 p-2 dark:border-slate-700">
+          <div className="text-[11px] font-black">نمط تلوين العقد</div>
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+            <button type="button" onClick={() => updateColorMode('branch')} className={`rounded-lg px-2 py-2 text-[11px] font-extrabold ${(doc.colorMode || 'branch') === 'branch' ? 'bg-emerald-500 text-slate-950' : 'text-slate-500'}`}>حسب الفروع</button>
+            <button type="button" onClick={() => updateColorMode('role')} className={`rounded-lg px-2 py-2 text-[11px] font-extrabold ${doc.colorMode === 'role' ? 'bg-emerald-500 text-slate-950' : 'text-slate-500'}`}>حسب الدور الطبي</button>
+          </div>
         </div>
 
         {/* Fit, Expand/Collapse, Search & Export Controls */}
@@ -981,7 +1029,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                     d={edge.path}
                     fill="none"
                     stroke={isHighlighted ? roleStroke : 'currentColor'}
-                    strokeWidth={isHighlighted ? 2.6 : 1.9}
+                    strokeWidth={isHighlighted ? 3 : 2.4}
                     strokeDasharray={edge.lineStyle === 'dashed' ? '6 4' : undefined}
                     markerEnd={
                       edge.directed ? `url(#mm-arrow-${doc.id})` : undefined
@@ -1001,15 +1049,18 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                         y={-10}
                         width={Math.max(56, edge.label.length * 7.2 + 20)}
                         height={20}
-                        rx={6}
-                        className="fill-white dark:fill-slate-900 stroke-slate-300 dark:stroke-slate-700"
-                        strokeWidth={1}
+                        rx={10}
+                        fill="#0b1220"
+                        stroke="#64748b"
+                        strokeWidth={1.2}
                       />
                       <text
                         x={0}
                         y={3.5}
                         textAnchor="middle"
-                        className="fill-slate-700 dark:fill-slate-200 text-[10px] font-bold"
+                        className="fill-slate-100 text-[10px] font-bold"
+                        direction="auto"
+                        unicodeBidi="plaintext"
                       >
                         {edge.label}
                       </text>
@@ -1029,6 +1080,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
             const isSearchMatch = searchMatches.has(pNode.node.id);
             const isDimmed = searchMatches.size > 0 && !isSearchMatch;
             const customColor = pNode.node.color;
+            const nodeColors = getMindMapNodeColors(effectiveDoc, pNode.node);
             const shape = pNode.node.shape || 'rounded';
             const radiusClass =
               shape === 'pill' || shape === 'circle'
@@ -1054,16 +1106,14 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                   minHeight: `${pNode.height}px`,
                   left: `${pNode.x - pNode.width / 2}px`,
                   top: `${pNode.y - pNode.height / 2}px`,
-                  ...(customColor
-                    ? {
-                        backgroundColor: customColor,
-                        borderColor: customColor,
-                        color: '#ffffff'
-                      }
-                    : {})
+                  backgroundColor: nodeColors.fill,
+                  borderColor: nodeColors.stroke,
+                  color: nodeColors.text,
+                  fontFamily: "'IBM Plex Sans Arabic', Inter, Cairo, sans-serif",
+                  boxShadow: isSelected ? '0 0 0 3px rgba(16,185,129,.28), 0 8px 22px rgba(0,0,0,.24)' : '0 3px 9px rgba(0,0,0,.2)'
                 }}
                 className={`absolute ${radiusClass} border-2 px-3 py-2 flex flex-col items-center justify-center text-center transition-shadow cursor-pointer select-none ${
-                  customColor ? 'text-white shadow-sm' : roleMeta.cardClass
+                  'text-white shadow-sm border-slate-600/70'
                 } ${
                   isSelected
                     ? 'ring-3 ring-emerald-500/45 shadow-lg z-20'
@@ -1088,6 +1138,12 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                     className="text-[10px] font-semibold opacity-80 leading-tight mt-0.5 break-words"
                   >
                     {pNode.sublabelLine}
+                  </div>
+                )}
+
+                {(pNode.noteLines || []).length > 0 && (
+                  <div dir="auto" className="mt-1 max-w-full line-clamp-2 break-words text-[9px] font-medium leading-tight opacity-80">
+                    {(pNode.noteLines || []).join(' ')}
                   </div>
                 )}
 
@@ -1264,6 +1320,17 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                 )}
               </div>
 
+              {editable && onChangeDocument && (
+                <div className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                  <div className="flex items-center justify-between gap-2 text-[11px] font-black"><span>ألوان العقدة والفرع</span><span className="text-[10px] text-slate-400">{selectedNode.color ? 'لون يدوي' : (doc.colorMode || 'branch') === 'branch' ? 'تلقائي حسب الفرع' : 'تلقائي حسب الدور'}</span></div>
+                  <div className="flex flex-wrap gap-2">
+                    {MIND_MAP_COLOR_SWATCHES.map((swatch) => <button key={swatch.name} type="button" title={swatch.name} aria-label={`لون ${swatch.name}`} onClick={() => applySwatchToSelectedNode(swatch.base)} className={`h-7 w-7 rounded-full border-2 ${selectedSwatchColor === swatch.base ? 'border-white ring-2 ring-emerald-400' : 'border-slate-400/40'}`} style={{ backgroundColor: swatch.base }} />)}
+                    <button type="button" onClick={() => onChangeDocument({ ...doc, nodes: doc.nodes.map((node) => node.id === selectedNode.id ? { ...node, color: undefined } : node), updatedAt: new Date().toISOString() })} className="rounded-lg border border-slate-300 px-2 text-[10px] font-bold dark:border-slate-600">تلقائي</button>
+                  </div>
+                  <button type="button" onClick={applySwatchToSelectedBranch} className="w-full rounded-lg bg-emerald-500 px-3 py-2 text-[11px] font-black text-slate-950">تطبيق اللون على الفرع بالكامل</button>
+                </div>
+              )}
+
               {/* Connected custom edges */}
               {connectedEdgesForSelected.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800">
@@ -1386,7 +1453,7 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
                 </div>
                 <div>
                   <label className="text-[11px] font-bold text-slate-500 block mb-1">لون مخصص</label>
-                  <div className="flex items-center gap-2"><input aria-label="لون العقدة" type="color" value={editColor || '#64748b'} onChange={(e) => setEditColor(e.target.value)} className="h-9 w-12 cursor-pointer rounded-lg border border-slate-200 bg-transparent p-1" /><button type="button" onClick={() => setEditColor('')} className="min-h-9 rounded-lg bg-slate-100 px-3 text-[11px] font-bold dark:bg-slate-800">لون الدور الافتراضي</button></div>
+                  <div className="flex flex-wrap items-center gap-2">{MIND_MAP_COLOR_SWATCHES.map((swatch) => <button key={swatch.name} type="button" title={swatch.name} aria-label={`لون ${swatch.name}`} onClick={() => setEditColor(swatch.base)} className={`h-7 w-7 rounded-full border-2 ${editColor === swatch.base ? 'border-white ring-2 ring-emerald-400' : 'border-slate-400/40'}`} style={{ backgroundColor: swatch.base }} />)}<button type="button" onClick={() => setEditColor('')} className="min-h-8 rounded-lg bg-slate-100 px-3 text-[10px] font-bold dark:bg-slate-800">تلقائي</button></div>
                 </div>
               </div>
 
