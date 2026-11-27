@@ -78,7 +78,6 @@ public final class UMEDTDictionaryPopupEngine {
 
     private static String lastShownTermKey = "";
     private static long lastShownTimestampMs = 0L;
-    private static String lastAutoClipboardValue = "";
     private static volatile String ignoreClipboardText = "";
 
     private static TextToSpeech ttsEngine = null;
@@ -165,25 +164,21 @@ public final class UMEDTDictionaryPopupEngine {
     }
 
     public static boolean isAutoTranslateOnSelectEnabled(Context context) {
-        if (context == null) return false;
-        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        // One-time migration: earlier releases persisted "off" as the default on some
-        // installations. Enable the feature once after upgrading; users can still turn
-        // it off explicitly afterwards and that choice is then preserved.
-        if (!prefs.getBoolean(KEY_AUTO_TRANSLATE_DEFAULT_MIGRATED_V2, false)) {
-            prefs.edit()
-                    .putBoolean(KEY_AUTO_TRANSLATE_ON_SELECT, true)
-                    .putBoolean(KEY_AUTO_TRANSLATE_DEFAULT_MIGRATED_V2, true)
-                    .apply();
-            return true;
-        }
-        return prefs.getBoolean(KEY_AUTO_TRANSLATE_ON_SELECT, true);
+        // Text selection is intentionally passive. Translation is requested only by
+        // choosing UMEDT from ACTION_PROCESS_TEXT, or by copying one word.
+        return false;
     }
 
     public static void setAutoTranslateOnSelectEnabled(Context context, boolean enabled) {
         if (context == null) return;
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         prefs.edit().putBoolean(KEY_AUTO_TRANSLATE_ON_SELECT, enabled).commit();
+    }
+
+    public static boolean isSingleWordLookup(String rawText) {
+        if (rawText == null) return false;
+        String value = rawText.trim();
+        return value.matches("[\\p{L}\\p{M}\\p{N}]+(?:[-'’][\\p{L}\\p{M}\\p{N}]+)*");
     }
 
     public static boolean shouldIgnoreText(String rawText) {
@@ -564,15 +559,11 @@ public final class UMEDTDictionaryPopupEngine {
             CharSequence textSeq = clip.getItemAt(0).coerceToText(context);
             if (textSeq == null) return null;
             String copied = textSeq.toString().trim();
-            if (copied.isEmpty() || shouldIgnoreText(copied)) {
-                return null;
-            }
-            if (!forceShow && copied.equals(lastAutoClipboardValue)) {
+            if (copied.isEmpty() || shouldIgnoreText(copied) || !isSingleWordLookup(copied)) {
                 return null;
             }
             JSONObject matched = findTerm(context, copied);
             if (matched != null) {
-                lastAutoClipboardValue = copied;
                 showFloatingCard(context, matched, forceShow);
             }
             return matched;
@@ -626,7 +617,7 @@ public final class UMEDTDictionaryPopupEngine {
             dismissFloatingCard();
 
             int screenWidth = context.getResources().getDisplayMetrics().widthPixels;
-            int cardWidth = Math.min(screenWidth - dp(context, 24), dp(context, 460));
+            int cardWidth = Math.min(screenWidth - dp(context, 32), dp(context, 320));
             int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                     | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                     | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
@@ -747,172 +738,74 @@ public final class UMEDTDictionaryPopupEngine {
             final Runnable onClose,
             final Runnable onUserInteraction
     ) {
-        final String termEn = term.optString("term", "");
-        final String translationAr = term.optString("translation", "");
-        final String phonetic = term.optString("phonetic", "");
-        final String category = term.optString("category", "");
-        final String pos = term.optString("pos", "");
-        final String definitionAr = term.optString("definitionAr", "");
-        final String definitionEn = term.optString("definitionEn", "");
-        final String exampleEn = term.optString("exampleEn", "");
-        final String exampleAr = term.optString("exampleAr", "");
-        final String matchedInput = term.optString("_matchedInput", "");
+        final String termEn = term.optString("term", "").trim();
+        final String translationAr = term.optString("translation", "").trim();
+        final String definitionEn = term.optString("definitionEn", "").trim();
 
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        root.setPadding(dp(context, 12), dp(context, 10), dp(context, 12), dp(context, 10));
+        root.setPadding(dp(context, 10), dp(context, 8), dp(context, 10), dp(context, 8));
 
         GradientDrawable cardBg = new GradientDrawable();
-        cardBg.setColor(Color.parseColor("#0F172A"));
-        cardBg.setCornerRadius(dp(context, 16));
-        cardBg.setStroke(dp(context, 1), Color.parseColor("#10B981"));
+        cardBg.setColor(Color.parseColor("#101827"));
+        cardBg.setCornerRadius(dp(context, 13));
+        cardBg.setStroke(dp(context, 1), Color.parseColor("#16866B"));
         root.setBackground(cardBg);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) root.setElevation(dp(context, 10));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            root.setElevation(dp(context, 8));
+        }
 
         LinearLayout header = new LinearLayout(context);
         header.setGravity(Gravity.CENTER_VERTICAL);
         TextView brand = new TextView(context);
         brand.setText("UMEDT");
         brand.setTextColor(Color.parseColor("#34D399"));
-        brand.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        brand.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9);
         brand.setTypeface(Typeface.DEFAULT_BOLD);
         header.addView(brand, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        if (!category.isEmpty() || !pos.isEmpty()) {
-            TextView meta = new TextView(context);
-            meta.setText(category + (!pos.isEmpty() ? " · " + pos : ""));
-            meta.setTextColor(Color.parseColor("#94A3B8"));
-            meta.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9);
-            header.addView(meta);
-        }
         TextView close = new TextView(context);
         close.setText("✕");
         close.setTextColor(Color.parseColor("#CBD5E1"));
-        close.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        close.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         close.setGravity(Gravity.CENTER);
-        close.setPadding(dp(context, 8), dp(context, 2), dp(context, 8), dp(context, 2));
+        close.setPadding(dp(context, 7), 0, dp(context, 3), 0);
         close.setOnClickListener(v -> { if (onClose != null) onClose.run(); });
         header.addView(close);
         root.addView(header);
 
-        LinearLayout termRow = new LinearLayout(context);
-        termRow.setGravity(Gravity.CENTER_VERTICAL);
-        termRow.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        termRow.setPadding(0, dp(context, 5), 0, dp(context, 2));
-        TextView termView = new TextView(context);
-        termView.setText(termEn);
-        termView.setTextColor(Color.WHITE);
-        termView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
-        termView.setTypeface(Typeface.DEFAULT_BOLD);
-        termRow.addView(termView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        if (!phonetic.isEmpty()) {
-            TextView phon = new TextView(context);
-            phon.setText(phonetic);
-            phon.setTextColor(Color.parseColor("#94A3B8"));
-            phon.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
-            termRow.addView(phon);
-        }
-        root.addView(termRow);
+        TextView englishTerm = new TextView(context);
+        englishTerm.setText(termEn);
+        englishTerm.setTextColor(Color.WHITE);
+        englishTerm.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        englishTerm.setTypeface(Typeface.DEFAULT_BOLD);
+        englishTerm.setGravity(Gravity.LEFT);
+        englishTerm.setTextDirection(View.TEXT_DIRECTION_LTR);
+        englishTerm.setPadding(0, dp(context, 4), 0, dp(context, 2));
+        root.addView(englishTerm);
 
-        TextView translation = new TextView(context);
-        translation.setText(translationAr.isEmpty() ? termEn : translationAr);
-        translation.setTextColor(Color.parseColor("#A7F3D0"));
-        translation.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-        translation.setTypeface(Typeface.DEFAULT_BOLD);
-        translation.setPadding(dp(context, 9), dp(context, 6), dp(context, 9), dp(context, 6));
-        GradientDrawable translationBg = new GradientDrawable();
-        translationBg.setColor(Color.parseColor("#064E3B"));
-        translationBg.setCornerRadius(dp(context, 10));
-        translation.setBackground(translationBg);
-        root.addView(translation);
+        TextView arabicTranslation = new TextView(context);
+        arabicTranslation.setText(translationAr.isEmpty() ? "لا توجد ترجمة عربية" : translationAr);
+        arabicTranslation.setTextColor(Color.parseColor("#A7F3D0"));
+        arabicTranslation.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        arabicTranslation.setTypeface(Typeface.DEFAULT_BOLD);
+        arabicTranslation.setGravity(Gravity.RIGHT);
+        arabicTranslation.setPadding(0, dp(context, 1), 0, dp(context, 4));
+        root.addView(arabicTranslation);
 
-        String shortDefinition = !definitionAr.isEmpty() ? definitionAr : definitionEn;
-        TextView definition = new TextView(context);
-        definition.setText(shortDefinition.isEmpty() ? "لا يتوفر شرح لهذا المصطلح." : shortDefinition);
-        definition.setTextColor(Color.parseColor("#E2E8F0"));
-        definition.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
-        definition.setMaxLines(2);
-        definition.setEllipsize(TextUtils.TruncateAt.END);
-        definition.setPadding(0, dp(context, 6), 0, 0);
-        root.addView(definition);
-
-        LinearLayout expandedDetails = new LinearLayout(context);
-        expandedDetails.setOrientation(LinearLayout.VERTICAL);
-        expandedDetails.setVisibility(View.GONE);
-        expandedDetails.setPadding(0, dp(context, 6), 0, 0);
-
-        if (!definitionAr.isEmpty() && !definitionEn.isEmpty()) {
+        if (!definitionEn.isEmpty()) {
             TextView englishDefinition = new TextView(context);
             englishDefinition.setText(definitionEn);
-            englishDefinition.setTextColor(Color.parseColor("#94A3B8"));
+            englishDefinition.setTextColor(Color.parseColor("#D5DEE9"));
             englishDefinition.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
-            expandedDetails.addView(englishDefinition);
+            englishDefinition.setMaxLines(3);
+            englishDefinition.setEllipsize(TextUtils.TruncateAt.END);
+            englishDefinition.setGravity(Gravity.LEFT);
+            englishDefinition.setTextDirection(View.TEXT_DIRECTION_LTR);
+            root.addView(englishDefinition);
         }
-        if (!matchedInput.isEmpty() && !matchedInput.equalsIgnoreCase(termEn)
-                && !matchedInput.equalsIgnoreCase(translationAr)) {
-            TextView matched = new TextView(context);
-            matched.setText("النص المطابق: " + matchedInput);
-            matched.setTextColor(Color.parseColor("#38BDF8"));
-            matched.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
-            expandedDetails.addView(matched);
-        }
-        if (!exampleEn.isEmpty()) {
-            TextView example = new TextView(context);
-            example.setText("مثال: " + exampleEn + (!exampleAr.isEmpty() ? "\\n" + exampleAr : ""));
-            example.setTextColor(Color.parseColor("#CBD5E1"));
-            example.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
-            example.setPadding(0, dp(context, 5), 0, 0);
-            expandedDetails.addView(example);
-        }
-        root.addView(expandedDetails);
 
-        LinearLayout actions = new LinearLayout(context);
-        actions.setGravity(Gravity.CENTER_VERTICAL);
-        actions.setPadding(0, dp(context, 7), 0, 0);
-        TextView expand = createActionChip(context, "عرض البطاقة كاملة", "#1E293B", "#A7F3D0");
-        expand.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
-        expand.setPadding(dp(context, 9), dp(context, 5), dp(context, 9), dp(context, 5));
-        expand.setOnClickListener(v -> {
-            boolean show = expandedDetails.getVisibility() != View.VISIBLE;
-            expandedDetails.setVisibility(show ? View.VISIBLE : View.GONE);
-            definition.setMaxLines(show ? 8 : 2);
-            expand.setText(show ? "إخفاء التفاصيل" : "عرض البطاقة كاملة");
-            if (onUserInteraction != null) onUserInteraction.run();
-        });
-        actions.addView(expand, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-
-        TextView speak = createActionChip(context, "🔊", "#059669", "#FFFFFF");
-        speak.setContentDescription("نطق المصطلح");
-        speak.setOnClickListener(v -> {
-            if (onUserInteraction != null) onUserInteraction.run();
-            speakMedicalTerm(context, termEn);
-        });
-        LinearLayout.LayoutParams speakLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        speakLp.setMargins(dp(context, 5), 0, 0, 0);
-        actions.addView(speak, speakLp);
-
-        TextView copy = createActionChip(context, "نسخ", "#1E293B", "#E2E8F0");
-        copy.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
-        copy.setPadding(dp(context, 9), dp(context, 5), dp(context, 9), dp(context, 5));
-        copy.setOnClickListener(v -> {
-            if (onUserInteraction != null) onUserInteraction.run();
-            String value = translationAr.isEmpty() ? termEn : translationAr;
-            ignoreClipboardText = value;
-            try {
-                ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-                if (cm != null) {
-                    cm.setPrimaryClip(ClipData.newPlainText("UMEDT Translation", value));
-                    copy.setText("تم");
-                }
-            } catch (Exception ignored) { }
-        });
-        LinearLayout.LayoutParams copyLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        copyLp.setMargins(dp(context, 5), 0, 0, 0);
-        actions.addView(copy, copyLp);
-        root.addView(actions);
         return root;
     }
 

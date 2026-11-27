@@ -134,7 +134,8 @@ public class UMEDTPopupCardActivity extends Activity {
     }
 
     private void processDirectTextLookup(String rawText, boolean notifyIfMissing) {
-        if (UMEDTDictionaryPopupEngine.shouldIgnoreText(rawText)) {
+        if (UMEDTDictionaryPopupEngine.shouldIgnoreText(rawText)
+                || !UMEDTDictionaryPopupEngine.isSingleWordLookup(rawText)) {
             closeSilently();
             return;
         }
@@ -172,7 +173,7 @@ public class UMEDTPopupCardActivity extends Activity {
 
         int screenWidth = getResources().getDisplayMetrics().widthPixels;
         float density = getResources().getDisplayMetrics().density;
-        int cardWidth = Math.min(screenWidth - Math.round(24 * density), Math.round(460 * density));
+        int cardWidth = Math.min(screenWidth - Math.round(32 * density), Math.round(320 * density));
 
         View cardView = UMEDTDictionaryPopupEngine.buildTranslationCardView(
                 this,
