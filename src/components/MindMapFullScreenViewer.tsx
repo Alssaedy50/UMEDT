@@ -10,7 +10,6 @@ import {
   Minus,
   Plus,
   MoreVertical,
-  Share2,
   X
 } from 'lucide-react';
 import { MindMapDocument, MindMapStyle } from '../types/mindMap';
