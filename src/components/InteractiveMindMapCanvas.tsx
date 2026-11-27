@@ -1022,10 +1022,11 @@ export const InteractiveMindMapCanvas: React.FC<InteractiveMindMapCanvasProps> =
               <marker
                 id={`mm-arrow-${doc.id}`}
                 viewBox="0 0 10 10"
-                refX="8"
+                refX="9"
                 refY="5"
-                markerWidth="6"
-                markerHeight="6"
+                markerWidth="7"
+                markerHeight="7"
+                markerUnits="userSpaceOnUse"
                 orient="auto-start-reverse"
               >
                 <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="currentColor" />
