@@ -606,15 +606,12 @@ export function buildStandaloneMindMapSvg(
   const { minX, minY, width, height } = layout.bounds;
   const bg = isDark ? '#0f172a' : '#f8fafc';
   const edgeStroke = isDark ? '#64748b' : '#94a3b8';
-  const labelBg = isDark ? '#1e293b' : '#ffffff';
-  const labelText = isDark ? '#cbd5e1' : '#334155';
   const nodeById = new Map(doc.nodes.map((node) => [node.id, node]));
 
   const edgeElements = layout.edges
     .map((e) => {
       const dash = e.lineStyle === 'dashed' ? ' stroke-dasharray="6 4"' : '';
       const marker = e.directed ? ' marker-end="url(#mm-arrow)"' : '';
-      const labelWidth = e.label ? Math.max(64, Math.min(220, Math.round(e.label.length * 7.2 + 22))) : 84;
       const relationStroke = e.isCrossLink ? '#a78bfa' : '#2dd4bf';
       const relationWidth = e.isCrossLink ? 2.1 : 3.2;
       const relationOpacity = e.isCrossLink ? 0.76 : 0.96;
@@ -628,10 +625,10 @@ export function buildStandaloneMindMapSvg(
       const labelWidth = Math.max(64, Math.min(220, Math.round((edge.label || '').length * 7.2 + 22)));
       return `<g class="mm-edge-label" transform="translate(${edge.labelX}, ${edge.labelY})" pointer-events="none">
         <rect x="${-Math.round(labelWidth / 2)}" y="-11" width="${labelWidth}" height="22" rx="11" fill="#0b1220" stroke="#64748b" stroke-width="1.2" />
-        <text x="0" y="3.5" text-anchor="middle" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="10" font-weight="700" fill="#e2e8f0">${escapeXml(edge.label || '')}</text>
+        <text x="0" y="3.5" text-anchor="middle" dir="auto" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="10" font-weight="700" fill="#e2e8f0">${escapeXml(edge.label || '')}</text>
       </g>`;
     })
-    .join('\\n');
+    .join('\n');
 
   const nodeElements = layout.nodes
     .map((pn) => {
