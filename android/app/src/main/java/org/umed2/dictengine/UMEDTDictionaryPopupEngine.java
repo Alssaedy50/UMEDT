@@ -622,7 +622,7 @@ public final class UMEDTDictionaryPopupEngine {
             dismissFloatingCard();
 
             int screenWidth = context.getResources().getDisplayMetrics().widthPixels;
-            int cardWidth = Math.min(screenWidth - dp(context, 24), dp(context, 460));
+            int cardWidth = Math.min(screenWidth - dp(context, 32), dp(context, 320));
             int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                     | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                     | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
