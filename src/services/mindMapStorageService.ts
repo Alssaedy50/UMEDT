@@ -562,7 +562,7 @@ export function buildStandaloneMindMapSvg(
       const relationStroke = e.isCrossLink ? '#a78bfa' : '#2dd4bf';
       const relationWidth = e.isCrossLink ? 2.1 : 3.2;
       const relationOpacity = e.isCrossLink ? 0.76 : 0.96;
-      return `<g class="mm-edge" data-kind="${e.isCrossLink ? 'cross-link' : 'tree-link'}" data-from="${escapeXml(e.sourceId)}" data-to="${escapeXml(e.targetId)}"><path d="${escapeXml(e.path)}" fill="none" stroke="${relationStroke}" stroke-width="${relationWidth}" opacity="${relationOpacity}"${dash}${marker} /></g>`;
+      return `<g class="mm-edge" data-edge-id="${escapeXml(e.id)}" data-kind="${e.isCrossLink ? 'cross-link' : 'tree-link'}" data-from="${escapeXml(e.sourceId)}" data-to="${escapeXml(e.targetId)}"><path d="${escapeXml(e.path)}" fill="none" stroke="${relationStroke}" stroke-width="${relationWidth}" opacity="${relationOpacity}" pointer-events="stroke"${dash}${marker} /></g>`;
     })
     .join('\n');
 
@@ -570,7 +570,7 @@ export function buildStandaloneMindMapSvg(
     .filter((edge) => Boolean(edge.label))
     .map((edge) => {
       const labelWidth = Math.max(64, Math.min(220, Math.round((edge.label || '').length * 7.2 + 22)));
-      return `<g class="mm-edge-label" transform="translate(${edge.labelX}, ${edge.labelY})" pointer-events="none">
+      return `<g class="mm-edge-label" data-edge-id="${escapeXml(edge.id)}" transform="translate(${edge.labelX}, ${edge.labelY})" pointer-events="none">
         <rect x="${-Math.round(labelWidth / 2)}" y="-11" width="${labelWidth}" height="22" rx="11" fill="#0b1220" stroke="#64748b" stroke-width="1.2" />
         <text x="0" y="3.5" text-anchor="middle" dir="auto" direction="auto" unicode-bidi="plaintext" font-family="'IBM Plex Sans Arabic', Inter, Cairo, sans-serif" font-size="10" font-weight="700" fill="#e2e8f0">${escapeXml(edge.label || '')}</text>
       </g>`;
@@ -639,13 +639,14 @@ export function buildStandaloneMindMapSvg(
   )}" height="${Math.round(height)}">
   <title>${escapeXml(doc.title)}</title>
   <defs>
-    <marker id="mm-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <marker id="mm-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
       <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="${edgeStroke}" />
     </marker>
   </defs>
   <rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="${bg}" />
-  ${edgeElements}
-  ${edgeLabelElements}
+  <g class="mm-edge-layer" data-layer="base">${edgeElements}</g>
+  <g class="mm-edge-label-layer" data-layer="base-labels">${edgeLabelElements}</g>
   ${nodeElements}
+  <g class="mm-edge-overlay" data-layer="active-overlay" pointer-events="none"></g>
 </svg>`;
 }
