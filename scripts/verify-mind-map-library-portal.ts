@@ -24,6 +24,8 @@ const configuredTextPrompt = buildMindMapGenerationPrompt({ topic: 'Atherosclero
 assert(configuredTextPrompt.includes('Atherosclerosis') && configuredTextPrompt.includes('32 عقدة') && configuredTextPrompt.includes('"style": "hierarchical"'), 'Configured prompt must include topic, requested node count, and selected layout.');
 const configuredFilePrompt = buildMindMapGenerationPrompt({ topic: 'Myocardial Infarction', nodeCount: 18, style: 'medical_flow', outputFormat: 'file' });
 assert(configuredFilePrompt.includes('medical-mind-map.json') && configuredFilePrompt.includes('Myocardial Infarction') && configuredFilePrompt.includes('"style": "medical_flow"'), 'File prompt must request a downloadable JSON file with the selected topic and layout.');
+const optionalCountPrompt = buildMindMapGenerationPrompt({ topic: 'Heart Failure', style: 'hierarchical', outputFormat: 'text' });
+assert(optionalCountPrompt.includes('Heart Failure') && optionalCountPrompt.includes('لا يوجد عدد محدد للعقد') && !optionalCountPrompt.includes('العدد المستهدف:'), 'Node count must remain optional when omitted.');
 
 const longExplanation = Array.from({ length: 120 }, (_, i) => `Paragraph ${i + 1}: detailed medical explanation.`).join('\\n\\n');
 const parsed = parseMindMapInput(JSON.stringify({
@@ -76,10 +78,15 @@ assert(studio.includes('CalendarClock') && studio.includes('Clock3'), 'Map cards
 assert(studio.includes('إنشاء يدوي') && studio.includes('استيراد خريطة'), 'The compact add menu must expose only manual creation and import.');
 assert(studio.includes('creationTopicId') && studio.includes('importLinkedTopicId'), 'Manual creation and import must independently support topic linking.');
 assert(studio.includes('InteractiveMindMapCanvas') && studio.includes('نمط التخطيط'), 'Manual maps must open in the interactive editor with layout settings.');
+assert(studio.includes('حفظ الخريطة') && studio.includes('handleSaveActiveMap'), 'The active mind-map editor must expose an explicit save action.');
+assert(studio.includes("useState('')") && !studio.includes('fallbackOnBlur={24}'), 'The AI node-count field must be optional and stay empty when cleared.');
 assert(studio.includes('parseMindMapInput') && studio.includes('رفع ملف'), 'The dedicated import page must parse pasted content and uploaded files.');
 const libraryPath = path.join(process.cwd(), 'src/components/LibraryView.tsx');
 const library = fs.readFileSync(libraryPath, 'utf8');
 assert(!library.includes('LibraryMindMapsPortal') && !library.includes('setIsMindMapsPortalOpen'), 'Library must not expose a separate mind-map manager.');
 assert(library.includes('mindMapCount') && library.includes('إجمالي الخرائط المحفوظة'), 'Library may show only the mind-map count summary.');
 assert(!fs.existsSync(path.join(process.cwd(), 'src/components/LibraryMindMapsPortal.tsx')), 'Legacy duplicate Library mind-map portal must be removed.');
-console.log('[PASS] Central mind-map manager, sort modes, topic linking, import and Library count-only summary.');
+const clipboardPath = path.join(process.cwd(), 'android/app/src/main/java/org/umed2/dictengine/UMEDTClipboardMonitorService.java');
+const clipboardService = fs.readFileSync(clipboardPath, 'utf8');
+assert(clipboardService.includes('getRecentSelectedText(5000L)') && clipboardService.includes('isSingleWordLookup(selectedWord)'), 'Confirmed copy events must fall back to the fresh single-word selection when Android blocks clipboard reads.');
+console.log('[PASS] Central mind-map manager, optional node count, explicit save, and copy-triggered translation fallback.');
