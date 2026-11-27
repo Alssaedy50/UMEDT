@@ -79,7 +79,10 @@ function measureNodeBox(node: MindMapNode, isRoot: boolean): {
   const baseHeight = isRoot ? 58 : 48;
   const extraLine = lines.length > 1 ? 18 : 0;
   const extraSub = sublabelLine ? 18 : 0;
-  const height = baseHeight + extraLine + extraSub;
+  // Reserve a dedicated visual line for the parent label so every child card
+  // remains identifiable even when relationship connectors are dense.
+  const extraParent = node.parentId ? 15 : 0;
+  const height = baseHeight + extraLine + extraSub + extraParent;
 
   return { width, height, lines, sublabelLine };
 }
@@ -598,6 +601,50 @@ export function computeMindMapLayout(
     };
     positionedNodes.push(pNode);
     positionedMap.set(id, pNode);
+  }
+
+  // Resolve imported/manual coordinate collisions before drawing connectors.
+  // Move a colliding branch as a unit so parent-child geometry remains coherent.
+  const positionedById = new Map(positionedNodes.map((node) => [node.node.id, node]));
+  const orderedForCollision = [...positionedNodes].sort(
+    (a, b) => a.depth - b.depth || a.y - b.y || a.x - b.x
+  );
+  const placedForCollision: PositionedMindMapNode[] = [];
+  for (const current of orderedForCollision) {
+    const branchIds = new Set<string>();
+    const collectBranch = (id: string) => {
+      if (branchIds.has(id)) return;
+      branchIds.add(id);
+      (childrenMap.get(id) || []).forEach((child) => collectBranch(child.id));
+    };
+    collectBranch(current.node.id);
+
+    let shiftY = 0;
+    let attempts = 0;
+    while (attempts++ < positionedNodes.length + 2) {
+      const top = current.y + shiftY - current.height / 2;
+      const bottom = current.y + shiftY + current.height / 2;
+      const collision = placedForCollision.find((placed) => {
+        if (branchIds.has(placed.node.id)) return false;
+        const horizontalOverlap =
+          Math.abs(current.x - placed.x) < (current.width + placed.width) / 2 + 18;
+        const verticalOverlap =
+          top < placed.y + placed.height / 2 + 22 &&
+          bottom > placed.y - placed.height / 2 - 22;
+        return horizontalOverlap && verticalOverlap;
+      });
+      if (!collision) break;
+      const requiredTop = collision.y + collision.height / 2 + 24;
+      shiftY = Math.max(shiftY, requiredTop - (current.y - current.height / 2));
+    }
+
+    if (shiftY > 0) {
+      branchIds.forEach((id) => {
+        const branchNode = positionedById.get(id);
+        if (branchNode) branchNode.y += shiftY;
+      });
+    }
+    placedForCollision.push(current);
   }
 
   // Assemble Edges (Parent-Child tree connectors + custom labeled relationships)
