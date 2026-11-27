@@ -26,7 +26,7 @@ import {
 } from '../services/mindMapStorageService';
 import {
   parseMindMapInput,
-  MIND_MAP_AI_PROMPTS
+  buildMindMapGenerationPrompt
 } from '../services/mindMapImportService';
 import { InteractiveMindMapCanvas } from './InteractiveMindMapCanvas';
 import { parseUploadedFile } from '../services/fileParserService';
@@ -257,20 +257,12 @@ export const MindMapStudioModal: React.FC<MindMapStudioModalProps> = ({
     }
   };
 
-  const buildConfiguredPrompt = () => {
-    const topic = promptTopic.trim() || scopedTopic?.title || initialTopic?.title || '[اكتب الموضوع الطبي]';
-    const outputInstruction = promptOutputFormat === 'file'
-      ? 'أنشئ ملفاً قابلاً للتنزيل باسم medical-mind-map.json بترميز UTF-8، ويحتوي الملف على كائن JSON فقط. إذا كانت المنصة لا تدعم إنشاء الملفات، أخرج نص JSON كاملاً دون Markdown ليتمكن المستخدم من نسخه.'
-      : 'أخرج نص JSON كاملاً فقط داخل المحادثة دون Markdown أو أسوار كود أو مقدمة أو خاتمة.';
-    return MIND_MAP_AI_PROMPTS.json
-      .replace('[اكتب اسم الموضوع الطبي هنا]', topic)
-      .replace('"style": "radial"', `"style": "${promptStyle}"`)
-      .replace(
-        'أعد كائن JSON واحداً فقط، صالحاً للتحليل مباشرة بواسطة UMEDT. لا تستخدم Markdown أو أسوار كود أو مقدمة أو خاتمة.',
-        outputInstruction
-      )
-      + `\n\nالمواصفات المحددة لهذه الخريطة:\n- الموضوع: ${topic}.\n- العدد المستهدف: ${promptNodeCount} عقدة إجمالاً، وتُحتسب عقدة الجذر ضمن العدد. لا تتجاوز العدد ولا تقل عنه إلا إذا كان ذلك ضرورياً لصحة المحتوى؛ وعند التعذر اذكر ذلك في subtitle دون إضافة نص خارج JSON.\n- نمط التخطيط: ${promptStyle}.\n- يجب أن تكون كل عقدة وعلاقة صالحة وفق المخطط أعلاه، وأن تكون جميع parentId وsourceId وtargetId مرتبطة بمعرفات موجودة.\n- لا تضف حقولاً أو صيغاً غير مدعومة. يجب أن يستطيع مستورد UMEDT تحليل النتيجة مباشرة دون تحويل يدوي.`;
-  };
+  const buildConfiguredPrompt = () => buildMindMapGenerationPrompt({
+    topic: promptTopic.trim() || scopedTopic?.title || initialTopic?.title || '',
+    nodeCount: promptNodeCount,
+    style: promptStyle,
+    outputFormat: promptOutputFormat
+  });
 
   const handleCopyPrompt = async (key: 'json') => {
     try {
