@@ -756,7 +756,7 @@ function normalizeDictionaryTerm(
   const translation = String(
     raw.translation || raw.arabicTranslation || raw.ar || raw.meaning || raw.titleAr || ''
   ).trim();
-  if (!translation || !/[\u0600-\u06FF]/.test(translation) || /^(مصطلح طبي|ترجمة عربية|غير معروف)$/i.test(translation)) return null;
+  if (translation && (!/[\u0600-\u06FF]/.test(translation) || /^(مصطلح طبي|ترجمة عربية|غير معروف)$/i.test(translation))) return null;
   const defAr = String(raw.definitionAr || raw.arabicDefinition || raw.definition || '').trim();
   const defEn = String(raw.definitionEn || raw.englishDefinition || '').trim();
 
@@ -1613,13 +1613,14 @@ function collectFromStructuredTextFallback(rawText: string, buckets: ParsedBucke
 
       if (tag === 'TERM' && cols.length >= 3) {
         const termEn = cols[1] || '';
-        const translation = cols[2] || 'مصطلح طبي';
-        const pos = cols[3] || (termEn.includes(' ') ? 'phrase' : 'noun');
-        const category = cols[4] || 'Medical';
-        const defAr = cols[5] || `مصطلح طبي سريري يعني ${translation}.`;
-        const defEn = cols[6] || `Clinical medical term: ${termEn}.`;
-        const exEn = cols[7] || '';
-        const exAr = cols[8] || '';
+        const englishOnly = cols.length < 9;
+        const translation = englishOnly ? '' : (cols[2] || '');
+        const pos = englishOnly ? (cols[2] || (termEn.includes(' ') ? 'phrase' : 'noun')) : (cols[3] || (termEn.includes(' ') ? 'phrase' : 'noun'));
+        const category = englishOnly ? (cols[3] || 'Medical') : (cols[4] || 'Medical');
+        const defAr = englishOnly ? '' : (cols[5] || '');
+        const defEn = englishOnly ? (cols[4] || `Clinical medical term: ${termEn}.`) : (cols[6] || `Clinical medical term: ${termEn}.`);
+        const exEn = englishOnly ? (cols[5] || '') : (cols[7] || '');
+        const exAr = englishOnly ? '' : (cols[8] || '');
         const tm = normalizeDictionaryTerm(
           {
             id: `u-hd-term-${Date.now()}-${idx}`,
