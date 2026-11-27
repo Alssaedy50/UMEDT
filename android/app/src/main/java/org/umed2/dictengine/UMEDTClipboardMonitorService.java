@@ -144,9 +144,24 @@ public class UMEDTClipboardMonitorService extends Service {
             return;
         }
 
-        // Only the newly copied clipboard value can trigger an automatic lookup.
-        // Never use the accessibility service's cached selection here.
-        // 1. Try direct clipboard inspection first (succeeds on Android <= 9 or when app/IME/Accessibility has focus)
+        // A clipboard-change callback is an explicit copy event. On Android 10+,
+        // background clipboard reads may be blocked, so use the fresh selection that
+        // Accessibility captured immediately before the user pressed Copy.
+        UMEDTAutoTranslateAccessibilityService accessibility =
+                UMEDTAutoTranslateAccessibilityService.getActiveInstance();
+        if (accessibility != null) {
+            String selectedWord = accessibility.getRecentSelectedText(5000L);
+            if (UMEDTDictionaryPopupEngine.isSingleWordLookup(selectedWord)) {
+                JSONObject selectedMatch =
+                        UMEDTDictionaryPopupEngine.findTerm(accessibility, selectedWord);
+                if (selectedMatch != null) {
+                    UMEDTDictionaryPopupEngine.showFloatingCard(accessibility, selectedMatch, false);
+                    return;
+                }
+            }
+        }
+
+        // Fallback: read the clipboard directly on Android versions/devices that permit it.
         Context lookupCtx = this;
         JSONObject directMatch = UMEDTDictionaryPopupEngine.inspectClipboardAndShowIfMatched(lookupCtx, false);
         if (directMatch != null) {
