@@ -78,7 +78,6 @@ public final class UMEDTDictionaryPopupEngine {
 
     private static String lastShownTermKey = "";
     private static long lastShownTimestampMs = 0L;
-    private static String lastAutoClipboardValue = "";
     private static volatile String ignoreClipboardText = "";
 
     private static TextToSpeech ttsEngine = null;
@@ -563,12 +562,8 @@ public final class UMEDTDictionaryPopupEngine {
             if (copied.isEmpty() || shouldIgnoreText(copied) || !isSingleWordLookup(copied)) {
                 return null;
             }
-            if (!forceShow && copied.equals(lastAutoClipboardValue)) {
-                return null;
-            }
             JSONObject matched = findTerm(context, copied);
             if (matched != null) {
-                lastAutoClipboardValue = copied;
                 showFloatingCard(context, matched, forceShow);
             }
             return matched;
