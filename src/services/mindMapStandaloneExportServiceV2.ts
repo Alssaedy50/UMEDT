@@ -102,8 +102,12 @@ button{font:inherit;color:inherit;cursor:pointer}
 .app{height:100dvh;min-height:100%;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
 .topbar{position:relative;z-index:20;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line);backdrop-filter:blur(18px)}
 .brand{min-width:0;flex:1}.eyebrow{font-size:10px;font-weight:800;letter-spacing:.14em;color:var(--accent);text-transform:uppercase}.title{font-size:clamp(13px,2vw,17px);font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
-.actions{display:flex;gap:6px;align-items:center;flex-shrink:0;max-width:100%;overflow-x:auto;padding-bottom:2px}
-.style-group{display:flex;gap:2px;padding:2px;border:1px solid var(--line);border-radius:11px;background:${isDark ? 'rgba(255,255,255,.04)' : 'rgba(15,35,55,.05)'}}
+.actions{position:relative;display:flex;align-items:center;flex-shrink:0;max-width:100%;direction:rtl}
+.tools-menu{position:relative}
+.tools-menu>summary{display:flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:${isDark ? 'rgba(255,255,255,.06)' : '#fff'};font-size:12px;font-weight:900;cursor:pointer;list-style:none;white-space:nowrap}
+.tools-menu>summary::-webkit-details-marker{display:none}
+.tools-content{position:absolute;top:calc(100% + 8px);right:0;z-index:50;display:flex;flex-direction:column;gap:7px;width:min(320px,calc(100vw - 24px));max-height:min(72dvh,620px);overflow-y:auto;padding:10px;border:1px solid var(--line);border-radius:16px;background:var(--panel);box-shadow:0 16px 44px rgba(0,0,0,.24);backdrop-filter:blur(18px)}
+.style-group{display:flex;flex-wrap:wrap;gap:4px;padding:3px;border:1px solid var(--line);border-radius:11px;background:${isDark ? 'rgba(255,255,255,.04)' : 'rgba(15,35,55,.05)'}}
 .style-btn{min-height:30px;padding:0 9px;border:none;border-radius:8px;background:transparent;font-size:11px;font-weight:800;white-space:nowrap}
 .style-btn.active{background:#10b981;color:#042419}
 .action{min-height:34px;padding:0 10px;border:1px solid var(--line);border-radius:11px;background:${isDark ? 'rgba(255,255,255,.06)' : '#fff'};font-size:11px;font-weight:800;white-space:nowrap}
@@ -147,17 +151,22 @@ button{font:inherit;color:inherit;cursor:pointer}
 <header class="topbar">
   <div class="brand"><div class="eyebrow">UMEDT · INTERACTIVE MIND MAP</div><div class="title">${title}</div></div>
   <div class="actions">
-    <div class="style-group" role="group" aria-label="طريقة عرض الخريطة">
-      <button class="style-btn" data-style="radial" type="button">شعاعية</button>
-      <button class="style-btn" data-style="hierarchical" type="button">هرمية</button>
-      <button class="style-btn" data-style="medical_flow" type="button">مسار سريري</button>
-    </div>
-    <button class="action" id="seq-toggle" type="button">عرض تسلسلي</button>
-    <button class="action" id="nodes-toggle" type="button">التحكم بالعقد</button>
-    <button class="action" id="expand" type="button">توسيع الكل</button>
-    <button class="action" id="collapse" type="button">طي الفروع</button>
-    <button class="action" id="fit" type="button">ملاءمة الكل</button>
-    <button class="action icon" id="fullscreen" type="button" aria-label="ملء الشاشة" title="ملء الشاشة">⛶</button>
+    <details class="tools-menu">
+      <summary>☰ خيارات الخريطة <span aria-hidden="true">⌄</span></summary>
+      <div class="tools-content">
+        <div class="style-group" role="group" aria-label="طريقة عرض الخريطة">
+          <button class="style-btn" data-style="radial" type="button">شعاعية</button>
+          <button class="style-btn" data-style="hierarchical" type="button">هرمية</button>
+          <button class="style-btn" data-style="medical_flow" type="button">مسار سريري</button>
+        </div>
+        <button class="action" id="seq-toggle" type="button">عرض تسلسلي</button>
+        <button class="action" id="nodes-toggle" type="button">التحكم بالعقد</button>
+        <button class="action" id="expand" type="button">توسيع الكل</button>
+        <button class="action" id="collapse" type="button">طي الفروع</button>
+        <button class="action" id="fit" type="button">ملاءمة الكل</button>
+        <button class="action" id="fullscreen" type="button" aria-label="ملء الشاشة" title="ملء الشاشة">ملء الشاشة</button>
+      </div>
+    </details>
   </div>
 </header>
 <main class="viewport" id="viewport">
