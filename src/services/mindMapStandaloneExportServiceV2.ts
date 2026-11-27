@@ -286,7 +286,8 @@ function fitPrimary(){
   ids.forEach(function(id){var box=boxes[id];minX=Math.min(minX,box.x-box.width/2);maxX=Math.max(maxX,box.x+box.width/2);minY=Math.min(minY,box.y-box.height/2);maxY=Math.max(maxY,box.y+box.height/2);});
   var w=Math.max(1,maxX-minX+56),h=Math.max(1,maxY-minY+56),top=12,bot=Math.min(190,viewport.clientHeight*.24);
   var uw=Math.max(200,viewport.clientWidth-24),uh=Math.max(150,viewport.clientHeight-top-bot);
-  scale=clamp(Math.min(uw/w,uh/h),.65,.8);
+  var overviewFit=Math.min(uw/w,uh/h);
+  scale=viewport.clientWidth<=640?clamp(overviewFit,.65,.8):clamp(overviewFit,.16,1.5);
   var cx=(minX+maxX)/2-b.minX,cy=(minY+maxY)/2-b.minY;
   tx=viewport.clientWidth/2-cx*scale;ty=top+uh/2-cy*scale;transform(true);
 }
