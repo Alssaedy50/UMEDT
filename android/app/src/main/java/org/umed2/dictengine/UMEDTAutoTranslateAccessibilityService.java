@@ -75,10 +75,6 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
             return;
         }
 
-        if (!UMEDTDictionaryPopupEngine.isClipboardMonitorEnabled(this)) {
-            return;
-        }
-
         int eventType = event.getEventType();
 
         // 1. Track text selection in any external app (works even without background clipboard access)
@@ -92,6 +88,28 @@ public class UMEDTAutoTranslateAccessibilityService extends AccessibilityService
                     tryShowTranslationForText(selected, false);
                 }
             }
+            return;
+        }
+
+        // Some apps (notably WebView/PDF readers) update the selected range through
+        // window-content events instead of TYPE_VIEW_TEXT_SELECTION_CHANGED.
+        // Read only an actual accessibility text selection; never translate arbitrary
+        // visible text or observe typed characters.
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+            String selected = extractActiveWindowSelection();
+            if (!selected.isEmpty() && selected.length() <= 180
+                    && !UMEDTDictionaryPopupEngine.shouldIgnoreText(selected)) {
+                lastSelectedText = selected;
+                lastSelectedTimestampMs = System.currentTimeMillis();
+                if (UMEDTDictionaryPopupEngine.isAutoTranslateOnSelectEnabled(this)) {
+                    tryShowTranslationForText(selected, false);
+                }
+            }
+            return;
+        }
+
+        // Copy monitoring can be disabled independently from automatic selection translation.
+        if (!UMEDTDictionaryPopupEngine.isClipboardMonitorEnabled(this)) {
             return;
         }
 
